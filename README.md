@@ -29,28 +29,55 @@ Plex card-swiping for people who spend more time picking a movie than watching o
 ## Requirements
 - **Plex Media Server**
 - **Plex Auth Token**
+- **TMDB key for trailers** (Not required but trailers will not work on the back of the posters)
 - **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone, you must access it over an HTTPS connection. If you use a local IP over HTTP, it will work in the browser but you won't see the install prompt.
 
+## TMDB API instructions
+Only required if you want trailers to work on the rear of the movie posters
+
+1. Create a TMDB Account
+If you don't already have one, you need to register on the TMDB website:
+
+Go to themoviedb.org/signup.
+
+Verify your email address to activate the account.
+
+2. Access the API Settings
+Once logged in:
+
+Click on your Profile Icon in the top right corner of the screen.
+
+Select Settings from the dropdown menu.
+
+On the left-hand sidebar, click on API.
+
+3. Create an API Key
+Under the "Request an API Key" section, click on the link for Create.
+
+You will be asked to choose a type of API key. Select Developer.
+
+Accept the Terms of Use.
+
+Fill out the form: * Type of Use: Personal/Educational.
+
+Application Name: Kino-Swipe.
+
+Application URL: (You can put localhost or your server's IP).
+
+Application Summary: "An app to help find movies to watch from my Plex library with a Tinder-style swipe interface."
+
+Submit the form.
+
+4. Copy your API Key
+You will now see two different keys. For Kino-Swipe, you need the API Key (v3 auth). It is a long string of numbers and letters.
 ---
 
 ## Deployment
 
-### Option 1: Docker Run (Recommended)
+### Option 1: Docker (Recommended)
 Copy and paste this into your terminal. Replace the variables with your specific setup.
 
 ```bash
-docker run -d \
-  --name kino-swipe \
-  -p 5005:5005 \
-  -e PLEX_URL="https://YOUR_PLEX_URL" \
-  -e PLEX_TOKEN="YOUR_PLEX_TOKEN" \
-  -v kino_data:/app/data \
-  --restart unless-stopped \
-  bergasha/kino-swipe:latest
-
-Option 2: Docker compose
-Add this to compose yaml.
-
 services:
   kino-swipe:
     image: bergasha/kino-swipe:latest
@@ -61,6 +88,7 @@ services:
       - PLEX_URL=https://YOUR_PLEX_IP:32400
       - PLEX_TOKEN=YOUR_PLEX_TOKEN
       - FLASK_SECRET=SomeRandomString
+      - TMDB_API_KEY=your_copied_tmdb_key_here
     volumes:
       - ./data:/app/data
       - ./static:/app/static
