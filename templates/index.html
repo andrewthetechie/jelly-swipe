@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="/static/main.png">
 
     <style>
-        /* Version: 1.2.9 - Clean Front Posters */
+        /* Version: 1.3.0 - Integrated Trailers */
         @import url('https://fonts.googleapis.com/css2?family=Allura&display=swap');
         
         body { background: #111; color: white; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -45,6 +45,11 @@
         .movie-card { position: absolute; width: 90%; height: 100%; left: 5%; top: 0; touch-action: none; z-index: 5; }
         .movie-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 
+        /* Trailer Styles */
+        .trailer-btn { background: #e5a00d; color: black; border: none; padding: 10px; width: 90%; font-weight: bold; border-radius: 8px; margin: 5px 0; cursor: pointer; font-size: 0.8rem; z-index: 200; }
+        .trailer-box { width: 90%; aspect-ratio: 16/9; background: #000; margin: 5px 0; border-radius: 8px; display: none; overflow: hidden; }
+        .trailer-box iframe { width: 100%; height: 100%; border: none; }
+
         #matches-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; }
         #matches-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 500px; overflow-y: auto; padding-bottom: 120px; }
         
@@ -56,11 +61,11 @@
         .plex-open-btn { background: #e5a00d; color: black; border: none; padding: 10px 5px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; cursor: pointer; text-decoration: none; width: 90%; margin-top: 10px; display: block; text-align: center; }
         .mini-title-text { font-size: 0.8rem; font-weight: bold; color: white; text-align: center; }
 
-        .stats-row { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .stats-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
         .stat-badge { background: black; color: #e5a00d; padding: 4px 8px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
         
-        .back-content { overflow-y: auto; flex-grow: 1; margin-bottom: 10px; }
-        .back-content p { font-size: 0.95rem; line-height: 1.5; color: #eee; margin: 0; }
+        .back-content { overflow-y: auto; flex-grow: 1; margin-bottom: 10px; padding: 0 15px; }
+        .back-content p { font-size: 0.95rem; line-height: 1.5; color: #eee; margin: 0; text-align: left; }
 
         .glow-side { position: absolute; top: 0; width: 40%; height: 100%; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.2s; }
         #glow-left { left: 0; background: linear-gradient(to right, rgba(211, 47, 47, 0.6), transparent); }
@@ -329,26 +334,50 @@
                         <img src="${m.thumb}">
                     </div>
                     <div class="card-back">
-                        <div class="movie-title">${m.title}</div>
+                        <div class="movie-title" style="margin-bottom:10px; font-weight:bold; font-size:1.2rem;">${m.title}</div>
                         <div class="stats-row">
                             ${m.rating ? `<span class="stat-badge">IMDb ${m.rating}</span>` : ''}
                             ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
                         </div>
+                        <div id="vid-${m.id}" class="trailer-box"></div>
+                        <button class="trailer-btn" onclick="watchTrailer(event, '${m.id}', this)">WATCH TRAILER</button>
                         <div class="back-content">
                             <p>${m.summary || 'No description available.'}</p>
                         </div>
-                        <div style="font-size:0.75rem; color:#e5a00d; text-align:center; margin-top: auto;">Tap to flip back</div>
+                        <div style="font-size:0.75rem; color:#e5a00d; text-align:center; margin-top: auto; padding-bottom:10px;">Tap to flip back</div>
                     </div>
                 </div>
             `;
 
-            c.addEventListener('click', () => {
-                if (Math.abs(globalCurrentX) < 5) {
+            c.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('trailer-btn') && Math.abs(globalCurrentX) < 5) {
                     c.classList.toggle('flipped');
                 }
             });
 
             return c;
+        }
+
+        async function watchTrailer(event, id, btn) {
+            event.stopPropagation();
+            const container = document.getElementById(`vid-${id}`);
+            
+            if (container.style.display === 'block') {
+                container.style.display = 'none';
+                container.innerHTML = '';
+                btn.innerText = 'WATCH TRAILER';
+            } else {
+                btn.innerText = 'LOADING...';
+                const res = await fetch(`/get-trailer/${id}`);
+                const data = await res.json();
+                if (data.youtube_key) {
+                    container.style.display = 'block';
+                    container.innerHTML = `<iframe src="https://www.youtube.com/embed/${data.youtube_key}?autoplay=1&playsinline=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                    btn.innerText = 'CLOSE TRAILER';
+                } else {
+                    btn.innerText = 'TRAILER NOT FOUND';
+                }
+            }
         }
 
         function initDrag(card) {
