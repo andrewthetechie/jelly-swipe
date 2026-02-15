@@ -35,11 +35,21 @@ def fetch_plex_movies(genre_name=None):
     plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
     movie_section = plex.library.section('Movies')
     do_shuffle = True
+    
+    # Logic to handle Sci-Fi specifically since Plex often uses "Science Fiction"
+    search_genre = genre_name
+    if genre_name == "Sci-Fi":
+        search_genre = "Science Fiction"
+
     if genre_name == "Recently Added":
         movies = movie_section.search(libtype='movie', sort='addedAt:desc', maxresults=100)
         do_shuffle = False
-    elif genre_name and genre_name != "All":
-        movies = movie_section.search(libtype='movie', genre=genre_name, sort='random', maxresults=100)
+    elif search_genre and search_genre != "All":
+        # First attempt with the mapping (e.g. Science Fiction)
+        movies = movie_section.search(libtype='movie', genre=search_genre, sort='random', maxresults=100)
+        # Fallback to the original string if the first search yielded nothing
+        if not movies and search_genre != genre_name:
+            movies = movie_section.search(libtype='movie', genre=genre_name, sort='random', maxresults=100)
     else:
         movies = movie_section.search(libtype='movie', sort='random', maxresults=150)
     
