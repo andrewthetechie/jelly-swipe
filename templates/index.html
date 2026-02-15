@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="/static/main.png">
 
     <style>
-        /* Version: 1.3.0 - Integrated Trailers */
+        /* Version: 1.3.1 - Enhanced Titles */
         @import url('https://fonts.googleapis.com/css2?family=Allura&display=swap');
         
         body { background: #111; color: white; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -45,6 +45,16 @@
         .movie-card { position: absolute; width: 90%; height: 100%; left: 5%; top: 0; touch-action: none; z-index: 5; }
         .movie-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 
+        /* Movie title on the back of the card */
+        .movie-title { 
+            margin-bottom: 10px; 
+            font-weight: bold; 
+            font-size: 1.8rem; 
+            color: #e5a00d; 
+            padding: 0 10px;
+            line-height: 1.1;
+        }
+
         /* Trailer Styles */
         .trailer-btn { background: #e5a00d; color: black; border: none; padding: 10px; width: 90%; font-weight: bold; border-radius: 8px; margin: 5px 0; cursor: pointer; font-size: 0.8rem; z-index: 200; }
         .trailer-box { width: 90%; aspect-ratio: 16/9; background: #000; margin: 5px 0; border-radius: 8px; display: none; overflow: hidden; }
@@ -59,13 +69,13 @@
         .mini-back { padding: 10px; border-radius: 10px; }
         
         .plex-open-btn { background: #e5a00d; color: black; border: none; padding: 10px 5px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; cursor: pointer; text-decoration: none; width: 90%; margin-top: 10px; display: block; text-align: center; }
-        .mini-title-text { font-size: 0.8rem; font-weight: bold; color: white; text-align: center; }
+        .mini-title-text { font-size: 1.1rem; font-weight: bold; color: #e5a00d; text-align: center; margin-bottom: 5px; line-height: 1.1; }
 
         .stats-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
         .stat-badge { background: black; color: #e5a00d; padding: 4px 8px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
         
         .back-content { overflow-y: auto; flex-grow: 1; margin-bottom: 10px; padding: 0 15px; }
-        .back-content p { font-size: 0.95rem; line-height: 1.5; color: #eee; margin: 0; text-align: left; }
+        .back-content p { font-size: 0.95rem; line-height: 1.4; color: #eee; margin: 0; text-align: left; }
 
         .glow-side { position: absolute; top: 0; width: 40%; height: 100%; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.2s; }
         #glow-left { left: 0; background: linear-gradient(to right, rgba(211, 47, 47, 0.6), transparent); }
@@ -275,7 +285,7 @@
                     <div class="mini-inner">
                         <div class="mini-front">
                             <img src="${m.thumb}" alt="${m.title}">
-                            <div style="position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.7); font-size:10px; padding:4px;">${m.title}</div>
+                            <div style="position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.7); font-size:10px; padding:4px; font-weight:bold;">${m.title}</div>
                         </div>
                         <div class="mini-back">
                             <div class="mini-title-text">${m.title}</div>
@@ -334,7 +344,7 @@
                         <img src="${m.thumb}">
                     </div>
                     <div class="card-back">
-                        <div class="movie-title" style="margin-bottom:10px; font-weight:bold; font-size:1.2rem;">${m.title}</div>
+                        <div class="movie-title">${m.title}</div>
                         <div class="stats-row">
                             ${m.rating ? `<span class="stat-badge">IMDb ${m.rating}</span>` : ''}
                             ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
