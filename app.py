@@ -5,14 +5,13 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3, os, random, requests, json
 
 app = Flask(__name__)
-
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 app.secret_key = os.getenv('FLASK_SECRET', 'KinoSwipe_2026_Default_Key')
-
 
 DB_PATH = '/app/data/kinoswipe.db'
 PLEX_URL = os.getenv('PLEX_URL', '').rstrip('/')
 ADMIN_TOKEN = os.getenv('PLEX_TOKEN')
+TMDB_API_KEY = os.getenv('TMDB_API_KEY') 
 CLIENT_ID = 'KinoSwipe-Bergasha-2026'
 
 def get_db():
@@ -23,11 +22,9 @@ def get_db():
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
-       
         conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT)')
         conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT)')
         conn.execute('CREATE TABLE IF NOT EXISTS matches (room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT)')
-        
         
         cursor = conn.execute("PRAGMA table_info(rooms)")
         columns = [column[1] for column in cursor.fetchall()]
@@ -38,7 +35,6 @@ def fetch_plex_movies(genre_name=None):
     plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
     movie_section = plex.library.section('Movies')
     do_shuffle = True
-    
     if genre_name == "Recently Added":
         movies = movie_section.search(libtype='movie', sort='addedAt:desc', maxresults=100)
         do_shuffle = False
@@ -60,29 +56,40 @@ def fetch_plex_movies(genre_name=None):
             'summary': m.summary, 
             'thumb': f"/proxy?path={m.thumb}",
             'rating': m.audienceRating or m.rating,
-            'duration': runtime_str
+            'duration': runtime_str,
+            'year': m.year
         })
     if do_shuffle:
         random.shuffle(movie_list)
     return movie_list
 
-
 @app.route('/')
-def index(): 
-    return render_template('index.html')
+def index(): return render_template('index.html')
+
+@app.route('/get-trailer/<movie_id>')
+def get_trailer(movie_id):
+    try:
+        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
+        item = plex.fetchItem(int(movie_id))
+        search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={item.title}&year={item.year}"
+        r = requests.get(search_url).json()
+        if r.get('results'):
+            tmdb_id = r['results'][0]['id']
+            v_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/videos?api_key={TMDB_API_KEY}"
+            v_res = requests.get(v_url).json()
+            trailers = [v for v in v_res.get('results', []) if v['site'] == 'YouTube' and v['type'] == 'Trailer']
+            if trailers: return jsonify({'youtube_key': trailers[0]['key']})
+        return jsonify({'error': 'Not found'}), 404
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/manifest.json')
-def serve_manifest(): 
-    return send_from_directory('static', 'manifest.json')
+def serve_manifest(): return send_from_directory('static', 'manifest.json')
 
 @app.route('/sw.js')
-def serve_sw(): 
-    return send_from_directory('.', 'sw.js')
+def serve_sw(): return send_from_directory('.', 'sw.js')
 
 @app.route('/static/<path:path>')
-def serve_static(path): 
-    return send_from_directory('static', path)
-
+def serve_static(path): return send_from_directory('static', path)
 
 @app.route('/auth/plex-url')
 def get_plex_url():
