@@ -23,19 +23,26 @@ Plex card-swiping for people who spend more time picking a movie than watching o
 - **Plex Integration:** Connects directly to your server to pull random movies.
 - **Real-Time Sync:** Host a room, share a 4-digit code, and swipe with a partner instantly.
 - **Visual Feedback:** Faint Red/Green "glow" overlays that react as you drag the posters left or right.
+- **Select Genre:** Both sessions will stay in sync while browsing genres.
+- **Add to watchlist:** Tap on each match and either open in Plex or add to watchlist for later.
+- **Watch trailer** Tap on the main poster in swipedeck for full synopsis and even watch the trailer. 
 - **PWA Support:** Add it to your Home Screen for a native app feel.
 - **Match Notifications:** Instant alerts when you both swipe right on the same movie.
+
+## Coming Soon
+- **Match History**: Match history folder accessible outside session for easy access.
+  
 
 ## Requirements
 - **Plex Media Server**
 - **Plex Auth Token**
 - **TMDB key for trailers** (Not required but trailers will not work on the back of the posters)
-- **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone, you must access it over an HTTPS connection. If you use a local IP over HTTP, it will work in the browser but you won't see the install prompt.
+- **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone so it looks like an app, you must access it over an HTTPS connection. If you access it over local ip, it will work in the browser but when added to homescreen it will just act as a shortcut not like an app.
 
 ## TMDB API instructions
-Only required if you want trailers to work on the rear of the movie posters
+Only required if you want trailers to work on the rear of the movie posters.
 
-1. Create a TMDB Account
+1. Create a free TMDB Account
 If you don't already have one, you need to register on the TMDB website:
 
 Go to themoviedb.org/signup.
