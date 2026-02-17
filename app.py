@@ -23,31 +23,32 @@ def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT)')
-        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT)')
-        conn.execute('CREATE TABLE IF NOT EXISTS matches (room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT)')
+        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, plex_id TEXT)')
+        conn.execute('CREATE TABLE IF NOT EXISTS matches (room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT, status TEXT DEFAULT "active", plex_id TEXT)')
         
-        cursor = conn.execute("PRAGMA table_info(rooms)")
-        columns = [column[1] for column in cursor.fetchall()]
-        if 'current_genre' not in columns:
-            conn.execute('ALTER TABLE rooms ADD COLUMN current_genre TEXT DEFAULT "All"')
+        cursor = conn.execute("PRAGMA table_info(matches)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'status' not in columns:
+            conn.execute('ALTER TABLE matches ADD COLUMN status TEXT DEFAULT "active"')
+        if 'plex_id' not in columns:
+            conn.execute('ALTER TABLE matches ADD COLUMN plex_id TEXT')
+            
+        cursor = conn.execute("PRAGMA table_info(swipes)")
+        sw_cols = [col[1] for col in cursor.fetchall()]
+        if 'plex_id' not in sw_cols:
+            conn.execute('ALTER TABLE swipes ADD COLUMN plex_id TEXT')
 
 def fetch_plex_movies(genre_name=None):
     plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
     movie_section = plex.library.section('Movies')
     do_shuffle = True
-    
-    # Logic to handle Sci-Fi specifically since Plex often uses "Science Fiction"
-    search_genre = genre_name
-    if genre_name == "Sci-Fi":
-        search_genre = "Science Fiction"
+    search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
 
     if genre_name == "Recently Added":
         movies = movie_section.search(libtype='movie', sort='addedAt:desc', maxresults=100)
         do_shuffle = False
     elif search_genre and search_genre != "All":
-        # First attempt with the mapping (e.g. Science Fiction)
         movies = movie_section.search(libtype='movie', genre=search_genre, sort='random', maxresults=100)
-        # Fallback to the original string if the first search yielded nothing
         if not movies and search_genre != genre_name:
             movies = movie_section.search(libtype='movie', genre=genre_name, sort='random', maxresults=100)
     else:
@@ -61,16 +62,10 @@ def fetch_plex_movies(genre_name=None):
             mins = (m.duration % 3600000) // 60000
             runtime_str = f"{hrs}h {mins}m" if hrs > 0 else f"{mins}m"
         movie_list.append({
-            'id': str(m.ratingKey), 
-            'title': m.title, 
-            'summary': m.summary, 
-            'thumb': f"/proxy?path={m.thumb}",
-            'rating': m.audienceRating or m.rating,
-            'duration': runtime_str,
-            'year': m.year
+            'id': str(m.ratingKey), 'title': m.title, 'summary': m.summary, 'thumb': f"/proxy?path={m.thumb}",
+            'rating': m.audienceRating or m.rating, 'duration': runtime_str, 'year': m.year
         })
-    if do_shuffle:
-        random.shuffle(movie_list)
+    if do_shuffle: random.shuffle(movie_list)
     return movie_list
 
 @app.route('/')
@@ -92,14 +87,19 @@ def get_trailer(movie_id):
         return jsonify({'error': 'Not found'}), 404
     except Exception as e: return jsonify({'error': str(e)}), 500
 
-@app.route('/manifest.json')
-def serve_manifest(): return send_from_directory('static', 'manifest.json')
-
-@app.route('/sw.js')
-def serve_sw(): return send_from_directory('.', 'sw.js')
-
-@app.route('/static/<path:path>')
-def serve_static(path): return send_from_directory('static', path)
+@app.route('/watchlist/add', methods=['POST'])
+def add_to_watchlist():
+    try:
+        data = request.json
+        movie_id = data.get('movie_id')
+        user_token = request.headers.get('X-Plex-Token')
+        if not user_token: return jsonify({'error': 'Unauthorized'}), 401
+        account = MyPlexAccount(token=user_token)
+        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
+        item = plex.fetchItem(int(movie_id))
+        account.addToWatchlist(item)
+        return jsonify({'status': 'success'})
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/auth/plex-url')
 def get_plex_url():
@@ -121,27 +121,6 @@ def check_pin():
     token = res.get('authToken')
     if token: session.pop('pending_pin_id', None)
     return jsonify({'authToken': token})
-
-@app.route('/watchlist/add', methods=['POST'])
-def add_to_watchlist():
-    data = request.json
-    movie_id = data.get('movie_id')
-    token = request.headers.get('X-Plex-Token')
-    if not token or not movie_id: return jsonify({"error": "Unauthorized"}), 401
-    try:
-        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-        item = plex.fetchItem(int(movie_id))
-        account = MyPlexAccount(token=token)
-        account.addToWatchlist(item)
-        return jsonify({"success": True})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/plex/server-info')
-def get_server_info():
-    try:
-        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-        return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
-    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/room/create', methods=['POST'])
 def create_room():
@@ -165,66 +144,48 @@ def join_room():
             return jsonify({'status': 'success'})
     return jsonify({'error': 'Invalid Code'}), 404
 
-@app.route('/room/status')
-def room_status():
-    code = session.get('active_room')
-    if not code: return jsonify({'ready': False, 'genre': 'All'})
-    with get_db() as conn:
-        room = conn.execute('SELECT ready, current_genre FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        if room: return jsonify({'ready': bool(room['ready']), 'genre': room['current_genre']})
-        return jsonify({'ready': False, 'genre': 'All'})
-
 @app.route('/room/swipe', methods=['POST'])
 def swipe():
     code = session.get('active_room')
     uid = session.get('my_user_id')
     data = request.json
-    mid = str(data.get('movie_id'))
-    direction = data.get('direction')
+    mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
+    plex_id = data.get('plex_id')
+    
     if not code: return jsonify({'match': False})
+    
     with get_db() as conn:
-        conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)', (code, mid, uid, direction))
-        if direction == 'right':
-            others = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?', (code, mid, uid)).fetchall()
-            if others:
-                conn.execute('INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb) VALUES (?, ?, ?, ?)', (code, mid, data.get('title'), data.get('thumb')))
-                return jsonify({'match': True, 'title': data.get('title'), 'thumb': data.get('thumb')})
+        # 1. Record the swipe WITH the plex_id
+        conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, plex_id) VALUES (?, ?, ?, ?, ?)', 
+                     (code, mid, uid, data.get('direction'), plex_id))
+        
+        if data.get('direction') == 'right':
+            # 2. Look for the OTHER user's right swipe
+            other_swipe = conn.execute('SELECT plex_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?', 
+                                     (code, mid, uid)).fetchone()
+            
+            if other_swipe:
+                # 3. Create match records for BOTH users
+                conn.execute('INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)', 
+                             (code, mid, title, thumb, plex_id))
+                conn.execute('INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)', 
+                             (code, mid, title, thumb, other_swipe['plex_id']))
+                return jsonify({'match': True, 'title': title, 'thumb': thumb})
+                
     return jsonify({'match': False})
 
 @app.route('/matches')
 def get_matches():
     code = session.get('active_room')
-    if not code: return jsonify([])
+    view = request.args.get('view')
+    plex_id = request.headers.get('X-Plex-User-ID')
+    
     with get_db() as conn:
-        rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ?', (code,)).fetchall()
+        if view == 'history':
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND plex_id = ?', (plex_id,)).fetchall()
+        else:
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND plex_id = ?', (code, plex_id)).fetchall()
         return jsonify([dict(row) for row in rows])
-
-@app.route('/matches/delete', methods=['POST'])
-def delete_match():
-    code = session.get('active_room')
-    mid = str(request.json.get('movie_id'))
-    with get_db() as conn:
-        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ?', (code, mid))
-    return jsonify({'status': 'deleted'})
-
-@app.route('/movies')
-def get_movies():
-    code = session.get('active_room')
-    genre = request.args.get('genre')
-    if not code: return jsonify([])
-    with get_db() as conn:
-        if genre:
-            new_movie_list = fetch_plex_movies(genre)
-            conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_movie_list), genre, code))
-            return jsonify(new_movie_list)
-        room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        return Response(room['movie_data'], mimetype='application/json') if room else jsonify([])
-
-@app.route('/proxy')
-def proxy():
-    path = request.args.get('path')
-    res = requests.get(f"{PLEX_URL}{path}?X-Plex-Token={ADMIN_TOKEN}", stream=True)
-    return Response(res.content, content_type=res.headers['Content-Type'])
 
 @app.route('/room/quit', methods=['POST'])
 def quit_room():
@@ -233,20 +194,74 @@ def quit_room():
         with get_db() as conn:
             conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
             conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
-            conn.execute('DELETE FROM matches WHERE room_code = ?', (code,))
-        session.clear()
+            conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
+        session.pop('active_room', None)
     return jsonify({'status': 'session_ended'})
+
+@app.route('/matches/delete', methods=['POST'])
+def delete_match():
+    mid = str(request.json.get('movie_id'))
+    plex_id = request.headers.get('X-Plex-User-ID')
+    with get_db() as conn:
+        conn.execute('DELETE FROM matches WHERE movie_id = ? AND plex_id = ?', (mid, plex_id))
+    return jsonify({'status': 'deleted'})
 
 @app.route('/undo', methods=['POST'])
 def undo_swipe():
     code = session.get('active_room')
     uid = session.get('my_user_id')
     mid = str(request.json.get('movie_id'))
+    plex_id = request.headers.get('X-Plex-User-ID')
     with get_db() as conn:
         conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
-        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ?', (code, mid))
+        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND plex_id = ?', (code, mid, plex_id))
     return jsonify({'status': 'undone'})
 
+@app.route('/plex/server-info')
+def get_server_info():
+    try:
+        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
+        return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
+@app.route('/movies')
+def get_movies():
+    code = session.get('active_room')
+    genre = request.args.get('genre')
+    if not code: return jsonify([])
+    with get_db() as conn:
+        if genre:
+            new_list = fetch_plex_movies(genre)
+            conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
+            return jsonify(new_list)
+        room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+        return Response(room['movie_data'], mimetype='application/json') if room else jsonify([])
+
+@app.route('/room/status')
+def room_status():
+    code = session.get('active_room')
+    if not code: return jsonify({'ready': False})
+    with get_db() as conn:
+        room = conn.execute('SELECT ready, current_genre FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+        return jsonify({'ready': bool(room['ready']), 'genre': room['current_genre']}) if room else jsonify({'ready': False})
+
+@app.route('/proxy')
+def proxy():
+    path = request.args.get('path')
+    res = requests.get(f"{PLEX_URL}{path}?X-Plex-Token={ADMIN_TOKEN}", stream=True)
+    return Response(res.content, content_type=res.headers['Content-Type'])
+
+@app.route('/manifest.json')
+def serve_manifest(): return send_from_directory('static', 'manifest.json')
+
+@app.route('/sw.js')
+def serve_sw(): return send_from_directory('.', 'sw.js')
+
+@app.route('/static/<path:path>')
+def serve_static(path): return send_from_directory('static', path)
+
+
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(host='0.0.0.0', port=5005)
