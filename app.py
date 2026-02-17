@@ -1,18 +1,25 @@
-from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template
+from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
 from plexapi.server import PlexServer
 from plexapi.myplex import MyPlexAccount
 from werkzeug.middleware.proxy_fix import ProxyFix
-import sqlite3, os, random, requests, json
+import sqlite3, os, random, requests, json, secrets
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
-app.secret_key = os.getenv('FLASK_SECRET', 'KinoSwipe_2026_Default_Key')
+app.secret_key = os.environ["FLASK_SECRET"]
 
 DB_PATH = '/app/data/kinoswipe.db'
 PLEX_URL = os.getenv('PLEX_URL', '').rstrip('/')
 ADMIN_TOKEN = os.getenv('PLEX_TOKEN')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY') 
 CLIENT_ID = 'KinoSwipe-Bergasha-2026'
+
+
+required = ["PLEX_URL", "PLEX_TOKEN", "TMDB_API_KEY", "FLASK_SECRET"]
+missing = [v for v in required if not os.getenv(v)]
+if missing:
+    raise RuntimeError(f"Missing env vars: {missing}")
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -24,7 +31,11 @@ def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT)')
         conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, plex_id TEXT)')
-        conn.execute('CREATE TABLE IF NOT EXISTS matches (room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT, status TEXT DEFAULT "active", plex_id TEXT)')
+        conn.execute('''CREATE TABLE IF NOT EXISTS matches (
+            room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT,
+            status TEXT DEFAULT "active", plex_id TEXT,
+            UNIQUE(room_code, movie_id, plex_id)
+        )''')
         
         cursor = conn.execute("PRAGMA table_info(matches)")
         columns = [col[1] for col in cursor.fetchall()]
@@ -155,21 +166,24 @@ def swipe():
     if not code: return jsonify({'match': False})
     
     with get_db() as conn:
-        # 1. Record the swipe WITH the plex_id
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, plex_id) VALUES (?, ?, ?, ?, ?)', 
                      (code, mid, uid, data.get('direction'), plex_id))
         
         if data.get('direction') == 'right':
-            # 2. Look for the OTHER user's right swipe
             other_swipe = conn.execute('SELECT plex_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?', 
                                      (code, mid, uid)).fetchone()
             
             if other_swipe:
-                # 3. Create match records for BOTH users
-                conn.execute('INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)', 
-                             (code, mid, title, thumb, plex_id))
-                conn.execute('INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)', 
-                             (code, mid, title, thumb, other_swipe['plex_id']))
+                conn.execute(
+                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
+                    (code, mid, title, thumb, plex_id)
+                )
+             
+                if other_swipe['plex_id'] and other_swipe['plex_id'] != plex_id:
+                    conn.execute(
+                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
+                        (code, mid, title, thumb, other_swipe['plex_id'])
+                    )
                 return jsonify({'match': True, 'title': title, 'thumb': thumb})
                 
     return jsonify({'match': False})
@@ -248,6 +262,8 @@ def room_status():
 @app.route('/proxy')
 def proxy():
     path = request.args.get('path')
+    if not path or not path.startswith("/library/metadata/"):
+        abort(403)
     res = requests.get(f"{PLEX_URL}{path}?X-Plex-Token={ADMIN_TOKEN}", stream=True)
     return Response(res.content, content_type=res.headers['Content-Type'])
 
