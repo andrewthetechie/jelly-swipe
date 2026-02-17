@@ -33,7 +33,7 @@ same movie, IT'S A MATCH!!
 - **Match Notifications:** Instant alerts when you both swipe right on the same movie.
 
 ## Coming Soon
-- **Match History**: Match history folder accessible outside session for easy access.
+~~Match History: Match history folder accessible outside session for easy access.~~   
   
 
 ## Requirements
