@@ -31,6 +31,8 @@ same movie, IT'S A MATCH!!
 - **Watch trailer** Tap on the main poster in swipedeck for full synopsis and even watch the trailer. 
 - **PWA Support:** Add it to your Home Screen for a native app feel.
 - **Match Notifications:** Instant alerts when you both swipe right on the same movie.
+- **Match History** All matches now live in Match History until you're ready to delete them.
+- **Solo Mode** Flying solo? no worries, just host session and flick the solo toggle. (Every right swipe saves to Match History) 
 
 ## Coming Soon
 ~~Match History: Match history folder accessible outside session for easy access.~~   
