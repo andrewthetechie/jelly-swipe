@@ -2,7 +2,7 @@ from flask import Flask, send_from_directory, jsonify, request, session, Respons
 from plexapi.server import PlexServer
 from plexapi.myplex import MyPlexAccount
 from werkzeug.middleware.proxy_fix import ProxyFix
-import sqlite3, os, random, requests, json, secrets
+import sqlite3, os, random, requests, json, secrets, time
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
@@ -29,7 +29,7 @@ def get_db():
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT)')
+        conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT, solo_mode INTEGER DEFAULT 0)')
         conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, plex_id TEXT)')
         conn.execute('''CREATE TABLE IF NOT EXISTS matches (
             room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT,
@@ -48,6 +48,13 @@ def init_db():
         sw_cols = [col[1] for col in cursor.fetchall()]
         if 'plex_id' not in sw_cols:
             conn.execute('ALTER TABLE swipes ADD COLUMN plex_id TEXT')
+
+        cursor = conn.execute("PRAGMA table_info(rooms)")
+        room_cols = [col[1] for col in cursor.fetchall()]
+        if 'solo_mode' not in room_cols:
+            conn.execute('ALTER TABLE rooms ADD COLUMN solo_mode INTEGER DEFAULT 0')
+        if 'last_match_data' not in room_cols:
+            conn.execute('ALTER TABLE rooms ADD COLUMN last_match_data TEXT')
 
 def fetch_plex_movies(genre_name=None):
     plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
@@ -118,14 +125,14 @@ def get_plex_url():
     headers = {'X-Plex-Product': 'KinoSwipe', 'X-Plex-Client-Identifier': CLIENT_ID, 'Accept': 'application/json'}
     try:
         res = requests.post('https://plex.tv/api/v2/pins?strong=true', headers=headers).json()
-        auth_url = f"https://app.plex.tv/auth/#!?clientID={CLIENT_ID}&code={res['code']}&context%5Bdevice%5D%5Bproduct%5D=KinoSwipe&forwardUrl={REDIRECT_URL}"
-        session['pending_pin_id'] = res['id']
+        forward = f"{REDIRECT_URL}?pin_id={res['id']}"
+        auth_url = f"https://app.plex.tv/auth/#!?clientID={CLIENT_ID}&code={res['code']}&context%5Bdevice%5D%5Bproduct%5D=KinoSwipe&forwardUrl={requests.utils.quote(forward, safe='')}"
         return jsonify({'auth_url': auth_url})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/auth/check-returned-pin')
 def check_pin():
-    pin_id = session.get('pending_pin_id')
+    pin_id = request.args.get('pin_id') or session.get('pending_pin_id')
     if not pin_id: return jsonify({'authToken': None})
     headers = {'X-Plex-Client-Identifier': CLIENT_ID, 'Accept': 'application/json'}
     res = requests.get(f"https://plex.tv/api/v2/pins/{pin_id}", headers=headers).json()
@@ -138,10 +145,23 @@ def create_room():
     pairing_code = str(random.randint(1000, 9999))
     movie_list = fetch_plex_movies()
     with get_db() as conn:
-        conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre) VALUES (?, ?, ?, ?)', (pairing_code, json.dumps(movie_list), 0, 'All'))
+        conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)', 
+                     (pairing_code, json.dumps(movie_list), 0, 'All', 0))
     session['active_room'] = pairing_code
     session['my_user_id'] = 'host_' + str(random.randint(1, 999))
+    session['solo_mode'] = False
     return jsonify({'pairing_code': pairing_code})
+
+@app.route('/room/go-solo', methods=['POST'])
+def go_solo():
+ 
+    code = session.get('active_room')
+    if not code:
+        return jsonify({'error': 'No active room'}), 400
+    with get_db() as conn:
+        conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
+    session['solo_mode'] = True
+    return jsonify({'status': 'solo'})
 
 @app.route('/room/join', methods=['POST'])
 def join_room():
@@ -152,6 +172,7 @@ def join_room():
             conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
             session['active_room'] = code
             session['my_user_id'] = 'guest_' + str(random.randint(1, 999))
+            session['solo_mode'] = False
             return jsonify({'status': 'success'})
     return jsonify({'error': 'Invalid Code'}), 404
 
@@ -170,6 +191,14 @@ def swipe():
                      (code, mid, uid, data.get('direction'), plex_id))
         
         if data.get('direction') == 'right':
+            room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+            if room and room['solo_mode']:
+                conn.execute(
+                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
+                    (code, mid, title, thumb, plex_id)
+                )
+                return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
+
             other_swipe = conn.execute('SELECT plex_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?', 
                                      (code, mid, uid)).fetchone()
             
@@ -184,6 +213,10 @@ def swipe():
                         'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
                         (code, mid, title, thumb, other_swipe['plex_id'])
                     )
+
+                match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
+                conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+
                 return jsonify({'match': True, 'title': title, 'thumb': thumb})
                 
     return jsonify({'match': False})
@@ -210,6 +243,7 @@ def quit_room():
             conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
             conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
         session.pop('active_room', None)
+        session.pop('solo_mode', None)
     return jsonify({'status': 'session_ended'})
 
 @app.route('/matches/delete', methods=['POST'])
@@ -256,8 +290,11 @@ def room_status():
     code = session.get('active_room')
     if not code: return jsonify({'ready': False})
     with get_db() as conn:
-        room = conn.execute('SELECT ready, current_genre FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        return jsonify({'ready': bool(room['ready']), 'genre': room['current_genre']}) if room else jsonify({'ready': False})
+        room = conn.execute('SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+        if room:
+            last_match = json.loads(room['last_match_data']) if room['last_match_data'] else None
+            return jsonify({'ready': bool(room['ready']), 'genre': room['current_genre'], 'solo': bool(room['solo_mode']), 'last_match': last_match})
+        return jsonify({'ready': False})
 
 @app.route('/proxy')
 def proxy():
