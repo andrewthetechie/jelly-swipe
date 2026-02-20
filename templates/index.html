@@ -96,12 +96,12 @@
         .genre-item { background: #222; border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; }
         .genre-item.active { border-color: #e5a00d; color: #e5a00d; }
 
-        /* Solo mode badge shown in game area */
+
         #solo-badge { position: fixed; top: 15px; left: 15px; background: rgba(0,0,0,0.6); border: 1px solid #666; color: #aaa; font-size: 0.75rem; font-weight: bold; padding: 6px 12px; border-radius: 20px; z-index: 10001; backdrop-filter: blur(5px); letter-spacing: 0.05em; }
 
         #match-solo-label { font-size: 0.85rem; color: #aaa; font-style: italic; margin-top: -15px; margin-bottom: 20px; }
 
-        /* Quit confirmation modal */
+
         #quit-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 40000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
         #quit-modal h2 { font-size: 1.8rem; color: #ff3131; margin: 0 0 10px; text-shadow: 0 0 10px #ff3131; }
         #quit-modal p { color: #888; font-size: 0.95rem; margin: 0 0 35px; padding: 0 30px; line-height: 1.5; }
@@ -129,6 +129,12 @@
         <img src="/static/main.png" class="main-logo" style="margin-top:50px;">
         <h1 class="main-title">Kino-Swipe</h1>
         <button id="login-btn" class="menu-btn" onclick="loginWithPlex()">Login with Plex</button>
+        <p style="margin: 12px 0 0 0; font-size: 0.75rem; color: #888; font-style: italic;">Then</p>
+        <div style="margin: 8px auto 0 auto; text-align: center; width: 220px; line-height: 2;">
+            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">1. Host a session &amp; share the code with your partner</p>
+            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">2. Swipe right on the same movie to match</p>
+            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">3. Using alone? Enable Solo Mode after hosting</p>
+        </div>
     </div>
 
     <div id="main-menu" class="hidden">
@@ -210,9 +216,9 @@
     </div>
 
     <div id="quit-modal" class="hidden">
-        <img src="/static/sad.png" style="width:90px; margin-bottom:20px; opacity:1.0;">
+        <img src="/static/sad.png" style="width:100px; margin-bottom:20px; opacity:1.0;">
         <h2>End Session?</h2>
-        <p>All matches will be saved to<br>Match History.</p>
+        <p>Your matches will be saved to<br>Match History.</p>
         <div class="quit-btn-row">
             <button id="quit-confirm-btn" onclick="doQuit()">End Session</button>
             <button id="quit-cancel-btn" onclick="document.getElementById('quit-modal').classList.add('hidden')">Cancel</button>
