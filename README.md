@@ -1,7 +1,6 @@
 # Kino-Swipe 
-# If Match History is not working after updating please logout and back in with plex.
 
-Plex card-swiping for people who spend more time picking a movie than watching one.
+Always trying to decide on a movie to watch together?, This may be the fun solution you've been looking for.
 Dating app style swipe right for like swipe left for nope, If you both swipe right on the 
 same movie, IT'S A MATCH!!
 
