@@ -13,7 +13,6 @@
     <link rel="apple-touch-icon" href="/static/main.png">
 
     <style>
-        /* Version: 1.0.2 - Updated Tap Logic */
         @import url('https://fonts.googleapis.com/css2?family=Allura&display=swap');
         
         body { background: #111; color: white; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -314,7 +313,7 @@
                 const endY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
                 const distY = Math.abs(endY - startY);
 
-                // FLIP DETECTION: Brief duration + tiny movement = Tap
+               
                 if (Math.abs(globalCurrentX) < 8 && distY < 8 && duration < 250) {
                     card.classList.toggle('flipped');
                     card.style.transform = ''; 
@@ -322,7 +321,7 @@
                     return;
                 }
 
-                // SWIPE DETECTION
+               
                 if (!card.classList.contains('flipped') && Math.abs(globalCurrentX) > 120) {
                     const dir = globalCurrentX > 0 ? 'right' : 'left';
                     card.style.transition = 'transform 0.4s ease, opacity 0.3s ease';
