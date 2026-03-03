@@ -105,6 +105,29 @@ def get_trailer(movie_id):
         return jsonify({'error': 'Not found'}), 404
     except Exception as e: return jsonify({'error': str(e)}), 500
 
+@app.route('/cast/<movie_id>')
+def get_cast(movie_id):
+    try:
+        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
+        item = plex.fetchItem(int(movie_id))
+        search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={item.title}&year={item.year}"
+        r = requests.get(search_url).json()
+        if r.get('results'):
+            tmdb_id = r['results'][0]['id']
+            credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={TMDB_API_KEY}"
+            c_res = requests.get(credits_url).json()
+            cast = []
+            for actor in c_res.get('cast', [])[:5]:
+                cast.append({
+                    'name': actor['name'],
+                    'character': actor.get('character', ''),
+                    'profile_path': f"https://image.tmdb.org/t/p/w185{actor['profile_path']}" if actor.get('profile_path') else None
+                })
+            return jsonify({'cast': cast})
+        return jsonify({'cast': []})
+    except Exception as e:
+        return jsonify({'error': str(e), 'cast': []}), 500
+
 @app.route('/watchlist/add', methods=['POST'])
 def add_to_watchlist():
     try:
