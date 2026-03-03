@@ -117,7 +117,7 @@ def get_cast(movie_id):
             credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={TMDB_API_KEY}"
             c_res = requests.get(credits_url).json()
             cast = []
-            for actor in c_res.get('cast', [])[:5]:
+            for actor in c_res.get('cast', [])[:8]:
                 cast.append({
                     'name': actor['name'],
                     'character': actor.get('character', ''),
@@ -341,3 +341,4 @@ init_db()
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5005)
+
