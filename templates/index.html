@@ -84,7 +84,6 @@
         #quit-pill { left: 20px; background: #d32f2f; color: black; }
         #undo-btn { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #222; color: #a64703; width: 65px; height: 65px; border-radius: 50%; border: 3px solid #a64703; font-size: 1.0rem; z-index: 9999; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
         
-       
         #match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 15000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
         .match-card-popup { background: #1a1a1a; width: 85%; max-width: 320px; border-radius: 20px; border: 2px solid #e5a00d; padding: 20px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(229, 160, 13, 0.4); animation: popupIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popupIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -100,28 +99,41 @@
         .genre-item { background: #222; border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; }
         .genre-item.active { border-color: #e5a00d; color: #e5a00d; }
 
-
+      
         #solo-badge { position: fixed; top: 15px; left: 15px; background: rgba(0,0,0,0.6); border: 1px solid #666; color: #aaa; font-size: 0.75rem; font-weight: bold; padding: 6px 12px; border-radius: 20px; z-index: 10001; backdrop-filter: blur(5px); letter-spacing: 0.05em; }
 
         #match-solo-label { font-size: 0.85rem; color: #aaa; font-style: italic; margin-top: -15px; margin-bottom: 20px; }
 
-
+      
         #quit-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 40000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+        
         #quit-modal h2 { font-size: 1.8rem; color: #ff3131; margin: 0 0 10px; text-shadow: 0 0 10px #ff3131; }
+        
         #quit-modal p { color: #888; font-size: 0.95rem; margin: 0 0 35px; padding: 0 30px; line-height: 1.5; }
         .quit-btn-row { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        
         #quit-confirm-btn { background: #d32f2f; color: white; border: none; padding: 14px 30px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: box-shadow 0.3s; width: 200px; }
+        
         #quit-confirm-btn:hover { box-shadow: 0 0 20px rgba(211,47,47,0.7); }
         #quit-cancel-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 14px 30px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: border-color 0.3s, color 0.3s; width: 200px; }
         #quit-cancel-btn:hover { border-color: #888; color: white; }
-      
+       
+       
         #delete-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; border: 1px solid #333; border-radius: 16px; z-index: 50000; padding: 30px 25px; width: 280px; box-shadow: 0 8px 40px rgba(0,0,0,0.8); text-align: center; }
+        
         #delete-modal h3 { font-size: 1.2rem; color: #ff3131; margin: 0 0 8px; }
         #delete-modal p { color: #888; font-size: 0.85rem; margin: 0 0 25px; line-height: 1.4; }
+        
         #delete-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 49999; }
         .delete-btn-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
         #delete-confirm-btn { background: #d32f2f; color: white; border: none; padding: 12px 0; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; width: 100%; }
+        
         #delete-cancel-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 12px 0; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; width: 100%; }
+        .cast-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 6px 8px 0; width: 100%; box-sizing: border-box; }
+        .cast-member { display: flex; flex-direction: column; align-items: center; width: 56px; flex-shrink: 0; }
+        .cast-member img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #e5a00d; background: #333; }
+        .cast-member .no-photo { width: 52px; height: 52px; border-radius: 50%; background: #333; border: 2px solid #555; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+        .cast-member span { font-size: 0.58rem; color: #ccc; text-align: center; margin-top: 4px; line-height: 1.2; word-break: break-word; }
     </style>
 </head>
 <body>
@@ -223,7 +235,7 @@
     </div>
 
     <div id="quit-modal" class="hidden">
-        <img src="/static/sad.png" style="width:100px; margin-bottom:20px; opacity:1.0;">
+        <img src="/static/sad.png" style="width:80px; margin-bottom:20px; opacity:0.6;">
         <h2>End Session?</h2>
         <p>Your matches will be saved to<br>Match History.</p>
         <div class="quit-btn-row">
@@ -405,6 +417,11 @@
                         </div>
                         <div class="mini-back">
                             <div class="mini-title-text">${m.title}</div>
+                            <div class="stats-row" style="justify-content:center;">
+                                ${m.rating ? `<span class="stat-badge">IMDb ${m.rating}</span>` : ''}
+                                ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
+                                ${m.year ? `<span class="stat-badge">${m.year}</span>` : ''}
+                            </div>
                             <a href="${plexLink}" class="plex-open-btn" target="_blank" rel="noopener noreferrer">OPEN IN PLEX</a>
                             <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#333; color:#e5a00d; border:1px solid #e5a00d; margin-top:5px;" onclick="addToWatchlist(event, '${m.movie_id}')">SAVE TO WATCHLIST</button>
                             <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#d32f2f; margin-top:5px; color:black;" onclick="deleteMatch(event, '${m.movie_id}')">DELETE</button>
@@ -477,28 +494,62 @@
                         <div class="stats-row">
                             ${m.rating ? `<span class="stat-badge">IMDb ${m.rating}</span>` : ''}
                             ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
+                            ${m.year ? `<span class="stat-badge">${m.year}</span>` : ''}
                         </div>
                         <div id="vid-${m.id}" class="trailer-box"></div>
                         <button class="trailer-btn" onclick="watchTrailer(event, '${m.id}', this)">WATCH TRAILER</button>
                         <div class="back-content"><p>${m.summary || 'No description available.'}</p></div>
+                        <div id="cast-${m.id}" class="cast-row"></div>
                         <div style="font-size:0.75rem; color:#e5a00d; text-align:center; margin-top: auto; padding-bottom:10px;">Tap to flip back</div>
                     </div>
                 </div>
             `;
-            c.addEventListener('click', (e) => { if (!e.target.classList.contains('trailer-btn') && Math.abs(globalCurrentX) < 5) c.classList.toggle('flipped'); });
+            c.addEventListener('click', async (e) => {
+                if (!e.target.classList.contains('trailer-btn') && Math.abs(globalCurrentX) < 5) {
+                    c.classList.toggle('flipped');
+                    if (c.classList.contains('flipped')) {
+                        const castEl = document.getElementById(`cast-${m.id}`);
+                        if (castEl && castEl.dataset.loaded !== 'true') {
+                            castEl.dataset.loaded = 'true';
+                            castEl.innerHTML = '<span style="font-size:0.7rem;color:#666;">Loading cast...</span>';
+                            try {
+                                const res = await fetch(`/cast/${m.id}`);
+                                const data = await res.json();
+                                if (data.cast && data.cast.length > 0) {
+                                    castEl.innerHTML = data.cast.map(actor => `
+                                        <div class="cast-member">
+                                            ${actor.profile_path
+                                                ? `<img src="${actor.profile_path}" alt="${actor.name}" loading="lazy">`
+                                                : `<div class="no-photo">🎬</div>`}
+                                            <span>${actor.name}</span>
+                                        </div>
+                                    `).join('');
+                                } else {
+                                    castEl.innerHTML = '';
+                                }
+                            } catch(err) {
+                                castEl.innerHTML = '';
+                            }
+                        }
+                    }
+                }
+            });
             return c;
         }
 
         async function watchTrailer(event, id, btn) {
             event.stopPropagation();
             const container = document.getElementById(`vid-${id}`);
+            const backContent = container.closest('.card-back').querySelector('.back-content');
             if (container.style.display === 'block') {
                 container.style.display = 'none'; container.innerHTML = ''; btn.innerText = 'WATCH TRAILER';
+                backContent.style.display = '';
             } else {
                 btn.innerText = 'LOADING...';
                 const res = await fetch(`/get-trailer/${id}`);
                 const data = await res.json();
                 if (data.youtube_key) {
+                    backContent.style.display = 'none';
                     container.style.display = 'block';
                     container.innerHTML = `<iframe src="https://www.youtube.com/embed/${data.youtube_key}?autoplay=1&playsinline=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
                     btn.innerText = 'CLOSE TRAILER';
