@@ -331,7 +331,7 @@ def proxy():
 def serve_manifest(): return send_from_directory('static', 'manifest.json')
 
 @app.route('/sw.js')
-def serve_sw(): return send_from_directory('.', 'sw.js')
+def serve_sw(): return send_from_directory('data', 'sw.js')
 
 @app.route('/static/<path:path>')
 def serve_static(path): return send_from_directory('static', path)
