@@ -56,9 +56,46 @@ def init_db():
         if 'last_match_data' not in room_cols:
             conn.execute('ALTER TABLE rooms ADD COLUMN last_match_data TEXT')
 
+       
+        conn.execute('DELETE FROM swipes WHERE room_code NOT IN (SELECT pairing_code FROM rooms)')
+
+_genre_cache = None
+
+_plex_instance = None
+
+def get_plex():
+    global _plex_instance
+    if _plex_instance is not None:
+        return _plex_instance
+    _plex_instance = PlexServer(PLEX_URL, ADMIN_TOKEN)
+    return _plex_instance
+
+def reset_plex():
+    global _plex_instance
+    _plex_instance = None
+
+def get_plex_genres():
+    global _genre_cache
+    if _genre_cache is not None:
+        return _genre_cache
+    try:
+        plex = get_plex()
+        section = plex.library.section('Movies')
+        genres = sorted({g.title for g in section.listFilterChoices(field='genre')})
+        display = ["Sci-Fi" if g == "Science Fiction" else g for g in genres]
+        _genre_cache = display
+        return display
+    except Exception:
+        return []
+
 def fetch_plex_movies(genre_name=None):
-    plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-    movie_section = plex.library.section('Movies')
+    try:
+        plex = get_plex()
+        movie_section = plex.library.section('Movies')
+    except Exception:
+        reset_plex()
+        plex = get_plex()
+        movie_section = plex.library.section('Movies')
     do_shuffle = True
     search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
 
@@ -92,8 +129,12 @@ def index(): return render_template('index.html')
 @app.route('/get-trailer/<movie_id>')
 def get_trailer(movie_id):
     try:
-        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-        item = plex.fetchItem(int(movie_id))
+        try:
+            plex = get_plex()
+            item = plex.fetchItem(int(movie_id))
+        except Exception:
+            reset_plex()
+            item = get_plex().fetchItem(int(movie_id))
         search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={item.title}&year={item.year}"
         r = requests.get(search_url).json()
         if r.get('results'):
@@ -108,8 +149,12 @@ def get_trailer(movie_id):
 @app.route('/cast/<movie_id>')
 def get_cast(movie_id):
     try:
-        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-        item = plex.fetchItem(int(movie_id))
+        try:
+            plex = get_plex()
+            item = plex.fetchItem(int(movie_id))
+        except Exception:
+            reset_plex()
+            item = get_plex().fetchItem(int(movie_id))
         search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={item.title}&year={item.year}"
         r = requests.get(search_url).json()
         if r.get('results'):
@@ -136,8 +181,12 @@ def add_to_watchlist():
         user_token = request.headers.get('X-Plex-Token')
         if not user_token: return jsonify({'error': 'Unauthorized'}), 401
         account = MyPlexAccount(token=user_token)
-        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-        item = plex.fetchItem(int(movie_id))
+        try:
+            plex = get_plex()
+            item = plex.fetchItem(int(movie_id))
+        except Exception:
+            reset_plex()
+            item = get_plex().fetchItem(int(movie_id))
         account.addToWatchlist(item)
         return jsonify({'status': 'success'})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -171,7 +220,7 @@ def create_room():
         conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)', 
                      (pairing_code, json.dumps(movie_list), 0, 'All', 0))
     session['active_room'] = pairing_code
-    session['my_user_id'] = 'host_' + str(random.randint(1, 999))
+    session['my_user_id'] = 'host_' + secrets.token_hex(8)
     session['solo_mode'] = False
     return jsonify({'pairing_code': pairing_code})
 
@@ -194,7 +243,7 @@ def join_room():
         if room:
             conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
             session['active_room'] = code
-            session['my_user_id'] = 'guest_' + str(random.randint(1, 999))
+            session['my_user_id'] = 'guest_' + secrets.token_hex(8)
             session['solo_mode'] = False
             return jsonify({'status': 'success'})
     return jsonify({'error': 'Invalid Code'}), 404
@@ -291,8 +340,13 @@ def undo_swipe():
 @app.route('/plex/server-info')
 def get_server_info():
     try:
-        plex = PlexServer(PLEX_URL, ADMIN_TOKEN)
-        return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
+        try:
+            plex = get_plex()
+            return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
+        except Exception:
+            reset_plex()
+            plex = get_plex()
+            return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/movies')
@@ -308,6 +362,10 @@ def get_movies():
         room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
         return Response(room['movie_data'], mimetype='application/json') if room else jsonify([])
 
+@app.route('/genres')
+def get_genres():
+    return jsonify(get_plex_genres())
+
 @app.route('/room/status')
 def room_status():
     code = session.get('active_room')
@@ -319,6 +377,62 @@ def room_status():
             return jsonify({'ready': bool(room['ready']), 'genre': room['current_genre'], 'solo': bool(room['solo_mode']), 'last_match': last_match})
         return jsonify({'ready': False})
 
+@app.route('/room/stream')
+def room_stream():
+    code = session.get('active_room')
+    if not code:
+        return Response("data: {}\n\n", mimetype='text/event-stream')
+
+    def generate():
+        last_genre = None
+        last_ready = None
+        last_match_ts = None
+        POLL = 1.5
+        TIMEOUT = 3600
+
+        deadline = time.time() + TIMEOUT
+        while time.time() < deadline:
+            try:
+                with get_db() as conn:
+                    row = conn.execute(
+                        'SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?',
+                        (code,)
+                    ).fetchone()
+
+                if row is None:
+                    yield f"data: {json.dumps({'closed': True})}\n\n"
+                    return
+
+                ready = bool(row['ready'])
+                genre = row['current_genre']
+                solo  = bool(row['solo_mode'])
+                last_match = json.loads(row['last_match_data']) if row['last_match_data'] else None
+                match_ts   = last_match['ts'] if last_match else None
+
+                payload = {}
+                if ready != last_ready:
+                    payload['ready'] = ready
+                    payload['solo']  = solo
+                    last_ready = ready
+                if genre != last_genre:
+                    payload['genre'] = genre
+                    last_genre = genre
+                if match_ts and match_ts != last_match_ts:
+                    payload['last_match'] = last_match
+                    last_match_ts = match_ts
+
+                if payload:
+                    yield f"data: {json.dumps(payload)}\n\n"
+
+                time.sleep(POLL)
+            except GeneratorExit:
+                return
+            except Exception:
+                time.sleep(POLL)
+
+    return Response(generate(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
 @app.route('/proxy')
 def proxy():
     path = request.args.get('path')
@@ -328,10 +442,12 @@ def proxy():
     return Response(res.content, content_type=res.headers['Content-Type'])
 
 @app.route('/manifest.json')
-def serve_manifest(): return send_from_directory('static', 'manifest.json')
+def serve_manifest():
+    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
 
 @app.route('/sw.js')
-def serve_sw(): return send_from_directory('data', 'sw.js')
+def serve_sw():
+    return send_from_directory('data', 'sw.js', mimetype='application/javascript')
 
 @app.route('/static/<path:path>')
 def serve_static(path): return send_from_directory('static', path)
@@ -341,4 +457,3 @@ init_db()
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5005)
-
