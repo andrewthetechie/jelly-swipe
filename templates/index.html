@@ -4,7 +4,7 @@
     <title>Kino-Swipe</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <link rel="manifest" href="/static/manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#111111">
 
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -94,8 +94,10 @@
         #modal-instruction { position: fixed; bottom: 85px; }
 
         #genre-pill { position: fixed; top: 15px; right: 15px; width: 100px; height: 35px; border-radius: 20px; border: 1px solid #e5a00d; background: rgba(0,0,0,0.6); color: #e5a00d; font-weight: bold; font-size: 0.8rem; z-index: 10001; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        #genre-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .genre-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 400px; }
+        #genre-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; overflow: hidden; }
+        #genre-modal h1 { flex-shrink: 0; margin: 20px 0 15px; }
+        #genre-modal .menu-btn { flex-shrink: 0; margin: 15px 0 10px; }
+        .genre-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 400px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
         .genre-item { background: #222; border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; }
         .genre-item.active { border-color: #e5a00d; color: #e5a00d; }
 
@@ -201,17 +203,9 @@
 
     <div id="genre-modal" class="hidden">
         <h1 class="plex-yellow">Select Genre</h1>
-        <div class="genre-list">
+        <div class="genre-list" id="genre-list">
             <div class="genre-item active" onclick="selectGenre('All')">All Movies</div>
             <div class="genre-item" onclick="selectGenre('Recently Added')">Recently Added</div>
-            <div class="genre-item" onclick="selectGenre('Action')">Action</div>
-            <div class="genre-item" onclick="selectGenre('Sci-Fi')">Sci-Fi</div>
-            <div class="genre-item" onclick="selectGenre('Drama')">Drama</div>
-            <div class="genre-item" onclick="selectGenre('Romance')">Romance</div>
-            <div class="genre-item" onclick="selectGenre('Horror')">Horror</div>
-            <div class="genre-item" onclick="selectGenre('Thriller')">Thriller</div>
-            <div class="genre-item" onclick="selectGenre('Crime')">Crime</div>
-            <div class="genre-item" onclick="selectGenre('Comedy')">Comedy</div>
         </div>
         <button class="menu-btn" style="margin-top:20px;" onclick="toggleGenreModal()">Cancel</button>
     </div>
@@ -235,7 +229,7 @@
     </div>
 
     <div id="quit-modal" class="hidden">
-        <img src="/static/sad.png" style="width:80px; margin-bottom:20px; opacity:1.0;">
+        <img src="/static/sad.png" style="width:80px; margin-bottom:20px; opacity:0.6;">
         <h2>End Session?</h2>
         <p>Your matches will be saved to<br>Match History.</p>
         <div class="quit-btn-row">
@@ -259,7 +253,6 @@
 
         let movieStack = [];
         let swipeHistory = [];
-        let pollingInterval = null;
         let globalCurrentX = 0;
         let plexServerId = null;
         let currentGenre = "All";
@@ -302,6 +295,7 @@
             await fetch('/room/quit', { method: 'POST' });
             localStorage.removeItem('active_room');
             isSoloMode = false;
+            if (sseSource) { sseSource.close(); sseSource = null; }
             location.reload();
         }
 
@@ -634,11 +628,41 @@
             if (res.ok) { localStorage.setItem('active_room', 'joined'); loadMovies(false); } else alert("Invalid Code");
         }
 
+        async function loadGenres() {
+            try {
+                const res = await fetch('/genres');
+                const genres = await res.json();
+                const list = document.getElementById('genre-list');
+                // Remove any previously injected dynamic items
+                list.querySelectorAll('.genre-dynamic').forEach(el => el.remove());
+                genres.forEach(g => {
+                    const el = document.createElement('div');
+                    el.className = 'genre-item genre-dynamic';
+                    el.textContent = g;
+                    el.onclick = () => selectGenre(g);
+                    list.appendChild(el);
+                });
+            } catch (e) { console.error('Could not load genres', e); }
+        }
+
+        let sseSource = null;
+
         const startPolling = () => {
-            if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(async () => {
-                const s = await fetch('/room/status');
-                const d = await s.json();
+            if (sseSource) { sseSource.close(); sseSource = null; }
+
+            sseSource = new EventSource('/room/stream');
+
+            sseSource.onmessage = async (event) => {
+                const d = JSON.parse(event.data);
+
+                if (d.closed) {
+                    // Host ended the session — redirect guest back to menu
+                    sseSource.close();
+                    localStorage.removeItem('active_room');
+                    location.reload();
+                    return;
+                }
+
                 if (d.genre && d.genre !== currentGenre) {
                     currentGenre = d.genre;
                     document.getElementById('genre-pill').innerText = currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
@@ -646,7 +670,7 @@
                     movieStack = await movieRes.json(); swipeHistory = []; renderInitialDeck();
                 }
                 if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
-                            loadMovies(d.solo || false);
+                    loadMovies(d.solo || false);
                 }
                 if (d.last_match && !isSoloMode) {
                     const matchTs = d.last_match.ts;
@@ -659,7 +683,11 @@
                         document.getElementById('match-overlay').classList.remove('hidden');
                     }
                 }
-            }, 3000);
+            };
+
+            sseSource.onerror = () => {
+                // Connection dropped — SSE will auto-reconnect; nothing extra needed
+            };
         };
 
         window.onload = async () => {
@@ -677,6 +705,7 @@
                 await fetchAndStorePlexId();
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('main-menu').classList.remove('hidden');
+                loadGenres();
                 if (localStorage.getItem('active_room')) loadMovies();
             }
         };
