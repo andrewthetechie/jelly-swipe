@@ -15,31 +15,91 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Allura&display=swap');
         
-        body { background: #111; color: white; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
-        .hidden { display: none !important; }
-        .plex-yellow { color: #e5a00d; }
-        .menu-btn { background: #e5a00d; border: none; padding: 15px; font-size: 1.2rem; border-radius: 8px; cursor: pointer; margin: 10px; font-weight: bold; width: 220px; color: black; }
-        
-        #main-menu { padding: 40px 20px; display: flex; flex-direction: column; align-items: center; flex-grow: 1; }
-        .main-logo { width: 180px; height: auto; margin-bottom: 10px; }
-        
-        .main-title { 
-            font-size: 4.0rem; 
-            margin: 0 0 30px 0; 
-            font-weight: bold; 
-            color: #ff3131; 
-            font-family: 'allura', cursive; 
-            text-shadow: 0 0 5px #fff, 0 0 10px #ff3131, 0 0 20px #ff3131, 0 0 40px #8a0606;
-            animation: neon-glitch 8s infinite; 
+        body { 
+            background-color: #111;
+            background-image: 
+                linear-gradient(335deg, #0a0a0a 23px, transparent 23px),
+                linear-gradient(155deg, #0d0d0d 23px, transparent 23px),
+                linear-gradient(335deg, #0a0a0a 23px, transparent 23px),
+                linear-gradient(155deg, #0d0d0d 23px, transparent 23px);
+            background-size: 58px 58px;
+            background-position: 0px 2px, 4px 35px, 29px 31px, 34px 6px;
+            color: white; 
+            font-family: sans-serif; 
+            text-align: center; 
+            margin: 0; 
+            overflow: hidden; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
         }
 
-        @keyframes neon-glitch {
-            0%, 40% { opacity: 1; color: #ff3131; text-shadow: 0 0 5px #fff, 0 0 10px #ff3131, 0 0 20px #ff3131, 0 0 40px #8a0606; }
-            41% { opacity: 0.2; color: #330000; text-shadow: none; }
-            42%, 60% { opacity: 1; color: #ff3131; text-shadow: 0 0 5px #fff, 0 0 10px #ff3131, 0 0 20px #ff3131, 0 0 40px #8a0606; }
-            61%, 63%, 65% { opacity: 0.2; color: #330000; text-shadow: none; }
-            62%, 64% { opacity: 0.8; text-shadow: 0 0 5px #ff3131; }
-            66%, 100% { opacity: 1; color: #ff3131; text-shadow: 0 0 5px #fff, 0 0 10px #ff3131, 0 0 20px #ff3131, 0 0 40px #8a0606; }
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.8) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .hidden { display: none !important; }
+        .plex-yellow { color: #e5a00d; }
+        
+        .menu-btn { 
+            position: relative;
+            z-index: 2;
+            background: #e5a00d; 
+            border: none; 
+            padding: 15px; 
+            font-size: 1.2rem; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin: 10px; 
+            font-weight: bold; 
+            width: 240px; 
+            color: black; 
+        }
+        
+        #login-section, #main-menu { 
+            position: relative;
+            z-index: 2;
+            padding: 60px 20px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            flex-grow: 1; 
+        }
+        
+        .main-title { 
+            font-size: clamp(4.5rem, 18vw, 7.5rem); 
+            margin: 0 0 50px 0; 
+            font-weight: normal; 
+            color: #ff3131; 
+            font-family: 'allura', cursive; 
+            white-space: nowrap;
+            line-height: 0.9;
+            text-shadow: 
+                0 0 5px #fff, 
+                0 0 10px #fff, 
+                0 0 20px #ff3131, 
+                0 0 40px #ff3131, 
+                0 0 80px #ff3131, 
+                0 0 120px #ff3131, 
+                0 0 160px #8a0606;
+            animation: neon-blink 5s infinite; 
+        }
+
+        @keyframes neon-blink {
+            0%, 18%, 22%, 25%, 53%, 57%, 100% {
+                text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #ff3131, 0 0 40px #ff3131, 0 0 80px #ff3131, 0 0 120px #ff3131, 0 0 160px #8a0606;
+                color: #ff3131;
+            }
+            19%, 21%, 23%, 24%, 54%, 56% {
+                text-shadow: none;
+                color: #330000;
+            }
         }
         
         #game-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; background: #111; z-index: 100; }
@@ -50,40 +110,31 @@
         .flipped .card-inner, .flipped .mini-inner { transform: rotateY(180deg); }
         .card-front, .card-back, .mini-front, .mini-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 20px; overflow: hidden; }
         .card-back, .mini-back { transform: rotateY(180deg); background: #1a1a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; border: 2px solid #e5a00d; }
-
         .movie-card { position: absolute; width: 90%; height: 100%; left: 5%; top: 0; touch-action: none; z-index: 5; }
         .movie-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .movie-title { margin-bottom: 10px; font-weight: bold; font-size: 1.8rem; color: #e5a00d; padding: 0 10px; line-height: 1.1; }
-
         .trailer-btn { background: #e5a00d; color: black; border: none; padding: 10px; width: 90%; font-weight: bold; border-radius: 8px; margin: 5px 0; cursor: pointer; font-size: 0.8rem; z-index: 200; }
         .trailer-box { width: 90%; aspect-ratio: 16/9; background: #000; margin: 5px 0; border-radius: 8px; display: none; overflow: hidden; }
         .trailer-box iframe { width: 100%; height: 100%; border: none; }
-
         #matches-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; }
         #matches-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 500px; overflow-y: auto; padding-bottom: 120px; }
-        
         .mini-poster { width: 100%; aspect-ratio: 2/3; border-radius: 10px; }
         .mini-front img { width: 100%; height: 100%; object-fit: cover; }
         .mini-front { border: 2px solid #333; }
         .mini-back { padding: 10px; border-radius: 10px; }
-        
         .plex-open-btn { background: #e5a00d; color: black; border: none; padding: 10px 5px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; cursor: pointer; text-decoration: none; width: 90%; margin-top: 10px; display: block; text-align: center; }
         .mini-title-text { font-size: 1.1rem; font-weight: bold; color: #e5a00d; text-align: center; margin-bottom: 5px; line-height: 1.1; }
-
         .stats-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
         .stat-badge { background: black; color: #e5a00d; padding: 4px 8px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
         .back-content { overflow-y: auto; flex-grow: 1; margin-bottom: 10px; padding: 0 15px; }
         .back-content p { font-size: 0.95rem; line-height: 1.4; color: #eee; margin: 0; text-align: left; }
-
         .glow-side { position: absolute; top: 0; width: 40%; height: 100%; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.2s; }
         #glow-left { left: 0; background: linear-gradient(to right, rgba(211, 47, 47, 0.8), transparent); }
         #glow-right { right: 0; background: linear-gradient(to left, rgba(76, 175, 80, 0.8), transparent); }
-
         .pill-btn { position: fixed; bottom: 25px; width: 120px; height: 45px; border-radius: 30px; border: none; font-weight: bold; font-size: 0.9rem; z-index: 9999; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; }
         #matches-pill { right: 20px; background: #e5a00d; color: black; }
         #quit-pill { left: 20px; background: #d32f2f; color: black; }
         #undo-btn { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #222; color: #a64703; width: 65px; height: 65px; border-radius: 50%; border: 3px solid #a64703; font-size: 1.0rem; z-index: 9999; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
-        
         #match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 15000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
         .match-card-popup { background: #1a1a1a; width: 85%; max-width: 320px; border-radius: 20px; border: 2px solid #e5a00d; padding: 20px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(229, 160, 13, 0.4); animation: popupIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popupIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -92,7 +143,6 @@
         .match-instruction { color: #ffffff; font-size: 0.9rem; font-style: italic; z-index: 20001; pointer-events: none; }
         #game-instruction { position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); width: 100%; }
         #modal-instruction { position: fixed; bottom: 85px; }
-
         #genre-pill { position: fixed; top: 15px; right: 15px; width: 100px; height: 35px; border-radius: 20px; border: 1px solid #e5a00d; background: rgba(0,0,0,0.6); color: #e5a00d; font-weight: bold; font-size: 0.8rem; z-index: 10001; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         #genre-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; overflow: hidden; }
         #genre-modal h1 { flex-shrink: 0; margin: 20px 0 15px; }
@@ -100,42 +150,58 @@
         .genre-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 400px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
         .genre-item { background: #222; border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; }
         .genre-item.active { border-color: #e5a00d; color: #e5a00d; }
-
-      
         #solo-badge { position: fixed; top: 15px; left: 15px; background: rgba(0,0,0,0.6); border: 1px solid #666; color: #aaa; font-size: 0.75rem; font-weight: bold; padding: 6px 12px; border-radius: 20px; z-index: 10001; backdrop-filter: blur(5px); letter-spacing: 0.05em; }
-
         #match-solo-label { font-size: 0.85rem; color: #aaa; font-style: italic; margin-top: -15px; margin-bottom: 20px; }
-
-      
         #quit-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 40000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-        
         #quit-modal h2 { font-size: 1.8rem; color: #ff3131; margin: 0 0 10px; text-shadow: 0 0 10px #ff3131; }
-        
         #quit-modal p { color: #888; font-size: 0.95rem; margin: 0 0 35px; padding: 0 30px; line-height: 1.5; }
         .quit-btn-row { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-        
         #quit-confirm-btn { background: #d32f2f; color: white; border: none; padding: 14px 30px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: box-shadow 0.3s; width: 200px; }
-        
         #quit-confirm-btn:hover { box-shadow: 0 0 20px rgba(211,47,47,0.7); }
         #quit-cancel-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 14px 30px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: border-color 0.3s, color 0.3s; width: 200px; }
         #quit-cancel-btn:hover { border-color: #888; color: white; }
-       
-       
         #delete-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; border: 1px solid #333; border-radius: 16px; z-index: 50000; padding: 30px 25px; width: 280px; box-shadow: 0 8px 40px rgba(0,0,0,0.8); text-align: center; }
-        
         #delete-modal h3 { font-size: 1.2rem; color: #ff3131; margin: 0 0 8px; }
         #delete-modal p { color: #888; font-size: 0.85rem; margin: 0 0 25px; line-height: 1.4; }
-        
         #delete-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 49999; }
         .delete-btn-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
         #delete-confirm-btn { background: #d32f2f; color: white; border: none; padding: 12px 0; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; width: 100%; }
-        
         #delete-cancel-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 12px 0; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; width: 100%; }
         .cast-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 6px 8px 0; width: 100%; box-sizing: border-box; }
         .cast-member { display: flex; flex-direction: column; align-items: center; width: 56px; flex-shrink: 0; }
         .cast-member img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #e5a00d; background: #333; }
         .cast-member .no-photo { width: 52px; height: 52px; border-radius: 50%; background: #333; border: 2px solid #555; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
         .cast-member span { font-size: 0.58rem; color: #ccc; text-align: center; margin-top: 4px; line-height: 1.2; word-break: break-word; }
+        
+        .logout-btn { 
+            background: none; 
+            border: 1px solid #444; 
+            color: #666; 
+            padding: 8px 20px;
+            border-radius: 20px;
+            text-decoration: none; 
+            cursor: pointer; 
+            margin-top: 40px; 
+            font-size: 0.95rem; 
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .logout-btn:hover {
+            color: #ccc;
+            border-color: #888;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .signature {
+            position: fixed;
+            bottom: 10px;
+            width: 100%;
+            font-family: 'allura', cursive;
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 1.2rem;
+            pointer-events: none;
+            z-index: 2;
+        }
     </style>
 </head>
 <body>
@@ -144,20 +210,18 @@
     <button id="undo-btn" class="hidden">Undo</button>
 
     <div id="login-section">
-        <img src="/static/main.png" class="main-logo" style="margin-top:50px;">
         <h1 class="main-title">Kino-Swipe</h1>
         <button id="login-btn" class="menu-btn" onclick="loginWithPlex()">Login with Plex</button>
-        <p style="margin: 12px 0 0 0; font-size: 0.75rem; color: #888; font-style: italic;">Then</p>
-        <div style="margin: 8px auto 0 auto; text-align: center; width: 220px; line-height: 2;">
-            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">1. Host a session &amp; share the code with your partner</p>
-            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">2. Swipe right on the same movie to match</p>
-            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">3. Using alone? Enable Solo Mode after hosting</p>
+        <p style="position:relative; z-index:2; margin: 12px 0 0 0; font-size: 0.75rem; color: #888; font-style: italic;">Then</p>
+        <div style="position:relative; z-index:2; margin: 8px auto 0 auto; text-align: center; width: 220px; line-height: 2;">
+            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">1. Host a session &amp; share code</p>
+            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">2. Swipe right to match</p>
+            <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">3. Or Host & enable Solo Mode</p>
         </div>
     </div>
 
     <div id="main-menu" class="hidden">
         <div id="branding">
-            <img src="/static/main.png" class="main-logo">
             <h1 class="main-title">Kino-Swipe</h1>
         </div>
         <div id="controls-area">
@@ -188,7 +252,7 @@
                     Match History 
                 </button>
                 <br>
-                <button onclick="localStorage.clear(); location.reload();" style="background:none; border:none; color:#444; text-decoration:underline; cursor:pointer; margin-top:20px;">Logout</button>
+                <button class="logout-btn" onclick="localStorage.clear(); location.reload();">Logout</button>
             </div>
         </div>
         <div id="game-area" class="hidden">
@@ -200,6 +264,8 @@
             <div id="game-instruction" class="match-instruction">Tap poster for full details</div>
         </div>
     </div>
+
+    <div class="signature">Shayno</div>
 
     <div id="genre-modal" class="hidden">
         <h1 class="plex-yellow">Select Genre</h1>
@@ -648,19 +714,15 @@
 
         const startPolling = () => {
             if (sseSource) { sseSource.close(); sseSource = null; }
-
             sseSource = new EventSource('/room/stream');
-
             sseSource.onmessage = async (event) => {
                 const d = JSON.parse(event.data);
-
                 if (d.closed) {
                     sseSource.close();
                     localStorage.removeItem('active_room');
                     location.reload();
                     return;
                 }
-
                 if (d.genre && d.genre !== currentGenre) {
                     currentGenre = d.genre;
                     document.getElementById('genre-pill').innerText = currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
@@ -681,9 +743,6 @@
                         document.getElementById('match-overlay').classList.remove('hidden');
                     }
                 }
-            };
-
-            sseSource.onerror = () => {
             };
         };
 
