@@ -42,7 +42,7 @@
 
 1. Genres, deck fetch, item fetch for TMDB, server info, and poster fetch are reachable through the provider interface.  
 2. Manual or automated check: Plex mode room create + swipe + trailer + proxy image matches pre-refactor behavior.  
-3. Jellyfin-specific code is not yet required to satisfy ARC (stubs acceptable only if dead code paths are impossible to hit in prod — prefer full Jellyfin in Phases 3–4).
+3. In `jellyfin` mode before Phases 3–4 are complete, startup must fail fast with a clear message (no partial routes); Plex mode must remain fully functional behind the abstraction.
 
 ---
 
