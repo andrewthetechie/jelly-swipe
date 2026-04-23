@@ -51,6 +51,8 @@ ADMIN_TOKEN = os.getenv("PLEX_TOKEN")
 JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
+from media_provider import get_provider
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -90,89 +92,13 @@ def init_db():
        
         conn.execute('DELETE FROM swipes WHERE room_code NOT IN (SELECT pairing_code FROM rooms)')
 
-_genre_cache = None
-
-_plex_instance = None
-
-def get_plex():
-    global _plex_instance
-    if MEDIA_PROVIDER != "plex":
-        raise RuntimeError(
-            "Plex library access is unavailable when MEDIA_PROVIDER=jellyfin "
-            "(not implemented until later phases)."
-        )
-    from plexapi.server import PlexServer
-
-    if _plex_instance is not None:
-        return _plex_instance
-    _plex_instance = PlexServer(PLEX_URL, ADMIN_TOKEN)
-    return _plex_instance
-
-def reset_plex():
-    global _plex_instance
-    _plex_instance = None
-
-def get_plex_genres():
-    global _genre_cache
-    if _genre_cache is not None:
-        return _genre_cache
-    try:
-        plex = get_plex()
-        section = plex.library.section('Movies')
-        genres = sorted({g.title for g in section.listFilterChoices(field='genre')})
-        display = ["Sci-Fi" if g == "Science Fiction" else g for g in genres]
-        _genre_cache = display
-        return display
-    except Exception:
-        return []
-
-def fetch_plex_movies(genre_name=None):
-    try:
-        plex = get_plex()
-        movie_section = plex.library.section('Movies')
-    except Exception:
-        reset_plex()
-        plex = get_plex()
-        movie_section = plex.library.section('Movies')
-    do_shuffle = True
-    search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
-
-    if genre_name == "Recently Added":
-        movies = movie_section.search(libtype='movie', sort='addedAt:desc', maxresults=100)
-        do_shuffle = False
-    elif search_genre and search_genre != "All":
-        movies = movie_section.search(libtype='movie', genre=search_genre, sort='random', maxresults=100)
-        if not movies and search_genre != genre_name:
-            movies = movie_section.search(libtype='movie', genre=genre_name, sort='random', maxresults=100)
-    else:
-        movies = movie_section.search(libtype='movie', sort='random', maxresults=150)
-    
-    movie_list = []
-    for m in movies:
-        runtime_str = ""
-        if m.duration:
-            hrs = m.duration // 3600000
-            mins = (m.duration % 3600000) // 60000
-            runtime_str = f"{hrs}h {mins}m" if hrs > 0 else f"{mins}m"
-        movie_list.append({
-            'id': str(m.ratingKey), 'title': m.title, 'summary': m.summary, 'thumb': f"/proxy?path={m.thumb}",
-            'rating': m.audienceRating or m.rating, 'duration': runtime_str, 'year': m.year
-        })
-    if do_shuffle: random.shuffle(movie_list)
-    return movie_list
-
 @app.route('/')
 def index(): return render_template('index.html')
 
 @app.route('/get-trailer/<movie_id>')
 def get_trailer(movie_id):
     try:
-        try:
-            plex = get_plex()
-            item = plex.fetchItem(int(movie_id))
-        except Exception:
-            reset_plex()
-            item = get_plex().fetchItem(int(movie_id))
+        item = get_provider().resolve_item_for_tmdb(movie_id)
         search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={item.title}&year={item.year}"
         r = requests.get(search_url).json()
         if r.get('results'):
@@ -187,12 +113,7 @@ def get_trailer(movie_id):
 @app.route('/cast/<movie_id>')
 def get_cast(movie_id):
     try:
-        try:
-            plex = get_plex()
-            item = plex.fetchItem(int(movie_id))
-        except Exception:
-            reset_plex()
-            item = get_plex().fetchItem(int(movie_id))
+        item = get_provider().resolve_item_for_tmdb(movie_id)
         search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={item.title}&year={item.year}"
         r = requests.get(search_url).json()
         if r.get('results'):
@@ -223,12 +144,8 @@ def add_to_watchlist():
         from plexapi.myplex import MyPlexAccount
 
         account = MyPlexAccount(token=user_token)
-        try:
-            plex = get_plex()
-            item = plex.fetchItem(int(movie_id))
-        except Exception:
-            reset_plex()
-            item = get_plex().fetchItem(int(movie_id))
+        # D-03: watchlist remains Plex-specific; provider used only for library item resolution.
+        item = get_provider().resolve_item_for_tmdb(movie_id)
         account.addToWatchlist(item)
         return jsonify({'status': 'success'})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -257,7 +174,7 @@ def check_pin():
 @app.route('/room/create', methods=['POST'])
 def create_room():
     pairing_code = str(random.randint(1000, 9999))
-    movie_list = fetch_plex_movies()
+    movie_list = get_provider().fetch_deck()
     with get_db() as conn:
         conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)', 
                      (pairing_code, json.dumps(movie_list), 0, 'All', 0))
@@ -382,13 +299,7 @@ def undo_swipe():
 @app.route('/plex/server-info')
 def get_server_info():
     try:
-        try:
-            plex = get_plex()
-            return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
-        except Exception:
-            reset_plex()
-            plex = get_plex()
-            return jsonify({'machineIdentifier': plex.machineIdentifier, 'name': plex.friendlyName})
+        return jsonify(get_provider().server_info())
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/movies')
@@ -398,7 +309,7 @@ def get_movies():
     if not code: return jsonify([])
     with get_db() as conn:
         if genre:
-            new_list = fetch_plex_movies(genre)
+            new_list = get_provider().fetch_deck(genre)
             conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
             return jsonify(new_list)
         room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
@@ -406,7 +317,10 @@ def get_movies():
 
 @app.route('/genres')
 def get_genres():
-    return jsonify(get_plex_genres())
+    try:
+        return jsonify(get_provider().list_genres())
+    except Exception:
+        return jsonify([])
 
 @app.route('/room/status')
 def room_status():
@@ -482,8 +396,11 @@ def proxy():
     path = request.args.get('path')
     if not path or not path.startswith("/library/metadata/"):
         abort(403)
-    res = requests.get(f"{PLEX_URL}{path}?X-Plex-Token={ADMIN_TOKEN}", stream=True)
-    return Response(res.content, content_type=res.headers['Content-Type'])
+    try:
+        body, content_type = get_provider().fetch_library_image(path)
+    except PermissionError:
+        abort(403)
+    return Response(body, content_type=content_type)
 
 @app.route('/manifest.json')
 def serve_manifest():
