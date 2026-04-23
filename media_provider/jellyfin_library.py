@@ -151,12 +151,33 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
     def _user_id(self) -> str:
         if self._cached_user_id:
             return self._cached_user_id
-        data = self._api("GET", "/Users/Me")
-        uid = data.get("Id")
-        if not uid:
-            raise RuntimeError("Jellyfin: could not resolve current user id")
-        self._cached_user_id = uid
-        return uid
+        try:
+            data = self._api("GET", "/Users/Me")
+            uid = data.get("Id")
+            if uid:
+                self._cached_user_id = uid
+                return uid
+        except RuntimeError:
+            pass
+
+        # Some servers return 400 for /Users/Me when using API keys.
+        url = f"{self._base}/Users"
+        try:
+            r = self._session.get(url, headers=self._auth_headers(), timeout=30)
+        except requests.RequestException as exc:
+            raise RuntimeError("Jellyfin: could not resolve user id (network error)") from exc
+        if not r.ok:
+            raise RuntimeError(f"Jellyfin: could not resolve user id (HTTP {r.status_code})")
+        users = r.json() or []
+        preferred = (os.getenv("JELLYFIN_USERNAME") or "").strip().lower()
+        for u in users:
+            if preferred and (u.get("Name") or "").strip().lower() == preferred and u.get("Id"):
+                self._cached_user_id = u["Id"]
+                return self._cached_user_id
+        if users and users[0].get("Id"):
+            self._cached_user_id = users[0]["Id"]
+            return self._cached_user_id
+        raise RuntimeError("Jellyfin: could not resolve current user id")
 
     def _movies_library_id(self) -> str:
         if self._cached_library_id:
@@ -400,6 +421,22 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             raise RuntimeError("Failed to resolve Jellyfin user (network error)") from exc
         if r.status_code in (401, 403):
             raise RuntimeError("Jellyfin user token unauthorized")
+        if r.status_code == 400:
+            # API-key style tokens may not support /Users/Me.
+            try:
+                rr = self._session.get(f"{self._base}/Users", headers=headers, timeout=30)
+            except requests.RequestException as exc:
+                raise RuntimeError("Failed to resolve Jellyfin user (network error)") from exc
+            if not rr.ok:
+                raise RuntimeError(f"Failed to resolve Jellyfin user (HTTP {rr.status_code})")
+            users = rr.json() or []
+            preferred = (os.getenv("JELLYFIN_USERNAME") or "").strip().lower()
+            for u in users:
+                if preferred and (u.get("Name") or "").strip().lower() == preferred and u.get("Id"):
+                    return u["Id"]
+            if users and users[0].get("Id"):
+                return users[0]["Id"]
+            raise RuntimeError("Failed to resolve Jellyfin user id")
         if not r.ok:
             raise RuntimeError(f"Failed to resolve Jellyfin user (HTTP {r.status_code})")
         data = r.json()
