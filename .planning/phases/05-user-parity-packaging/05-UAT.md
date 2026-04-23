@@ -1,16 +1,16 @@
 ---
-status: partial
+status: diagnosed
 phase: 05-user-parity-packaging
 source:
   - 05-01-SUMMARY.md
   - 05-02-SUMMARY.md
 started: "2026-04-23T19:34:56Z"
-updated: "2026-04-23T19:45:49Z"
+updated: "2026-04-23T19:46:58Z"
 ---
 
 ## Current Test
 
-[testing paused — 4 items outstanding]
+[testing paused — blocked on Jellyfin `/proxy` poster 403 (see Gaps diagnosis)]
 
 ## Tests
 
@@ -74,5 +74,13 @@ blocked: 5
   reason: "User reported: I was able to launch the app, login to jellyfish and start and join a room. When I join, the poster shows a broken image and there are errors in the console Failed to load ‘http://localhost:5005/room/stream’. A ServiceWorker intercepted the request and encountered an unexpected error. and in the logs for the server 127.0.0.1 - - [23/Apr/2026 14:37:25] \"GET /proxy?path=jellyfin/0f5eaf1feae9280ec9cc6738af658a4e/Primary HTTP/1.1\" 403 - (multiple similar /proxy?path=jellyfin/.../Primary 403 lines) ..."
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Jellyfin item IDs are 32-hex strings without hyphens in this environment, but `/proxy` + `JellyfinLibraryProvider.fetch_library_image` only allow canonical UUID-with-hyphens (36 chars). That makes `/proxy?path=jellyfin/<32hex>/Primary` fail Flask's allowlist and return HTTP 403 before any upstream image fetch."
+  artifacts:
+    - path: "app.py"
+      issue: "Jellyfin `/proxy` allowlist regex requires `{36}` UUID-with-hyphens only"
+    - path: "media_provider/jellyfin_library.py"
+      issue: "`_JF_IMAGE_PATH` regex requires `{36}` UUID-with-hyphens only"
+  missing:
+    - "Update Jellyfin image path allowlist/parsing to accept both 32-hex ids and canonical UUID ids (still fixed `jellyfin/.../Primary` shape)."
+    - "Re-test posters + room UI after `/proxy` succeeds."
+  debug_session: ".planning/debug/jellyfin-proxy-thumb-403.md"
