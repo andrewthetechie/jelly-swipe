@@ -11,7 +11,11 @@ from flask import Flask, send_from_directory, jsonify, request, session, Respons
 from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3, os, random, re, requests, json, secrets, time
 
-DB_PATH = '/app/data/kinoswipe.db'
+# Default: repo ./data/kinoswipe.db (local dev). Docker: set DB_PATH=/app/data/kinoswipe.db or keep default when WORKDIR is /app.
+_APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.abspath(
+    os.getenv("DB_PATH", os.path.join(_APP_ROOT, "data", "kinoswipe.db"))
+)
 CLIENT_ID = 'KinoSwipe-Bergasha-2026'
 
 
