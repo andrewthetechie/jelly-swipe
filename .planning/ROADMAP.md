@@ -75,6 +75,8 @@
 
 ## Phase 3: Jellyfin authentication & HTTP client
 
+**Status:** Complete — 2026-04-23
+
 **Goal:** Server-side Jellyfin session (token) with safe handling and reconnect behavior.
 
 **Requirements:** JAUTH-01, JAUTH-02, JAUTH-03

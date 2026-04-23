@@ -19,9 +19,9 @@
 
 ### Jellyfin — server auth & client
 
-- [ ] **JAUTH-01**: Jellyfin mode supports configurable base URL plus server-side credentials appropriate for unattended access (document supported patterns: e.g. username/password login and/or API key, per final plan).
-- [ ] **JAUTH-02**: The app obtains and reuses a Jellyfin access token (or equivalent) and recovers cleanly after connection/auth errors (similar spirit to `reset_plex()`).
-- [ ] **JAUTH-03**: Secrets are not written to logs or returned in JSON error payloads.
+- [x] **JAUTH-01**: Jellyfin mode supports configurable base URL plus server-side credentials appropriate for unattended access (document supported patterns: e.g. username/password login and/or API key, per final plan).
+- [x] **JAUTH-02**: The app obtains and reuses a Jellyfin access token (or equivalent) and recovers cleanly after connection/auth errors (similar spirit to `reset_plex()`).
+- [x] **JAUTH-03**: Secrets are not written to logs or returned in JSON error payloads.
 
 ### Jellyfin — library & media
 
@@ -66,9 +66,9 @@
 | ARC-01 | Phase 2 | Pending |
 | ARC-02 | Phase 2 | Pending |
 | ARC-03 | Phase 2 | Pending |
-| JAUTH-01 | Phase 3 | Pending |
-| JAUTH-02 | Phase 3 | Pending |
-| JAUTH-03 | Phase 3 | Pending |
+| JAUTH-01 | Phase 3 | Done |
+| JAUTH-02 | Phase 3 | Done |
+| JAUTH-03 | Phase 3 | Done |
 | JLIB-01 | Phase 4 | Pending |
 | JLIB-02 | Phase 4 | Pending |
 | JLIB-03 | Phase 4 | Pending |
@@ -87,4 +87,4 @@
 
 ---
 *Requirements defined: 2026-04-22*  
-*Last updated: 2026-04-22 after roadmap creation*
+*Last updated: 2026-04-23 after Phase 3 execution (JAUTH-01–03 verified)*
