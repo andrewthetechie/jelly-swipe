@@ -22,12 +22,12 @@ See: `.planning/PROJECT.md` (updated 2026-04-23)
 
 **Core value:** Users can run a swipe session backed by either Plex or Jellyfin (one backend per deployment), with library browsing and deck behavior equivalent to today’s Plex path.
 
-**Current focus:** Phase 03 — jellyfin-authentication-http-client — **planned** (`03-PLAN-01.md`, `03-PLAN-02.md`, `03-RESEARCH.md`). Next: `/gsd-execute-phase 3`.
+**Current focus:** Phase 03 — jellyfin-authentication-http-client — **planned** (`03-01-PLAN.md`, `03-02-PLAN.md`, `03-RESEARCH.md`). Next: `/gsd-execute-phase 3`.
 
 ## Session
 
 - **Stopped at:** Phase 01 execution complete (summaries added)
-- **Resume:** `.planning/phases/03-jellyfin-authentication-http-client/03-PLAN-01.md`
+- **Resume:** `.planning/phases/03-jellyfin-authentication-http-client/03-01-PLAN.md`
 
 ## Milestone
 
