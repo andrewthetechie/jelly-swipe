@@ -26,8 +26,8 @@
 **Source phase:** 1  
 **Deferred at:** 2026-04-23 during /gsd-next advancement to Phase 5
 **Plans:**
-- [ ] 1-01: configuration-startup plan 1 (ran, no SUMMARY.md)
-- [ ] 1-02: configuration-startup plan 2 (ran, no SUMMARY.md)
+- [x] 1-01: configuration-startup plan 1 (ran, no SUMMARY.md)
+- [x] 1-02: configuration-startup plan 2 (ran, no SUMMARY.md)
 
 ### Phase 999.2: Follow-up — Phase 3 missing planning artifacts (BACKLOG)
 
