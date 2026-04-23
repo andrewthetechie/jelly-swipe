@@ -45,7 +45,7 @@ same movie, IT'S A MATCH!!
 Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDER`:
 
 - `plex` (default if unset) — today’s Plex integration.
-- `jellyfin` — Jellyfin-oriented configuration. **Phase 3+:** env vars are validated at import (Phase 1); the **first** `get_provider()` use in jellyfin mode obtains a server access token (API key or username/password) and verifies a minimal authenticated **`/Items`** call. **Deck / genres / images parity** is **Phase 4**. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
+- `jellyfin` — Jellyfin-oriented configuration. **Phase 3+:** env vars are validated at import (Phase 1); the **first** `get_provider()` use in jellyfin mode obtains a server access token (API key or username/password) and verifies a minimal authenticated **`/Items`** call. **Phase 4+:** deck, genres, `/proxy` thumbs (`jellyfin/{itemId}/Primary`), TMDB routes, and `/plex/server-info` JSON parity are implemented behind `JellyfinLibraryProvider`. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
 
 **Two instances rule:** Plex and Jellyfin are **not** supported in a single process. If you need both, run **two instances** (two containers or two hosts), each with its own database volume and `MEDIA_PROVIDER`.
 

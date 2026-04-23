@@ -1,6 +1,6 @@
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
-import sqlite3, os, random, requests, json, secrets, time
+import sqlite3, os, random, re, requests, json, secrets, time
 
 DB_PATH = '/app/data/kinoswipe.db'
 CLIENT_ID = 'KinoSwipe-Bergasha-2026'
@@ -391,16 +391,30 @@ def room_stream():
 
 @app.route('/proxy')
 def proxy():
-    if MEDIA_PROVIDER != "plex" or not PLEX_URL or not ADMIN_TOKEN:
-        abort(503)
     path = request.args.get('path')
-    if not path or not path.startswith("/library/metadata/"):
+    if not path:
         abort(403)
-    try:
-        body, content_type = get_provider().fetch_library_image(path)
-    except PermissionError:
-        abort(403)
-    return Response(body, content_type=content_type)
+    if MEDIA_PROVIDER == "plex":
+        if not PLEX_URL or not ADMIN_TOKEN:
+            abort(503)
+        if not path.startswith("/library/metadata/"):
+            abort(403)
+        try:
+            body, content_type = get_provider().fetch_library_image(path)
+        except PermissionError:
+            abort(403)
+        return Response(body, content_type=content_type)
+    if MEDIA_PROVIDER == "jellyfin":
+        if not JELLYFIN_URL:
+            abort(503)
+        if not re.match(r"^jellyfin/[0-9a-fA-F-]{36}/Primary$", path):
+            abort(403)
+        try:
+            body, content_type = get_provider().fetch_library_image(path)
+        except PermissionError:
+            abort(403)
+        return Response(body, content_type=content_type)
+    abort(503)
 
 @app.route('/manifest.json')
 def serve_manifest():
