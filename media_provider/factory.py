@@ -6,6 +6,7 @@ import os
 from typing import Optional
 
 from media_provider.base import LibraryMediaProvider
+from media_provider.jellyfin_library import JellyfinLibraryProvider
 from media_provider.plex_library import PlexLibraryProvider
 
 _provider_singleton: Optional[LibraryMediaProvider] = None
@@ -25,17 +26,24 @@ def _normalized_media_provider() -> str:
 def get_provider() -> LibraryMediaProvider:
     global _provider_singleton
 
-    if _normalized_media_provider() != "plex":
-        raise RuntimeError(
-            "Plex library access is unavailable when MEDIA_PROVIDER=jellyfin "
-            "(not implemented until later phases)."
-        )
+    mode = _normalized_media_provider()
 
-    if _provider_singleton is None:
-        plex_url = os.getenv("PLEX_URL", "").rstrip("/")
-        admin_token = os.getenv("PLEX_TOKEN")
-        _provider_singleton = PlexLibraryProvider(plex_url, admin_token)
-    return _provider_singleton
+    if mode == "plex":
+        if _provider_singleton is None:
+            plex_url = os.getenv("PLEX_URL", "").rstrip("/")
+            admin_token = os.getenv("PLEX_TOKEN")
+            _provider_singleton = PlexLibraryProvider(plex_url, admin_token or "")
+        return _provider_singleton
+
+    if mode == "jellyfin":
+        if _provider_singleton is None:
+            base = os.getenv("JELLYFIN_URL", "").rstrip("/")
+            prov = JellyfinLibraryProvider(base)
+            prov.ensure_authenticated()
+            _provider_singleton = prov
+        return _provider_singleton
+
+    raise RuntimeError(f"Unsupported MEDIA_PROVIDER mode: {mode!r}")
 
 
 def reset() -> None:

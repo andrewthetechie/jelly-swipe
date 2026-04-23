@@ -45,7 +45,7 @@ same movie, IT'S A MATCH!!
 Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDER`:
 
 - `plex` (default if unset) — today’s Plex integration.
-- `jellyfin` — Jellyfin-oriented configuration; full library parity is rolled out across later releases. With `jellyfin`, the app still **starts** without Plex credentials; Plex-only routes respond with errors until those phases ship.
+- `jellyfin` — Jellyfin-oriented configuration. **Phase 3+:** env vars are validated at import (Phase 1); the **first** `get_provider()` use in jellyfin mode obtains a server access token (API key or username/password) and verifies a minimal authenticated **`/Items`** call. **Deck / genres / images parity** is **Phase 4**. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
 
 **Two instances rule:** Plex and Jellyfin are **not** supported in a single process. If you need both, run **two instances** (two containers or two hosts), each with its own database volume and `MEDIA_PROVIDER`.
 
@@ -62,6 +62,12 @@ Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDE
 | `JELLYFIN_API_KEY` | Jellyfin (one of two auth bundles) | API key for unattended server access. |
 | `JELLYFIN_USERNAME` | Jellyfin (with password, if no API key) | Account username for Jellyfin. |
 | `JELLYFIN_PASSWORD` | Jellyfin (with username, if no API key) | Account password for Jellyfin. |
+| `JELLYFIN_DEVICE_ID` | Optional (Jellyfin) | Stable device id string sent with Jellyfin auth headers (default is built-in). |
+
+### Jellyfin operator checks (manual)
+
+1. **Happy path:** With valid `JELLYFIN_URL` and credentials, start the app and hit an endpoint that touches the provider (e.g. `/plex/server-info` is still Plex-shaped for Plex mode; for Jellyfin, `/genres` returns `[]` until Phase 4 while auth remains valid). Confirm logs show **no** API keys or access tokens.  
+2. **Re-login / reset:** Revoke the API key or set a wrong password, restart or trigger a code path that calls `reset()` on the provider (same spirit as Plex connection recovery), restore valid credentials, and confirm authenticated **`/Items`** succeeds again (Phase 3 success criterion).
 
 ### Minimal `.env` examples
 
@@ -75,7 +81,7 @@ TMDB_API_KEY=your-tmdb-v3-key
 FLASK_SECRET=long-random-string
 ```
 
-**Jellyfin mode** (Phase 1 validates env only; library features arrive in later phases)
+**Jellyfin mode** (library deck/UI parity is Phase 4; auth + token in Phase 3)
 
 ```env
 MEDIA_PROVIDER=jellyfin
