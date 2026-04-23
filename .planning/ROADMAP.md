@@ -1,0 +1,116 @@
+# Roadmap: Jellyfin support
+
+**Milestone:** Jellyfin as alternative media backend  
+**Granularity:** Standard (GSD config)  
+**Defined:** 2026-04-22
+
+## Phase overview
+
+| # | Phase | Goal | Requirements | Success criteria |
+|---|--------|------|--------------|------------------|
+| 1 | Configuration & startup | Either/or provider selection and env validation | CFG-01 — CFG-03 | 3 |
+| 2 | Media provider abstraction | Plex behind a stable provider API | ARC-01 — ARC-03 | 3 |
+| 3 | Jellyfin auth & client | Logged-in server session for API calls | JAUTH-01 — JAUTH-03 | 3 |
+| 4 | Jellyfin library & media | Deck, genres, images, TMDB chain, server info | JLIB-01 — JLIB-05 | 5 |
+| 5 | User parity & packaging | Per-user rows, watchlist/favorites, UI auth path, deps | JUSR-01 — JUSR-04 | 4 |
+
+**UI hint:** Phase 5 — yes (front-end auth and headers per provider).
+
+---
+
+## Phase 1: Configuration & startup
+
+**Goal:** One deployment runs either Plex or Jellyfin; startup and docs match that contract.
+
+**Requirements:** CFG-01, CFG-02, CFG-03
+
+**Success criteria:**
+
+1. Setting provider to `jellyfin` allows the process to start without Plex env vars present.  
+2. Setting provider to `plex` preserves existing required-variable behavior.  
+3. README describes both modes and the two-instance note for operators who want both backends.
+
+---
+
+## Phase 2: Media provider abstraction
+
+**Goal:** All library operations go through an abstraction; Plex behavior is unchanged when selected.
+
+**Requirements:** ARC-01, ARC-02, ARC-03
+
+**Success criteria:**
+
+1. Genres, deck fetch, item fetch for TMDB, server info, and poster fetch are reachable through the provider interface.  
+2. Manual or automated check: Plex mode room create + swipe + trailer + proxy image matches pre-refactor behavior.  
+3. Jellyfin-specific code is not yet required to satisfy ARC (stubs acceptable only if dead code paths are impossible to hit in prod — prefer full Jellyfin in Phases 3–4).
+
+---
+
+## Phase 3: Jellyfin authentication & HTTP client
+
+**Goal:** Server-side Jellyfin session (token) with safe handling and reconnect behavior.
+
+**Requirements:** JAUTH-01, JAUTH-02, JAUTH-03
+
+**Success criteria:**
+
+1. From configured credentials, the app obtains an access token usable for authenticated `/Items` calls.  
+2. Forced invalidation (wrong password, revoked key) surfaces a clear error without leaking secrets.  
+3. Token refresh or re-login path is defined and exercised once in manual test notes.
+
+---
+
+## Phase 4: Jellyfin library & media
+
+**Goal:** Same card JSON and routes as Plex for the core swipe experience, including images and TMDB.
+
+**Requirements:** JLIB-01, JLIB-02, JLIB-03, JLIB-04, JLIB-05
+
+**Success criteria:**
+
+1. Creating a room in Jellyfin mode loads a shuffled deck with populated thumbs in the browser.  
+2. Genre changes refetch and update the room deck analogous to Plex.  
+3. Trailer and cast endpoints return data for a Jellyfin-backed `movie_id`.  
+4. Server info endpoint returns name + stable id string for display.  
+5. Image proxy (or parallel route) rejects malicious paths.
+
+---
+
+## Phase 5: User parity & packaging
+
+**Goal:** Per-user match/history/undo and list-add work in Jellyfin mode; dependencies and compose are complete.
+
+**Requirements:** JUSR-01, JUSR-02, JUSR-03, JUSR-04
+
+**Success criteria:**
+
+1. Two browser identities in Jellyfin mode do not corrupt each other’s match rows (same test spirit as dual `plex_id`).  
+2. User can add a matched title to their Jellyfin-side list when authenticated.  
+3. Front end does not send Plex-only headers in Jellyfin mode (or server accepts both naming schemes — document the contract).  
+4. `docker build` / CI succeeds with new dependencies.
+
+---
+
+## Requirement coverage checklist
+
+- [x] CFG-01 — Phase 1  
+- [x] CFG-02 — Phase 1  
+- [x] CFG-03 — Phase 1  
+- [x] ARC-01 — Phase 2  
+- [x] ARC-02 — Phase 2  
+- [x] ARC-03 — Phase 2  
+- [x] JAUTH-01 — Phase 3  
+- [x] JAUTH-02 — Phase 3  
+- [x] JAUTH-03 — Phase 3  
+- [x] JLIB-01 — Phase 4  
+- [x] JLIB-02 — Phase 4  
+- [x] JLIB-03 — Phase 4  
+- [x] JLIB-04 — Phase 4  
+- [x] JLIB-05 — Phase 4  
+- [x] JUSR-01 — Phase 5  
+- [x] JUSR-02 — Phase 5  
+- [x] JUSR-03 — Phase 5  
+- [x] JUSR-04 — Phase 5  
+
+---
+*Roadmap created: 2026-04-22*
