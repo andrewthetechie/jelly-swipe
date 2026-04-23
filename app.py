@@ -1,3 +1,12 @@
+try:
+    from pathlib import Path
+
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
+
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3, os, random, re, requests, json, secrets, time

@@ -2,3 +2,4 @@ flask
 plexapi
 werkzeug
 requests
+python-dotenv
