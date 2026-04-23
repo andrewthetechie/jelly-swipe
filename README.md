@@ -40,14 +40,58 @@ same movie, IT'S A MATCH!!
 - **Match History** All matches now live in Match History until you're ready to delete them.
 - **Solo Mode** Flying solo? no worries, just host session and flick the solo toggle. (Every right swipe saves to Match History) 
 
+## Media backend (Plex or Jellyfin)
+
+Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDER`:
+
+- `plex` (default if unset) — today’s Plex integration.
+- `jellyfin` — Jellyfin-oriented configuration; full library parity is rolled out across later releases. With `jellyfin`, the app still **starts** without Plex credentials; Plex-only routes respond with errors until those phases ship.
+
+**Two instances rule:** Plex and Jellyfin are **not** supported in a single process. If you need both, run **two instances** (two containers or two hosts), each with its own database volume and `MEDIA_PROVIDER`.
+
+### Environment variables
+
+| Variable | Required when | Description |
+|----------|-----------------|-------------|
+| `MEDIA_PROVIDER` | Optional | `plex` (default) or `jellyfin` (case-insensitive). |
+| `FLASK_SECRET` | Always | Flask session secret. |
+| `TMDB_API_KEY` | Always | TMDB API key (trailers / cast). |
+| `PLEX_URL` | Plex only | Base URL of your Plex server (no trailing slash). |
+| `PLEX_TOKEN` | Plex only | Server admin token for library access. |
+| `JELLYFIN_URL` | Jellyfin only | Base URL of your Jellyfin server (no trailing slash). |
+| `JELLYFIN_API_KEY` | Jellyfin (one of two auth bundles) | API key for unattended server access. |
+| `JELLYFIN_USERNAME` | Jellyfin (with password, if no API key) | Account username for Jellyfin. |
+| `JELLYFIN_PASSWORD` | Jellyfin (with username, if no API key) | Account password for Jellyfin. |
+
+### Minimal `.env` examples
+
+**Plex mode**
+
+```env
+MEDIA_PROVIDER=plex
+PLEX_URL=https://your-plex-host:32400
+PLEX_TOKEN=your-plex-token-here
+TMDB_API_KEY=your-tmdb-v3-key
+FLASK_SECRET=long-random-string
+```
+
+**Jellyfin mode** (Phase 1 validates env only; library features arrive in later phases)
+
+```env
+MEDIA_PROVIDER=jellyfin
+JELLYFIN_URL=http://your-jellyfin-host:8096
+JELLYFIN_API_KEY=your-jellyfin-api-key
+TMDB_API_KEY=your-tmdb-v3-key
+FLASK_SECRET=long-random-string
+```
+
 ## Coming Soon
 ~~Match History: Match history folder accessible outside session for easy access.~~   
   
 
 ## Requirements
-- **Plex Media Server**
-- **Plex Auth Token**
-- **TMDB key for trailers** (Not required but trailers will not work on the back of the posters)
+- **Media backend:** Plex or Jellyfin — see [Media backend (Plex or Jellyfin)](#media-backend-plex-or-jellyfin) and the env table above.
+- **TMDB API key** — required at startup (trailers/cast); keep the key private.
 - **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone so it looks like an app, you must access it over an HTTPS connection. If you access it over local ip, it will work in the browser but when added to homescreen it will just act as a shortcut not like an app.
 
 ## TMDB API instructions

@@ -1,24 +1,55 @@
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
-from plexapi.server import PlexServer
-from plexapi.myplex import MyPlexAccount
 from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3, os, random, requests, json, secrets, time
+
+DB_PATH = '/app/data/kinoswipe.db'
+CLIENT_ID = 'KinoSwipe-Bergasha-2026'
+
+
+def _normalized_media_provider():
+    raw = (os.getenv("MEDIA_PROVIDER") or "").strip().lower()
+    if not raw:
+        return "plex"
+    if raw not in ("plex", "jellyfin"):
+        raise RuntimeError(
+            f"Invalid MEDIA_PROVIDER={os.getenv('MEDIA_PROVIDER')!r}; use 'plex' or 'jellyfin'"
+        )
+    return raw
+
+
+MEDIA_PROVIDER = _normalized_media_provider()
+
+missing = []
+for v in ("TMDB_API_KEY", "FLASK_SECRET"):
+    if not os.getenv(v):
+        missing.append(v)
+if MEDIA_PROVIDER == "plex":
+    for v in ("PLEX_URL", "PLEX_TOKEN"):
+        if not os.getenv(v):
+            missing.append(v)
+else:
+    if not os.getenv("JELLYFIN_URL", "").strip():
+        missing.append("JELLYFIN_URL")
+    has_api = bool(os.getenv("JELLYFIN_API_KEY", "").strip())
+    has_user_pass = bool(os.getenv("JELLYFIN_USERNAME", "").strip()) and bool(
+        os.getenv("JELLYFIN_PASSWORD", "").strip()
+    )
+    if not has_api and not has_user_pass:
+        missing.append(
+            "JELLYFIN_API_KEY or (JELLYFIN_USERNAME and JELLYFIN_PASSWORD)"
+        )
+
+if missing:
+    raise RuntimeError(f"Missing env vars: {missing}")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 app.secret_key = os.environ["FLASK_SECRET"]
 
-DB_PATH = '/app/data/kinoswipe.db'
-PLEX_URL = os.getenv('PLEX_URL', '').rstrip('/')
-ADMIN_TOKEN = os.getenv('PLEX_TOKEN')
-TMDB_API_KEY = os.getenv('TMDB_API_KEY') 
-CLIENT_ID = 'KinoSwipe-Bergasha-2026'
-
-
-required = ["PLEX_URL", "PLEX_TOKEN", "TMDB_API_KEY", "FLASK_SECRET"]
-missing = [v for v in required if not os.getenv(v)]
-if missing:
-    raise RuntimeError(f"Missing env vars: {missing}")
+PLEX_URL = os.getenv("PLEX_URL", "").rstrip("/")
+ADMIN_TOKEN = os.getenv("PLEX_TOKEN")
+JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 
 def get_db():
@@ -65,6 +96,13 @@ _plex_instance = None
 
 def get_plex():
     global _plex_instance
+    if MEDIA_PROVIDER != "plex":
+        raise RuntimeError(
+            "Plex library access is unavailable when MEDIA_PROVIDER=jellyfin "
+            "(not implemented until later phases)."
+        )
+    from plexapi.server import PlexServer
+
     if _plex_instance is not None:
         return _plex_instance
     _plex_instance = PlexServer(PLEX_URL, ADMIN_TOKEN)
@@ -176,10 +214,14 @@ def get_cast(movie_id):
 @app.route('/watchlist/add', methods=['POST'])
 def add_to_watchlist():
     try:
+        if MEDIA_PROVIDER != "plex":
+            return jsonify({"error": "Watchlist is only available in Plex mode"}), 400
         data = request.json
         movie_id = data.get('movie_id')
         user_token = request.headers.get('X-Plex-Token')
         if not user_token: return jsonify({'error': 'Unauthorized'}), 401
+        from plexapi.myplex import MyPlexAccount
+
         account = MyPlexAccount(token=user_token)
         try:
             plex = get_plex()
@@ -435,6 +477,8 @@ def room_stream():
 
 @app.route('/proxy')
 def proxy():
+    if MEDIA_PROVIDER != "plex" or not PLEX_URL or not ADMIN_TOKEN:
+        abort(503)
     path = request.args.get('path')
     if not path or not path.startswith("/library/metadata/"):
         abort(403)
