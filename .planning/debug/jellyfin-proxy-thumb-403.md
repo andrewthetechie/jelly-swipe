@@ -1,3 +1,8 @@
+---
+status: resolved
+updated: "2026-04-23T20:11:16Z"
+---
+
 # Debug: Jellyfin poster `/proxy` 403 + broken room UI
 
 ## Symptoms (from UAT)
