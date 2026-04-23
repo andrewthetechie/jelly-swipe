@@ -345,3 +345,78 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             raise RuntimeError(f"Jellyfin image fetch failed (HTTP {r.status_code})")
         ctype = r.headers.get("Content-Type") or "image/jpeg"
         return r.content, ctype
+
+    @staticmethod
+    def extract_media_browser_token(auth_header: str) -> Optional[str]:
+        """Extract Token=\"...\" from Authorization: MediaBrowser ... header."""
+        if not auth_header:
+            return None
+        m = re.search(r'Token="([^"]+)"', auth_header)
+        return m.group(1) if m else None
+
+    @staticmethod
+    def user_auth_header(user_token: str) -> str:
+        return (
+            'MediaBrowser Client="KinoSwipe", Device="Browser", '
+            f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{user_token}"'
+        )
+
+    def authenticate_user_session(self, username: str, password: str) -> dict:
+        """Exchange user credentials for Jellyfin user session token + user id."""
+        if not username or not password:
+            raise RuntimeError("Jellyfin login failed (missing username/password)")
+        url = f"{self._base}/Users/AuthenticateByName"
+        init_header = (
+            'MediaBrowser Client="KinoSwipe", Device="Browser", '
+            f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token=""'
+        )
+        try:
+            r = self._session.post(
+                url,
+                headers={"Authorization": init_header, "Content-Type": "application/json"},
+                json={"Username": username, "Pw": password},
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError("Jellyfin login failed (network error)") from exc
+        if not r.ok:
+            raise RuntimeError("Jellyfin login failed (invalid credentials)")
+        data = r.json()
+        token = data.get("AccessToken")
+        user = data.get("User") or {}
+        uid = user.get("Id")
+        if not token or not uid:
+            raise RuntimeError("Jellyfin login failed (missing token or user id)")
+        return {"token": token, "user_id": uid}
+
+    def resolve_user_id_from_token(self, user_token: str) -> str:
+        if not user_token:
+            raise RuntimeError("Missing Jellyfin user token")
+        url = f"{self._base}/Users/Me"
+        headers = {"Authorization": self.user_auth_header(user_token)}
+        try:
+            r = self._session.get(url, headers=headers, timeout=30)
+        except requests.RequestException as exc:
+            raise RuntimeError("Failed to resolve Jellyfin user (network error)") from exc
+        if r.status_code in (401, 403):
+            raise RuntimeError("Jellyfin user token unauthorized")
+        if not r.ok:
+            raise RuntimeError(f"Failed to resolve Jellyfin user (HTTP {r.status_code})")
+        data = r.json()
+        uid = data.get("Id")
+        if not uid:
+            raise RuntimeError("Failed to resolve Jellyfin user id")
+        return uid
+
+    def add_to_user_favorites(self, user_token: str, movie_id: str) -> None:
+        user_id = self.resolve_user_id_from_token(user_token)
+        url = f"{self._base}/Users/{user_id}/FavoriteItems/{movie_id}"
+        headers = {"Authorization": self.user_auth_header(user_token)}
+        try:
+            r = self._session.post(url, headers=headers, timeout=30)
+        except requests.RequestException as exc:
+            raise RuntimeError("Jellyfin favorite add failed (network error)") from exc
+        if r.status_code in (401, 403):
+            raise RuntimeError("Jellyfin favorite add unauthorized")
+        if not r.ok:
+            raise RuntimeError(f"Jellyfin favorite add failed (HTTP {r.status_code})")

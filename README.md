@@ -64,9 +64,22 @@ Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDE
 | `JELLYFIN_PASSWORD` | Jellyfin (with username, if no API key) | Account password for Jellyfin. |
 | `JELLYFIN_DEVICE_ID` | Optional (Jellyfin) | Stable device id string sent with Jellyfin auth headers (default is built-in). |
 
+### Jellyfin user identity contract (Phase 5)
+
+In Jellyfin mode, this app keeps the legacy `plex_id` DB column name for compatibility, but
+stores **Jellyfin user IDs** in that field. Requests can include either:
+
+- `X-Provider-User-Id` (preferred neutral header), or
+- `X-Plex-User-ID` (legacy compatibility header),
+
+and for user-scoped list actions must include a Jellyfin user token via:
+
+- `Authorization: MediaBrowser ... Token=\"<user-token>\"` (preferred), or
+- `X-Plex-Token` (legacy compatibility path).
+
 ### Jellyfin operator checks (manual)
 
-1. **Happy path:** With valid `JELLYFIN_URL` and credentials, start the app and hit an endpoint that touches the provider (e.g. `/plex/server-info` is still Plex-shaped for Plex mode; for Jellyfin, `/genres` returns `[]` until Phase 4 while auth remains valid). Confirm logs show **no** API keys or access tokens.  
+1. **Happy path:** With valid `JELLYFIN_URL` and credentials, start the app and hit provider endpoints (`/genres`, `/movies`, `/plex/server-info`). Confirm logs show **no** API keys or access tokens.  
 2. **Re-login / reset:** Revoke the API key or set a wrong password, restart or trigger a code path that calls `reset()` on the provider (same spirit as Plex connection recovery), restore valid credentials, and confirm authenticated **`/Items`** succeeds again (Phase 3 success criterion).
 
 ### Minimal `.env` examples

@@ -207,7 +207,7 @@
 
     <div id="login-section">
         <h1 class="main-title">Kino-Swipe</h1>
-        <button id="login-btn" class="menu-btn" onclick="loginWithPlex()">Login with Plex</button>
+        <button id="login-btn" class="menu-btn" onclick="loginWithPlex()">Login</button>
         <p style="position:relative; z-index:2; margin: 12px 0 0 0; font-size: 0.75rem; color: #888; font-style: italic;">Then</p>
         <div style="position:relative; z-index:2; margin: 8px auto 0 auto; text-align: center; width: 220px; line-height: 2;">
             <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">1. Host a session &amp; share code</p>
@@ -322,14 +322,50 @@
         let isSoloMode = false;
         let lastSeenMatchTs = null;
 
-        async function fetchAndStorePlexId() {
-            const token = localStorage.getItem('plex_token');
+        const mediaProvider = "{{ media_provider }}";
+
+        function providerToken() {
+            return localStorage.getItem('provider_token') || localStorage.getItem('plex_token');
+        }
+
+        function providerUserId() {
+            return localStorage.getItem('provider_user_id') || localStorage.getItem('plex_id');
+        }
+
+        function jellyfinAuthorizationHeader(token) {
+            return `MediaBrowser Client="KinoSwipe", Device="Browser", DeviceId="kino-swipe-web-v1", Version="1.0.0", Token="${token}"`;
+        }
+
+        function providerIdentityHeaders(extra = {}) {
+            const uid = providerUserId();
+            const headers = { ...extra };
+            if (uid) {
+                headers['X-Plex-User-ID'] = uid;
+                headers['X-Provider-User-Id'] = uid;
+            }
+            const tok = providerToken();
+            if (mediaProvider === 'jellyfin' && tok) {
+                headers['Authorization'] = jellyfinAuthorizationHeader(tok);
+            }
+            return headers;
+        }
+
+        async function fetchAndStoreProviderId() {
+            const token = providerToken();
             if (!token) return;
-            try {
-                const res = await fetch(`https://plex.tv/api/v2/user?X-Plex-Token=${token}`, { headers: { 'Accept': 'application/json' } });
-                const data = await res.json();
-                if (data.id) localStorage.setItem('plex_id', data.id);
-            } catch (e) { console.error("Could not fetch Plex ID"); }
+            if (mediaProvider === 'plex') {
+                try {
+                    const res = await fetch(`https://plex.tv/api/v2/user?X-Plex-Token=${token}`, { headers: { 'Accept': 'application/json' } });
+                    const data = await res.json();
+                    if (data.id) {
+                        localStorage.setItem('plex_id', data.id);
+                        localStorage.setItem('provider_user_id', data.id);
+                    }
+                } catch (e) { console.error("Could not fetch Plex ID"); }
+                return;
+            }
+            const uid = localStorage.getItem('provider_user_id');
+            if (uid) localStorage.setItem('plex_id', uid);
         }
 
         async function fetchPlexServerId() {
@@ -344,6 +380,30 @@
         }
 
         async function loginWithPlex() {
+            if (mediaProvider === 'jellyfin') {
+                const username = prompt("Jellyfin username:");
+                if (!username) return;
+                const password = prompt("Jellyfin password:");
+                if (!password) return;
+                const resp = await fetch("/auth/jellyfin-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.authToken) {
+                    alert(data.error || "Jellyfin login failed");
+                    return;
+                }
+                localStorage.setItem("provider_token", data.authToken);
+                localStorage.setItem("provider_user_id", data.userId);
+                localStorage.setItem("plex_token", data.authToken);
+                localStorage.setItem("plex_id", data.userId);
+                document.getElementById("login-section").classList.add("hidden");
+                document.getElementById("main-menu").classList.remove("hidden");
+                loadGenres();
+                return;
+            }
             const resp = await fetch("/auth/plex-url");
             const data = await resp.json();
             window.location.href = data.auth_url;
@@ -387,7 +447,9 @@
             try {
                 const res = await fetch("/watchlist/add", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "X-Plex-Token": localStorage.getItem('plex_token') },
+                    headers: mediaProvider === 'jellyfin'
+                        ? providerIdentityHeaders({ "Content-Type": "application/json" })
+                        : { "Content-Type": "application/json", "X-Plex-Token": providerToken() },
                     body: JSON.stringify({ movie_id: id })
                 });
                 if (res.ok) {
@@ -454,7 +516,7 @@
             const label = isSoloMode && !asHistory ? "Your Shortlist" : asHistory ? "Match History" : "Your Matches";
             document.getElementById('modal-title').innerText = label;
             const url = asHistory ? '/matches?view=history' : '/matches';
-            const res = await fetch(url, { headers: { 'X-Plex-User-ID': localStorage.getItem('plex_id') } });
+            const res = await fetch(url, { headers: providerIdentityHeaders() });
             const data = await res.json();
             const list = document.getElementById('matches-list');
             const emptyLabel = asHistory ? 'history' : isSoloMode ? 'shortlist' : 'matches';
@@ -463,6 +525,7 @@
                 const card = document.createElement('div');
                 card.className = 'mini-poster';
                 const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
+                const openLabel = mediaProvider === 'jellyfin' ? 'OPEN IN JELLYFIN' : 'OPEN IN PLEX';
                 card.innerHTML = `
                     <div class="mini-inner">
                         <div class="mini-front">
@@ -478,7 +541,7 @@
                                 ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
                                 ${m.year ? `<span class="stat-badge">${m.year}</span>` : ''}
                             </div>
-                            <a href="${plexLink}" class="plex-open-btn" target="_blank" rel="noopener noreferrer">OPEN IN PLEX</a>
+                            <a href="${plexLink}" class="plex-open-btn" target="_blank" rel="noopener noreferrer">${openLabel}</a>
                             <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#333; color:#e5a00d; border:1px solid #e5a00d; margin-top:5px;" onclick="addToWatchlist(event, '${m.movie_id}')">SAVE TO WATCHLIST</button>
                             <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#d32f2f; margin-top:5px; color:black;" onclick="deleteMatch(event, '${m.movie_id}')">DELETE</button>
                         </div>
@@ -506,7 +569,7 @@
             document.getElementById('delete-confirm-btn').onclick = async () => {
                 await fetch("/matches/delete", { 
                     method: "POST", 
-                    headers: {"Content-Type": "application/json", 'X-Plex-User-ID': localStorage.getItem('plex_id')}, 
+                    headers: providerIdentityHeaders({"Content-Type": "application/json"}), 
                     body: JSON.stringify({ movie_id: pendingDeleteId }) 
                 });
                 closeDeleteModal();
@@ -521,7 +584,7 @@
                 const lastMovie = swipeHistory.pop();
                 await fetch('/undo', { 
                     method: 'POST', 
-                    headers: {'Content-Type': 'application/json', 'X-Plex-User-ID': localStorage.getItem('plex_id')}, 
+                    headers: providerIdentityHeaders({'Content-Type': 'application/json'}), 
                     body: JSON.stringify({ movie_id: lastMovie.id }) 
                 });
                 movieStack.unshift(lastMovie);
@@ -641,10 +704,10 @@
                     const movieData = movieStack[0]; swipeHistory.push(movieData);
                     fetch('/room/swipe', { 
                         method: 'POST', 
-                        headers: {'Content-Type': 'application/json'}, 
+                        headers: providerIdentityHeaders({'Content-Type': 'application/json'}), 
                         body: JSON.stringify({ 
                             movie_id: card.dataset.id, title: card.dataset.title, thumb: card.dataset.thumb, direction: dir,
-                            plex_id: localStorage.getItem('plex_id')
+                            plex_id: providerUserId()
                         }) 
                     })
                     .then(r => r.json()).then(data => { 
@@ -744,17 +807,21 @@
 
         window.onload = async () => {
             _bindStaticHandlers();
+            document.getElementById('login-btn').innerText = mediaProvider === 'jellyfin' ? 'Login with Jellyfin' : 'Login with Plex';
             const params = new URLSearchParams(window.location.search);
             const pinId = params.get('pin_id');
-            const pinUrl = pinId ? `/auth/check-returned-pin?pin_id=${pinId}` : '/auth/check-returned-pin';
-            const pendingPin = await fetch(pinUrl);
-            const result = await pendingPin.json();
-            if (result.authToken) {
-                localStorage.setItem("plex_token", result.authToken);
-                window.history.replaceState({}, '', '/');
+            if (mediaProvider === 'plex') {
+                const pinUrl = pinId ? `/auth/check-returned-pin?pin_id=${pinId}` : '/auth/check-returned-pin';
+                const pendingPin = await fetch(pinUrl);
+                const result = await pendingPin.json();
+                if (result.authToken) {
+                    localStorage.setItem("plex_token", result.authToken);
+                    localStorage.setItem("provider_token", result.authToken);
+                    window.history.replaceState({}, '', '/');
+                }
             }
-            if (localStorage.getItem('plex_token')) {
-                await fetchAndStorePlexId();
+            if (providerToken()) {
+                await fetchAndStoreProviderId();
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('main-menu').classList.remove('hidden');
                 loadGenres();

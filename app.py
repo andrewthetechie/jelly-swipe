@@ -106,7 +106,40 @@ def init_db():
         conn.execute('DELETE FROM swipes WHERE room_code NOT IN (SELECT pairing_code FROM rooms)')
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index(): return render_template('index.html', media_provider=MEDIA_PROVIDER)
+
+
+def _jellyfin_user_token_from_request() -> str:
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header:
+        try:
+            token = get_provider().extract_media_browser_token(auth_header)
+        except Exception:
+            token = None
+    return token or request.headers.get("X-Plex-Token") or ""
+
+
+def _provider_user_id_from_request():
+    alias = (
+        request.headers.get("X-Provider-User-Id")
+        or request.headers.get("X-Jellyfin-User-Id")
+        or request.headers.get("X-Emby-UserId")
+    )
+    legacy = request.headers.get("X-Plex-User-ID")
+    if MEDIA_PROVIDER == "plex":
+        return legacy
+    if alias:
+        return alias
+    if legacy:
+        return legacy
+    token = _jellyfin_user_token_from_request()
+    if not token:
+        return None
+    try:
+        return get_provider().resolve_user_id_from_token(token)
+    except Exception:
+        return None
 
 @app.route('/get-trailer/<movie_id>')
 def get_trailer(movie_id):
@@ -148,12 +181,19 @@ def get_cast(movie_id):
 @app.route('/watchlist/add', methods=['POST'])
 def add_to_watchlist():
     try:
-        if MEDIA_PROVIDER != "plex":
-            return jsonify({"error": "Watchlist is only available in Plex mode"}), 400
         data = request.json
         movie_id = data.get('movie_id')
+        if MEDIA_PROVIDER == "jellyfin":
+            user_token = _jellyfin_user_token_from_request()
+            if not user_token:
+                return jsonify({'error': 'Unauthorized'}), 401
+            get_provider().add_to_user_favorites(user_token, movie_id)
+            return jsonify({'status': 'success'})
+        if MEDIA_PROVIDER != "plex":
+            return jsonify({"error": "Watchlist is only available in Plex/Jellyfin modes"}), 400
         user_token = request.headers.get('X-Plex-Token')
-        if not user_token: return jsonify({'error': 'Unauthorized'}), 401
+        if not user_token:
+            return jsonify({'error': 'Unauthorized'}), 401
         from plexapi.myplex import MyPlexAccount
 
         account = MyPlexAccount(token=user_token)
@@ -173,6 +213,27 @@ def get_plex_url():
         auth_url = f"https://app.plex.tv/auth/#!?clientID={CLIENT_ID}&code={res['code']}&context%5Bdevice%5D%5Bproduct%5D=KinoSwipe&forwardUrl={requests.utils.quote(forward, safe='')}"
         return jsonify({'auth_url': auth_url})
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+
+@app.route('/auth/provider')
+def auth_provider():
+    return jsonify({"provider": MEDIA_PROVIDER})
+
+
+@app.route('/auth/jellyfin-login', methods=['POST'])
+def jellyfin_login():
+    if MEDIA_PROVIDER != "jellyfin":
+        return jsonify({"error": "Jellyfin login is unavailable when MEDIA_PROVIDER=plex"}), 400
+    data = request.json or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+    try:
+        out = get_provider().authenticate_user_session(username, password)
+        return jsonify({"authToken": out["token"], "userId": out["user_id"]})
+    except Exception:
+        return jsonify({"error": "Jellyfin login failed"}), 401
 
 @app.route('/auth/check-returned-pin')
 def check_pin():
@@ -227,6 +288,10 @@ def swipe():
     data = request.json
     mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
     plex_id = data.get('plex_id')
+    if MEDIA_PROVIDER == "jellyfin":
+        plex_id = _provider_user_id_from_request() or plex_id
+        if not plex_id:
+            return jsonify({'error': 'Missing Jellyfin user identity', 'match': False}), 400
     
     if not code: return jsonify({'match': False})
     
@@ -269,7 +334,9 @@ def swipe():
 def get_matches():
     code = session.get('active_room')
     view = request.args.get('view')
-    plex_id = request.headers.get('X-Plex-User-ID')
+    plex_id = _provider_user_id_from_request()
+    if not plex_id:
+        return jsonify([]) if view else jsonify([])
     
     with get_db() as conn:
         if view == 'history':
@@ -293,7 +360,9 @@ def quit_room():
 @app.route('/matches/delete', methods=['POST'])
 def delete_match():
     mid = str(request.json.get('movie_id'))
-    plex_id = request.headers.get('X-Plex-User-ID')
+    plex_id = _provider_user_id_from_request()
+    if not plex_id:
+        return jsonify({'error': 'Missing user identity'}), 400
     with get_db() as conn:
         conn.execute('DELETE FROM matches WHERE movie_id = ? AND plex_id = ?', (mid, plex_id))
     return jsonify({'status': 'deleted'})
@@ -303,7 +372,9 @@ def undo_swipe():
     code = session.get('active_room')
     uid = session.get('my_user_id')
     mid = str(request.json.get('movie_id'))
-    plex_id = request.headers.get('X-Plex-User-ID')
+    plex_id = _provider_user_id_from_request()
+    if not plex_id:
+        return jsonify({'error': 'Missing user identity'}), 400
     with get_db() as conn:
         conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
         conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND plex_id = ?', (code, mid, plex_id))
