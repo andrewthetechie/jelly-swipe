@@ -35,7 +35,7 @@
 **Source phase:** 3  
 **Deferred at:** 2026-04-23 during /gsd-next advancement to Phase 5
 **Plans:**
-- [ ] 3-01: create PLAN.md artifacts for auth/http client scope (context exists, no plans)
+- [x] 3-01: create PLAN.md artifacts for auth/http client scope (context exists, no plans)
 
 ### Phase 999.3: Follow-up — Phase 4 missing planning artifacts (BACKLOG)
 
