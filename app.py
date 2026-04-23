@@ -491,7 +491,7 @@ def proxy():
     if MEDIA_PROVIDER == "jellyfin":
         if not JELLYFIN_URL:
             abort(503)
-        if not re.match(r"^jellyfin/[0-9a-fA-F-]{36}/Primary$", path):
+        if not re.match(r"^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$", path):
             abort(403)
         try:
             body, content_type = get_provider().fetch_library_image(path)

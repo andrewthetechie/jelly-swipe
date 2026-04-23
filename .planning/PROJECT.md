@@ -16,14 +16,11 @@ Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a h
 - ✓ **Plex metadata in UI** — Posters via `/proxy` (Plex library paths + admin token), runtime/year/summary on cards. *Existing.*
 - ✓ **TMDB enrichment** — Trailers and cast from TMDB using title/year from the media item (`get_trailer`, `get_cast`). *Existing.*
 - ✓ **Plex end-user flows** — Plex.tv pin auth for user token; watchlist add; `X-Plex-User-ID` for per-user matches/history/undo (`/watchlist/add`, `/matches`, etc.). *Existing.*
-
-### Active
-
-- [ ] **Jellyfin server auth** — Configure base URL and credentials (or API key per server policy); obtain and reuse an access token for server API calls.
-- [ ] **Jellyfin library parity** — Build the same in-app movie list shape the front end expects (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movies; genre filtering and a “Recently Added”–style sort where the API allows.
-- [ ] **Images** — Serve Jellyfin artwork through the app (extend or complement `/proxy` so thumbs work without exposing secrets in the browser).
-- [ ] **Either/or configuration** — Exactly one active media provider per process (`plex` **or** `jellyfin`); env and startup validation reflect the choice. Users who want both run two instances.
-- [ ] **User-scoped parity (within reason)** — Per-user match/history/undo and “add to list” behavior work in Jellyfin mode using Jellyfin identity (not Plex headers). Exact UX may use Jellyfin login/token headers instead of Plex pin, but outcomes should mirror Plex mode.
+- ✓ **Jellyfin server auth** — Configure base URL and credentials (or API key per server policy); obtain and reuse an access token for server API calls. *Phases 3–5 (milestone).*
+- ✓ **Jellyfin library parity** — Build the same in-app movie list shape the front end expects (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movies; genre filtering and a “Recently Added”–style sort where the API allows. *Phases 4–5 (milestone).*
+- ✓ **Images** — Serve Jellyfin artwork through the app (extend or complement `/proxy` so thumbs work without exposing secrets in the browser). *Phases 4–5 (milestone).*
+- ✓ **Either/or configuration** — Exactly one active media provider per process (`plex` **or** `jellyfin`); env and startup validation reflect the choice. Users who want both run two instances. *Phases 1–5 (milestone).*
+- ✓ **User-scoped parity (within reason)** — Per-user match/history/undo and “add to list” behavior work in Jellyfin mode using Jellyfin identity (not Plex headers). Exact UX may use Jellyfin login/token headers instead of Plex pin, but outcomes should mirror Plex mode. *Phase 5.*
 
 ### Out of Scope
 
@@ -47,9 +44,9 @@ Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a h
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Either-or media provider per instance | User request; keeps config and caching simple; avoids two libraries fighting for globals. | — Pending |
-| Two instances for Plex + Jellyfin together | User request; avoids multi-tenant complexity in one DB/session model. | — Pending |
-| Keep TMDB for trailers/cast | Already works from title/year; Jellyfin metadata is optional enhancement later. | — Pending |
+| Either-or media provider per instance | User request; keeps config and caching simple; avoids two libraries fighting for globals. | Adopted (Phase 1+) |
+| Two instances for Plex + Jellyfin together | User request; avoids multi-tenant complexity in one DB/session model. | Adopted (Phase 1+) |
+| Keep TMDB for trailers/cast | Already works from title/year; Jellyfin metadata is optional enhancement later. | Adopted |
 
 ## Evolution
 
@@ -71,4 +68,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-22 after initialization (Jellyfin milestone / gsd-new-project)*
+*Last updated: 2026-04-23 after Phase 5 completion + UAT*

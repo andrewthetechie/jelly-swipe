@@ -105,6 +105,8 @@
 
 ## Phase 5: User parity & packaging
 
+**Status:** Complete — 2026-04-23
+
 **Goal:** Per-user match/history/undo and list-add work in Jellyfin mode; dependencies and compose are complete.
 
 **Requirements:** JUSR-01, JUSR-02, JUSR-03, JUSR-04
@@ -115,6 +117,8 @@
 2. User can add a matched title to their Jellyfin-side list when authenticated.  
 3. Front end does not send Plex-only headers in Jellyfin mode (or server accepts both naming schemes — document the contract).  
 4. `docker build` / CI succeeds with new dependencies.
+
+**Next:** Backlog follow-ups live under **Phase 999.x** (planning-debt cleanup), starting with **Phase 999.1**.
 
 ---
 

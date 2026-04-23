@@ -14,8 +14,9 @@ from media_provider.base import LibraryMediaProvider
 
 _DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "kino-swipe-jellyfin-v1")
 
-# Allowlisted proxy path: jellyfin/{uuid}/Primary
-_JF_IMAGE_PATH = re.compile(r"^jellyfin/([0-9a-fA-F-]{36})/Primary$")
+# Allowlisted proxy path: jellyfin/{item_id}/Primary
+# Accept both canonical UUID and 32-char hex ids returned by Jellyfin.
+_JF_IMAGE_PATH = re.compile(r"^jellyfin/([0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$")
 
 
 def _media_browser_header(access_token: str) -> str:
