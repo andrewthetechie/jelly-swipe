@@ -1,6 +1,6 @@
-# Roadmap: Kino Swipe
+# Roadmap: Jelly Swipe
 
-**Planning root:** Jellyfin support milestone completed as **v1.0** (2026-04-24).
+**Planning root:** Jellyfin support shipped as **v1.0** (2026-04-24). **v1.1** is the Jelly Swipe rename and packaging pass (see live `.planning/REQUIREMENTS.md`).
 
 ## Milestones
 

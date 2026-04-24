@@ -11,12 +11,12 @@ from flask import Flask, send_from_directory, jsonify, request, session, Respons
 from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3, os, random, re, requests, json, secrets, time
 
-# Default: repo ./data/kinoswipe.db (local dev). Docker: set DB_PATH=/app/data/kinoswipe.db or keep default when WORKDIR is /app.
+# Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.abspath(
-    os.getenv("DB_PATH", os.path.join(_APP_ROOT, "data", "kinoswipe.db"))
+    os.getenv("DB_PATH", os.path.join(_APP_ROOT, "data", "jellyswipe.db"))
 )
-CLIENT_ID = 'KinoSwipe-Bergasha-2026'
+CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'
 
 
 def _normalized_media_provider():
@@ -229,11 +229,11 @@ def add_to_watchlist():
 @app.route('/auth/plex-url')
 def get_plex_url():
     REDIRECT_URL = f"{request.scheme}://{request.host}"
-    headers = {'X-Plex-Product': 'KinoSwipe', 'X-Plex-Client-Identifier': CLIENT_ID, 'Accept': 'application/json'}
+    headers = {'X-Plex-Product': 'JellySwipe', 'X-Plex-Client-Identifier': CLIENT_ID, 'Accept': 'application/json'}
     try:
         res = requests.post('https://plex.tv/api/v2/pins?strong=true', headers=headers).json()
         forward = f"{REDIRECT_URL}?pin_id={res['id']}"
-        auth_url = f"https://app.plex.tv/auth/#!?clientID={CLIENT_ID}&code={res['code']}&context%5Bdevice%5D%5Bproduct%5D=KinoSwipe&forwardUrl={requests.utils.quote(forward, safe='')}"
+        auth_url = f"https://app.plex.tv/auth/#!?clientID={CLIENT_ID}&code={res['code']}&context%5Bdevice%5D%5Bproduct%5D=JellySwipe&forwardUrl={requests.utils.quote(forward, safe='')}"
         return jsonify({'auth_url': auth_url})
     except Exception as e: return jsonify({'error': str(e)}), 500
 

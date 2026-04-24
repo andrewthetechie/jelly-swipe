@@ -1,7 +1,7 @@
 services:
-  kino-swipe:
-    build: ghcr.io/bergasha/kino-swipe:latest
-    container_name: kino-swipe
+  jelly-swipe:
+    image: andrewthetechie/jelly-swipe:latest
+    container_name: jelly-swipe
     ports:
       - "5005:5005"
     environment:

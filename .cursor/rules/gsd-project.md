@@ -1,9 +1,9 @@
 <!-- gsd-project-start source:PROJECT.md -->
 ## Project
 
-**Kino Swipe — Jellyfin support milestone**
+**Jelly Swipe**
 
-Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. Today the media server integration is Plex-only; this milestone adds **Jellyfin** as a first-class alternative so a deployment can authenticate to a Jellyfin server and pull the same kind of library content (movies, posters, genres, item details) used for the swipe deck.
+Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0** shipped **Jellyfin** as a first-class alternative alongside Plex (one backend per deployment). **v1.1** is the public rename and packaging under **AndrewTheTechie** (see `README.md` / `LICENSE` for upstream fork link).
 
 **Core Value:** **Users can run a swipe session backed by either Plex or Jellyfin** (one backend per deployment), with library browsing and deck behavior equivalent to today’s Plex path.
 
@@ -37,7 +37,7 @@ Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a h
 - `plexapi` — `PlexServer`, `MyPlexAccount` for library and watchlist (`app.py`).
 - `requests` — TMDB JSON APIs and Plex image proxy streaming (`app.py`).
 - `werkzeug` — Proxy-aware WSGI stack.
-- SQLite3 — Standard library; persistent rooms/swipes/matches at `DB_PATH` in `app.py` (`/app/data/kinoswipe.db` in container).
+- SQLite3 — Standard library; persistent rooms/swipes/matches at `DB_PATH` in `app.py` (`/app/data/jellyswipe.db` by default in container).
 ## Configuration
 - Required at process start: `PLEX_URL`, `PLEX_TOKEN`, `TMDB_API_KEY`, `FLASK_SECRET` (validated in `app.py`; process exits with `RuntimeError` if missing).
 - Optional in practice vs README: README describes TMDB as optional for trailers, but code requires `TMDB_API_KEY` to boot.

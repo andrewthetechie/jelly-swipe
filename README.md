@@ -1,5 +1,8 @@
-# Kino-Swipe 
-[![Docker Pulls](https://img.shields.io/docker/pulls/bergasha/kino-swipe)](https://hub.docker.com/r/bergasha/kino-swipe)
+# Jelly-Swipe
+
+[![GitHub](https://img.shields.io/github/stars/AndrewTheTechie/jelly-swipe?style=social)](https://github.com/AndrewTheTechie/jelly-swipe)
+
+**Fork:** This project was forked from [Bergasha/kino-swipe](https://github.com/Bergasha/kino-swipe). It is maintained by [@AndrewTheTechie](https://github.com/AndrewTheTechie).
 
 Always trying to decide on a movie to watch together?, This may be the fun solution you've been looking for.
 Dating app style swipe right for like swipe left for nope, If you both swipe right on the 
@@ -48,6 +51,11 @@ Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDE
 - `jellyfin` — Jellyfin-oriented configuration. **Phase 3+:** env vars are validated at import (Phase 1); the **first** `get_provider()` use in jellyfin mode obtains a server access token (API key or username/password) and verifies a minimal authenticated **`/Items`** call. **Phase 4+:** deck, genres, `/proxy` thumbs (`jellyfin/{itemId}/Primary`), TMDB routes, and `/plex/server-info` JSON parity are implemented behind `JellyfinLibraryProvider`. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
 
 **Two instances rule:** Plex and Jellyfin are **not** supported in a single process. If you need both, run **two instances** (two containers or two hosts), each with its own database volume and `MEDIA_PROVIDER`.
+
+### Upgrade note (Kino Swipe → Jelly Swipe)
+
+- **Plex.tv:** The in-app Plex client identifier changed. If you used Plex pin login before, you may need to sign in again once.
+- **Database file:** The default SQLite file is now `data/jellyswipe.db`. To keep an existing database from Kino Swipe, either copy `data/kinoswipe.db` to `data/jellyswipe.db` or set `DB_PATH` to your old file.
 
 ### Environment variables
 
@@ -142,7 +150,7 @@ Accept the Terms of Use.
 
 Fill out the form: * Type of Use: Personal/Educational.
 
-Application Name: Kino-Swipe.
+Application Name: Jelly-Swipe.
 
 Application URL: (You can put localhost or your server's IP).
 
@@ -151,7 +159,7 @@ Application Summary: "An app to help find movies to watch from my Plex library w
 Submit the form.
 
 4. Copy your API Key
-You will now see two different keys. For Kino-Swipe, you need the API Key (v3 auth). It is a long string of numbers and letters.
+You will now see two different keys. For Jelly-Swipe, you need the API Key (v3 auth). It is a long string of numbers and letters.
 ---
 
 ## Deployment
@@ -161,9 +169,9 @@ Copy and paste this into your terminal. Replace the variables with your specific
 
 ```bash
 services:
-  kino-swipe:
-    image: bergasha/kino-swipe:latest
-    container_name: kino-swipe
+  jelly-swipe:
+    image: andrewthetechie/jelly-swipe:latest
+    container_name: jelly-swipe
     ports:
       - "5005:5005"
     environment:
@@ -180,7 +188,7 @@ services:
 **Option 2 — Docker Run**
 ```bash
 docker run -d \
-  --name kino-swipe \
+  --name jelly-swipe \
   -p 5005:5005 \
   -e PLEX_URL=https://YOUR_PLEX_IP:32400 \
   -e PLEX_TOKEN=YOUR_PLEX_TOKEN \
@@ -189,7 +197,7 @@ docker run -d \
   -v ./data:/app/data \
   -v ./static:/app/static \
   --restart unless-stopped \
-  bergasha/kino-swipe:latest
+  andrewthetechie/jelly-swipe:latest
 ```
 
 <img src="https://github.com/user-attachments/assets/97e2c08b-5421-4f16-a798-acca2bb76a60" width="100"/>

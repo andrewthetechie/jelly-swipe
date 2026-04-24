@@ -43,7 +43,7 @@
 - `werkzeug` — Proxy-aware WSGI stack.
 
 **Infrastructure:**
-- SQLite3 — Standard library; persistent rooms/swipes/matches at `DB_PATH` in `app.py` (`/app/data/kinoswipe.db` in container).
+- SQLite3 — Standard library; persistent rooms/swipes/matches at `DB_PATH` in `app.py` (`/app/data/jellyswipe.db` by default in container).
 
 ## Configuration
 

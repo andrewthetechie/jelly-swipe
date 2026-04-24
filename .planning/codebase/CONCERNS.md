@@ -8,7 +8,7 @@
 - Issue: All routes, DB migrations, caching, and integrations live in one module (~460 lines, growing).
 - Files: `app.py`
 - Impact: Harder to test in isolation, higher merge conflict risk, unclear boundaries for new features.
-- Fix approach: Split into blueprints (`room_routes.py`, `plex_service.py`) or a small `src/kino_swipe/` package; keep `app.py` as thin factory.
+- Fix approach: Split into blueprints (`room_routes.py`, `plex_service.py`) or a small `src/jelly_swipe/` package; keep `app.py` as thin factory.
 
 **Duplicate front-end copies:**
 - Issue: `templates/index.html` and `data/index.html` diverge (different styling/structure in headers).

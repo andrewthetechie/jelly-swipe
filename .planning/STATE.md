@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: shipped
-stopped_at: v1.0 milestone complete
-last_updated: "2026-04-24T21:00:00.000Z"
+milestone: v1.1
+milestone_name: Jelly Swipe rename
+status: in_progress
+stopped_at: v1.1 branding — implementation sweep
+last_updated: "2026-04-24T22:30:00.000Z"
 progress:
-  total_phases: 12
-  completed_phases: 9
-  total_plans: 17
-  completed_plans: 21
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project state
@@ -19,33 +19,31 @@ progress:
 
 ## Project reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-24)
+See: `.planning/PROJECT.md` and `.planning/REQUIREMENTS.md` (v1.1)
 
-**Core value:** Users can run a swipe session backed by either Plex or Jellyfin (one backend per deployment), with library browsing and deck behavior equivalent to today’s Plex path.
+**Core value:** Users can run a swipe session backed by either Plex or Jellyfin (one backend per deployment), with library browsing and deck behavior equivalent to the Plex path.
 
-**Current focus:** v1.0 shipped — use `/gsd-new-milestone` for v1.1+ requirements and roadmap. Optional **Phase 999.x** backlog items remain in ROADMAP.
+**Current focus:** Close **v1.1** — Jelly Swipe rename (README, LICENSE, Docker, manifests, HTML titles, default `DB_PATH` / client strings, planning mirrors).
 
 ## Session
 
-- **Stopped at:** v1.0 milestone archived (2026-04-24)
-- **Resume:** `/gsd-new-milestone` (fresh requirements file)
-- **Forensics:** 2026-04-24 investigation recorded at `.planning/forensics/report-20260424-124818.md`
+- **Stopped at:** Code and docs aligned to Jelly Swipe; verify + tag when ready.
+- **Resume:** Finish verification, then `/gsd-ship` or milestone close per your workflow.
 
 ## Milestone
 
-- **Shipped:** v1.0 — Jellyfin support (either/or config; dual backends = two instances)
+- **In progress:** v1.1 — Jelly Swipe rename and maintainer identity (**AndrewTheTechie**)
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
-- Phase 9 added: UI improvements. The login for jellyfin username/password is annoying - I want to set the jellyfin creds on the server side and not require users to login .Additionally, the aspect ratio of the posters is too narrow, it cuts off the sides of the movie image.
+- v1.0 shipped Phases 1–9 (Jellyfin parity + Phase 9 UI). v1.1 scopes branding only; archived phase dirs under `.planning/milestones/v1.0-phases/` stay historical.
 
 ## Notes
 
-- Codebase map exists under `.planning/codebase/` (2026-04-23 analysis); treat as validated context for Plex-era behavior.
-- Phase 1 discussion used **recommended operator defaults** (documented in `01-DISCUSSION-LOG.md`); edit `01-CONTEXT.md` before planning if you want different env names or defaults.
+- Codebase map under `.planning/codebase/` updated for default DB path and Docker image where noted.
 
-**Last completed:** Phase 09 (UI improvements — Jellyfin delegate login + poster contain) — 2 plans — 2026-04-24
+**Last completed:** v1.0 (Phase 09) — 2026-04-24
 
-**Next (optional):** Phase 999.1+ backlog items in ROADMAP — all checklist boxes currently marked complete.
+**Next:** Verify v1.1 requirements (BRAND-01–04), commit, optional tag `v1.1`.

@@ -11,7 +11,7 @@
 **Plex.tv (OAuth-style pin flow):**
 - Pin creation: `POST https://plex.tv/api/v2/pins?strong=true` with product headers (`/auth/plex-url` in `app.py`).
 - Pin polling: `GET https://plex.tv/api/v2/pins/{pin_id}` (`/auth/check-returned-pin` in `app.py`).
-- Client identifier constant: `CLIENT_ID = 'KinoSwipe-Bergasha-2026'` in `app.py`.
+- Client identifier constant: `CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'` in `app.py`.
 
 **The Movie Database (TMDB) v3 REST:**
 - Movie search and videos for trailers — `https://api.themoviedb.org/3/search/movie` and `/movie/{id}/videos` (`get_trailer` in `app.py`).
@@ -24,7 +24,7 @@
 ## Data Storage
 
 **Databases:**
-- SQLite file at `/app/data/kinoswipe.db` in container (`DB_PATH` in `app.py`); host path `./data` mounted in `docker-compose.yml`.
+- SQLite file at `/app/data/jellyswipe.db` by default in container (`DB_PATH` in `app.py`); host path `./data` mounted in `docker-compose.yml`.
 - Schema created/migrated in `init_db()` in `app.py` (`rooms`, `swipes`, `matches`).
 
 **File Storage:**
@@ -50,7 +50,7 @@
 ## CI/CD & Deployment
 
 **Hosting:**
-- Docker Hub image `bergasha/kino-swipe:latest` (see `README.md` and workflow tags).
+- Docker Hub image `andrewthetechie/jelly-swipe:latest` (see `README.md` and workflow tags).
 
 **CI Pipeline:**
 - GitHub Actions on push to `main` — builds and pushes Docker image (`.github/workflows/docker-image.yml`).

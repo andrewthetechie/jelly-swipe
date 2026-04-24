@@ -12,7 +12,7 @@ import requests
 
 from media_provider.base import LibraryMediaProvider
 
-_DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "kino-swipe-jellyfin-v1")
+_DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "jelly-swipe-jellyfin-v1")
 
 # Allowlisted proxy path: jellyfin/{item_id}/Primary
 # Accept both canonical UUID and 32-char hex ids returned by Jellyfin.
@@ -21,7 +21,7 @@ _JF_IMAGE_PATH = re.compile(r"^jellyfin/([0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Prima
 
 def _media_browser_header(access_token: str) -> str:
     return (
-        'MediaBrowser Client="KinoSwipe", Device="FlaskApp", '
+        'MediaBrowser Client="JellySwipe", Device="FlaskApp", '
         f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{access_token}"'
     )
 
@@ -84,7 +84,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         elif username and password:
             url = f"{self._base}/Users/AuthenticateByName"
             init_header = (
-                'MediaBrowser Client="KinoSwipe", Device="FlaskApp", '
+                'MediaBrowser Client="JellySwipe", Device="FlaskApp", '
                 f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token=""'
             )
             try:
@@ -401,7 +401,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
     @staticmethod
     def user_auth_header(user_token: str) -> str:
         return (
-            'MediaBrowser Client="KinoSwipe", Device="Browser", '
+            'MediaBrowser Client="JellySwipe", Device="Browser", '
             f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{user_token}"'
         )
 
@@ -411,7 +411,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             raise RuntimeError("Jellyfin login failed (missing username/password)")
         url = f"{self._base}/Users/AuthenticateByName"
         init_header = (
-            'MediaBrowser Client="KinoSwipe", Device="Browser", '
+            'MediaBrowser Client="JellySwipe", Device="Browser", '
             f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token=""'
         )
         try:

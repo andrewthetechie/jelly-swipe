@@ -1,4 +1,4 @@
-# Retrospective — Kino Swipe
+# Retrospective — Jelly Swipe
 
 Cross-milestone trends accumulate at the bottom of this file.
 

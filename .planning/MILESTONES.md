@@ -1,6 +1,12 @@
-# Milestones — Kino Swipe
+# Milestones — Jelly Swipe
 
 Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`.
+
+---
+
+## v1.1 — Jelly Swipe rename (in progress)
+
+**Theme:** Product name, Docker image, default SQLite path, Unraid template, and maintainer identity under **AndrewTheTechie**; single fork attribution to upstream in `README.md` / `LICENSE` only.
 
 ---
 

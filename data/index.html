@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Kino-Swipe</title>
+    <title>Jelly-Swipe</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <link rel="manifest" href="/manifest.json">
@@ -9,7 +9,7 @@
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Kino-Swipe">
+    <meta name="apple-mobile-web-app-title" content="Jelly-Swipe">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 
     <style>
@@ -146,7 +146,7 @@
 
     <div id="login-section">
         <img src="/static/main.png" class="main-logo" style="margin-top:50px;">
-        <h1 class="main-title">Kino-Swipe</h1>
+        <h1 class="main-title">Jelly-Swipe</h1>
         <button id="login-btn" class="menu-btn" onclick="loginWithPlex()">Login with Plex</button>
         <p style="margin: 12px 0 0 0; font-size: 0.75rem; color: #888; font-style: italic;">Then</p>
         <div style="margin: 8px auto 0 auto; text-align: center; width: 220px; line-height: 2;">
@@ -159,7 +159,7 @@
     <div id="main-menu" class="hidden">
         <div id="branding">
             <img src="/static/main.png" class="main-logo">
-            <h1 class="main-title">Kino-Swipe</h1>
+            <h1 class="main-title">Jelly-Swipe</h1>
         </div>
         <div id="controls-area">
             <button id="host-btn" class="menu-btn" onmouseover="this.style.boxShadow='0 0 20px rgba(229, 160, 13, 0.7)';" onmouseout="this.style.boxShadow='0 0 12px rgba(229, 160, 13, 0.4)';" style="box-shadow: 0 0 12px rgba(229, 160, 13, 0.4); transition: 0.3s ease;">Host Session</button>
@@ -271,7 +271,7 @@
         }
 
         function jellyfinAuthorizationHeader(token) {
-            return `MediaBrowser Client="KinoSwipe", Device="Browser", DeviceId="kino-swipe-web-v1", Version="1.0.0", Token="${token}"`;
+            return `MediaBrowser Client="JellySwipe", Device="Browser", DeviceId="jelly-swipe-web-v1", Version="1.0.0", Token="${token}"`;
         }
 
         function providerIdentityHeaders(extra = {}) {

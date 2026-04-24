@@ -5,7 +5,7 @@
 ## Directory Layout
 
 ```
-kino-swipe/
+jelly-swipe/   # repo checkout may still be named kino-swipe locally
 ├── app.py                 # Flask app, routes, DB, Plex/TMDB integration
 ├── requirements.txt       # Python dependencies
 ├── Dockerfile             # Container image
@@ -27,7 +27,7 @@ kino-swipe/
 │   ├── sw.js              # Service worker (served at /sw.js)
 │   └── manifest.json      # Duplicate manifest metadata
 ├── unraid_template/
-│   └── kino-swipe.html    # Unraid community template
+│   └── jelly-swipe.html   # Unraid community template
 └── screenshots/           # Marketing / demo assets (not imported by app)
 ```
 
@@ -50,7 +50,7 @@ kino-swipe/
 
 **`data/`:**
 - Purpose: Writable volume mount target in Docker for SQLite DB and service worker; hosts alternate `index.html`.
-- Contains: `sw.js`, optional `kinoswipe.db` (gitignored when present locally).
+- Contains: `sw.js`, optional `jellyswipe.db` (or legacy `kinoswipe.db`; gitignored when present locally).
 - Key files: `data/sw.js`
 
 **`.github/workflows/`:**
@@ -59,7 +59,7 @@ kino-swipe/
 
 **`unraid_template/`:**
 - Purpose: Template snippet for Unraid deployments.
-- Key files: `unraid_template/kino-swipe.html`
+- Key files: `unraid_template/jelly-swipe.html`
 
 **`screenshots/`:**
 - Purpose: Documentation and demo media only.
@@ -72,7 +72,7 @@ kino-swipe/
 
 **Configuration:**
 - `docker-compose.yml`, `docker run.txt`: Example environment variable wiring (verify against required vars in `app.py`).
-- `.gitignore`: Ignores `data/kinoswipe.db`, `.env`, bytecode.
+- `.gitignore`: Ignores `data/jellyswipe.db`, `data/kinoswipe.db`, `.env`, bytecode.
 
 **Core Logic:**
 - `app.py`: All backend behavior (no `src/` package layout).
@@ -106,8 +106,8 @@ kino-swipe/
 
 **`data/`:**
 - Purpose: Runtime database and PWA files for mounted deployments.
-- Generated: `kinoswipe.db` created at runtime by `init_db()` in `app.py`.
-- Committed: `sw.js` and `index.html` yes; `kinoswipe.db` no (see `.gitignore`).
+- Generated: `jellyswipe.db` (default) created at runtime by `init_db()` in `app.py`; legacy `kinoswipe.db` if `DB_PATH` points at it.
+- Committed: `sw.js` and `index.html` yes; database files no (see `.gitignore`).
 
 ---
 

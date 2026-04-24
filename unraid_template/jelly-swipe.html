@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Container version="2">
-  <Name>Kino Swipe</Name>
-  <Repository>bergasha/kino-swipe:latest</Repository>
-  <Registry>https://hub.docker.com/repository/docker/bergasha/kino-swipe</Registry>
+  <Name>Jelly Swipe</Name>
+  <Repository>andrewthetechie/jelly-swipe:latest</Repository>
+  <Registry>https://hub.docker.com/r/andrewthetechie/jelly-swipe</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/Bergasha/kino-swipe/issues</Support>
-  <Project>https://github.com/Bergasha/kino-swipe</Project>
+  <Support>https://github.com/AndrewTheTechie/jelly-swipe/issues</Support>
+  <Project>https://github.com/AndrewTheTechie/jelly-swipe</Project>
   <Overview>
-Swipe and match movies for Plex
+Swipe and match movies for Plex or Jellyfin
 
-Tired of trying to pick a movie to watch together? Kino Swipe can turn this into a fun game. Basic dating app rules: swipe left if it is a no and swipe right if it is a yes. Two right swipes and it's a match. All matches are stored in your match history for later viewing.
+Tired of trying to pick a movie to watch together? Jelly Swipe turns it into a fun game. Basic dating app rules: swipe left if it is a no and swipe right if it is a yes. Two right swipes and it is a match. All matches are stored in your match history for later viewing.
+
+Forked from https://github.com/Bergasha/kino-swipe — maintained by https://github.com/AndrewTheTechie
   </Overview>
   <Category>MediaApp</Category>
   <WebUI>http://[IP]:[PORT:5005]</WebUI>
@@ -23,7 +25,7 @@ Tired of trying to pick a movie to watch together? Kino Swipe can turn this into
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Description>Swipe and match movies for Plex</Description>
+  <Description>Swipe and match movies for Plex or Jellyfin</Description>
   <Networking>
     <Mode>bridge</Mode>
     <Publish>
@@ -58,15 +60,15 @@ Tired of trying to pick a movie to watch together? Kino Swipe can turn this into
   </Environment>
   <Data>
     <Volume>
-      <HostDir>/mnt/user/appdata/kino-swipe/data</HostDir>
+      <HostDir>/mnt/user/appdata/jelly-swipe/data</HostDir>
       <ContainerDir>/app/data</ContainerDir>
       <Mode>rw</Mode>
     </Volume>
   </Data>
-  <Config Name="WebUI Port" Target="5005" Default="5005" Mode="tcp" Description="Port used to access Kino Swipe" Type="Port" Display="always" Required="true" Mask="false">5005</Config>
+  <Config Name="WebUI Port" Target="5005" Default="5005" Mode="tcp" Description="Port used to access Jelly Swipe" Type="Port" Display="always" Required="true" Mask="false">5005</Config>
   <Config Name="PLEX_URL" Target="PLEX_URL" Default="https://YOUR_PLEX_URL" Mode="" Description="URL of your Plex server" Type="Variable" Display="always" Required="true" Mask="false"/>
   <Config Name="PLEX_TOKEN" Target="PLEX_TOKEN" Default="" Mode="" Description="Your Plex token" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="TMDB_API_KEY" Target="TMDB_API_KEY" Default="" Mode="" Description="TMDB API key for Trailers to work" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="FLASK_SECRET" Target="FLASK_SECRET" Default="" Mode="" Description="Random secret string for session security" Type="Variable" Display="always" Required="true" Mask="true"/>
-  <Config Name="AppData Config Path" Target="/app/data" Default="/mnt/user/appdata/kino-swipe/data" Mode="rw" Description="Persistent storage for Kino Swipe data" Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="AppData Config Path" Target="/app/data" Default="/mnt/user/appdata/jelly-swipe/data" Mode="rw" Description="Persistent storage for Jelly Swipe data" Type="Path" Display="always" Required="true" Mask="false"/>
 </Container>

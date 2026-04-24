@@ -1,6 +1,6 @@
 # Features Research
 
-**Domain:** Jellyfin as alternative to Plex for Kino Swipe  
+**Domain:** Jellyfin as alternative to Plex for Jelly Swipe  
 **Researched:** 2026-04-22
 
 ## Table stakes (must work for “parity”)

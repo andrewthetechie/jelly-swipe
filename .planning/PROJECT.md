@@ -1,8 +1,10 @@
-# Kino Swipe — Jellyfin support milestone
+# Jelly Swipe
 
 ## What This Is
 
-Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** alternative alongside Plex: one active backend per process (`MEDIA_PROVIDER`), the same card JSON and routes for the swipe experience, and (Phase 9) optional **server-delegated** Jellyfin browser identity plus poster letterboxing in the embedded UI.
+Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** alternative alongside Plex: one active backend per process (`MEDIA_PROVIDER`), the same card JSON and routes for the swipe experience, and (Phase 9) optional **server-delegated** Jellyfin browser identity plus poster letterboxing in the embedded UI.
+
+**v1.1** completes the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there).
 
 ## Core Value
 
@@ -36,9 +38,10 @@ Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a h
 - **Replacing TMDB** — Trailers/cast stay on TMDB; no requirement to use Jellyfin plugins for trailers in v1.
 - **TV shows / music** — Movies library only, matching current Plex `Movies` section assumption.
 
-## Current state (after v1.0)
+## Current state
 
 - **Shipped:** v1.0 tagged; planning archives under `.planning/milestones/v1.0-*`.
+- **v1.1 (active):** Jelly Swipe naming in UI, PWA manifest, `app.py` defaults (`DB_PATH`, `CLIENT_ID`, Plex product string), Jellyfin `MediaBrowser` client string, Docker Hub / compose coordinates (`andrewthetechie/jelly-swipe`), Unraid template `jelly-swipe.html`.
 - **Runtime:** Flask + SQLite + SSE; `media_provider` package with `PlexLibraryProvider` and `JellyfinLibraryProvider`.
 - **UI:** Embedded HTML in `templates/index.html` and mirrored `data/index.html` (PWA-oriented copy).
 
@@ -83,4 +86,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-24 after **v1.0** milestone close (`/gsd-complete-milestone`)*
+*Last updated: 2026-04-24 — **v1.1** rebrand milestone in progress*
