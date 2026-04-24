@@ -14,7 +14,7 @@
 | 4 | Jellyfin library & media | Deck, genres, images, TMDB chain, server info | JLIB-01 — JLIB-05 | 5 |
 | 5 | User parity & packaging | Per-user rows, watchlist/favorites, UI auth path, deps | JUSR-01 — JUSR-04 | 4 |
 | 6 | Verification closure: foundation + abstraction | Produce missing verification evidence for configuration and provider abstraction | CFG-01 — CFG-03, ARC-01 — ARC-03 | 3 |
-| 7 | Verification closure: Jellyfin parity | Produce missing verification evidence for auth, library/media, and user parity | JAUTH-01 — JAUTH-03, JLIB-01 — JLIB-05, JUSR-01 — JUSR-04 | 4 |
+| 7 | Verification closure: Jellyfin parity | Create durable verification artifacts for Phases 3–5 (Jellyfin) | JAUTH-01 — JUSR-04 | 3 |
 | 8 | E2E and validation hardening | Close milestone-level flow and Nyquist validation gaps for re-audit | Audit flow + validation gaps | 3 |
 
 **UI hint:** Phase 5 — yes (front-end auth and headers per provider).
@@ -185,19 +185,19 @@
 - [x] CFG-02 — Phase 6  
 - [x] CFG-03 — Phase 6  
 - [x] ARC-01 — Phase 6  
-- [x] ARC-02 — Phase 6  
+- [ ] ARC-02 — Phase 6  
 - [x] ARC-03 — Phase 6  
-- [ ] JAUTH-01 — Phase 7  
+- [x] JAUTH-01 — Phase 7 (completed 2026-04-24)  
 - [ ] JAUTH-02 — Phase 7  
-- [ ] JAUTH-03 — Phase 7  
+- [x] JAUTH-03 — Phase 7 (completed 2026-04-24)  
 - [ ] JLIB-01 — Phase 7  
 - [ ] JLIB-02 — Phase 7  
-- [ ] JLIB-03 — Phase 7  
+- [x] JLIB-03 — Phase 7 (completed 2026-04-24)  
 - [ ] JLIB-04 — Phase 7  
 - [ ] JLIB-05 — Phase 7  
-- [ ] JUSR-01 — Phase 7  
+- [x] JUSR-01 — Phase 7 (completed 2026-04-24)  
 - [ ] JUSR-02 — Phase 7  
-- [ ] JUSR-03 — Phase 7  
+- [x] JUSR-03 — Phase 7 (completed 2026-04-24)  
 - [ ] JUSR-04 — Phase 7  
 
 ---
