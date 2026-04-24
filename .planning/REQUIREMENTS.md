@@ -7,15 +7,15 @@
 
 ### Configuration
 
-- [ ] **CFG-01**: Operator can set a single `MEDIA_PROVIDER` (or equivalent) to `plex` or `jellyfin` so the process uses exactly one backend for all library operations.
-- [ ] **CFG-02**: On startup, the app validates environment variables for the **active** provider only (Jellyfin mode must not require `PLEX_URL` / `PLEX_TOKEN`).
-- [ ] **CFG-03**: `README.md` and `docker-compose` documentation list provider-specific variables and the “two instances for both” deployment note.
+- [x] **CFG-01**: Operator can set a single `MEDIA_PROVIDER` (or equivalent) to `plex` or `jellyfin` so the process uses exactly one backend for all library operations.
+- [x] **CFG-02**: On startup, the app validates environment variables for the **active** provider only (Jellyfin mode must not require `PLEX_URL` / `PLEX_TOKEN`).
+- [x] **CFG-03**: `README.md` and `docker-compose` documentation list provider-specific variables and the “two instances for both” deployment note.
 
 ### Architecture / abstraction
 
-- [ ] **ARC-01**: Library access (genres, movie deck fetch, single-item metadata for TMDB, server display name/identifier, image fetch) flows through a provider abstraction callable from routes.
+- [x] **ARC-01**: Library access (genres, movie deck fetch, single-item metadata for TMDB, server display name/identifier, image fetch) flows through a provider abstraction callable from routes.
 - [ ] **ARC-02**: With `MEDIA_PROVIDER=plex`, behavior matches the pre-change Plex integration (deck shape, genres, proxy rules, watchlist, per-user headers).
-- [ ] **ARC-03**: Jellyfin-specific HTTP and auth live in a dedicated module or class, not scattered across unrelated helpers.
+- [x] **ARC-03**: Jellyfin-specific HTTP and auth live in a dedicated module or class, not scattered across unrelated helpers.
 
 ### Jellyfin — server auth & client
 
@@ -60,12 +60,12 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CFG-01 | Phase 6 | Pending |
-| CFG-02 | Phase 6 | Pending |
-| CFG-03 | Phase 6 | Pending |
-| ARC-01 | Phase 6 | Pending |
-| ARC-02 | Phase 6 | Pending |
-| ARC-03 | Phase 6 | Pending |
+| CFG-01 | Phase 6 | Done |
+| CFG-02 | Phase 6 | Done |
+| CFG-03 | Phase 6 | Done |
+| ARC-01 | Phase 6 | Done |
+| ARC-02 | Phase 6 | Partial |
+| ARC-03 | Phase 6 | Done |
 | JAUTH-01 | Phase 7 | Pending |
 | JAUTH-02 | Phase 7 | Pending |
 | JAUTH-03 | Phase 7 | Pending |
@@ -87,4 +87,4 @@
 
 ---
 *Requirements defined: 2026-04-22*  
-*Last updated: 2026-04-24 after milestone gap-planning (Phases 6-8 added)*
+*Last updated: 2026-04-24 — CFG/ARC rows synced from `01-VERIFICATION.md` / `02-VERIFICATION.md` via `06-VERIFICATION.md`*
