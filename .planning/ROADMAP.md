@@ -165,6 +165,8 @@
 
 ## Phase 8: E2E and validation hardening
 
+**Status:** Complete — 2026-04-24
+
 **Goal:** Resolve remaining milestone-level flow confidence and Nyquist validation coverage gaps to enable re-audit.
 
 **Requirements:** Audit flow + validation gaps (supports v1 completion readiness)
