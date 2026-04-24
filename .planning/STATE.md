@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
+status: unknown
 stopped_at: Phase 08 execution complete
-last_updated: "2026-04-24T20:17:32.602Z"
+last_updated: "2026-04-24T20:41:04.654Z"
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 5
-  total_plans: 15
-  completed_plans: 18
-  percent: 45
+  total_plans: 17
+  completed_plans: 21
+  percent: 100
 ---
 
 # Project state
@@ -35,6 +35,12 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 - **Active:** Jellyfin support (either/or config; dual backends = two instances)
 
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 9 added: UI improvements. The login for jellyfin username/password is annoying - I want to set the jellyfin creds on the server side and not require users to login .Additionally, the aspect ratio of the posters is too narrow, it cuts off the sides of the movie image.
+
 ## Notes
 
 - Codebase map exists under `.planning/codebase/` (2026-04-23 analysis); treat as validated context for Plex-era behavior.
@@ -43,3 +49,5 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 **Last completed:** Phase 08 (E2E and validation hardening) — 3 plans — 2026-04-24
 
 **Next (optional):** Phase 999.1+ backlog items in ROADMAP — all checklist boxes currently marked complete.
+
+**Planned Phase:** 09 (UI improvements (Jellyfin login + posters)) — 2 plans — 2026-04-24T20:41:04.646Z
