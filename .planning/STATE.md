@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-stopped_at: Phase 08 execution complete
-last_updated: "2026-04-24T20:47:17.555Z"
+status: shipped
+stopped_at: v1.0 milestone complete
+last_updated: "2026-04-24T21:00:00.000Z"
 progress:
   total_phases: 12
-  completed_phases: 6
+  completed_phases: 9
   total_plans: 17
   completed_plans: 21
-  percent: 50
+  percent: 100
 ---
 
 # Project state
@@ -23,17 +23,17 @@ See: `.planning/PROJECT.md` (updated 2026-04-24)
 
 **Core value:** Users can run a swipe session backed by either Plex or Jellyfin (one backend per deployment), with library browsing and deck behavior equivalent to today’s Plex path.
 
-**Current focus:** Phase 09 complete — optional backlog **Phase 999.x** (see ROADMAP).
+**Current focus:** v1.0 shipped — use `/gsd-new-milestone` for v1.1+ requirements and roadmap. Optional **Phase 999.x** backlog items remain in ROADMAP.
 
 ## Session
 
-- **Stopped at:** Phase 08 execution complete
-- **Resume:** `.planning/phases/08-e2e-validation-hardening/08-VERIFICATION.md`
+- **Stopped at:** v1.0 milestone archived (2026-04-24)
+- **Resume:** `/gsd-new-milestone` (fresh requirements file)
 - **Forensics:** 2026-04-24 investigation recorded at `.planning/forensics/report-20260424-124818.md`
 
 ## Milestone
 
-- **Active:** Jellyfin support (either/or config; dual backends = two instances)
+- **Shipped:** v1.0 — Jellyfin support (either/or config; dual backends = two instances)
 
 ## Accumulated Context
 
