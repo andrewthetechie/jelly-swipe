@@ -105,9 +105,10 @@
         .card-inner, .mini-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
         .flipped .card-inner, .flipped .mini-inner { transform: rotateY(180deg); }
         .card-front, .card-back, .mini-front, .mini-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 20px; overflow: hidden; }
+        .card-front, .mini-front { background-color: #000; }
         .card-back, .mini-back { transform: rotateY(180deg); background: #1a1a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; border: 2px solid #e5a00d; }
         .movie-card { position: absolute; width: 90%; height: 100%; left: 5%; top: 0; touch-action: none; z-index: 5; }
-        .movie-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+        .movie-card img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
         .movie-title { margin-bottom: 10px; font-weight: bold; font-size: 1.8rem; color: #e5a00d; padding: 0 10px; line-height: 1.1; }
         .trailer-btn { background: #e5a00d; color: black; border: none; padding: 10px; width: 90%; font-weight: bold; border-radius: 8px; margin: 5px 0; cursor: pointer; font-size: 0.8rem; z-index: 200; }
         .trailer-box { width: 90%; aspect-ratio: 16/9; background: #000; margin: 5px 0; border-radius: 8px; display: none; overflow: hidden; }
@@ -115,7 +116,7 @@
         #matches-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; }
         #matches-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 500px; overflow-y: auto; padding-bottom: 120px; }
         .mini-poster { width: 100%; aspect-ratio: 2/3; border-radius: 10px; }
-        .mini-front img { width: 100%; height: 100%; object-fit: cover; }
+        .mini-front img { width: 100%; height: 100%; object-fit: contain; }
         .mini-front { border: 2px solid #333; }
         .mini-back { padding: 10px; border-radius: 10px; }
         .plex-open-btn { background: #e5a00d; color: black; border: none; padding: 10px 5px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; cursor: pointer; text-decoration: none; width: 90%; margin-top: 10px; display: block; text-align: center; }
@@ -134,7 +135,7 @@
         #match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 15000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
         .match-card-popup { background: #1a1a1a; width: 85%; max-width: 320px; border-radius: 20px; border: 2px solid #e5a00d; padding: 20px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(229, 160, 13, 0.4); animation: popupIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popupIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .match-poster-preview { width: 140px; height: 210px; border-radius: 10px; object-fit: cover; border: 2px solid #333; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .match-poster-preview { width: 140px; height: 210px; border-radius: 10px; object-fit: contain; border: 2px solid #333; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .match-logo { width: 100px; margin-bottom: 10px; }
         .match-instruction { color: #ffffff; font-size: 0.9rem; font-style: italic; z-index: 20001; pointer-events: none; }
         #game-instruction { position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); width: 100%; }
@@ -350,6 +351,37 @@
             return headers;
         }
 
+        async function bootstrapJellyfinDelegate() {
+            const provRes = await fetch("/auth/provider");
+            const provData = await provRes.json();
+            if (provData.jellyfin_browser_auth !== "delegate") {
+                return false;
+            }
+            const resp = await fetch("/auth/jellyfin-use-server-identity", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+                credentials: "same-origin",
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.userId) {
+                alert(
+                    data.error ||
+                        "Could not use server Jellyfin account. Check server logs and JELLYFIN_* environment variables."
+                );
+                return false;
+            }
+            localStorage.removeItem("provider_token");
+            localStorage.removeItem("plex_token");
+            localStorage.setItem("provider_user_id", data.userId);
+            localStorage.setItem("plex_id", data.userId);
+            document.getElementById("login-section").classList.add("hidden");
+            document.getElementById("main-menu").classList.remove("hidden");
+            loadGenres();
+            if (localStorage.getItem("active_room")) loadMovies();
+            return true;
+        }
+
         async function fetchAndStoreProviderId() {
             const token = providerToken();
             if (!token) return;
@@ -381,9 +413,15 @@
 
         async function loginWithPlex() {
             if (mediaProvider === 'jellyfin') {
-                const username = prompt("Jellyfin username:");
+                const provRes = await fetch("/auth/provider");
+                const provData = await provRes.json();
+                if (provData.jellyfin_browser_auth === "delegate") {
+                    await bootstrapJellyfinDelegate();
+                    return;
+                }
+                const username = prompt("Jellyfin account name", "");
                 if (!username) return;
-                const password = prompt("Jellyfin password:");
+                const password = prompt("Jellyfin account password", "");
                 if (!password) return;
                 const resp = await fetch("/auth/jellyfin-login", {
                     method: "POST",
@@ -807,7 +845,6 @@
 
         window.onload = async () => {
             _bindStaticHandlers();
-            document.getElementById('login-btn').innerText = mediaProvider === 'jellyfin' ? 'Login with Jellyfin' : 'Login with Plex';
             const params = new URLSearchParams(window.location.search);
             const pinId = params.get('pin_id');
             if (mediaProvider === 'plex') {
@@ -820,6 +857,25 @@
                     window.history.replaceState({}, '', '/');
                 }
             }
+            if (mediaProvider === 'jellyfin') {
+                try {
+                    const provRes = await fetch('/auth/provider');
+                    const provData = await provRes.json();
+                    if (provData.jellyfin_browser_auth === 'delegate') {
+                        document.getElementById('login-btn').innerText = 'Continue';
+                        document.getElementById('login-btn').onclick = () => bootstrapJellyfinDelegate();
+                        const booted = await bootstrapJellyfinDelegate();
+                        if (booted) {
+                            await fetchAndStoreProviderId();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Jellyfin provider probe failed', e);
+                }
+            }
+            document.getElementById('login-btn').innerText = mediaProvider === 'jellyfin' ? 'Login with Jellyfin' : 'Login with Plex';
+            document.getElementById('login-btn').onclick = loginWithPlex;
             if (providerToken()) {
                 await fetchAndStoreProviderId();
                 document.getElementById('login-section').classList.add('hidden');

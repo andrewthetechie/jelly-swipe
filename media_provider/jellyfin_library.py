@@ -61,6 +61,19 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             self._login_from_env()
             self._verify_items()
 
+    def server_access_token_for_delegate(self) -> str:
+        """
+        For in-process Flask request handling only — not for JSON responses.
+        """
+        self.ensure_authenticated()
+        if not self._access_token:
+            raise RuntimeError("Jellyfin authentication failed (missing credentials)")
+        return self._access_token
+
+    def server_primary_user_id_for_delegate(self) -> str:
+        self.ensure_authenticated()
+        return self._user_id()
+
     def _login_from_env(self) -> None:
         api_key = os.getenv("JELLYFIN_API_KEY", "").strip()
         username = os.getenv("JELLYFIN_USERNAME", "").strip()
@@ -370,6 +383,8 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             )
         if r.status_code == 403:
             raise PermissionError("Jellyfin image forbidden")
+        if r.status_code == 404:
+            raise FileNotFoundError("Jellyfin image not found")
         if not r.ok:
             raise RuntimeError(f"Jellyfin image fetch failed (HTTP {r.status_code})")
         ctype = r.headers.get("Content-Type") or "image/jpeg"

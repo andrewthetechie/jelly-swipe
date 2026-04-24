@@ -49,10 +49,11 @@
         .card-inner, .mini-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
         .flipped .card-inner, .flipped .mini-inner { transform: rotateY(180deg); }
         .card-front, .card-back, .mini-front, .mini-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 20px; overflow: hidden; }
+        .card-front, .mini-front { background-color: #000; }
         .card-back, .mini-back { transform: rotateY(180deg); background: #1a1a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; border: 2px solid #e5a00d; }
 
         .movie-card { position: absolute; width: 90%; height: 100%; left: 5%; top: 0; touch-action: none; z-index: 5; }
-        .movie-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+        .movie-card img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
         .movie-title { margin-bottom: 10px; font-weight: bold; font-size: 1.8rem; color: #e5a00d; padding: 0 10px; line-height: 1.1; }
 
         .trailer-btn { background: #e5a00d; color: black; border: none; padding: 10px; width: 90%; font-weight: bold; border-radius: 8px; margin: 5px 0; cursor: pointer; font-size: 0.8rem; z-index: 200; }
@@ -63,7 +64,7 @@
         #matches-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 500px; overflow-y: auto; padding-bottom: 120px; }
         
         .mini-poster { width: 100%; aspect-ratio: 2/3; border-radius: 10px; }
-        .mini-front img { width: 100%; height: 100%; object-fit: cover; }
+        .mini-front img { width: 100%; height: 100%; object-fit: contain; }
         .mini-front { border: 2px solid #333; }
         .mini-back { padding: 10px; border-radius: 10px; }
         
@@ -87,7 +88,7 @@
         #match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 15000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
         .match-card-popup { background: #1a1a1a; width: 85%; max-width: 320px; border-radius: 20px; border: 2px solid #e5a00d; padding: 20px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(229, 160, 13, 0.4); animation: popupIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popupIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .match-poster-preview { width: 140px; height: 210px; border-radius: 10px; object-fit: cover; border: 2px solid #333; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .match-poster-preview { width: 140px; height: 210px; border-radius: 10px; object-fit: contain; border: 2px solid #333; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .match-logo { width: 100px; margin-bottom: 10px; }
         .match-instruction { color: #ffffff; font-size: 0.9rem; font-style: italic; z-index: 20001; pointer-events: none; }
         #game-instruction { position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); width: 100%; }
@@ -259,15 +260,83 @@
         let isHistoryView = false;
         let isSoloMode = false;
         let lastSeenMatchTs = null;
+        let mediaProvider = "plex";
 
-        async function fetchAndStorePlexId() {
-            const token = localStorage.getItem('plex_token');
+        function providerToken() {
+            return localStorage.getItem("provider_token") || localStorage.getItem("plex_token");
+        }
+
+        function providerUserId() {
+            return localStorage.getItem("provider_user_id") || localStorage.getItem("plex_id");
+        }
+
+        function jellyfinAuthorizationHeader(token) {
+            return `MediaBrowser Client="KinoSwipe", Device="Browser", DeviceId="kino-swipe-web-v1", Version="1.0.0", Token="${token}"`;
+        }
+
+        function providerIdentityHeaders(extra = {}) {
+            const uid = providerUserId();
+            const headers = { ...extra };
+            if (uid) {
+                headers["X-Plex-User-ID"] = uid;
+                headers["X-Provider-User-Id"] = uid;
+            }
+            const tok = providerToken();
+            if (mediaProvider === "jellyfin" && tok) {
+                headers["Authorization"] = jellyfinAuthorizationHeader(tok);
+            }
+            return headers;
+        }
+
+        async function bootstrapJellyfinDelegate() {
+            const provRes = await fetch("/auth/provider");
+            const provData = await provRes.json();
+            if (provData.jellyfin_browser_auth !== "delegate") {
+                return false;
+            }
+            const resp = await fetch("/auth/jellyfin-use-server-identity", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+                credentials: "same-origin",
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.userId) {
+                alert(
+                    data.error ||
+                        "Could not use server Jellyfin account. Check server logs and JELLYFIN_* environment variables."
+                );
+                return false;
+            }
+            localStorage.removeItem("provider_token");
+            localStorage.removeItem("plex_token");
+            localStorage.setItem("provider_user_id", data.userId);
+            localStorage.setItem("plex_id", data.userId);
+            document.getElementById("login-section").classList.add("hidden");
+            document.getElementById("main-menu").classList.remove("hidden");
+            loadGenres();
+            if (localStorage.getItem("active_room")) loadMovies();
+            return true;
+        }
+
+        async function fetchAndStoreProviderId() {
+            const token = providerToken();
             if (!token) return;
-            try {
-                const res = await fetch(`https://plex.tv/api/v2/user?X-Plex-Token=${token}`, { headers: { 'Accept': 'application/json' } });
-                const data = await res.json();
-                if (data.id) localStorage.setItem('plex_id', data.id);
-            } catch (e) { console.error("Could not fetch Plex ID"); }
+            if (mediaProvider === "plex") {
+                try {
+                    const res = await fetch(`https://plex.tv/api/v2/user?X-Plex-Token=${token}`, { headers: { Accept: "application/json" } });
+                    const data = await res.json();
+                    if (data.id) {
+                        localStorage.setItem("plex_id", data.id);
+                        localStorage.setItem("provider_user_id", data.id);
+                    }
+                } catch (e) {
+                    console.error("Could not fetch Plex ID");
+                }
+                return;
+            }
+            const uid = localStorage.getItem("provider_user_id");
+            if (uid) localStorage.setItem("plex_id", uid);
         }
 
         async function fetchPlexServerId() {
@@ -282,6 +351,36 @@
         }
 
         async function loginWithPlex() {
+            if (mediaProvider === "jellyfin") {
+                const provRes = await fetch("/auth/provider");
+                const provData = await provRes.json();
+                if (provData.jellyfin_browser_auth === "delegate") {
+                    await bootstrapJellyfinDelegate();
+                    return;
+                }
+                const username = prompt("Jellyfin account name", "");
+                if (!username) return;
+                const password = prompt("Jellyfin account password", "");
+                if (!password) return;
+                const resp = await fetch("/auth/jellyfin-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.authToken) {
+                    alert(data.error || "Jellyfin login failed");
+                    return;
+                }
+                localStorage.setItem("provider_token", data.authToken);
+                localStorage.setItem("provider_user_id", data.userId);
+                localStorage.setItem("plex_token", data.authToken);
+                localStorage.setItem("plex_id", data.userId);
+                document.getElementById("login-section").classList.add("hidden");
+                document.getElementById("main-menu").classList.remove("hidden");
+                loadGenres();
+                return;
+            }
             const resp = await fetch("/auth/plex-url");
             const data = await resp.json();
             window.location.href = data.auth_url;
@@ -325,8 +424,11 @@
             try {
                 const res = await fetch("/watchlist/add", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "X-Plex-Token": localStorage.getItem('plex_token') },
-                    body: JSON.stringify({ movie_id: id })
+                    headers:
+                        mediaProvider === "jellyfin"
+                            ? providerIdentityHeaders({ "Content-Type": "application/json" })
+                            : { "Content-Type": "application/json", "X-Plex-Token": providerToken() },
+                    body: JSON.stringify({ movie_id: id }),
                 });
                 if (res.ok) {
                     btn.innerText = "IN WATCHLIST";
@@ -392,7 +494,7 @@
             const label = isSoloMode && !asHistory ? "Your Shortlist" : asHistory ? "Match History" : "Your Matches";
             document.getElementById('modal-title').innerText = label;
             const url = asHistory ? '/matches?view=history' : '/matches';
-            const res = await fetch(url, { headers: { 'X-Plex-User-ID': localStorage.getItem('plex_id') } });
+            const res = await fetch(url, { headers: providerIdentityHeaders() });
             const data = await res.json();
             const list = document.getElementById('matches-list');
             const emptyLabel = asHistory ? 'history' : isSoloMode ? 'shortlist' : 'matches';
@@ -401,6 +503,7 @@
                 const card = document.createElement('div');
                 card.className = 'mini-poster';
                 const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
+                const openLabel = mediaProvider === "jellyfin" ? "OPEN IN JELLYFIN" : "OPEN IN PLEX";
                 card.innerHTML = `
                     <div class="mini-inner">
                         <div class="mini-front">
@@ -416,7 +519,7 @@
                                 ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
                                 ${m.year ? `<span class="stat-badge">${m.year}</span>` : ''}
                             </div>
-                            <a href="${plexLink}" class="plex-open-btn" target="_blank" rel="noopener noreferrer">OPEN IN PLEX</a>
+                            <a href="${plexLink}" class="plex-open-btn" target="_blank" rel="noopener noreferrer">${openLabel}</a>
                             <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#333; color:#e5a00d; border:1px solid #e5a00d; margin-top:5px;" onclick="addToWatchlist(event, '${m.movie_id}')">SAVE TO WATCHLIST</button>
                             <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#d32f2f; margin-top:5px; color:black;" onclick="deleteMatch(event, '${m.movie_id}')">DELETE</button>
                         </div>
@@ -442,10 +545,10 @@
             document.getElementById('delete-modal-overlay').classList.remove('hidden');
             document.getElementById('delete-modal').classList.remove('hidden');
             document.getElementById('delete-confirm-btn').onclick = async () => {
-                await fetch("/matches/delete", { 
-                    method: "POST", 
-                    headers: {"Content-Type": "application/json", 'X-Plex-User-ID': localStorage.getItem('plex_id')}, 
-                    body: JSON.stringify({ movie_id: pendingDeleteId }) 
+                await fetch("/matches/delete", {
+                    method: "POST",
+                    headers: providerIdentityHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ movie_id: pendingDeleteId }),
                 });
                 closeDeleteModal();
                 openMatches(isHistoryView);
@@ -457,10 +560,10 @@
             if (undoBtn) undoBtn.onclick = async () => {
                 if (swipeHistory.length === 0) return;
                 const lastMovie = swipeHistory.pop();
-                await fetch('/undo', { 
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json', 'X-Plex-User-ID': localStorage.getItem('plex_id')}, 
-                    body: JSON.stringify({ movie_id: lastMovie.id }) 
+                await fetch("/undo", {
+                    method: "POST",
+                    headers: providerIdentityHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ movie_id: lastMovie.id }),
                 });
                 movieStack.unshift(lastMovie);
                 renderInitialDeck();
@@ -577,13 +680,16 @@
                     card.style.transform = `translate(${globalCurrentX > 0 ? 1000 : -1000}px, 0px) rotate(${globalCurrentX / 5}deg)`;
                     card.style.opacity = '0';
                     const movieData = movieStack[0]; swipeHistory.push(movieData);
-                    fetch('/room/swipe', { 
-                        method: 'POST', 
-                        headers: {'Content-Type': 'application/json'}, 
-                        body: JSON.stringify({ 
-                            movie_id: card.dataset.id, title: card.dataset.title, thumb: card.dataset.thumb, direction: dir,
-                            plex_id: localStorage.getItem('plex_id')
-                        }) 
+                    fetch("/room/swipe", {
+                        method: "POST",
+                        headers: providerIdentityHeaders({ "Content-Type": "application/json" }),
+                        body: JSON.stringify({
+                            movie_id: card.dataset.id,
+                            title: card.dataset.title,
+                            thumb: card.dataset.thumb,
+                            direction: dir,
+                            plex_id: providerUserId(),
+                        }),
                     })
                     .then(r => r.json()).then(data => { 
                         if (data.match) { 
@@ -689,21 +795,51 @@
 
         window.onload = async () => {
             _bindStaticHandlers();
-            const params = new URLSearchParams(window.location.search);
-            const pinId = params.get('pin_id');
-            const pinUrl = pinId ? `/auth/check-returned-pin?pin_id=${pinId}` : '/auth/check-returned-pin';
-            const pendingPin = await fetch(pinUrl);
-            const result = await pendingPin.json();
-            if (result.authToken) {
-                localStorage.setItem("plex_token", result.authToken);
-                window.history.replaceState({}, '', '/');
+            try {
+                const pr = await fetch("/auth/provider");
+                const pd = await pr.json();
+                mediaProvider = (pd.provider || "plex").toLowerCase();
+            } catch (e) {
+                console.error("provider probe failed", e);
             }
-            if (localStorage.getItem('plex_token')) {
-                await fetchAndStorePlexId();
-                document.getElementById('login-section').classList.add('hidden');
-                document.getElementById('main-menu').classList.remove('hidden');
+            const params = new URLSearchParams(window.location.search);
+            const pinId = params.get("pin_id");
+            if (mediaProvider === "plex") {
+                const pinUrl = pinId ? `/auth/check-returned-pin?pin_id=${pinId}` : "/auth/check-returned-pin";
+                const pendingPin = await fetch(pinUrl);
+                const result = await pendingPin.json();
+                if (result.authToken) {
+                    localStorage.setItem("plex_token", result.authToken);
+                    localStorage.setItem("provider_token", result.authToken);
+                    window.history.replaceState({}, "", "/");
+                }
+            }
+            if (mediaProvider === "jellyfin") {
+                try {
+                    const provRes = await fetch("/auth/provider");
+                    const provData = await provRes.json();
+                    if (provData.jellyfin_browser_auth === "delegate") {
+                        document.getElementById("login-btn").innerText = "Continue";
+                        document.getElementById("login-btn").onclick = () => bootstrapJellyfinDelegate();
+                        const booted = await bootstrapJellyfinDelegate();
+                        if (booted) {
+                            await fetchAndStoreProviderId();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Jellyfin provider probe failed", e);
+                }
+            }
+            document.getElementById("login-btn").innerText =
+                mediaProvider === "jellyfin" ? "Login with Jellyfin" : "Login with Plex";
+            document.getElementById("login-btn").onclick = loginWithPlex;
+            if (providerToken()) {
+                await fetchAndStoreProviderId();
+                document.getElementById("login-section").classList.add("hidden");
+                document.getElementById("main-menu").classList.remove("hidden");
                 loadGenres();
-                if (localStorage.getItem('active_room')) loadMovies();
+                if (localStorage.getItem("active_room")) loadMovies();
             }
         };
     </script>

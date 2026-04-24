@@ -184,6 +184,8 @@
 
 ## Phase 9: UI improvements. The login for jellyfin username/password is annoying - I want to set the jellyfin creds on the server side and not require users to login .Additionally, the aspect ratio of the posters is too narrow, it cuts off the sides of the movie image.
 
+**Status:** Complete — 2026-04-24
+
 **Goal:** Server-configured Jellyfin identity in the browser (no username/password prompts when env creds exist); poster surfaces use `object-fit: contain` so wide one-sheets are not cropped.
 
 **Requirements:** TBD
@@ -194,8 +196,8 @@
 
 Plans:
 
-- [ ] `09-01-PLAN.md` — Jellyfin delegate session + `/auth` extensions + front-end bootstrap (`app.py`, `jellyfin_library.py`, both HTML copies)
-- [ ] `09-02-PLAN.md` — Poster containment CSS (`templates/index.html`, `data/index.html`)
+- [x] `09-01-PLAN.md` — Jellyfin delegate session + `/auth` extensions + front-end bootstrap (`app.py`, `jellyfin_library.py`, both HTML copies) (2026-04-24)
+- [x] `09-02-PLAN.md` — Poster containment CSS (`templates/index.html`, `data/index.html`) (2026-04-24)
 
 ---
 

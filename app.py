@@ -65,6 +65,7 @@ JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 from media_provider import get_provider
+from media_provider.jellyfin_library import JellyfinLibraryProvider
 
 
 def get_db():
@@ -110,6 +111,13 @@ def index(): return render_template('index.html', media_provider=MEDIA_PROVIDER)
 
 
 def _jellyfin_user_token_from_request() -> str:
+    if MEDIA_PROVIDER == "jellyfin" and session.get("jf_delegate_server_identity"):
+        prov = get_provider()
+        if isinstance(prov, JellyfinLibraryProvider):
+            try:
+                return prov.server_access_token_for_delegate()
+            except RuntimeError:
+                return ""
     auth_header = request.headers.get("Authorization", "")
     token = None
     if auth_header:
@@ -121,6 +129,13 @@ def _jellyfin_user_token_from_request() -> str:
 
 
 def _provider_user_id_from_request():
+    if MEDIA_PROVIDER == "jellyfin" and session.get("jf_delegate_server_identity"):
+        prov = get_provider()
+        if isinstance(prov, JellyfinLibraryProvider):
+            try:
+                return prov.server_primary_user_id_for_delegate()
+            except RuntimeError:
+                pass
     alias = (
         request.headers.get("X-Provider-User-Id")
         or request.headers.get("X-Jellyfin-User-Id")
@@ -225,7 +240,26 @@ def get_plex_url():
 
 @app.route('/auth/provider')
 def auth_provider():
-    return jsonify({"provider": MEDIA_PROVIDER})
+    payload = {"provider": MEDIA_PROVIDER}
+    if MEDIA_PROVIDER == "jellyfin":
+        payload["jellyfin_browser_auth"] = "delegate"
+    return jsonify(payload)
+
+
+@app.route("/auth/jellyfin-use-server-identity", methods=["POST"])
+def jellyfin_use_server_identity():
+    if MEDIA_PROVIDER != "jellyfin":
+        return jsonify({"error": "Jellyfin delegate unavailable"}), 400
+    prov = get_provider()
+    if not isinstance(prov, JellyfinLibraryProvider):
+        return jsonify({"error": "Jellyfin delegate unavailable"}), 400
+    try:
+        prov.server_access_token_for_delegate()
+        uid = prov.server_primary_user_id_for_delegate()
+    except RuntimeError:
+        return jsonify({"error": "Jellyfin delegate unavailable"}), 401
+    session["jf_delegate_server_identity"] = True
+    return jsonify({"userId": uid})
 
 
 @app.route('/auth/jellyfin-login', methods=['POST'])
