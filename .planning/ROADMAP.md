@@ -131,6 +131,8 @@
 
 ## Phase 6: Verification closure: foundation + abstraction
 
+**Status:** Complete — 2026-04-24
+
 **Goal:** Create durable verification artifacts for Phases 1-2 so requirement outcomes are auditable.
 
 **Requirements:** CFG-01, CFG-02, CFG-03, ARC-01, ARC-02, ARC-03
@@ -179,12 +181,12 @@
 
 ## Requirement coverage checklist
 
-- [ ] CFG-01 — Phase 6  
-- [ ] CFG-02 — Phase 6  
-- [ ] CFG-03 — Phase 6  
-- [ ] ARC-01 — Phase 6  
-- [ ] ARC-02 — Phase 6  
-- [ ] ARC-03 — Phase 6  
+- [x] CFG-01 — Phase 6  
+- [x] CFG-02 — Phase 6  
+- [x] CFG-03 — Phase 6  
+- [x] ARC-01 — Phase 6  
+- [x] ARC-02 — Phase 6  
+- [x] ARC-03 — Phase 6  
 - [ ] JAUTH-01 — Phase 7  
 - [ ] JAUTH-02 — Phase 7  
 - [ ] JAUTH-03 — Phase 7  
