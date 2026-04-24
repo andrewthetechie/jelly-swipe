@@ -1,17 +1,66 @@
 # Roadmap: Jelly Swipe
 
-**Planning root:** **v1.0** (Jellyfin backend) and **v1.1** (product rename & packaging) are shipped. Start the next cycle with `/gsd-new-milestone` (creates a fresh `.planning/REQUIREMENTS.md`).
+**Planning root:** **v1.2** is active (uv + `jellyswipe/` package + Docker-only). **v1.0** / **v1.1** are shipped — see [MILESTONES.md](MILESTONES.md) and [milestones/](milestones/).
 
 ## Milestones
 
-- ✅ **v1.0 — Jellyfin as alternative backend** — Phases 1–9 — 2026-04-24 — [Roadmap archive](milestones/v1.0-ROADMAP.md) · [Requirements](milestones/v1.0-REQUIREMENTS.md) · [Close audit](milestones/v1.0-MILESTONE-AUDIT.md) · [Ship log](MILESTONES.md)
+- ✅ **v1.0 — Jellyfin as alternative backend** — Phases 1–9 — 2026-04-24 — [Roadmap archive](milestones/v1.0-ROADMAP.md) · [Requirements](milestones/v1.0-REQUIREMENTS.md)
 - ✅ **v1.1 — Jelly Swipe rename** — Branding & maintainer identity — 2026-04-24 — [Roadmap archive](milestones/v1.1-ROADMAP.md) · [Requirements](milestones/v1.1-REQUIREMENTS.md)
+- 🔄 **v1.2 — uv + `jellyswipe` package layout** — Phases 10–12 — [REQUIREMENTS.md](REQUIREMENTS.md)
 
-## Next milestone
+**Phase history (prior):** [v1.0-phases/](milestones/v1.0-phases/) (Phases 1–9). **v1.1** had no new numbered phase directories.
 
-Use **`/gsd-new-milestone`** to define **v1.2+** requirements and phases.
+---
 
-**Phase history:** [v1.0-phases/](milestones/v1.0-phases/) (Phases 1–9). **v1.1** had no new numbered phase directories under `.planning/phases/`.
+## v1.2 — Phase overview
+
+| # | Phase | Goal | Requirements | Success criteria |
+|---|--------|------|--------------|------------------|
+| 10 | uv & Python 3.13 lockfile | Introduce `pyproject.toml`, `uv.lock`, and 3.13-aligned pins; retire `requirements.txt` as canonical | UV-01, UV-02, DEP-01 | 3 |
+| 11 | `jellyswipe/` package | Move Flask app and `media_provider` under `jellyswipe/` with working imports | PKG-01, PKG-02 | 3 |
+| 12 | Docker & docs | Image uses uv; README and distribution story match Docker-only | DOCK-01, DOC-01, DIST-01 | 3 |
+
+---
+
+## Phase 10: uv & Python 3.13 lockfile
+
+**Goal:** Dependency management is **uv**-first with a committed lockfile on **Python 3.13**; versions are newest compatible for this codebase.
+
+**Requirements:** UV-01, UV-02, DEP-01
+
+**Success criteria:**
+
+1. `uv lock` (or equivalent) produces **`uv.lock`** checked in; **`pyproject.toml`** lists runtime deps and **`requires-python`** for 3.13.  
+2. A clean **`uv sync`** on Python 3.13 installs successfully.  
+3. Quick smoke: application module imports (after any temporary shim) or **`python -m compileall`** on packaged paths passes; no known incompatible major bumps left unaddressed.
+
+---
+
+## Phase 11: `jellyswipe/` package layout
+
+**Goal:** All server Python for the web app lives under **`jellyswipe/`**; Gunicorn targets one explicit attribute.
+
+**Requirements:** PKG-01, PKG-02
+
+**Success criteria:**
+
+1. No remaining production logic in a repo-root **`app.py`** monolith unless it is a documented thin re-export (prefer none).  
+2. **`media_provider`** (and related modules) import cleanly from **`jellyswipe`**.  
+3. **`gunicorn 'jellyswipe.<module>:app'`** (exact module from implementation) starts with the same env contract as today.
+
+---
+
+## Phase 12: Docker & maintainer docs
+
+**Goal:** **`Dockerfile`** uses **uv** for installs; README documents uv; **no PyPI** narrative or automation.
+
+**Requirements:** DOCK-01, DOC-01, DIST-01
+
+**Success criteria:**
+
+1. **`docker build .`** succeeds using the lockfile; container listens on **5005** and supports persistent DB path patterns used in compose.  
+2. README “Development / install” (or equivalent) uses **uv** commands.  
+3. No new GitHub Actions or docs implying **`pip install jellyswipe`** from PyPI; **DIST-01** satisfied.
 
 ---
 
