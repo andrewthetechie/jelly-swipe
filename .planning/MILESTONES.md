@@ -14,7 +14,8 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 - [v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) — full phase roadmap snapshot  
 - [v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md) — requirement list and traceability at close  
-- [v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md) — pre-close audit (`ready_for_reaudit`)
+- [v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md) — pre-close audit (`ready_for_reaudit`)  
+- [v1.0-phases/](milestones/v1.0-phases/) — phase execution directories (Phases 1–9) after `/gsd-cleanup`
 
 ### What shipped (high level)
 
@@ -31,9 +32,9 @@ Documented in the milestone audit; not blocking the **v1.0** tag as shipped prod
 
 | ID | Gap | Pointer |
 |----|-----|---------|
-| ARC-02 | Plex baseline parity checklist remains **partial** | `.planning/phases/02-media-provider-abstraction/02-VERIFICATION.md` |
-| Traceability | Several J\* rows **Partial** in archived requirements | Native `03-` / `04-` / `05-VERIFICATION.md` |
-| E2E | `08-E2E.md` operator date tables still **draft** until live runs | `.planning/phases/08-e2e-validation-hardening/08-E2E.md` |
+| ARC-02 | Plex baseline parity checklist remains **partial** | `milestones/v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md` |
+| Traceability | Several J\* rows **Partial** in archived requirements | Native `03-` / `04-` / `05-VERIFICATION.md` under `v1.0-phases/` |
+| E2E | `08-E2E.md` operator date tables still **draft** until live runs | `milestones/v1.0-phases/08-e2e-validation-hardening/08-E2E.md` |
 
 ### Deferred items at milestone close
 

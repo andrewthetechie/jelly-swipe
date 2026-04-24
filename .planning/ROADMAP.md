@@ -10,7 +10,7 @@
 
 Define **v1.1+** requirements and phases with `/gsd-new-milestone`. A fresh `.planning/REQUIREMENTS.md` will be created during that flow (the v1 file is archived only).
 
-**Phase directories** under `.planning/phases/` remain as execution history; use `/gsd-cleanup` if you want them moved under `milestones/v1.0-phases/` later.
+**v1.0 phase history** lives under [milestones/v1.0-phases/](milestones/v1.0-phases/) (Phases 1–9). `.planning/phases/` now holds only active backlog stubs (e.g. `999.1-*`) until the next milestone creates new phase dirs.
 
 ---
 
