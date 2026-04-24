@@ -13,6 +13,9 @@
 | 3 | Jellyfin auth & client | Logged-in server session for API calls | JAUTH-01 — JAUTH-03 | 3 |
 | 4 | Jellyfin library & media | Deck, genres, images, TMDB chain, server info | JLIB-01 — JLIB-05 | 5 |
 | 5 | User parity & packaging | Per-user rows, watchlist/favorites, UI auth path, deps | JUSR-01 — JUSR-04 | 4 |
+| 6 | Verification closure: foundation + abstraction | Produce missing verification evidence for configuration and provider abstraction | CFG-01 — CFG-03, ARC-01 — ARC-03 | 3 |
+| 7 | Verification closure: Jellyfin parity | Produce missing verification evidence for auth, library/media, and user parity | JAUTH-01 — JAUTH-03, JLIB-01 — JLIB-05, JUSR-01 — JUSR-04 | 4 |
+| 8 | E2E and validation hardening | Close milestone-level flow and Nyquist validation gaps for re-audit | Audit flow + validation gaps | 3 |
 
 **UI hint:** Phase 5 — yes (front-end auth and headers per provider).
 
@@ -126,26 +129,74 @@
 
 ---
 
+## Phase 6: Verification closure: foundation + abstraction
+
+**Goal:** Create durable verification artifacts for Phases 1-2 so requirement outcomes are auditable.
+
+**Requirements:** CFG-01, CFG-02, CFG-03, ARC-01, ARC-02, ARC-03
+
+**Gap Closure:** Milestone audit requirement orphans + missing phase verification evidence.
+
+**Success criteria:**
+
+1. Phase 1 and Phase 2 verification documents exist and record explicit pass/fail evidence for each mapped requirement.  
+2. Integration expectation between configuration selection and provider abstraction is verified and documented.  
+3. REQUIREMENTS traceability rows for CFG/ARC reflect post-verification status updates.
+
+---
+
+## Phase 7: Verification closure: Jellyfin parity
+
+**Goal:** Create durable verification artifacts for Phases 3-5 covering auth, library/media parity, and user-scope parity.
+
+**Requirements:** JAUTH-01, JAUTH-02, JAUTH-03, JLIB-01, JLIB-02, JLIB-03, JLIB-04, JLIB-05, JUSR-01, JUSR-02, JUSR-03, JUSR-04
+
+**Gap Closure:** Milestone audit partial/orphaned requirement findings + missing phase verification evidence.
+
+**Success criteria:**
+
+1. Phase 3, 4, and 5 verification documents exist and map each requirement to concrete evidence.  
+2. Cross-phase wiring (auth -> library -> user parity flows) is validated and documented.  
+3. REQUIREMENTS traceability rows for JAUTH/JLIB/JUSR reflect post-verification status updates.
+
+---
+
+## Phase 8: E2E and validation hardening
+
+**Goal:** Resolve remaining milestone-level flow confidence and Nyquist validation coverage gaps to enable re-audit.
+
+**Requirements:** Audit flow + validation gaps (supports v1 completion readiness)
+
+**Gap Closure:** Missing E2E evidence for key user flows and incomplete `*-VALIDATION.md` coverage.
+
+**Success criteria:**
+
+1. E2E evidence is recorded for Jellyfin login -> room create -> swipe and trailer/cast lookup flows.  
+2. Validation files for Phases 1-5 are complete and no longer in draft/missing state.  
+3. Milestone re-audit inputs are complete and ready for `/gsd-audit-milestone`.
+
+---
+
 ## Requirement coverage checklist
 
-- [x] CFG-01 — Phase 1  
-- [x] CFG-02 — Phase 1  
-- [x] CFG-03 — Phase 1  
-- [x] ARC-01 — Phase 2  
-- [x] ARC-02 — Phase 2  
-- [x] ARC-03 — Phase 2  
-- [x] JAUTH-01 — Phase 3  
-- [x] JAUTH-02 — Phase 3  
-- [x] JAUTH-03 — Phase 3  
-- [x] JLIB-01 — Phase 4  
-- [x] JLIB-02 — Phase 4  
-- [x] JLIB-03 — Phase 4  
-- [x] JLIB-04 — Phase 4  
-- [x] JLIB-05 — Phase 4  
-- [x] JUSR-01 — Phase 5  
-- [x] JUSR-02 — Phase 5  
-- [x] JUSR-03 — Phase 5  
-- [x] JUSR-04 — Phase 5  
+- [ ] CFG-01 — Phase 6  
+- [ ] CFG-02 — Phase 6  
+- [ ] CFG-03 — Phase 6  
+- [ ] ARC-01 — Phase 6  
+- [ ] ARC-02 — Phase 6  
+- [ ] ARC-03 — Phase 6  
+- [ ] JAUTH-01 — Phase 7  
+- [ ] JAUTH-02 — Phase 7  
+- [ ] JAUTH-03 — Phase 7  
+- [ ] JLIB-01 — Phase 7  
+- [ ] JLIB-02 — Phase 7  
+- [ ] JLIB-03 — Phase 7  
+- [ ] JLIB-04 — Phase 7  
+- [ ] JLIB-05 — Phase 7  
+- [ ] JUSR-01 — Phase 7  
+- [ ] JUSR-02 — Phase 7  
+- [ ] JUSR-03 — Phase 7  
+- [ ] JUSR-04 — Phase 7  
 
 ---
 *Roadmap created: 2026-04-22*

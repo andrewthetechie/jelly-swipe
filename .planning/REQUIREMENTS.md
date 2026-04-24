@@ -19,17 +19,17 @@
 
 ### Jellyfin — server auth & client
 
-- [x] **JAUTH-01**: Jellyfin mode supports configurable base URL plus server-side credentials appropriate for unattended access (document supported patterns: e.g. username/password login and/or API key, per final plan).
-- [x] **JAUTH-02**: The app obtains and reuses a Jellyfin access token (or equivalent) and recovers cleanly after connection/auth errors (similar spirit to `reset_plex()`).
-- [x] **JAUTH-03**: Secrets are not written to logs or returned in JSON error payloads.
+- [ ] **JAUTH-01**: Jellyfin mode supports configurable base URL plus server-side credentials appropriate for unattended access (document supported patterns: e.g. username/password login and/or API key, per final plan).
+- [ ] **JAUTH-02**: The app obtains and reuses a Jellyfin access token (or equivalent) and recovers cleanly after connection/auth errors (similar spirit to `reset_plex()`).
+- [ ] **JAUTH-03**: Secrets are not written to logs or returned in JSON error payloads.
 
 ### Jellyfin — library & media
 
-- [x] **JLIB-01**: Jellyfin mode builds the same per-movie JSON objects the UI already consumes (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movie items.
-- [x] **JLIB-02**: Jellyfin mode exposes a genre list and filtering behavior equivalent to current Plex behavior, including a time-ordered “Recently Added” style deck when that option is selected.
-- [x] **JLIB-03**: Thumbnails for Jellyfin-backed cards load through the Flask app with validation that prevents open proxy abuse.
-- [x] **JLIB-04**: `/get-trailer/<movie_id>` and `/cast/<movie_id>` work in Jellyfin mode using metadata from the Jellyfin item (title/year) into the existing TMDB flow.
-- [x] **JLIB-05**: A server-info style endpoint returns a stable machine/server identifier and display name in Jellyfin mode (for UI parity with `/plex/server-info` or a renamed shared route).
+- [ ] **JLIB-01**: Jellyfin mode builds the same per-movie JSON objects the UI already consumes (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movie items.
+- [ ] **JLIB-02**: Jellyfin mode exposes a genre list and filtering behavior equivalent to current Plex behavior, including a time-ordered “Recently Added” style deck when that option is selected.
+- [ ] **JLIB-03**: Thumbnails for Jellyfin-backed cards load through the Flask app with validation that prevents open proxy abuse.
+- [ ] **JLIB-04**: `/get-trailer/<movie_id>` and `/cast/<movie_id>` work in Jellyfin mode using metadata from the Jellyfin item (title/year) into the existing TMDB flow.
+- [ ] **JLIB-05**: A server-info style endpoint returns a stable machine/server identifier and display name in Jellyfin mode (for UI parity with `/plex/server-info` or a renamed shared route).
 
 ### Jellyfin — user scope & parity
 
@@ -60,24 +60,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CFG-01 | Phase 1 | Pending |
-| CFG-02 | Phase 1 | Pending |
-| CFG-03 | Phase 1 | Pending |
-| ARC-01 | Phase 2 | Pending |
-| ARC-02 | Phase 2 | Pending |
-| ARC-03 | Phase 2 | Pending |
-| JAUTH-01 | Phase 3 | Done |
-| JAUTH-02 | Phase 3 | Done |
-| JAUTH-03 | Phase 3 | Done |
-| JLIB-01 | Phase 4 | Done |
-| JLIB-02 | Phase 4 | Done |
-| JLIB-03 | Phase 4 | Done |
-| JLIB-04 | Phase 4 | Done |
-| JLIB-05 | Phase 4 | Done |
-| JUSR-01 | Phase 5 | Pending |
-| JUSR-02 | Phase 5 | Pending |
-| JUSR-03 | Phase 5 | Pending |
-| JUSR-04 | Phase 5 | Pending |
+| CFG-01 | Phase 6 | Pending |
+| CFG-02 | Phase 6 | Pending |
+| CFG-03 | Phase 6 | Pending |
+| ARC-01 | Phase 6 | Pending |
+| ARC-02 | Phase 6 | Pending |
+| ARC-03 | Phase 6 | Pending |
+| JAUTH-01 | Phase 7 | Pending |
+| JAUTH-02 | Phase 7 | Pending |
+| JAUTH-03 | Phase 7 | Pending |
+| JLIB-01 | Phase 7 | Pending |
+| JLIB-02 | Phase 7 | Pending |
+| JLIB-03 | Phase 7 | Pending |
+| JLIB-04 | Phase 7 | Pending |
+| JLIB-05 | Phase 7 | Pending |
+| JUSR-01 | Phase 7 | Pending |
+| JUSR-02 | Phase 7 | Pending |
+| JUSR-03 | Phase 7 | Pending |
+| JUSR-04 | Phase 7 | Pending |
 
 **Coverage:**
 
@@ -87,4 +87,4 @@
 
 ---
 *Requirements defined: 2026-04-22*  
-*Last updated: 2026-04-24 after Phase 4 execution (JLIB-01–05 verified)*
+*Last updated: 2026-04-24 after milestone gap-planning (Phases 6-8 added)*
