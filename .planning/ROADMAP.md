@@ -16,6 +16,7 @@
 | 6 | Verification closure: foundation + abstraction | Produce missing verification evidence for configuration and provider abstraction | CFG-01 — CFG-03, ARC-01 — ARC-03 | 3 |
 | 7 | Verification closure: Jellyfin parity | Create durable verification artifacts for Phases 3–5 (Jellyfin) | JAUTH-01 — JUSR-04 | 3 |
 | 8 | E2E and validation hardening | Close milestone-level flow and Nyquist validation gaps for re-audit | Audit flow + validation gaps | 3 |
+| 9 | UI improvements | Server-side Jellyfin credentials (no per-user login); poster aspect ratio | TBD | TBD |
 
 **UI hint:** Phase 5 — yes (front-end auth and headers per provider).
 
@@ -178,6 +179,23 @@
 1. E2E evidence is recorded for Jellyfin login -> room create -> swipe and trailer/cast lookup flows.  
 2. Validation files for Phases 1-5 are complete and no longer in draft/missing state.  
 3. Milestone re-audit inputs are complete and ready for `/gsd-audit-milestone`.
+
+---
+
+## Phase 9: UI improvements. The login for jellyfin username/password is annoying - I want to set the jellyfin creds on the server side and not require users to login .Additionally, the aspect ratio of the posters is too narrow, it cuts off the sides of the movie image.
+
+**Goal:** Server-configured Jellyfin identity in the browser (no username/password prompts when env creds exist); poster surfaces use `object-fit: contain` so wide one-sheets are not cropped.
+
+**Requirements:** TBD
+
+**Depends on:** Phase 8
+
+**Plans:** 2 plans (2 waves)
+
+Plans:
+
+- [ ] `09-01-PLAN.md` — Jellyfin delegate session + `/auth` extensions + front-end bootstrap (`app.py`, `jellyfin_library.py`, both HTML copies)
+- [ ] `09-02-PLAN.md` — Poster containment CSS (`templates/index.html`, `data/index.html`)
 
 ---
 
