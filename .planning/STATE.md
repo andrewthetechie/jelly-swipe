@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-23)
 ## Session
 
 - **Stopped at:** Phase 07 context gathered
-- **Resume:** `.planning/ROADMAP.md`
+- **Resume:** `.planning/phases/07-verification-closure-jellyfin-parity/07-CONTEXT.md`
 - **Forensics:** 2026-04-24 investigation recorded at `.planning/forensics/report-20260424-124818.md`
 
 ## Milestone
