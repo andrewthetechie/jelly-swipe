@@ -154,6 +154,10 @@ def get_trailer(movie_id):
             trailers = [v for v in v_res.get('results', []) if v['site'] == 'YouTube' and v['type'] == 'Trailer']
             if trailers: return jsonify({'youtube_key': trailers[0]['key']})
         return jsonify({'error': 'Not found'}), 404
+    except RuntimeError as e:
+        if MEDIA_PROVIDER == "jellyfin" and "item lookup failed" in str(e).lower():
+            return jsonify({'error': 'Movie metadata not found'}), 404
+        return jsonify({'error': str(e)}), 500
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/cast/<movie_id>')
@@ -175,6 +179,10 @@ def get_cast(movie_id):
                 })
             return jsonify({'cast': cast})
         return jsonify({'cast': []})
+    except RuntimeError as e:
+        if MEDIA_PROVIDER == "jellyfin" and "item lookup failed" in str(e).lower():
+            return jsonify({'error': 'Movie metadata not found', 'cast': []}), 404
+        return jsonify({'error': str(e), 'cast': []}), 500
     except Exception as e:
         return jsonify({'error': str(e), 'cast': []}), 500
 

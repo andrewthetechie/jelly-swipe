@@ -91,7 +91,7 @@
 
 ## Phase 4: Jellyfin library & media
 
-**Status:** Complete — 2026-04-24
+**Status:** Complete — 2026-04-24 (gap closure `04-03` executed)
 
 **Goal:** Same card JSON and routes as Plex for the core swipe experience, including images and TMDB.
 

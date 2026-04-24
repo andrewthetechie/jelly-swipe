@@ -314,13 +314,20 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         return movie_list
 
     def resolve_item_for_tmdb(self, movie_id: str) -> Any:
-        data = self._api(
-            "GET",
-            f"/Items/{movie_id}",
-            params={"Fields": "Name,OriginalTitle,ProductionYear"},
-        )
+        params = {"Fields": "Name,OriginalTitle,ProductionYear"}
+        try:
+            data = self._api("GET", f"/Items/{movie_id}", params=params)
+        except RuntimeError:
+            # Some servers reject global item lookup for ids that still appear in deck payloads.
+            try:
+                uid = self._user_id()
+                data = self._api("GET", f"/Users/{uid}/Items/{movie_id}", params=params)
+            except RuntimeError as exc:
+                raise RuntimeError("Jellyfin item lookup failed") from exc
         title = data.get("Name") or data.get("OriginalTitle") or ""
         year = data.get("ProductionYear")
+        if not title:
+            raise RuntimeError("Jellyfin item lookup failed")
         return SimpleNamespace(title=title, year=year)
 
     def server_info(self) -> dict:

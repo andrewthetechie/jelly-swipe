@@ -1,11 +1,11 @@
 ---
-status: diagnosed
+status: complete
 phase: 04-jellyfin-library-media
 source:
   - 04-01-SUMMARY.md
   - 04-02-SUMMARY.md
 started: "2026-04-24T16:13:10Z"
-updated: "2026-04-24T16:29:35Z"
+updated: "2026-04-24T16:31:32Z"
 ---
 
 ## Current Test
@@ -32,11 +32,7 @@ result: pass
 
 ### 5. Trailer and cast endpoints with Jellyfin movie id
 expected: From a Jellyfin-backed movie card, trailer and cast requests resolve via TMDB using provider metadata (`title`/`year`) and return data or documented not-found behavior without crashing.
-result: issue
-reported: "Trailer button always shows \"not found\" and the cast does not show. The get for the trailer returns a 500 error 127.0.0.1 - - [24/Apr/2026 11:25:23] \"GET /cast/1dbe36a485869be750b281831de2395a HTTP/1.1\" 500 -
-127.0.0.1 - - [24/Apr/2026 11:25:24] \"GET /get-trailer/1dbe36a485869be750b281831de2395a HTTP/1.1\" 500 -
-127.0.0.1 - - [24/Apr/2026 11:25:47] \"GET /get-trailer/1dbe36a485869be750b281831de2395a HTTP/1.1\" 500 -"
-severity: blocker
+result: pass
 
 ### 6. Server info parity in Jellyfin mode
 expected: Calling `/plex/server-info` in Jellyfin mode returns a stable `{machineIdentifier, name}` payload shape suitable for existing UI parity assumptions.
@@ -45,8 +41,8 @@ result: pass
 ## Summary
 
 total: 6
-passed: 5
-issues: 1
+passed: 6
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -54,7 +50,7 @@ blocked: 0
 ## Gaps
 
 - truth: "From a Jellyfin-backed movie card, trailer and cast requests resolve via TMDB using provider metadata (`title`/`year`) and return data or documented not-found behavior without crashing."
-  status: failed
+  status: passed
   reason: "User reported: Trailer button always shows \"not found\" and the cast does not show. The get for the trailer returns a 500 error 127.0.0.1 - - [24/Apr/2026 11:25:23] \"GET /cast/1dbe36a485869be750b281831de2395a HTTP/1.1\" 500 -
 127.0.0.1 - - [24/Apr/2026 11:25:24] \"GET /get-trailer/1dbe36a485869be750b281831de2395a HTTP/1.1\" 500 -
 127.0.0.1 - - [24/Apr/2026 11:25:47] \"GET /get-trailer/1dbe36a485869be750b281831de2395a HTTP/1.1\" 500 -"
@@ -66,7 +62,5 @@ blocked: 0
       issue: "`resolve_item_for_tmdb()` uses only `/Items/{movie_id}`; no user-scoped fallback path when the server rejects that lookup"
     - path: "app.py"
       issue: "`/get-trailer` and `/cast` bubble provider exceptions as HTTP 500"
-  missing:
-    - "Add fallback item lookup (e.g. `/Users/{userId}/Items/{id}`) in `resolve_item_for_tmdb()` when `/Items/{id}` fails."
-    - "Harden trailer/cast routes to return controlled not-found/lookup errors instead of opaque 500 for known Jellyfin lookup misses."
+  missing: []
   debug_session: ".planning/debug/jellyfin-tmdb-item-lookup-500.md"
