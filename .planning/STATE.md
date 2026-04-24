@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: planning_next
-status: shipped
-stopped_at: v1.1 milestone complete — use /gsd-new-milestone
-last_updated: "2026-04-24T23:59:00.000Z"
+milestone: v1.2
+milestone_name: uv-package-layout
+status: defining_requirements
+stopped_at: Milestone v1.2 initialized — roadmap ready
+last_updated: "2026-04-24T12:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,33 +17,34 @@ progress:
 
 **Updated:** 2026-04-24
 
+## Current Position
+
+**Phase:** Not started (ready for Phase 10)  
+**Plan:** —  
+**Status:** Roadmap defined — use `/gsd-discuss-phase 10` or `/gsd-plan-phase 10`  
+**Last activity:** 2026-04-24 — Milestone **v1.2** (uv + `jellyswipe/` package + Docker-only) initialized
+
 ## Project reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-24)
+See: `.planning/PROJECT.md` — **Current Milestone: v1.2**
 
 **Core value:** Users can run a swipe session backed by either Plex or Jellyfin (one backend per deployment), with library browsing and deck behavior equivalent to the Plex path.
 
-**Current focus:** **v1.0** and **v1.1** shipped. Start the next milestone with `/gsd-new-milestone` (creates a fresh `.planning/REQUIREMENTS.md`).
-
-## Session
-
-- **Stopped at:** v1.1 archived; live `REQUIREMENTS.md` removed until the next milestone flow.
-- **Resume:** `/gsd-new-milestone`
-
 ## Milestone
 
-- **Shipped:** v1.1 — Jelly Swipe rename (2026-04-24), tag `v1.1`
+- **Active:** v1.2 — uv, Python 3.13 lockfile, `jellyswipe/` package layout, Docker-only distribution (no PyPI)
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Manual `milestone.complete` workaround documented in `MILESTONES.md` and `RETROSPECTIVE.md`.
+- v1.0 shipped Phases 1–9; v1.1 had no new numbered phase dirs; **v1.2** continues numbering at **Phase 10**.
 
 ## Notes
 
-- Open artifact audit (`gsd-tools.cjs audit-open`) was **clear** at v1.1 close.
+- Domain research skipped for v1.2 (tooling/layout milestone with explicit stack).
 
 **Last completed:** v1.1 — Jelly Swipe rename — 2026-04-24
 
-**Next:** `/gsd-new-milestone`
+**Next:** `/gsd-discuss-phase 10` or `/gsd-plan-phase 10`
