@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: — Phase overview
-status: Context gathered — use `/gsd-plan-phase 10`
-last_updated: "2026-04-24T22:22:33.039Z"
-last_activity: 2026-04-24 — Phase 10 discuss complete (`10-CONTEXT.md`)
+milestone_name: uv-package-layout
+status: ready_to_execute
+last_updated: "2026-04-24T22:30:00.000Z"
+last_activity: 2026-04-24 — Phase 10 planned (2 plans)
 progress:
-  total_phases: 6
+  total_phases: 3
   completed_phases: 0
   total_plans: 2
   completed_plans: 0
@@ -20,9 +20,9 @@ progress:
 ## Current Position
 
 **Phase:** 10 — uv & Python 3.13 lockfile  
-**Plan:** —  
-**Status:** Context gathered — use `/gsd-plan-phase 10`  
-**Last activity:** 2026-04-24 — Phase 10 discuss complete (`10-CONTEXT.md`)
+**Plan:** 10-01, 10-02 (wave 1)  
+**Status:** Ready to execute — use `/gsd-execute-phase 10`  
+**Last activity:** 2026-04-24 — Phase 10 planned (`10-01-PLAN.md`, `10-02-PLAN.md`)
 
 ## Project reference
 
@@ -47,6 +47,6 @@ See: `.planning/PROJECT.md` — **Current Milestone: v1.2**
 
 **Last completed:** v1.1 — Jelly Swipe rename — 2026-04-24
 
-**Next:** `/gsd-plan-phase 10` (optionally re-run `/gsd-discuss-phase 10` to amend context)
+**Next:** `/gsd-execute-phase 10`
 
-**Planned Phase:** 10 (uv-python-3-13-lockfile) — 2 plans — 2026-04-24T22:22:33.030Z
+**Planned Phase:** 10 (uv-python-3-13-lockfile) — 2 plans — 2026-04-24
