@@ -43,7 +43,7 @@
 **Source phase:** 4  
 **Deferred at:** 2026-04-23 during /gsd-next advancement to Phase 5
 **Plans:**
-- [ ] 4-01: create PLAN.md artifacts for library/media scope (context exists, no plans)
+- [x] 4-01: create PLAN.md artifacts for library/media scope (context exists, no plans)
 
 ## Phase 1: Configuration & startup
 
