@@ -25,11 +25,11 @@
 
 ### Jellyfin — library & media
 
-- [ ] **JLIB-01**: Jellyfin mode builds the same per-movie JSON objects the UI already consumes (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movie items.
-- [ ] **JLIB-02**: Jellyfin mode exposes a genre list and filtering behavior equivalent to current Plex behavior, including a time-ordered “Recently Added” style deck when that option is selected.
-- [ ] **JLIB-03**: Thumbnails for Jellyfin-backed cards load through the Flask app with validation that prevents open proxy abuse.
-- [ ] **JLIB-04**: `/get-trailer/<movie_id>` and `/cast/<movie_id>` work in Jellyfin mode using metadata from the Jellyfin item (title/year) into the existing TMDB flow.
-- [ ] **JLIB-05**: A server-info style endpoint returns a stable machine/server identifier and display name in Jellyfin mode (for UI parity with `/plex/server-info` or a renamed shared route).
+- [x] **JLIB-01**: Jellyfin mode builds the same per-movie JSON objects the UI already consumes (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movie items.
+- [x] **JLIB-02**: Jellyfin mode exposes a genre list and filtering behavior equivalent to current Plex behavior, including a time-ordered “Recently Added” style deck when that option is selected.
+- [x] **JLIB-03**: Thumbnails for Jellyfin-backed cards load through the Flask app with validation that prevents open proxy abuse.
+- [x] **JLIB-04**: `/get-trailer/<movie_id>` and `/cast/<movie_id>` work in Jellyfin mode using metadata from the Jellyfin item (title/year) into the existing TMDB flow.
+- [x] **JLIB-05**: A server-info style endpoint returns a stable machine/server identifier and display name in Jellyfin mode (for UI parity with `/plex/server-info` or a renamed shared route).
 
 ### Jellyfin — user scope & parity
 
@@ -69,11 +69,11 @@
 | JAUTH-01 | Phase 3 | Done |
 | JAUTH-02 | Phase 3 | Done |
 | JAUTH-03 | Phase 3 | Done |
-| JLIB-01 | Phase 4 | Pending |
-| JLIB-02 | Phase 4 | Pending |
-| JLIB-03 | Phase 4 | Pending |
-| JLIB-04 | Phase 4 | Pending |
-| JLIB-05 | Phase 4 | Pending |
+| JLIB-01 | Phase 4 | Done |
+| JLIB-02 | Phase 4 | Done |
+| JLIB-03 | Phase 4 | Done |
+| JLIB-04 | Phase 4 | Done |
+| JLIB-05 | Phase 4 | Done |
 | JUSR-01 | Phase 5 | Pending |
 | JUSR-02 | Phase 5 | Pending |
 | JUSR-03 | Phase 5 | Pending |
@@ -87,4 +87,4 @@
 
 ---
 *Requirements defined: 2026-04-22*  
-*Last updated: 2026-04-23 after Phase 3 execution (JAUTH-01–03 verified)*
+*Last updated: 2026-04-24 after Phase 4 execution (JLIB-01–05 verified)*

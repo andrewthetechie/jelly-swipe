@@ -28,7 +28,7 @@ Deliver **Jellyfin library parity** for the core swipe experience: same **per-mo
 
 ### Images and `/proxy`
 
-- **D-06:** Extend **`/proxy`** so **`MEDIA_PROVIDER=jellyfin`** serves images via the provider; **`503`** when Jellyfin is not configured; **`403`** unless **`path`** matches **`^jellyfin/[0-9a-fA-F-]{36}/Primary$`** (JLIB-03, JLIB-05 spirit — no arbitrary upstream paths).
+- **D-06:** Extend **`/proxy`** so **`MEDIA_PROVIDER=jellyfin`** serves images via the provider; **`503`** when Jellyfin is not configured; **`403`** unless **`path`** matches strict **`jellyfin/{id}/Primary`** allowlist shape where `{id}` is either canonical UUID or 32-hex item id (`^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$`) (JLIB-03, JLIB-05 spirit — no arbitrary upstream paths).
 - **D-07:** Upstream fetch uses authenticated **`GET /Items/{id}/Images/Primary`** (with sensible `maxWidth`/`maxHeight` query params optional — Claude’s discretion).
 
 ### TMDB and server info

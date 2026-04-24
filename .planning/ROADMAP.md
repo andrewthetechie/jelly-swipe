@@ -91,6 +91,8 @@
 
 ## Phase 4: Jellyfin library & media
 
+**Status:** Complete — 2026-04-24
+
 **Goal:** Same card JSON and routes as Plex for the core swipe experience, including images and TMDB.
 
 **Requirements:** JLIB-01, JLIB-02, JLIB-03, JLIB-04, JLIB-05
