@@ -2,7 +2,7 @@
 
 [![GitHub](https://img.shields.io/github/stars/AndrewTheTechie/jelly-swipe?style=social)](https://github.com/AndrewTheTechie/jelly-swipe)
 
-**Fork:** This project was forked from [Bergasha/kino-swipe](https://github.com/Bergasha/kino-swipe). It is maintained by [@AndrewTheTechie](https://github.com/AndrewTheTechie).
+**Fork:** This project was forked from [Bergasha/kino-swipe](https://github.com/Bergasha/kino-swipe) to add Jellyfin support. It is maintained by [@AndrewTheTechie](https://github.com/AndrewTheTechie).
 
 Always trying to decide on a movie to watch together?, This may be the fun solution you've been looking for.
 Dating app style swipe right for like swipe left for nope, If you both swipe right on the 
