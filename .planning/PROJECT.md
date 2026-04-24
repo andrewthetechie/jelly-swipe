@@ -21,6 +21,7 @@ Kino Swipe is a small Flask app for shared “Tinder for movies” sessions: a h
 - ✓ **Images** — Serve Jellyfin artwork through the app (extend or complement `/proxy` so thumbs work without exposing secrets in the browser). *Phases 4–5 (milestone).*
 - ✓ **Either/or configuration** — Exactly one active media provider per process (`plex` **or** `jellyfin`); env and startup validation reflect the choice. Users who want both run two instances. *Phases 1–5 (milestone).*
 - ✓ **User-scoped parity (within reason)** — Per-user match/history/undo and “add to list” behavior work in Jellyfin mode using Jellyfin identity (not Plex headers). Exact UX may use Jellyfin login/token headers instead of Plex pin, but outcomes should mirror Plex mode. *Phase 5.*
+- ✓ **Milestone evidence and validation closure** — Jellyfin-forward operator E2E narrative, Nyquist-aligned `01–05` validation artifacts, and re-audit inputs consolidated for `/gsd-audit-milestone`. *Phase 8.*
 
 ### Out of Scope
 
@@ -68,4 +69,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-23 after Phase 5 completion + UAT*
+*Last updated: 2026-04-24 after Phase 8 (E2E + validation hardening) completion*
