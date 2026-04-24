@@ -1,16 +1,17 @@
 # Roadmap: Jelly Swipe
 
-**Planning root:** Jellyfin support shipped as **v1.0** (2026-04-24). **v1.1** is the Jelly Swipe rename and packaging pass (see live `.planning/REQUIREMENTS.md`).
+**Planning root:** **v1.0** (Jellyfin backend) and **v1.1** (product rename & packaging) are shipped. Start the next cycle with `/gsd-new-milestone` (creates a fresh `.planning/REQUIREMENTS.md`).
 
 ## Milestones
 
-- ✅ **v1.0 — Jellyfin as alternative backend** — Phases 1–9 shipped 2026-04-24 — [Roadmap archive](milestones/v1.0-ROADMAP.md) · [Requirements archive](milestones/v1.0-REQUIREMENTS.md) · [Close audit](milestones/v1.0-MILESTONE-AUDIT.md) · [Ship log](MILESTONES.md)
+- ✅ **v1.0 — Jellyfin as alternative backend** — Phases 1–9 — 2026-04-24 — [Roadmap archive](milestones/v1.0-ROADMAP.md) · [Requirements](milestones/v1.0-REQUIREMENTS.md) · [Close audit](milestones/v1.0-MILESTONE-AUDIT.md) · [Ship log](MILESTONES.md)
+- ✅ **v1.1 — Jelly Swipe rename** — Branding & maintainer identity — 2026-04-24 — [Roadmap archive](milestones/v1.1-ROADMAP.md) · [Requirements](milestones/v1.1-REQUIREMENTS.md)
 
 ## Next milestone
 
-Define **v1.1+** requirements and phases with `/gsd-new-milestone`. A fresh `.planning/REQUIREMENTS.md` will be created during that flow (the v1 file is archived only).
+Use **`/gsd-new-milestone`** to define **v1.2+** requirements and phases.
 
-**v1.0 phase history** lives under [milestones/v1.0-phases/](milestones/v1.0-phases/) (Phases 1–9). `.planning/phases/` now holds only active backlog stubs (e.g. `999.1-*`) until the next milestone creates new phase dirs.
+**Phase history:** [v1.0-phases/](milestones/v1.0-phases/) (Phases 1–9). **v1.1** had no new numbered phase directories under `.planning/phases/`.
 
 ---
 

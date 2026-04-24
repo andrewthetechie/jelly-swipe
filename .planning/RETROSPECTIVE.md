@@ -40,8 +40,41 @@ Not tracked in-repo; add session/token notes here if you adopt cost logging next
 
 ---
 
+## Milestone: v1.1 — Jelly Swipe rename
+
+**Shipped:** 2026-04-24  
+**Phases:** (none under `.planning/phases/`) | **Theme:** Maintainer identity, Docker/DB defaults, UI/PWA strings, LICENSE/README fork policy.
+
+### What was built
+
+- End-to-end rename in `app.py`, HTML surfaces, manifests, compose, Docker Hub workflow, Unraid template, LICENSE, README, and planning mirrors.
+- GHCR release workflow on GitHub **Release** (`release-ghcr.yml`).
+
+### What worked
+
+- Tight scope (BRAND-01–04) shipped without spinning new phase directories.
+
+### What was inefficient
+
+- `gsd-sdk query milestone.complete` still unusable for this repo; manual milestone archives duplicate CLI intent.
+
+### Patterns established
+
+- Single upstream fork line in README/LICENSE; AndrewTheTechie everywhere else in packaging.
+
+### Key lessons
+
+- Document Plex client id change for operators (re-pin) alongside DB filename migration.
+
+### Cost observations
+
+Not tracked in-repo.
+
+---
+
 ## Cross-Milestone Trends
 
 | Milestone | Verification style | Open parity gaps |
 |-----------|---------------------|------------------|
 | v1.0 | Native phase VERIFICATION + VALIDATION + audit | ARC-02 (Plex), partial J\* traceability rows |
+| v1.1 | Requirements checklist + in-tree review (no phase VERIFICATION dirs) | Same v1.0 parity gaps unchanged |

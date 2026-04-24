@@ -4,9 +4,19 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 ---
 
-## v1.1 — Jelly Swipe rename (in progress)
+## v1.1 — Jelly Swipe rename
 
-**Theme:** Product name, Docker image, default SQLite path, Unraid template, and maintainer identity under **AndrewTheTechie**; single fork attribution to upstream in `README.md` / `LICENSE` only.
+**Shipped:** 2026-04-24  
+**Theme:** Product name, Docker image, default SQLite path, Unraid template, and maintainer identity under **AndrewTheTechie**; single fork attribution to upstream in `README.md` / `LICENSE` (and Unraid overview) only.
+
+**Archives:**
+
+- [v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) — milestone snapshot (no numbered phase dirs)  
+- [v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md) — BRAND-01–04 at close  
+
+**Deliverables (high level):** Default `jellyswipe.db`, JellySwipe Plex/Jellyfin client strings, UI + PWA manifest titles, `andrewthetechie/jelly-swipe` compose + Docker Hub workflow, GHCR release-on-tag workflow, LICENSE/README/Unraid alignment.
+
+**Tooling note:** `gsd-sdk query milestone.complete` failed (`version required for phases archive`); close completed manually (same pattern as v1.0).
 
 ---
 

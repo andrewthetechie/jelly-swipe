@@ -4,7 +4,7 @@
 
 Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** alternative alongside Plex: one active backend per process (`MEDIA_PROVIDER`), the same card JSON and routes for the swipe experience, and (Phase 9) optional **server-delegated** Jellyfin browser identity plus poster letterboxing in the embedded UI.
 
-**v1.1** completes the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there).
+**v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
 
 ## Core Value
 
@@ -26,10 +26,11 @@ Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a 
 - ✓ **Milestone evidence and validation closure** — Jellyfin-forward operator E2E narrative, Nyquist-aligned `01–05` validation artifacts, and re-audit inputs consolidated for `/gsd-audit-milestone`. *Phase 8.*
 - ✓ **Jellyfin browser delegate path** — When env credentials are configured, the SPA can bind to the server session without exposing API tokens in JSON; stale `localStorage` tokens cleared on success. *Phase 9.*
 - ✓ **Poster containment** — Main deck, mini-posters, and match popup use `object-fit: contain` with black backing so wide one-sheets are not cropped. *Phase 9.*
+- ✓ **Jelly Swipe branding & packaging (v1.1)** — BRAND-01–04: UI titles and PWA manifest; README/LICENSE fork policy; Unraid `jelly-swipe.html`; default DB path and Docker/CI image `andrewthetechie/jelly-swipe`; Plex and Jellyfin client identifiers as Jelly Swipe (operators may re-auth Plex.tv).
 
 ### Active (next milestone candidates)
 
-- [ ] **ARC-02 closure** — Formal Plex regression matrix in `02-VERIFICATION.md` still partial at v1.0 close; treat as v1.1 hardening unless explicitly descoped.
+- [ ] **ARC-02 closure** — Formal Plex regression matrix in archived `v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md` still partial; next milestone hardening unless descoped.
 - [ ] **OPS-01 / PRD-01** — Neutral DB column naming and multi-library selection (see archived `v1.0-REQUIREMENTS.md` v2 section).
 
 ### Out of Scope
@@ -40,10 +41,10 @@ Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a 
 
 ## Current state
 
-- **Shipped:** v1.0 tagged; planning archives under `.planning/milestones/v1.0-*`.
-- **v1.1 (active):** Jelly Swipe naming in UI, PWA manifest, `app.py` defaults (`DB_PATH`, `CLIENT_ID`, Plex product string), Jellyfin `MediaBrowser` client string, Docker Hub / compose coordinates (`andrewthetechie/jelly-swipe`), Unraid template `jelly-swipe.html`.
-- **Runtime:** Flask + SQLite + SSE; `media_provider` package with `PlexLibraryProvider` and `JellyfinLibraryProvider`.
-- **UI:** Embedded HTML in `templates/index.html` and mirrored `data/index.html` (PWA-oriented copy).
+- **Shipped:** **v1.0** (Jellyfin) and **v1.1** (rename) tagged; archives under `.planning/milestones/v1.0-*` and `v1.1-*`.
+- **Runtime:** Flask + SQLite + SSE; `media_provider` with `PlexLibraryProvider` and `JellyfinLibraryProvider`.
+- **UI:** Embedded HTML in `templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
+- **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
 
 ## Context
 
@@ -65,6 +66,7 @@ Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a 
 | Two instances for Plex + Jellyfin together | User request; avoids multi-tenant complexity in one DB/session model. | Adopted (Phase 1+) |
 | Keep TMDB for trailers/cast | Already works from title/year; Jellyfin metadata is optional enhancement later. | Adopted |
 | Jellyfin delegate browser auth | Remove redundant browser password collection when server env auth exists; session-only token resolution server-side. | Shipped v1.0 Phase 9 |
+| Jelly Swipe rename (v1.1) | Public fork under AndrewTheTechie; single upstream link in README/LICENSE. | Shipped v1.1 |
 
 ## Evolution
 
@@ -86,4 +88,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-24 — **v1.1** rebrand milestone in progress*
+*Last updated: 2026-04-24 after **v1.1** milestone close (`/gsd-complete-milestone`)*
