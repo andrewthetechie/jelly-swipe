@@ -1,0 +1,12 @@
+data/kinoswipe.db
+__pycache__/
+*.pyc
+.env
+.python-version
+data/
+docker-compose.yml
+Dockerfile
+LICENSE
+README.md
+screenshots/
+unraid_template/

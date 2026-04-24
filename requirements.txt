@@ -3,3 +3,4 @@ plexapi
 werkzeug
 requests
 python-dotenv
+gunicorn
