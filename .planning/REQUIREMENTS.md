@@ -19,24 +19,24 @@
 
 ### Jellyfin — server auth & client
 
-- [ ] **JAUTH-01**: Jellyfin mode supports configurable base URL plus server-side credentials appropriate for unattended access (document supported patterns: e.g. username/password login and/or API key, per final plan).
-- [ ] **JAUTH-02**: The app obtains and reuses a Jellyfin access token (or equivalent) and recovers cleanly after connection/auth errors (similar spirit to `reset_plex()`).
-- [ ] **JAUTH-03**: Secrets are not written to logs or returned in JSON error payloads.
+- [x] **JAUTH-01**: Jellyfin mode supports configurable base URL plus server-side credentials appropriate for unattended access (document supported patterns: e.g. username/password login and/or API key, per final plan).
+- [x] **JAUTH-02**: The app obtains and reuses a Jellyfin access token (or equivalent) and recovers cleanly after connection/auth errors (similar spirit to `reset_plex()`).
+- [x] **JAUTH-03**: Secrets are not written to logs or returned in JSON error payloads.
 
 ### Jellyfin — library & media
 
-- [ ] **JLIB-01**: Jellyfin mode builds the same per-movie JSON objects the UI already consumes (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movie items.
-- [ ] **JLIB-02**: Jellyfin mode exposes a genre list and filtering behavior equivalent to current Plex behavior, including a time-ordered “Recently Added” style deck when that option is selected.
-- [ ] **JLIB-03**: Thumbnails for Jellyfin-backed cards load through the Flask app with validation that prevents open proxy abuse.
-- [ ] **JLIB-04**: `/get-trailer/<movie_id>` and `/cast/<movie_id>` work in Jellyfin mode using metadata from the Jellyfin item (title/year) into the existing TMDB flow.
-- [ ] **JLIB-05**: A server-info style endpoint returns a stable machine/server identifier and display name in Jellyfin mode (for UI parity with `/plex/server-info` or a renamed shared route).
+- [x] **JLIB-01**: Jellyfin mode builds the same per-movie JSON objects the UI already consumes (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movie items.
+- [x] **JLIB-02**: Jellyfin mode exposes a genre list and filtering behavior equivalent to current Plex behavior, including a time-ordered “Recently Added” style deck when that option is selected.
+- [x] **JLIB-03**: Thumbnails for Jellyfin-backed cards load through the Flask app with validation that prevents open proxy abuse.
+- [x] **JLIB-04**: `/get-trailer/<movie_id>` and `/cast/<movie_id>` work in Jellyfin mode using metadata from the Jellyfin item (title/year) into the existing TMDB flow.
+- [x] **JLIB-05**: A server-info style endpoint returns a stable machine/server identifier and display name in Jellyfin mode (for UI parity with `/plex/server-info` or a renamed shared route).
 
 ### Jellyfin — user scope & parity
 
-- [ ] **JUSR-01**: In Jellyfin mode, per-user match lists, history, delete, and undo key off a Jellyfin-derived user identifier carried like today’s `X-Plex-User-ID` / `plex_id` columns (same columns may store Jellyfin user IDs; document semantics).
-- [ ] **JUSR-02**: In Jellyfin mode, “add to watchlist” (or equivalent user list) succeeds when the client supplies a valid Jellyfin user token/session established by the app’s auth flow.
-- [ ] **JUSR-03**: The front end uses one coherent auth path per provider (Plex pin unchanged; Jellyfin uses a Jellyfin-appropriate login or token capture documented in README).
-- [ ] **JUSR-04**: Docker image and `requirements.txt` install all Jellyfin-mode dependencies; CI/build still passes.
+- [x] **JUSR-01**: In Jellyfin mode, per-user match lists, history, delete, and undo key off a Jellyfin-derived user identifier carried like today’s `X-Plex-User-ID` / `plex_id` columns (same columns may store Jellyfin user IDs; document semantics).
+- [x] **JUSR-02**: In Jellyfin mode, “add to watchlist” (or equivalent user list) succeeds when the client supplies a valid Jellyfin user token/session established by the app’s auth flow.
+- [x] **JUSR-03**: The front end uses one coherent auth path per provider (Plex pin unchanged; Jellyfin uses a Jellyfin-appropriate login or token capture documented in README).
+- [x] **JUSR-04**: Docker image and `requirements.txt` install all Jellyfin-mode dependencies; CI/build still passes.
 
 ## v2 Requirements
 
@@ -66,18 +66,18 @@
 | ARC-01 | Phase 6 | Done |
 | ARC-02 | Phase 6 | Partial |
 | ARC-03 | Phase 6 | Done |
-| JAUTH-01 | Phase 7 | Pending |
-| JAUTH-02 | Phase 7 | Pending |
-| JAUTH-03 | Phase 7 | Pending |
-| JLIB-01 | Phase 7 | Pending |
-| JLIB-02 | Phase 7 | Pending |
-| JLIB-03 | Phase 7 | Pending |
-| JLIB-04 | Phase 7 | Pending |
-| JLIB-05 | Phase 7 | Pending |
-| JUSR-01 | Phase 7 | Pending |
-| JUSR-02 | Phase 7 | Pending |
-| JUSR-03 | Phase 7 | Pending |
-| JUSR-04 | Phase 7 | Pending |
+| JAUTH-01 | Phase 7 | Done |
+| JAUTH-02 | Phase 7 | Partial |
+| JAUTH-03 | Phase 7 | Done |
+| JLIB-01 | Phase 7 | Partial |
+| JLIB-02 | Phase 7 | Partial |
+| JLIB-03 | Phase 7 | Done |
+| JLIB-04 | Phase 7 | Partial |
+| JLIB-05 | Phase 7 | Partial |
+| JUSR-01 | Phase 7 | Done |
+| JUSR-02 | Phase 7 | Partial |
+| JUSR-03 | Phase 7 | Done |
+| JUSR-04 | Phase 7 | Partial |
 
 **Coverage:**
 
@@ -87,4 +87,5 @@
 
 ---
 *Requirements defined: 2026-04-22*  
-*Last updated: 2026-04-24 — CFG/ARC rows synced from `01-VERIFICATION.md` / `02-VERIFICATION.md` via `06-VERIFICATION.md`*
+*Last updated: 2026-04-24 — J\* rows synced from `03-VERIFICATION.md`, `04-VERIFICATION.md`, `05-VERIFICATION.md` via `07-VERIFICATION.md`*  
+*Phase 8 (2026-04-24): E2E narrative 08-E2E.md + NN-VALIDATION.md closure — see v1.0-MILESTONE-AUDIT.md*
