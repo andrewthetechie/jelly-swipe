@@ -9,9 +9,9 @@ Milestone focus: **uv** + **Python 3.13** packaging, **`jellyswipe/`** layout, *
 
 ### Tooling & dependencies (uv)
 
-- [ ] **UV-01**: The repository uses **uv** as the canonical way to declare and lock dependencies (`pyproject.toml` + committed **`uv.lock`**). Root **`requirements.txt`** is not the primary install path for Docker or maintainer docs.
-- [ ] **UV-02**: **`requires-python`** and the container base image target **Python 3.13** consistently.
-- [ ] **DEP-01**: Direct runtime dependencies are pinned in the lockfile to **newest versions compatible** with Python 3.13 and the existing application; `uv sync` / image build succeeds and the app starts with required env vars.
+- [x] **UV-01**: The repository uses **uv** as the canonical way to declare and lock dependencies (`pyproject.toml` + committed **`uv.lock`**). Root **`requirements.txt`** is not the primary install path for Docker or maintainer docs.
+- [x] **UV-02**: **`requires-python`** and the container base image target **Python 3.13** consistently.
+- [x] **DEP-01**: Direct runtime dependencies are pinned in the lockfile to **newest versions compatible** with Python 3.13 and the existing application; `uv sync` / image build succeeds and the app starts with required env vars.
 
 ### Package layout
 
@@ -46,9 +46,9 @@ _Deferred past v1.2 (see `.planning/PROJECT.md` Active candidates)._
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UV-01 | Phase 10 | Pending |
-| UV-02 | Phase 10 | Pending |
-| DEP-01 | Phase 10 | Pending |
+| UV-01 | Phase 10 | Complete |
+| UV-02 | Phase 10 | Complete |
+| DEP-01 | Phase 10 | Complete |
 | PKG-01 | Phase 11 | Pending |
 | PKG-02 | Phase 11 | Pending |
 | DOCK-01 | Phase 12 | Pending |

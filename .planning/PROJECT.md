@@ -38,12 +38,12 @@ Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a 
 - ✓ **Jellyfin browser delegate path** — When env credentials are configured, the SPA can bind to the server session without exposing API tokens in JSON; stale `localStorage` tokens cleared on success. *Phase 9.*
 - ✓ **Poster containment** — Main deck, mini-posters, and match popup use `object-fit: contain` with black backing so wide one-sheets are not cropped. *Phase 9.*
 - ✓ **Jelly Swipe branding & packaging (v1.1)** — BRAND-01–04: UI titles and PWA manifest; README/LICENSE fork policy; Unraid `jelly-swipe.html`; default DB path and Docker/CI image `andrewthetechie/jelly-swipe`; Plex and Jellyfin client identifiers as Jelly Swipe (operators may re-auth Plex.tv).
+- ✓ **UV-01** — uv is the canonical dependency workflow; `pyproject.toml` + committed `uv.lock`; root `requirements.txt` explicitly non-canonical for local dev (Docker unchanged until Phase 12). *Validated in Phase 10.*
+- ✓ **UV-02** — Tooling targets **Python 3.13** (`requires-python = ">=3.13,<3.14"`, `.python-version`). *Validated in Phase 10.*
+- ✓ **DEP-01** — Direct runtime dependencies resolved to **newest 3.13-compatible** versions; `uv sync` and `py_compile` smoke pass. *Validated in Phase 10.*
 
 ### Active (v1.2 — in progress)
 
-- [ ] **UV-01** — uv is the canonical dependency workflow; `pyproject.toml` + committed `uv.lock`; root `requirements.txt` no longer the install source of truth.
-- [ ] **UV-02** — Tooling and container target **Python 3.13** (`requires-python` / base image alignment).
-- [ ] **DEP-01** — Direct runtime dependencies resolved to **newest 3.13-compatible** versions; app and Docker build still run.
 - [ ] **PKG-01** — Application modules (Flask routes/DB/SSE and media provider) live under **`jellyswipe/`** with coherent imports.
 - [ ] **PKG-02** — Gunicorn CMD (and documented local command) load the WSGI app from the **`jellyswipe`** package.
 - [ ] **DOCK-01** — `Dockerfile` installs dependencies via **uv** and runs the packaged application; behavior parity for operators (port, data dir, env contract).
@@ -64,7 +64,7 @@ Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a 
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin) and **v1.1** (rename) tagged; archives under `.planning/milestones/v1.0-*` and `v1.1-*`.
-- **In flight:** **v1.2** — uv + Python 3.13 lockfile + `jellyswipe/` package + Docker-only distribution (see `.planning/ROADMAP.md`).
+- **In flight:** **v1.2** — Phase **10** complete (uv + lockfile on 3.13); next: **`jellyswipe/`** package layout (Phase 11), then Docker/docs (Phase 12). See `.planning/ROADMAP.md`.
 - **Runtime:** Flask + SQLite + SSE; `media_provider` with `PlexLibraryProvider` and `JellyfinLibraryProvider` (paths will move under `jellyswipe/` during v1.2).
 - **UI:** Embedded HTML in `templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -90,7 +90,7 @@ Jelly Swipe is a small Flask app for shared “Tinder for movies” sessions: a 
 | Keep TMDB for trailers/cast | Already works from title/year; Jellyfin metadata is optional enhancement later. | Adopted |
 | Jellyfin delegate browser auth | Remove redundant browser password collection when server env auth exists; session-only token resolution server-side. | Shipped v1.0 Phase 9 |
 | Jelly Swipe rename (v1.1) | Public fork under AndrewTheTechie; single upstream link in README/LICENSE. | Shipped v1.1 |
-| uv + package layout (v1.2) | Faster reproducible installs; clearer module boundaries; Docker remains the operator-facing artifact. | In progress |
+| uv + package layout (v1.2) | Faster reproducible installs; clearer module boundaries; Docker remains the operator-facing artifact. | Phase 10 done; package move + Docker in Phases 11–12 |
 
 ## Evolution
 
@@ -112,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-24 — **v1.2** milestone started (`/gsd-new-milestone`: uv, Python 3.13, `jellyswipe/` package, Docker-only distribution)*
+*Last updated: 2026-04-24 — Phase 10 complete (uv, `pyproject.toml` + `uv.lock`, Python 3.13 pin); Phase 11 next.*
