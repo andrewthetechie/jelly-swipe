@@ -202,4 +202,49 @@ docker run -d \
 
 <img src="https://github.com/user-attachments/assets/97e2c08b-5421-4f16-a798-acca2bb76a60" width="100"/>
 
+## Development
+
+For local development and contributing, use **uv** for dependency management. This project requires **Python 3.13**.
+
+### First-time setup
+
+```bash
+# Install dependencies from the committed lockfile
+uv sync
+```
+
+This creates a virtual environment in `.venv/` and installs all dependencies from `pyproject.toml` and `uv.lock`.
+
+### Running the app locally
+
+**Development server (auto-reload):**
+```bash
+uv run python -m jellyswipe
+```
+
+**Production-style server (for testing):**
+```bash
+uv run gunicorn -b 0.0.0.0:5005 -k gevent --worker-connections 1000 jellyswipe:app
+```
+
+### Managing dependencies
+
+**Add a new dependency:**
+```bash
+uv add <package-name>
+```
+
+**Update the lockfile after dependency changes:**
+```bash
+uv lock --upgrade
+```
+
+Commit both `pyproject.toml` and `uv.lock` when adding or updating dependencies.
+
+### Notes
+
+- The app is installed as a package (`jellyswipe/` layout), not a script. Run it via `uv run python -m jellyswipe` or `uv run gunicorn jellyswipe:app`.
+- All production deployment uses Docker (see Deployment section above). Local dev uses uv for fast iteration.
+- Distribution is Docker-only (Docker Hub and GHCR). There is no PyPI package to install via pip.
+
 "This product uses the TMDB API but is not endorsed or certified by TMDB."
