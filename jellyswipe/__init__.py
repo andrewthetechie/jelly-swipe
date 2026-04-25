@@ -242,7 +242,7 @@ def swipe():
     uid = session.get('my_user_id')
     data = request.json
     mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
-    user_id = data.get('user_id') or data.get('plex_id')
+    user_id = data.get('user_id')
     user_id = _provider_user_id_from_request() or user_id
     if not user_id:
         return jsonify({'error': 'Missing Jellyfin user identity', 'match': False}), 400
@@ -250,31 +250,31 @@ def swipe():
     if not code: return jsonify({'match': False})
 
     with get_db() as conn:
-        conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, plex_id) VALUES (?, ?, ?, ?, ?)',
-                     (code, mid, uid, data.get('direction'), user_id))
+        conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
+                     (code, mid, uid, data.get('direction')))
 
         if data.get('direction') == 'right':
             room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room and room['solo_mode']:
                 conn.execute(
-                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
+                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
                     (code, mid, title, thumb, user_id)
                 )
                 return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
 
-            other_swipe = conn.execute('SELECT plex_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+            other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
                                      (code, mid, uid)).fetchone()
 
             if other_swipe:
                 conn.execute(
-                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
+                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
                     (code, mid, title, thumb, user_id)
                 )
 
-                if other_swipe['plex_id'] and other_swipe['plex_id'] != user_id:
+                if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
                     conn.execute(
-                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, other_swipe['plex_id'])
+                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
+                        (code, mid, title, thumb, other_swipe['user_id'])
                     )
 
                 match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
@@ -294,9 +294,9 @@ def get_matches():
 
     with get_db() as conn:
         if view == 'history':
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND plex_id = ?', (user_id,)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND user_id = ?', (user_id,)).fetchall()
         else:
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND plex_id = ?', (code, user_id)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, user_id)).fetchall()
         return jsonify([dict(row) for row in rows])
 
 @app.route('/room/quit', methods=['POST'])
@@ -318,7 +318,7 @@ def delete_match():
     if not user_id:
         return jsonify({'error': 'Missing user identity'}), 400
     with get_db() as conn:
-        conn.execute('DELETE FROM matches WHERE movie_id = ? AND plex_id = ?', (mid, user_id))
+        conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, user_id))
     return jsonify({'status': 'deleted'})
 
 @app.route('/undo', methods=['POST'])
@@ -331,7 +331,7 @@ def undo_swipe():
         return jsonify({'error': 'Missing user identity'}), 400
     with get_db() as conn:
         conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
-        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND plex_id = ?', (code, mid, user_id))
+        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, user_id))
     return jsonify({'status': 'undone'})
 
 @app.route('/plex/server-info')
