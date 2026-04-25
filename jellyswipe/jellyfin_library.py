@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from media_provider.base import LibraryMediaProvider
+from .base import LibraryMediaProvider
 
 _DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "jelly-swipe-jellyfin-v1")
 

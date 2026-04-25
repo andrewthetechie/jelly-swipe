@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import requests
 
-from media_provider.base import LibraryMediaProvider
+from .base import LibraryMediaProvider
 
 
 class PlexLibraryProvider(LibraryMediaProvider):

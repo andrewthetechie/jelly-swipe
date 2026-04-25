@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from media_provider.base import LibraryMediaProvider
-from media_provider.jellyfin_library import JellyfinLibraryProvider
-from media_provider.plex_library import PlexLibraryProvider
+from .base import LibraryMediaProvider
+from .jellyfin_library import JellyfinLibraryProvider
+from .plex_library import PlexLibraryProvider
 
 _provider_singleton: Optional[LibraryMediaProvider] = None
 
