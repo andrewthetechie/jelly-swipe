@@ -49,7 +49,9 @@
 - [x] 11-02-PLAN.md — Move database functions to jellyswipe/db.py and create Flask app in jellyswipe/__init__.py
 - [x] 11-03-PLAN.md — Move templates/ and static/ under jellyswipe/ and configure package data
 - [x] 11-04-PLAN.md — Update imports throughout codebase and update Gunicorn entry point to jellyswipe:app
-- [ ] 11-05-PLAN.md — Fix SSE stream with Gunicorn gevent workers (gap closure)
+- [x] 11-05-PLAN.md — Fix SSE stream with Gunicorn gevent workers (gap closure)
+
+**Status:** ✅ **COMPLETE** — 2026-04-25
 
 **Success criteria:**
 

@@ -15,8 +15,8 @@ Milestone focus: **uv** + **Python 3.13** packaging, **`jellyswipe/`** layout, *
 
 ### Package layout
 
-- [ ] **PKG-01**: Server code that today lives in repo-root **`app.py`** and **`media_provider/`** is organized under an importable **`jellyswipe/`** package (no duplicate competing top-level app packages).
-- [ ] **PKG-02**: **Gunicorn** (Docker `CMD` and documented production path) imports the Flask application from the **`jellyswipe`** package (stable module:attribute, e.g. `jellyswipe.web:app` — exact name chosen at implementation).
+- [x] **PKG-01**: Server code that today lives in repo-root **`app.py`** and **`media_provider/`** is organized under an importable **`jellyswipe/`** package (no duplicate competing top-level app packages).
+- [x] **PKG-02**: **Gunicorn** (Docker `CMD` and documented production path) imports the Flask application from the **`jellyswipe`** package (stable module:attribute, e.g. `jellyswipe.web:app` — exact name chosen at implementation).
 
 ### Docker & documentation
 
@@ -49,8 +49,8 @@ _Deferred past v1.2 (see `.planning/PROJECT.md` Active candidates)._
 | UV-01 | Phase 10 | Complete |
 | UV-02 | Phase 10 | Complete |
 | DEP-01 | Phase 10 | Complete |
-| PKG-01 | Phase 11 | Pending |
-| PKG-02 | Phase 11 | Pending |
+| PKG-01 | Phase 11 | Complete |
+| PKG-02 | Phase 11 | Complete |
 | DOCK-01 | Phase 12 | Pending |
 | DOC-01 | Phase 12 | Pending |
 | DIST-01 | Phase 12 | Pending |

@@ -3,27 +3,25 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: — Phase overview
 status: executing
-last_updated: "2026-04-25T01:22:35.237Z"
+last_updated: "2026-04-25T01:30:00.000Z"
 last_activity: 2026-04-25
 progress:
-  total_phases: 6
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 2
-  percent: 33
+  total_phases: 3
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project state
 
-**Updated:** 2026-04-24
+**Updated:** 2026-04-25
 
 ## Current Position
 
-Phase: 11 (jellyswipe-package-layout) — EXECUTING
-Plan: 1 of 4
-**Phase:** 11 — `jellyswipe/` package layout  
-**Plan:** —  
-**Status:** Executing Phase 11
+Phase: 12 (docker-and-docs) — TO BE PLANNED
+**Phase:** 12 — Docker & docs
+**Status:** Phase 11 complete, Phase 12 ready for planning
 **Last activity:** 2026-04-25
 
 ## Project reference
@@ -47,8 +45,8 @@ See: `.planning/PROJECT.md` — **Current Milestone: v1.2**
 
 - Domain research skipped for v1.2 (tooling/layout milestone with explicit stack).
 
-**Last completed:** Phase 10 — uv & Python 3.13 lockfile — 2026-04-24
+**Last completed:** Phase 11 — `jellyswipe/` package layout — 2026-04-25
 
-**Next:** `/gsd-discuss-phase 11 --chain` (no `11-CONTEXT.md` yet) or `/gsd-plan-phase 11 --chain`
+**Next:** `/gsd-discuss-phase 12 --chain` or `/gsd-plan-phase 12 --chain`
 
-**Planned Phase:** 11 (`jellyswipe/` package) — not planned in repo yet
+**Planned Phase:** 12 (Docker & docs) — not planned yet
