@@ -20,12 +20,12 @@ Milestone focus: **uv** + **Python 3.13** packaging, **`jellyswipe/`** layout, *
 
 ### Docker & documentation
 
-- [ ] **DOCK-01**: **`Dockerfile`** installs Python dependencies using **uv** (frozen lockfile in image) and runs the WSGI app from the **`jellyswipe`** package; exposed port and **`/app/data`** (or equivalent) behavior remain suitable for existing compose/Unraid operator flows.
-- [ ] **DOC-01**: **`README.md`** explains how maintainers use **uv** (`uv sync`, `uv run`, …) instead of `pip install -r requirements.txt`.
+- [x] **DOCK-01**: **`Dockerfile`** installs Python dependencies using **uv** (frozen lockfile in image) and runs the WSGI app from the **`jellyswipe`** package; exposed port and **`/app/data`** (or equivalent) behavior remain suitable for existing compose/Unraid operator flows.
+- [x] **DOC-01**: **`README.md`** explains how maintainers use **uv** (`uv sync`, `uv run`, …) instead of `pip install -r requirements.txt`.
 
 ### Distribution scope
 
-- [ ] **DIST-01**: The project does **not** add a PyPI publishing workflow or position **`jellyswipe`** as an installable product from PyPI; distribution remains **Docker Hub / GHCR** and source checkout only.
+- [x] **DIST-01**: The project does **not** add a PyPI publishing workflow or position **`jellyswipe`** as an installable product from PyPI; distribution remains **Docker Hub / GHCR** and source checkout only.
 
 ## Future requirements
 
@@ -51,9 +51,9 @@ _Deferred past v1.2 (see `.planning/PROJECT.md` Active candidates)._
 | DEP-01 | Phase 10 | Complete |
 | PKG-01 | Phase 11 | Complete |
 | PKG-02 | Phase 11 | Complete |
-| DOCK-01 | Phase 12 | Pending |
-| DOC-01 | Phase 12 | Pending |
-| DIST-01 | Phase 12 | Pending |
+| DOCK-01 | Phase 12 | Complete (2026-04-25) |
+| DOC-01 | Phase 12 | Complete (2026-04-25) |
+| DIST-01 | Phase 12 | Complete (2026-04-25) |
 
 **Coverage:** v1.2 requirements: **8** total · Mapped: **8** · Unmapped: **0**
 
