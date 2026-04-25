@@ -1,61 +1,86 @@
-# Requirements: Jelly Swipe — v1.2
+# Requirements: Jelly Swipe (v1.3 — Unit Tests)
 
-**Defined:** 2026-04-24  
-**Core value:** Users can run a swipe session backed by either Plex or Jellyfin (one backend per deployment), with library browsing and deck behavior equivalent to the Plex path.
+**Defined:** 2026-04-25
+**Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior.
 
-Milestone focus: **uv** + **Python 3.13** packaging, **`jellyswipe/`** layout, **Docker-only** distribution.
+## v1.3 Requirements
 
-## v1.2 Requirements
+Requirements for unit testing milestone. Each maps to roadmap phases.
 
-### Tooling & dependencies (uv)
+### Infrastructure
 
-- [x] **UV-01**: The repository uses **uv** as the canonical way to declare and lock dependencies (`pyproject.toml` + committed **`uv.lock`**). Root **`requirements.txt`** is not the primary install path for Docker or maintainer docs.
-- [x] **UV-02**: **`requires-python`** and the container base image target **Python 3.13** consistently.
-- [x] **DEP-01**: Direct runtime dependencies are pinned in the lockfile to **newest versions compatible** with Python 3.13 and the existing application; `uv sync` / image build succeeds and the app starts with required env vars.
+- [ ] **INFRA-01**: Project uses pytest framework for test discovery and execution
+- [ ] **INFRA-02**: tests/conftest.py provides shared fixtures for database, mocks, and test data
+- [ ] **INFRA-03**: Test structure is framework-agnostic (tests modules directly, not through Flask routes)
+- [ ] **INFRA-04**: pytest configured in pyproject.toml with appropriate settings
 
-### Package layout
+### Database Testing
 
-- [x] **PKG-01**: Server code that today lives in repo-root **`app.py`** and **`media_provider/`** is organized under an importable **`jellyswipe/`** package (no duplicate competing top-level app packages).
-- [x] **PKG-02**: **Gunicorn** (Docker `CMD` and documented production path) imports the Flask application from the **`jellyswipe`** package (stable module:attribute, e.g. `jellyswipe.web:app` — exact name chosen at implementation).
+- [ ] **DB-01**: Database tests use in-memory SQLite with tmp_path fixture for isolation
+- [ ] **DB-02**: Database tests cover schema initialization, migrations, and CRUD operations for db.py
+- [ ] **DB-03**: Database tests ensure no state leakage between tests
 
-### Docker & documentation
+### API Testing
 
-- [x] **DOCK-01**: **`Dockerfile`** installs Python dependencies using **uv** (frozen lockfile in image) and runs the WSGI app from the **`jellyswipe`** package; exposed port and **`/app/data`** (or equivalent) behavior remain suitable for existing compose/Unraid operator flows.
-- [x] **DOC-01**: **`README.md`** explains how maintainers use **uv** (`uv sync`, `uv run`, …) instead of `pip install -r requirements.txt`.
+- [ ] **API-01**: Jellyfin library tests mock HTTP requests to prevent real API calls
+- [ ] **API-02**: Jellyfin library tests cover authentication, token caching, and user ID resolution
+- [ ] **API-03**: Jellyfin library tests cover library discovery, genre listing, and deck fetching
+- [ ] **API-04**: Jellyfin library tests cover item-to-card transformation and TMDB resolution
 
-### Distribution scope
+### Coverage & CI
 
-- [x] **DIST-01**: The project does **not** add a PyPI publishing workflow or position **`jellyswipe`** as an installable product from PyPI; distribution remains **Docker Hub / GHCR** and source checkout only.
+- [ ] **COV-01**: pytest-cov configured with terminal output for basic coverage reporting
+- [ ] **COV-02**: GitHub Actions workflow runs tests on push/PR
 
-## Future requirements
+## v2 Requirements
 
-_Deferred past v1.2 (see `.planning/PROJECT.md` Active candidates)._
+Deferred to future release. Tracked but not in current roadmap.
 
-- **ARC-02** — Plex regression matrix completion from archived Phase 2 verification.
-- **OPS-01 / PRD-01** — Neutral DB columns and multi-library selection.
+### Advanced Testing
 
-## Out of scope
+- **ADV-01**: Coverage thresholds enforced in CI to prevent regression
+- **ADV-02**: Multiple coverage reports (HTML for local, XML for CI)
+- **ADV-03**: pytest-mock integration for cleaner mock API
+- **ADV-04**: Parametrized fixtures for comprehensive scenario coverage
+- **ADV-05**: Module-scoped fixtures for test performance optimization
 
-| Item | Reason |
-|------|--------|
-| **PyPI package** | Explicit v1.2 decision: Docker (and source) only. |
-| **Changing product behavior** | v1.2 is packaging/tooling; Plex/Jellyfin behavior stays equivalent unless a dependency upgrade forces a minimal fix. |
-| **Both Plex and Jellyfin in one process** | Existing product decision. |
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Flask route integration tests | Framework-agnostic approach required for v1.3; can be added in future as integration tests |
+| Real Jellyfin/TMDB API calls | Unit tests should be isolated from external dependencies |
+| Parallel test execution (pytest-xdist) | Not needed for initial test suite; can be added when test count grows |
+| Property-based testing (Hypothesis) | Nice to have, not critical for v1.3 |
+| End-to-end integration tests | Separate concern from unit testing; can be added in v2+ |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UV-01 | Phase 10 | Complete |
-| UV-02 | Phase 10 | Complete |
-| DEP-01 | Phase 10 | Complete |
-| PKG-01 | Phase 11 | Complete |
-| PKG-02 | Phase 11 | Complete |
-| DOCK-01 | Phase 12 | Complete (2026-04-25) |
-| DOC-01 | Phase 12 | Complete (2026-04-25) |
-| DIST-01 | Phase 12 | Complete (2026-04-25) |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| DB-01 | Phase 2 | Pending |
+| DB-02 | Phase 2 | Pending |
+| DB-03 | Phase 2 | Pending |
+| API-01 | Phase 3 | Pending |
+| API-02 | Phase 3 | Pending |
+| API-03 | Phase 3 | Pending |
+| API-04 | Phase 3 | Pending |
+| COV-01 | Phase 4 | Pending |
+| COV-02 | Phase 4 | Pending |
 
-**Coverage:** v1.2 requirements: **8** total · Mapped: **8** · Unmapped: **0**
+**Coverage:**
+- v1.3 requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12 ⚠️
 
 ---
-*Requirements defined: 2026-04-24 — milestone v1.2*
+*Requirements defined: 2026-04-25*
+*Last updated: 2026-04-25 after initial definition*
