@@ -18,39 +18,22 @@ DB_PATH = os.path.abspath(
 )
 CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'
 
-
-def _normalized_media_provider():
-    raw = (os.getenv("MEDIA_PROVIDER") or "").strip().lower()
-    if not raw:
-        return "plex"
-    if raw not in ("plex", "jellyfin"):
-        raise RuntimeError(
-            f"Invalid MEDIA_PROVIDER={os.getenv('MEDIA_PROVIDER')!r}; use 'plex' or 'jellyfin'"
-        )
-    return raw
-
-
-MEDIA_PROVIDER = _normalized_media_provider()
-
+# Validate required environment variables
 missing = []
 for v in ("TMDB_API_KEY", "FLASK_SECRET"):
     if not os.getenv(v):
         missing.append(v)
-if MEDIA_PROVIDER == "plex":
-    for v in ("PLEX_URL", "PLEX_TOKEN"):
-        if not os.getenv(v):
-            missing.append(v)
-else:
-    if not os.getenv("JELLYFIN_URL", "").strip():
-        missing.append("JELLYFIN_URL")
-    has_api = bool(os.getenv("JELLYFIN_API_KEY", "").strip())
-    has_user_pass = bool(os.getenv("JELLYFIN_USERNAME", "").strip()) and bool(
-        os.getenv("JELLYFIN_PASSWORD", "").strip()
+
+if not os.getenv("JELLYFIN_URL", "").strip():
+    missing.append("JELLYFIN_URL")
+has_api = bool(os.getenv("JELLYFIN_API_KEY", "").strip())
+has_user_pass = bool(os.getenv("JELLYFIN_USERNAME", "").strip()) and bool(
+    os.getenv("JELLYFIN_PASSWORD", "").strip()
+)
+if not has_api and not has_user_pass:
+    missing.append(
+        "JELLYFIN_API_KEY or (JELLYFIN_USERNAME and JELLYFIN_PASSWORD)"
     )
-    if not has_api and not has_user_pass:
-        missing.append(
-            "JELLYFIN_API_KEY or (JELLYFIN_USERNAME and JELLYFIN_PASSWORD)"
-        )
 
 if missing:
     raise RuntimeError(f"Missing env vars: {missing}")
@@ -61,13 +44,20 @@ app = Flask(__name__,
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 app.secret_key = os.environ["FLASK_SECRET"]
 
-PLEX_URL = os.getenv("PLEX_URL", "").rstrip("/")
-ADMIN_TOKEN = os.getenv("PLEX_TOKEN")
 JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-from .factory import get_provider
+# Direct Jellyfin provider instantiation (no factory pattern)
 from .jellyfin_library import JellyfinLibraryProvider
+
+_provider_singleton: Optional[JellyfinLibraryProvider] = None
+
+def get_provider() -> JellyfinLibraryProvider:
+    """Get or create the JellyfinLibraryProvider singleton."""
+    global _provider_singleton
+    if _provider_singleton is None:
+        _provider_singleton = JellyfinLibraryProvider(JELLYFIN_URL)
+    return _provider_singleton
 
 # Import database functions
 from .db import get_db, init_db
@@ -78,17 +68,16 @@ jellyswipe.db.DB_PATH = DB_PATH
 
 
 @app.route('/')
-def index(): return render_template('index.html', media_provider=MEDIA_PROVIDER)
+def index(): return render_template('index.html', media_provider="jellyfin")
 
 
 def _jellyfin_user_token_from_request() -> str:
-    if MEDIA_PROVIDER == "jellyfin" and session.get("jf_delegate_server_identity"):
+    if session.get("jf_delegate_server_identity"):
         prov = get_provider()
-        if isinstance(prov, JellyfinLibraryProvider):
-            try:
-                return prov.server_access_token_for_delegate()
-            except RuntimeError:
-                return ""
+        try:
+            return prov.server_access_token_for_delegate()
+        except RuntimeError:
+            return ""
     auth_header = request.headers.get("Authorization", "")
     token = None
     if auth_header:
@@ -96,29 +85,23 @@ def _jellyfin_user_token_from_request() -> str:
             token = get_provider().extract_media_browser_token(auth_header)
         except Exception:
             token = None
-    return token or request.headers.get("X-Plex-Token") or ""
+    return token or ""
 
 
 def _provider_user_id_from_request():
-    if MEDIA_PROVIDER == "jellyfin" and session.get("jf_delegate_server_identity"):
+    if session.get("jf_delegate_server_identity"):
         prov = get_provider()
-        if isinstance(prov, JellyfinLibraryProvider):
-            try:
-                return prov.server_primary_user_id_for_delegate()
-            except RuntimeError:
-                pass
+        try:
+            return prov.server_primary_user_id_for_delegate()
+        except RuntimeError:
+            pass
     alias = (
         request.headers.get("X-Provider-User-Id")
         or request.headers.get("X-Jellyfin-User-Id")
         or request.headers.get("X-Emby-UserId")
     )
-    legacy = request.headers.get("X-Plex-User-ID")
-    if MEDIA_PROVIDER == "plex":
-        return legacy
     if alias:
         return alias
-    if legacy:
-        return legacy
     token = _jellyfin_user_token_from_request()
     if not token:
         return None
@@ -141,7 +124,7 @@ def get_trailer(movie_id):
             if trailers: return jsonify({'youtube_key': trailers[0]['key']})
         return jsonify({'error': 'Not found'}), 404
     except RuntimeError as e:
-        if MEDIA_PROVIDER == "jellyfin" and "item lookup failed" in str(e).lower():
+        if "item lookup failed" in str(e).lower():
             return jsonify({'error': 'Movie metadata not found'}), 404
         return jsonify({'error': str(e)}), 500
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -166,7 +149,7 @@ def get_cast(movie_id):
             return jsonify({'cast': cast})
         return jsonify({'cast': []})
     except RuntimeError as e:
-        if MEDIA_PROVIDER == "jellyfin" and "item lookup failed" in str(e).lower():
+        if "item lookup failed" in str(e).lower():
             return jsonify({'error': 'Movie metadata not found', 'cast': []}), 404
         return jsonify({'error': str(e), 'cast': []}), 500
     except Exception as e:
@@ -177,53 +160,23 @@ def add_to_watchlist():
     try:
         data = request.json
         movie_id = data.get('movie_id')
-        if MEDIA_PROVIDER == "jellyfin":
-            user_token = _jellyfin_user_token_from_request()
-            if not user_token:
-                return jsonify({'error': 'Unauthorized'}), 401
-            get_provider().add_to_user_favorites(user_token, movie_id)
-            return jsonify({'status': 'success'})
-        if MEDIA_PROVIDER != "plex":
-            return jsonify({"error": "Watchlist is only available in Plex/Jellyfin modes"}), 400
-        user_token = request.headers.get('X-Plex-Token')
+        user_token = _jellyfin_user_token_from_request()
         if not user_token:
             return jsonify({'error': 'Unauthorized'}), 401
-        from plexapi.myplex import MyPlexAccount
-
-        account = MyPlexAccount(token=user_token)
-        # D-03: watchlist remains Plex-specific; provider used only for library item resolution.
-        item = get_provider().resolve_item_for_tmdb(movie_id)
-        account.addToWatchlist(item)
+        get_provider().add_to_user_favorites(user_token, movie_id)
         return jsonify({'status': 'success'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/auth/plex-url')
-def get_plex_url():
-    REDIRECT_URL = f"{request.scheme}://{request.host}"
-    headers = {'X-Plex-Product': 'JellySwipe', 'X-Plex-Client-Identifier': CLIENT_ID, 'Accept': 'application/json'}
-    try:
-        res = requests.post('https://plex.tv/api/v2/pins?strong=true', headers=headers).json()
-        forward = f"{REDIRECT_URL}?pin_id={res['id']}"
-        auth_url = f"https://app.plex.tv/auth/#!?clientID={CLIENT_ID}&code={res['code']}&context%5Bdevice%5D%5Bproduct%5D=JellySwipe&forwardUrl={requests.utils.quote(forward, safe='')}"
-        return jsonify({'auth_url': auth_url})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 
 @app.route('/auth/provider')
 def auth_provider():
-    payload = {"provider": MEDIA_PROVIDER}
-    if MEDIA_PROVIDER == "jellyfin":
-        payload["jellyfin_browser_auth"] = "delegate"
+    payload = {"provider": "jellyfin", "jellyfin_browser_auth": "delegate"}
     return jsonify(payload)
 
 
 @app.route("/auth/jellyfin-use-server-identity", methods=["POST"])
 def jellyfin_use_server_identity():
-    if MEDIA_PROVIDER != "jellyfin":
-        return jsonify({"error": "Jellyfin delegate unavailable"}), 400
     prov = get_provider()
-    if not isinstance(prov, JellyfinLibraryProvider):
-        return jsonify({"error": "Jellyfin delegate unavailable"}), 400
     try:
         prov.server_access_token_for_delegate()
         uid = prov.server_primary_user_id_for_delegate()
@@ -235,8 +188,6 @@ def jellyfin_use_server_identity():
 
 @app.route('/auth/jellyfin-login', methods=['POST'])
 def jellyfin_login():
-    if MEDIA_PROVIDER != "jellyfin":
-        return jsonify({"error": "Jellyfin login is unavailable when MEDIA_PROVIDER=plex"}), 400
     data = request.json or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
@@ -247,16 +198,6 @@ def jellyfin_login():
         return jsonify({"authToken": out["token"], "userId": out["user_id"]})
     except Exception:
         return jsonify({"error": "Jellyfin login failed"}), 401
-
-@app.route('/auth/check-returned-pin')
-def check_pin():
-    pin_id = request.args.get('pin_id') or session.get('pending_pin_id')
-    if not pin_id: return jsonify({'authToken': None})
-    headers = {'X-Plex-Client-Identifier': CLIENT_ID, 'Accept': 'application/json'}
-    res = requests.get(f"https://plex.tv/api/v2/pins/{pin_id}", headers=headers).json()
-    token = res.get('authToken')
-    if token: session.pop('pending_pin_id', None)
-    return jsonify({'authToken': token})
 
 @app.route('/room/create', methods=['POST'])
 def create_room():
@@ -300,24 +241,23 @@ def swipe():
     uid = session.get('my_user_id')
     data = request.json
     mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
-    plex_id = data.get('plex_id')
-    if MEDIA_PROVIDER == "jellyfin":
-        plex_id = _provider_user_id_from_request() or plex_id
-        if not plex_id:
-            return jsonify({'error': 'Missing Jellyfin user identity', 'match': False}), 400
+    user_id = data.get('user_id') or data.get('plex_id')
+    user_id = _provider_user_id_from_request() or user_id
+    if not user_id:
+        return jsonify({'error': 'Missing Jellyfin user identity', 'match': False}), 400
 
     if not code: return jsonify({'match': False})
 
     with get_db() as conn:
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, plex_id) VALUES (?, ?, ?, ?, ?)',
-                     (code, mid, uid, data.get('direction'), plex_id))
+                     (code, mid, uid, data.get('direction'), user_id))
 
         if data.get('direction') == 'right':
             room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room and room['solo_mode']:
                 conn.execute(
                     'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
-                    (code, mid, title, thumb, plex_id)
+                    (code, mid, title, thumb, user_id)
                 )
                 return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
 
@@ -327,10 +267,10 @@ def swipe():
             if other_swipe:
                 conn.execute(
                     'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
-                    (code, mid, title, thumb, plex_id)
+                    (code, mid, title, thumb, user_id)
                 )
 
-                if other_swipe['plex_id'] and other_swipe['plex_id'] != plex_id:
+                if other_swipe['plex_id'] and other_swipe['plex_id'] != user_id:
                     conn.execute(
                         'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, plex_id) VALUES (?, ?, ?, ?, "active", ?)',
                         (code, mid, title, thumb, other_swipe['plex_id'])
@@ -347,15 +287,15 @@ def swipe():
 def get_matches():
     code = session.get('active_room')
     view = request.args.get('view')
-    plex_id = _provider_user_id_from_request()
-    if not plex_id:
+    user_id = _provider_user_id_from_request()
+    if not user_id:
         return jsonify([]) if view else jsonify([])
 
     with get_db() as conn:
         if view == 'history':
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND plex_id = ?', (plex_id,)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND plex_id = ?', (user_id,)).fetchall()
         else:
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND plex_id = ?', (code, plex_id)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND plex_id = ?', (code, user_id)).fetchall()
         return jsonify([dict(row) for row in rows])
 
 @app.route('/room/quit', methods=['POST'])
@@ -373,11 +313,11 @@ def quit_room():
 @app.route('/matches/delete', methods=['POST'])
 def delete_match():
     mid = str(request.json.get('movie_id'))
-    plex_id = _provider_user_id_from_request()
-    if not plex_id:
+    user_id = _provider_user_id_from_request()
+    if not user_id:
         return jsonify({'error': 'Missing user identity'}), 400
     with get_db() as conn:
-        conn.execute('DELETE FROM matches WHERE movie_id = ? AND plex_id = ?', (mid, plex_id))
+        conn.execute('DELETE FROM matches WHERE movie_id = ? AND plex_id = ?', (mid, user_id))
     return jsonify({'status': 'deleted'})
 
 @app.route('/undo', methods=['POST'])
@@ -385,12 +325,12 @@ def undo_swipe():
     code = session.get('active_room')
     uid = session.get('my_user_id')
     mid = str(request.json.get('movie_id'))
-    plex_id = _provider_user_id_from_request()
-    if not plex_id:
+    user_id = _provider_user_id_from_request()
+    if not user_id:
         return jsonify({'error': 'Missing user identity'}), 400
     with get_db() as conn:
         conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
-        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND plex_id = ?', (code, mid, plex_id))
+        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND plex_id = ?', (code, mid, user_id))
     return jsonify({'status': 'undone'})
 
 @app.route('/plex/server-info')
@@ -491,27 +431,15 @@ def proxy():
     path = request.args.get('path')
     if not path:
         abort(403)
-    if MEDIA_PROVIDER == "plex":
-        if not PLEX_URL or not ADMIN_TOKEN:
-            abort(503)
-        if not path.startswith("/library/metadata/"):
-            abort(403)
-        try:
-            body, content_type = get_provider().fetch_library_image(path)
-        except PermissionError:
-            abort(403)
-        return Response(body, content_type=content_type)
-    if MEDIA_PROVIDER == "jellyfin":
-        if not JELLYFIN_URL:
-            abort(503)
-        if not re.match(r"^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$", path):
-            abort(403)
-        try:
-            body, content_type = get_provider().fetch_library_image(path)
-        except PermissionError:
-            abort(403)
-        return Response(body, content_type=content_type)
-    abort(503)
+    if not JELLYFIN_URL:
+        abort(503)
+    if not re.match(r"^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$", path):
+        abort(403)
+    try:
+        body, content_type = get_provider().fetch_library_image(path)
+    except PermissionError:
+        abort(403)
+    return Response(body, content_type=content_type)
 
 @app.route('/manifest.json')
 def serve_manifest():
