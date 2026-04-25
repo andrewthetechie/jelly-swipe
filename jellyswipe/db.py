@@ -20,24 +20,26 @@ def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT, solo_mode INTEGER DEFAULT 0)')
-        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, plex_id TEXT)')
+        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT)')
         conn.execute('''CREATE TABLE IF NOT EXISTS matches (
             room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT,
-            status TEXT DEFAULT "active", plex_id TEXT,
-            UNIQUE(room_code, movie_id, plex_id)
+            status TEXT DEFAULT "active", user_id TEXT,
+            UNIQUE(room_code, movie_id, user_id)
         )''')
 
         cursor = conn.execute("PRAGMA table_info(matches)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'status' not in columns:
             conn.execute('ALTER TABLE matches ADD COLUMN status TEXT DEFAULT "active"')
-        if 'plex_id' not in columns:
-            conn.execute('ALTER TABLE matches ADD COLUMN plex_id TEXT')
+        if 'user_id' not in columns:
+            # For existing databases with plex_id column, add user_id column
+            conn.execute('ALTER TABLE matches ADD COLUMN user_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(swipes)")
         sw_cols = [col[1] for col in cursor.fetchall()]
-        if 'plex_id' not in sw_cols:
-            conn.execute('ALTER TABLE swipes ADD COLUMN plex_id TEXT')
+        if 'user_id' not in sw_cols:
+            # For existing databases with plex_id column, add user_id column
+            conn.execute('ALTER TABLE swipes ADD COLUMN user_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(rooms)")
         room_cols = [col[1] for col in cursor.fetchall()]
