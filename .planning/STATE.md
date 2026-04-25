@@ -19,18 +19,23 @@ progress:
 
 ## Current Position
 
-**Milestone:** v1.3 — Post-v1.2 cleanup (planning phase, no active plans)
-**Status:** v1.2 complete and shipped; evaluating next steps
-**Last activity:** 2026-04-25
+**Milestone:** v1.3 — Add unit tests
+**Phase:** Not started (defining requirements)
+**Plan:** —
+**Status:** Defining requirements
+**Last activity:** 2026-04-25 — Milestone v1.3 started
 
 ## Project reference
 
-See: `.planning/PROJECT.md` — **No active milestone**
+See: `.planning/PROJECT.md` — **v1.3: Add unit tests**
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior.
 
+**Current focus:** Defining requirements for unit test suite
+
 ## Milestone History
 
+- **Active:** v1.3 — Add unit tests — 2026-04-25
 - **Shipped:** v1.2 — uv, Python 3.13 lockfile, `jellyswipe/` package layout, Docker-only distribution, Plex removal — 2026-04-25
 - **Shipped:** v1.1 — Jelly Swipe branding & packaging — 2026-04-24
 - **Shipped:** v1.0 — Jellyfin as alternative backend — 2026-04-24
@@ -57,7 +62,7 @@ See: `.planning/PROJECT.md` — **No active milestone**
 - All v1.2 artifacts archived (MILESTONE-AUDIT.md, REQUIREMENTS.md, ROADMAP.md)
 - Git tag v1.2 pending
 
-**Next:** Evaluate candidate work (ARC-02 closure, OPS-01/PRD-01) for v1.3 or future milestones
+**Next:** Define requirements for unit test suite (framework-agnostic, pytest)
 
 **Last completed:** Phase 13 — Remove all Plex code and references; project becomes Jellyfin-only — 2026-04-25
 

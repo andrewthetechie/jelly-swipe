@@ -12,9 +12,14 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.3 — Post-v1.2 cleanup
+## Current Milestone: v1.3 — Add unit tests
 
-**Goal:** No active milestone — v1.2 is complete and shipped. Future work includes ARC-02 closure (Plex regression matrix) and OPS-01/PRD-01 (neutral DB columns and multi-library selection).
+**Goal:** Add unit tests that improve reliability when making changes to this software
+
+**Target features:**
+- Unit test suite for existing codebase
+- Framework-agnostic tests (not tied to Flask directly)
+- Modern pytest methods with fixtures and parametrize
 
 **v1.2 shipped features:**
 
@@ -47,7 +52,14 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **PLEX-REM-02** — plexapi dependency removed; database schema updated (plex_id → user_id); documentation updated. *Validated in Phase 13 (v1.2).*
 - ✓ **PLEX-REM-03** — Application verified to work with Jellyfin-only configuration; Docker image builds successfully. *Validated in Phase 13 (v1.2).*
 
-### Active (next milestone candidates, post v1.2)
+### Active (v1.3 — unit tests)
+
+- [ ] **TEST-01** — Unit test suite for existing codebase with framework-agnostic approach
+- [ ] **TEST-02** — Modern pytest methods with fixtures and parametrize
+- [ ] **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py)
+- [ ] **TEST-04** — Test configuration and CI integration
+
+### Active (future milestone candidates)
 
 - [ ] **ARC-02 closure** — Formal Plex regression matrix in archived `v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md` still partial; hardening unless descoped.
 - [ ] **OPS-01 / PRD-01** — Neutral DB column naming and multi-library selection (see archived `v1.0-REQUIREMENTS.md` v2 section).
@@ -112,4 +124,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-25 — v1.2 complete (uv, Python 3.13, jellyswipe/ package, Docker multi-stage build, Plex removal); No active milestone.*
+*Last updated: 2026-04-25 — v1.3 started (unit tests with framework-agnostic pytest)*
