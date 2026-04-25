@@ -6,20 +6,23 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
 
+**v1.2** shipped **uv** dependency management with **Python 3.13** lockfile, **`jellyswipe/`** package layout with all code under a single importable package, multi-stage Docker build using uv, and comprehensive maintainer documentation. **v1.3** removed all Plex support to become Jellyfin-only.
+
 ## Core Value
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.2 — uv + `jellyswipe` package layout
+## Current Milestone: v1.3 — Post-v1.2 cleanup
 
-**Goal:** Replace pip/`requirements.txt` with **uv** and a committed lockfile on **Python 3.13**, reorganize server code into an importable **`jellyswipe/`** package, and keep **Docker** (existing image in-repo) as the only distribution story — **not PyPI**.
+**Goal:** No active milestone — v1.2 is complete and shipped. Future work includes ARC-02 closure (Plex regression matrix) and OPS-01/PRD-01 (neutral DB columns and multi-library selection).
 
-**Target features:**
+**v1.2 shipped features:**
 
 - **uv** — `pyproject.toml` + `uv.lock`; install/sync path for Docker and maintainer docs uses uv instead of `pip install -r requirements.txt`.
 - **Python 3.13** — `requires-python` and runtime images align on 3.13; direct dependencies pinned to **newest versions compatible** with 3.13 and the app.
-- **Package layout** — Flask app and `media_provider` live under **`jellyswipe/`**; Gunicorn (and local `uv run`) target a single stable module path.
-- **Docker-only distribution** — No PyPI publish workflow or “install from PyPI” story; operators continue to use the published container images.
+- **Package layout** — Flask app and media provider live under **`jellyswipe/`**; Gunicorn (and local `uv run`) target `jellyswipe:app`.
+- **Docker-only distribution** — Multi-stage Dockerfile uses uv; no PyPI publish workflow or "install from PyPI" story.
+- **Jellyfin-only** — All Plex code, dependencies, and references removed; application assumes Jellyfin-only configuration.
 
 ## Requirements
 
@@ -33,16 +36,16 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **Jellyfin browser delegate path** — When env credentials are configured, the SPA can bind to the server session without exposing API tokens in JSON; stale `localStorage` tokens cleared on success. *Phase 9.*
 - ✓ **Poster containment** — Main deck, mini-posters, and match popup use `object-fit: contain` with black backing so wide one-sheets are not cropped. *Phase 9.*
 - ✓ **Jelly Swipe branding & packaging (v1.1)** — BRAND-01–04: UI titles and PWA manifest; README/LICENSE fork policy; Unraid `jelly-swipe.html`; default DB path and Docker/CI image `andrewthetechie/jelly-swipe`; Jellyfin client identifier as Jelly Swipe.
-- ✓ **UV-01** — uv is the canonical dependency workflow; `pyproject.toml` + committed `uv.lock`; root `requirements.txt` explicitly non-canonical for local dev (Docker unchanged until Phase 12). *Validated in Phase 10.*
-- ✓ **UV-02** — Tooling targets **Python 3.13** (`requires-python = ">=3.13,<3.14"`, `.python-version`). *Validated in Phase 10.*
-- ✓ **DEP-01** — Direct runtime dependencies resolved to **newest 3.13-compatible** versions; `uv sync` and `py_compile` smoke pass. *Validated in Phase 10.*
-
-### Active (v1.2 — in progress)
-
-- [ ] **PKG-01** — Application modules (Flask routes/DB/SSE and media provider) live under **`jellyswipe/`** with coherent imports.
-- [ ] **PKG-02** — Gunicorn CMD (and documented local command) load the WSGI app from the **`jellyswipe`** package.
-- [ ] **DOCK-01** — `Dockerfile` installs dependencies via **uv** and runs the packaged application; behavior parity for operators (port, data dir, env contract).
-- [ ] **DOC-01** — README (and compose snippets if present) describe **uv**-based setup for contributors/maintainers.
+- ✓ **UV-01** — uv is the canonical dependency workflow; `pyproject.toml` + committed `uv.lock`; root `requirements.txt` explicitly non-canonical for local dev. *Validated in Phase 10 (v1.2).*
+- ✓ **UV-02** — Tooling targets **Python 3.13** (`requires-python = ">=3.13,<3.14"`, `.python-version`). *Validated in Phase 10 (v1.2).*
+- ✓ **DEP-01** — Direct runtime dependencies resolved to **newest 3.13-compatible** versions; `uv sync` and `py_compile` smoke pass. *Validated in Phase 10 (v1.2).*
+- ✓ **PKG-01** — Application modules (Flask routes/DB/SSE and media provider) live under **`jellyswipe/`** with coherent imports. *Validated in Phase 11 (v1.2).*
+- ✓ **PKG-02** — Gunicorn CMD (and documented local command) load the WSGI app from the **`jellyswipe`** package (`jellyswipe:app`). *Validated in Phase 11 (v1.2).*
+- ✓ **DOCK-01** — `Dockerfile` installs dependencies via **uv** and runs the packaged application; behavior parity for operators (port, data dir, env contract). *Validated in Phase 12 (v1.2).*
+- ✓ **DOC-01** — README (and compose snippets if present) describe **uv**-based setup for contributors/maintainers. *Validated in Phase 12 (v1.2).*
+- ✓ **PLEX-REM-01** — Plex implementation code (plex_library.py, factory.py) removed; JellyfinLibraryProvider used directly. *Validated in Phase 13 (v1.2).*
+- ✓ **PLEX-REM-02** — plexapi dependency removed; database schema updated (plex_id → user_id); documentation updated. *Validated in Phase 13 (v1.2).*
+- ✓ **PLEX-REM-03** — Application verified to work with Jellyfin-only configuration; Docker image builds successfully. *Validated in Phase 13 (v1.2).*
 
 ### Active (next milestone candidates, post v1.2)
 
@@ -58,15 +61,17 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ## Current state
 
-- **Shipped:** **v1.0** (Jellyfin) and **v1.1** (rename) tagged; archives under `.planning/milestones/v1.0-*` and `v1.1-*`.
-- **In flight:** **v1.2** — Phase **10** complete (uv + lockfile on 3.13); next: **`jellyswipe/`** package layout (Phase 11), then Docker/docs (Phase 12). See `.planning/ROADMAP.md`.
-- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` (paths will move under `jellyswipe/` during v1.2).
-- **UI:** Embedded HTML in `templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
+- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), and **v1.2** (uv + package layout + Plex removal) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, and `v1.2-*`.
+- **In flight:** No active milestone — v1.2 is complete and shipped. Future candidates: ARC-02 closure, OPS-01/PRD-01 (see Active candidates).
+- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
+- **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
 
 ## Context
 
-- Monolithic `app.py` Flask app at repo root (v1.2 moves it under `jellyswipe/`); SQLite for rooms/swipes/matches; SSE for room updates (see `.planning/codebase/ARCHITECTURE.md`).
+- Flask app lives under `jellyswipe/` package with `jellyswipe/__init__.py` (main app), `jellyswipe/db.py` (database), and `jellyswipe/jellyfin_library.py` (media provider); SQLite for rooms/swipes/matches; SSE for room updates (see `.planning/codebase/ARCHITECTURE.md`).
+- Dependency management via uv with `pyproject.toml` and `uv.lock`; Python 3.13 required; multi-stage Docker build uses `uv sync --frozen` for reproducible installs.
+- Application is Jellyfin-only; all Plex code, dependencies, and configuration removed in v1.2.
 - Jellyfin exposes a documented REST API ([api.jellyfin.org](https://api.jellyfin.org/)); auth is token-based with a recommended `Authorization: MediaBrowser ...` header; legacy `X-Emby-Token` may be disabled on some servers — implementation should follow current server expectations and test against target versions.
 
 ## Constraints
@@ -82,7 +87,10 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 | Keep TMDB for trailers/cast | Already works from title/year; Jellyfin metadata is optional enhancement later. | Adopted |
 | Jellyfin delegate browser auth | Remove redundant browser password collection when server env auth exists; session-only token resolution server-side. | Shipped v1.0 Phase 9 |
 | Jelly Swipe rename (v1.1) | Public fork under AndrewTheTechie; single upstream link in README/LICENSE. | Shipped v1.1 |
-| uv + package layout (v1.2) | Faster reproducible installs; clearer module boundaries; Docker remains the operator-facing artifact. | Phase 10 done; package move + Docker in Phases 11–12 |
+| uv + package layout (v1.2) | Faster reproducible installs; clearer module boundaries; Docker remains the operator-facing artifact. | Shipped v1.2 |
+| Multi-stage Docker build (v1.2) | Smaller final images, layer caching optimization, reproducible builds from frozen lockfile. | Shipped v1.2 |
+| Remove Plex support (v1.2) | Simplify codebase, remove maintenance burden, focus on Jellyfin as single backend. | Shipped v1.2 |
+| Gunicorn gevent workers (v1.2) | Enable stable SSE streaming without SystemExit errors; standard solution for async I/O with Gunicorn. | Shipped v1.2 |
 
 ## Evolution
 
@@ -104,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state  
 
 ---
-*Last updated: 2026-04-24 — Phase 10 complete (uv, `pyproject.toml` + `uv.lock`, Python 3.13 pin); Phase 11 next.*
+*Last updated: 2026-04-25 — v1.2 complete (uv, Python 3.13, jellyswipe/ package, Docker multi-stage build, Plex removal); No active milestone.*
