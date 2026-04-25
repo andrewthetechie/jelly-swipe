@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Unit Tests
 status: verifying
-stopped_at: Completed Phase 14 - test infrastructure setup
-last_updated: "2026-04-25T18:20:53.596Z"
+stopped_at: Completed Phase 15 - database module tests
+last_updated: "2026-04-25T19:18:34.407Z"
 last_activity: 2026-04-25
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 
 *Updated after each plan completion*
 | Phase 14 Ptest-infrastructure-setup | 6 minutes | 4 tasks | 5 files |
+| Phase 15 P01 | 211 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - Phase 10 (v1.2): Adopt uv for faster reproducible installs with Python 3.13 lockfile
 - Phase 11 (v1.2): Refactor to jellyswipe/ package layout for clearer module boundaries
 - Conftest Flask mock must support route decorator pattern (discovered during 14-03 verification)
+- Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging and match production behavior
+- Function-scoped fixtures for maximum test isolation (no state leakage between tests)
+- Set environment variables at module level in conftest.py to satisfy __init__.py validation during test collection
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-04-25T18:20:53.593Z
-Stopped at: Completed Phase 14 - test infrastructure setup
+Last session: 2026-04-25T19:18:34.164Z
+Stopped at: Completed Phase 15 - database module tests
 Resume file: None

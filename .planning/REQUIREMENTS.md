@@ -20,9 +20,12 @@ Requirements for unit testing milestone. Each maps to roadmap phases.
 
 ### Database Testing
 
-- [ ] **DB-01**: Database tests use in-memory SQLite with tmp_path fixture for isolation
-- [ ] **DB-02**: Database tests cover schema initialization, migrations, and CRUD operations for db.py
-- [ ] **DB-03**: Database tests ensure no state leakage between tests
+- [x] **DB-01
+**: Database tests use in-memory SQLite with tmp_path fixture for isolation
+- [x] **DB-02
+**: Database tests cover schema initialization, migrations, and CRUD operations for db.py
+- [x] **DB-03
+**: Database tests ensure no state leakage between tests
 
 ### API Testing
 
