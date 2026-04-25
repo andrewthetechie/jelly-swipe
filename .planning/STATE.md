@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Unit Tests
-status: verifying
-stopped_at: Completed Phase 17 Plan 01 - Coverage & CI Integration
-last_updated: "2026-04-25T23:20:53.083Z"
+status: complete
+stopped_at: Milestone v1.3 complete
+last_updated: "2026-04-25T23:30:00.000Z"
 last_activity: 2026-04-25
 progress:
   total_phases: 4
@@ -21,13 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** Phase 14 - Test Infrastructure Setup
+**Current focus:** Planning next milestone (no active milestone)
 
 ## Current Position
 
-Phase: 14 of 17 (Test Infrastructure Setup)
-Plan: 0 of 0 in current phase
-Status: Phase complete — ready for verification
+Milestone: v1.3 (Unit Tests) — COMPLETE
+Status: Shipped and archived
 Last activity: 2026-04-25
 
 Progress: [██████████] 100%
@@ -36,47 +35,47 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: 0 min
-- Total execution time: 0.0 hours
+- Total plans completed: 9
+- Average duration: 3 min
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 14 | 3 | 6 min | 2 min |
+| 15 | 1 | 2 min | 2 min |
+| 16 | 4 | 4 min | 1 min |
+| 17 | 1 | 2 min | 2 min |
 
 **Recent Trend:**
 
-- Last 5 plans: N/A
-- Trend: N/A
-
-*Updated after each plan completion*
-| Phase 14 Ptest-infrastructure-setup | 6 minutes | 4 tasks | 5 files |
-| Phase 15 P01 | 211 | 2 tasks | 2 files |
-| Phase 16 P02 | 1 | 5 tasks | 1 files |
-| Phase 16 P01 | 2 | 5 tasks | 1 files |
-| Phase 16 P04 | 1 | 8 tasks | 1 files |
-| Phase 16 P03 | 1 | 6 tasks | 1 files |
-| Phase 17-coverage-ci-integration P01 | 2min | 2 tasks | 2 files |
+- Last 5 plans: All complete, average 1.8 min/plan
+- Trend: Consistent execution velocity, no bottlenecks
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Recent decisions from v1.3:
+
+- Phase 14: pytest framework with framework-agnostic imports (monkeypatch load_dotenv and Flask)
+- Phase 14: Function-scoped fixtures for maximum test isolation
+- Phase 14: Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging
+- Phase 16: Use mocker.patch('jellyswipe.jellyfin_library.requests.Session') to mock all HTTP calls
+- Phase 16: Use correct RunTimeTicks conversion: ticks / 10,000,000 = seconds
+- Phase 16: Use valid UUID format (32 hex chars) for image path tests to match regex pattern
+- Phase 17: Terminal-only coverage reporting (--cov-report=term-missing, no HTML/XML)
+- Phase 17: Independent test.yml workflow, Docker workflows unchanged
+- Phase 17: No coverage threshold in v1.3 (deferred to v2 per ADV-01)
+- Phase 17: Python 3.13 only in CI (matches production requirement)
+
+Historical decisions affecting current work:
 
 - Phase 13 (v1.2): Remove all Plex support to simplify codebase and focus on Jellyfin as single backend
 - Phase 10 (v1.2): Adopt uv for faster reproducible installs with Python 3.13 lockfile
 - Phase 11 (v1.2): Refactor to jellyswipe/ package layout for clearer module boundaries
-- Conftest Flask mock must support route decorator pattern (discovered during 14-03 verification)
-- Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging and match production behavior
-- Function-scoped fixtures for maximum test isolation (no state leakage between tests)
-- Set environment variables at module level in conftest.py to satisfy __init__.py validation during test collection
-- Use mocker.patch('jellyswipe.jellyfin_library.requests.Session') to mock all HTTP calls
-- Use correct RunTimeTicks conversion: ticks / 10,000,000 = seconds
-- Use valid UUID format (32 hex chars) for image path tests to match regex pattern
 
 ### Pending Todos
 
@@ -98,9 +97,34 @@ Items acknowledged and carried forward from previous milestone close:
 |----------|------|--------|-------------|
 | ARC-02 | Plex regression matrix verification in v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md remains partial | Partial | v1.0 close |
 | OPS-01/PRD-01 | Neutral DB column naming and multi-library selection | Deferred | v1.0 close |
+| ADV-01 | Coverage thresholds enforced in CI to prevent regression | Deferred | v1.3 close (v2 requirement) |
+| ADV-02 | Multiple coverage reports (HTML for local, XML for CI) | Deferred | v1.3 close (v2 requirement) |
 
 ## Session Continuity
 
-Last session: 2026-04-25T23:20:53.080Z
-Stopped at: Completed Phase 17 Plan 01 - Coverage & CI Integration
+Last session: 2026-04-25T23:30:00.000Z
+Stopped at: Milestone v1.3 complete and archived
 Resume file: None
+
+## v1.3 Milestone Summary
+
+**Shipped:** 2026-04-25
+**Phases:** 4 (14-17)
+**Plans:** 9 total
+**Tests:** 48 total (15 infrastructure + 17 database + 29 Jellyfin provider)
+**Files Modified:** 27
+**Lines Changed:** 4,096 insertions, 26 deletions
+**LOC:** 2,446 Python (jellyswipe + tests)
+**Timeline:** ~1 hour
+
+**Key Deliverables:**
+- pytest testing framework with pytest-cov, pytest-mock, responses, pytest-timeout
+- Framework-agnostic test infrastructure (conftest.py with monkeypatching)
+- 17 database tests with 87% coverage
+- 29 Jellyfin provider tests with 95%+ coverage
+- pytest-cov terminal output with per-file percentages
+- GitHub Actions workflow running tests on every push/PR
+
+**Archived:**
+- .planning/milestones/v1.3-ROADMAP.md
+- .planning/milestones/v1.3-REQUIREMENTS.md
