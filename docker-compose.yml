@@ -17,7 +17,6 @@ services:
       # - JELLYFIN_PASSWORD=
     volumes:
       - ./data:/app/data
-      - ./static:/app/static
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
