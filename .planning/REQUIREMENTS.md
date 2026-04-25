@@ -9,10 +9,14 @@ Requirements for unit testing milestone. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Project uses pytest framework for test discovery and execution
-- [ ] **INFRA-02**: tests/conftest.py provides shared fixtures for database, mocks, and test data
-- [ ] **INFRA-03**: Test structure is framework-agnostic (tests modules directly, not through Flask routes)
-- [ ] **INFRA-04**: pytest configured in pyproject.toml with appropriate settings
+- [x] **INFRA-01
+**: Project uses pytest framework for test discovery and execution
+- [x] **INFRA-02
+**: tests/conftest.py provides shared fixtures for database, mocks, and test data
+- [x] **INFRA-03
+**: Test structure is framework-agnostic (tests modules directly, not through Flask routes)
+- [x] **INFRA-04
+**: pytest configured in pyproject.toml with appropriate settings
 
 ### Database Testing
 
