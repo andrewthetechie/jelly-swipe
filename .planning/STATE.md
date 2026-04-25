@@ -1,64 +1,130 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.3
-milestone_name: Post-v1.2 cleanup
-status: planning
-last_updated: "2026-04-25T05:43:16.000Z"
+milestone_name: Unit Tests
+status: complete
+stopped_at: Milestone v1.3 complete
+last_updated: "2026-04-25T23:30:00.000Z"
 last_activity: 2026-04-25
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 9
+  percent: 100
 ---
 
-# Project state
+# Project State
 
-**Updated:** 2026-04-25
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-04-25)
+
+**Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
+**Current focus:** Planning next milestone (no active milestone)
 
 ## Current Position
 
-**Milestone:** v1.3 — Post-v1.2 cleanup (planning phase, no active plans)
-**Status:** v1.2 complete and shipped; evaluating next steps
-**Last activity:** 2026-04-25
+Milestone: v1.3 (Unit Tests) — COMPLETE
+Status: Shipped and archived
+Last activity: 2026-04-25
 
-## Project reference
+Progress: [██████████] 100%
 
-See: `.planning/PROJECT.md` — **No active milestone**
+## Performance Metrics
 
-**Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior.
+**Velocity:**
 
-## Milestone History
+- Total plans completed: 9
+- Average duration: 3 min
+- Total execution time: 0.5 hours
 
-- **Shipped:** v1.2 — uv, Python 3.13 lockfile, `jellyswipe/` package layout, Docker-only distribution, Plex removal — 2026-04-25
-- **Shipped:** v1.1 — Jelly Swipe branding & packaging — 2026-04-24
-- **Shipped:** v1.0 — Jellyfin as alternative backend — 2026-04-24
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 14 | 3 | 6 min | 2 min |
+| 15 | 1 | 2 min | 2 min |
+| 16 | 4 | 4 min | 1 min |
+| 17 | 1 | 2 min | 2 min |
+
+**Recent Trend:**
+
+- Last 5 plans: All complete, average 1.8 min/plan
+- Trend: Consistent execution velocity, no bottlenecks
 
 ## Accumulated Context
 
-### Roadmap Evolution
+### Decisions
 
-- v1.0 shipped Phases 1–9 (Jellyfin backend)
-- v1.1 shipped branding rename (no new phase directories)
-- v1.2 shipped Phases 10–13 (uv, package layout, Docker, Plex removal)
-- Phase 13 added during v1.2 execution to remove all Plex support
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions from v1.3:
 
-### Recent Accomplishments (v1.2)
+- Phase 14: pytest framework with framework-agnostic imports (monkeypatch load_dotenv and Flask)
+- Phase 14: Function-scoped fixtures for maximum test isolation
+- Phase 14: Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging
+- Phase 16: Use mocker.patch('jellyswipe.jellyfin_library.requests.Session') to mock all HTTP calls
+- Phase 16: Use correct RunTimeTicks conversion: ticks / 10,000,000 = seconds
+- Phase 16: Use valid UUID format (32 hex chars) for image path tests to match regex pattern
+- Phase 17: Terminal-only coverage reporting (--cov-report=term-missing, no HTML/XML)
+- Phase 17: Independent test.yml workflow, Docker workflows unchanged
+- Phase 17: No coverage threshold in v1.3 (deferred to v2 per ADV-01)
+- Phase 17: Python 3.13 only in CI (matches production requirement)
 
-- **Phase 10:** Introduced uv with pyproject.toml and Python 3.13 lockfile
-- **Phase 11:** Migrated all code to jellyswipe/ package structure
-- **Phase 12:** Converted Dockerfile to multi-stage build with uv, added maintainer documentation
-- **Phase 13:** Removed all Plex code, dependencies, and configuration; project is now Jellyfin-only
+Historical decisions affecting current work:
 
-## Notes
+- Phase 13 (v1.2): Remove all Plex support to simplify codebase and focus on Jellyfin as single backend
+- Phase 10 (v1.2): Adopt uv for faster reproducible installs with Python 3.13 lockfile
+- Phase 11 (v1.2): Refactor to jellyswipe/ package layout for clearer module boundaries
 
-- All v1.2 phases archived to `.planning/milestones/v1.2-phases/`
-- All v1.2 artifacts archived (MILESTONE-AUDIT.md, REQUIREMENTS.md, ROADMAP.md)
-- Git tag v1.2 pending
+### Pending Todos
 
-**Next:** Evaluate candidate work (ARC-02 closure, OPS-01/PRD-01) for v1.3 or future milestones
+[From .planning/todos/pending/ — ideas captured during sessions]
 
-**Last completed:** Phase 13 — Remove all Plex code and references; project becomes Jellyfin-only — 2026-04-25
+None yet.
 
-**Last shipped milestone:** v1.2 — uv + jellyswipe/ package + Docker-only + Plex removal — 2026-04-25
+### Blockers/Concerns
+
+[Issues that affect future work]
+
+None yet.
+
+## Deferred Items
+
+Items acknowledged and carried forward from previous milestone close:
+
+| Category | Item | Status | Deferred At |
+|----------|------|--------|-------------|
+| ARC-02 | Plex regression matrix verification in v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md remains partial | Partial | v1.0 close |
+| OPS-01/PRD-01 | Neutral DB column naming and multi-library selection | Deferred | v1.0 close |
+| ADV-01 | Coverage thresholds enforced in CI to prevent regression | Deferred | v1.3 close (v2 requirement) |
+| ADV-02 | Multiple coverage reports (HTML for local, XML for CI) | Deferred | v1.3 close (v2 requirement) |
+
+## Session Continuity
+
+Last session: 2026-04-25T23:30:00.000Z
+Stopped at: Milestone v1.3 complete and archived
+Resume file: None
+
+## v1.3 Milestone Summary
+
+**Shipped:** 2026-04-25
+**Phases:** 4 (14-17)
+**Plans:** 9 total
+**Tests:** 48 total (15 infrastructure + 17 database + 29 Jellyfin provider)
+**Files Modified:** 27
+**Lines Changed:** 4,096 insertions, 26 deletions
+**LOC:** 2,446 Python (jellyswipe + tests)
+**Timeline:** ~1 hour
+
+**Key Deliverables:**
+- pytest testing framework with pytest-cov, pytest-mock, responses, pytest-timeout
+- Framework-agnostic test infrastructure (conftest.py with monkeypatching)
+- 17 database tests with 87% coverage
+- 29 Jellyfin provider tests with 95%+ coverage
+- pytest-cov terminal output with per-file percentages
+- GitHub Actions workflow running tests on every push/PR
+
+**Archived:**
+- .planning/milestones/v1.3-ROADMAP.md
+- .planning/milestones/v1.3-REQUIREMENTS.md

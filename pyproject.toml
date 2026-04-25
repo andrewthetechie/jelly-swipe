@@ -18,3 +18,17 @@ dependencies = [
 [tool.hatch.build.targets.wheel.shared-data]
 "jellyswipe/templates" = "jellyswipe/templates"
 "jellyswipe/static" = "jellyswipe/static"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "responses>=0.25.0",
+    "pytest-timeout>=2.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short --cov=jellyswipe --cov-report=term-missing"
