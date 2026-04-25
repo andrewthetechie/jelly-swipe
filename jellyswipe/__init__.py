@@ -9,6 +9,7 @@ except ImportError:
 
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
+from typing import Optional
 import sqlite3, os, random, re, requests, json, secrets, time
 
 # Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
