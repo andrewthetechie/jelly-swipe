@@ -1,8 +1,7 @@
 """Library media provider abstraction (ARC-01).
 
 Routes and higher-level features depend on this contract for all
-Plex/Jellyfin-backed library I/O. Phase 2 implements Plex only; Jellyfin
-arrives in later phases.
+Jellyfin-backed library I/O. Implements Jellyfin media provider.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ class LibraryMediaProvider(abc.ABC):
 
     @abc.abstractmethod
     def reset(self) -> None:
-        """Invalidate cached connections (mirrors legacy reset_plex)."""
+        """Invalidate cached connections (mirrors legacy reset behavior)."""
 
     @abc.abstractmethod
     def list_genres(self) -> List[str]:
@@ -28,7 +27,7 @@ class LibraryMediaProvider(abc.ABC):
 
     @abc.abstractmethod
     def resolve_item_for_tmdb(self, movie_id: str) -> Any:
-        """Plex library item for TMDB search (title/year); implements retry+reset."""
+        """Media library item for TMDB search (title/year); implements retry+reset."""
 
     @abc.abstractmethod
     def server_info(self) -> dict:
