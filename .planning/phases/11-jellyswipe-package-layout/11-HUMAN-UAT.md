@@ -38,3 +38,14 @@ skipped: 0
 blocked: 0
 
 ## Gaps
+
+### Gap 1: SSE stream fails with Gunicorn sync workers
+**Status:** failed
+**Issue:** /room/stream SSE generator fails with `SystemExit: 1` during `time.sleep(POLL)`
+**Root Cause:** Gunicorn sync workers incompatible with long-lived SSE connections
+**Test Case:** Joining a room hangs for several seconds, then errors, then repeats
+**Proposed Solutions:**
+1. Use Gunicorn with gevent workers (quickest fix)
+2. Switch to Uvicorn with Flask ASGI adapter (better long-term)
+3. Switch to Quart (Flask-compatible ASGI) — more work
+**Priority:** High — blocking core functionality
