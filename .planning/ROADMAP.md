@@ -19,6 +19,7 @@
 | 10 | uv & Python 3.13 lockfile | Introduce `pyproject.toml`, `uv.lock`, and 3.13-aligned pins; retire `requirements.txt` as canonical | UV-01, UV-02, DEP-01 | 3 |
 | 11 | `jellyswipe/` package | Move Flask app and `media_provider` under `jellyswipe/` with working imports | PKG-01, PKG-02 | 3 |
 | 12 | Docker & docs | Image uses uv; README and distribution story match Docker-only | DOCK-01, DOC-01, DIST-01 | 3 |
+| 13 | Remove Plex support | Remove all Plex code, dependencies, and references; project becomes Jellyfin-only | PLEX-REM-01, PLEX-REM-02, PLEX-REM-03 | 3 |
 
 ---
 
@@ -78,8 +79,31 @@
 **Success criteria:**
 
 1. **`docker build .`** succeeds using the lockfile; container listens on **5005** and supports persistent DB path patterns used in compose.
-2. README “Development / install” (or equivalent) uses **uv** commands.
+2. README "Development / install" (or equivalent) uses **uv** commands.
 3. No new GitHub Actions or docs implying **`pip install jellyswipe`** from PyPI; **DIST-01** satisfied.
+
+---
+
+## Phase 13: Remove Plex support
+
+**Goal:** Remove all Plex-related code, dependencies, configuration, and documentation from the codebase. The project will be **Jellyfin-only** going forward.
+
+**Requirements:** PLEX-REM-01, PLEX-REM-02, PLEX-REM-03
+
+**Plans:** 3 plans
+
+**Plan list:**
+- [ ] 13-01-PLAN.md — Remove Plex implementation code (plex_library.py, factory.py, Plex routes)
+- [ ] 13-02-PLAN.md — Update dependencies, database schema, and documentation to Jellyfin-only
+- [ ] 13-03-PLAN.md — Verify application works with Jellyfin-only configuration
+
+**Status:** 🔄 **PLANNING** — 2026-04-24
+
+**Success criteria:**
+
+1. No `plexapi` or Plex-related imports remain in the codebase; `pyproject.toml` and `uv.lock` contain no Plex dependencies.
+2. Application starts and runs successfully with only Jellyfin configuration; no Plex environment variables are referenced.
+3. All documentation (README.md, PROJECT.md, Docker examples) reflects Jellyfin-only support with no Plex references.
 
 ---
 
