@@ -40,8 +40,10 @@ Requirements for unit testing milestone. Each maps to roadmap phases.
 
 ### Coverage & CI
 
-- [ ] **COV-01**: pytest-cov configured with terminal output for basic coverage reporting
-- [ ] **COV-02**: GitHub Actions workflow runs tests on push/PR
+- [x] **COV-01
+**: pytest-cov configured with terminal output for basic coverage reporting
+- [x] **COV-02
+**: GitHub Actions workflow runs tests on push/PR
 
 ## v2 Requirements
 
