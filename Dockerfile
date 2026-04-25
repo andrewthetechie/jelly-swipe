@@ -11,4 +11,4 @@ RUN mkdir -p /app/data
 
 EXPOSE 5005
 
-CMD ["gunicorn", "-b", "0.0.0.0:5005", "app:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:5005", "jellyswipe:app"]
