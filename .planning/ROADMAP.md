@@ -153,7 +153,12 @@ Plans:
   2. tests/conftest.py provides database, mock, and test data fixtures
   3. Tests import and execute modules directly without Flask app initialization
   4. pytest configuration in pyproject.toml enables appropriate test discovery and output
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 14-01-PLAN.md — Add pytest dependencies to pyproject.toml and regenerate uv.lock
+- [ ] 14-02-PLAN.md — Create tests/conftest.py with environment fixtures
+- [ ] 14-03-PLAN.md — Create smoke tests and verify pytest setup
 
 #### Phase 15: Database Module Tests
 **Goal**: Test database operations with in-memory SQLite for complete isolation
@@ -211,7 +216,7 @@ Phases execute in numeric order: 14 → 15 → 16 → 17
 | 11. Package Layout | v1.2 | 2/2 | Complete | 2026-04-25 |
 | 12. Docker Multi-Stage Build | v1.2 | 2/2 | Complete | 2026-04-25 |
 | 13. Plex Removal | v1.2 | 3/3 | Complete | 2026-04-25 |
-| 14. Test Infrastructure Setup | v1.3 | 0/0 | Not started | - |
+| 14. Test Infrastructure Setup | v1.3 | 0/3 | Ready to execute | - |
 | 15. Database Module Tests | v1.3 | 0/0 | Not started | - |
 | 16. Jellyfin Provider Tests | v1.3 | 0/0 | Not started | - |
 | 17. Coverage & CI Integration | v1.3 | 0/0 | Not started | - |
