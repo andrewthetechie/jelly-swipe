@@ -168,7 +168,10 @@ Plans:
   1. Database tests create in-memory SQLite databases for each test
   2. Tests verify schema initialization, migrations, and CRUD operations
   3. Database state does not leak between tests (each test starts fresh)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 15-01-PLAN.md — Create database fixtures and comprehensive tests for db.py module
 
 #### Phase 16: Jellyfin Provider Tests
 **Goal**: Test Jellyfin library provider with mocked external API calls
@@ -217,6 +220,6 @@ Phases execute in numeric order: 14 → 15 → 16 → 17
 | 12. Docker Multi-Stage Build | v1.2 | 2/2 | Complete | 2026-04-25 |
 | 13. Plex Removal | v1.2 | 3/3 | Complete | 2026-04-25 |
 | 14. Test Infrastructure Setup | v1.3 | 0/3 | Ready to execute | - |
-| 15. Database Module Tests | v1.3 | 0/0 | Not started | - |
+| 15. Database Module Tests | v1.3 | 0/1 | Ready to execute | - |
 | 16. Jellyfin Provider Tests | v1.3 | 0/0 | Not started | - |
 | 17. Coverage & CI Integration | v1.3 | 0/0 | Not started | - |
