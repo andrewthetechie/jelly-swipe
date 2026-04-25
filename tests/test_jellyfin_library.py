@@ -519,3 +519,277 @@ def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
     assert "Horror" in genres
     assert mock_session.request.call_count == 2  # /Items/Filters and /Genres
 
+
+# ---- Deck Fetching Tests ----
+
+def test_fetch_deck_all_movies(mocker, monkeypatch):
+    """Test that fetch_deck returns all movies with correct card format."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return movie items
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {
+                "Id": "movie-1",
+                "Name": "Movie 1",
+                "Overview": "Summary 1",
+                "RunTimeTicks": 54000000000,  # 1h 30m (90 minutes = 5400 seconds)
+                "ProductionYear": 2024,
+                "CommunityRating": 8.5
+            }
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call fetch_deck
+    deck = provider.fetch_deck()
+
+    # Verify deck contains one card with correct format
+    assert len(deck) == 1
+    card = deck[0]
+    assert card["id"] == "movie-1"
+    assert card["title"] == "Movie 1"
+    assert card["summary"] == "Summary 1"
+    assert card["rating"] == 8.5
+    assert card["duration"] == "1h 30m"
+    assert card["year"] == 2024
+    assert card["thumb"] == "/proxy?path=jellyfin/movie-1/Primary"
+
+    # Verify GET /Items was called with correct params
+    mock_session.request.assert_called_once()
+    call_args = mock_session.request.call_args
+    assert call_args[0][0] == "GET"
+    assert "/Items" in call_args[0][1]
+    assert call_args[1]['params']['ParentId'] == "lib-123"
+    assert call_args[1]['params']['UserId'] == "user-123"
+    assert call_args[1]['params']['IncludeItemTypes'] == "Movie"
+    assert call_args[1]['params']['Recursive'] == "true"
+    assert call_args[1]['params']['SortBy'] == "Random"
+    assert call_args[1]['params']['Limit'] == 150
+
+
+def test_fetch_deck_with_genre_filter(mocker, monkeypatch):
+    """Test that fetch_deck with genre filter uses correct API params."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return movie items
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {
+                "Id": "movie-2",
+                "Name": "Sci-Fi Movie",
+                "Overview": "",
+                "RunTimeTicks": 0,
+                "ProductionYear": 2023
+            }
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call fetch_deck with genre filter
+    deck = provider.fetch_deck("Sci-Fi")
+
+    # Verify "Sci-Fi" was mapped to "Science Fiction" in API call
+    call_args = mock_session.request.call_args
+    assert call_args[1]['params']['Genres'] == "Science Fiction"
+    assert call_args[1]['params']['Limit'] == 100
+    assert call_args[1]['params']['SortBy'] == "Random"
+
+
+def test_fetch_deck_recently_added_sort(mocker, monkeypatch):
+    """Test that fetch_deck with 'Recently Added' uses DateCreated descending sort."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return empty items
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"Items": []}
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call fetch_deck with "Recently Added"
+    deck = provider.fetch_deck("Recently Added")
+
+    # Verify DateCreated descending sort is used
+    call_args = mock_session.request.call_args
+    assert call_args[1]['params']['SortBy'] == "DateCreated"
+    assert call_args[1]['params']['SortOrder'] == "Descending"
+    assert call_args[1]['params']['Limit'] == 100
+
+
+# ---- Transformation Tests ----
+
+def test_item_to_card_transformation(mocker, monkeypatch):
+    """Test that _item_to_card extracts all 7 fields correctly."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Create provider
+    provider = JellyfinLibraryProvider("http://test.local")
+
+    # Create test item with all fields
+    item = {
+        "Id": "movie-123",
+        "Name": "Test Movie",
+        "Overview": "Test summary",
+        "RunTimeTicks": 81000000000,  # 2h 15m (135 minutes = 8100 seconds)
+        "ProductionYear": 2024,
+        "CommunityRating": 9.0,
+        "CriticRating": 8.5
+    }
+
+    # Transform item to card
+    card = provider._item_to_card(item)
+
+    # Verify all 7 fields are extracted correctly
+    assert card["id"] == "movie-123"
+    assert card["title"] == "Test Movie"
+    assert card["summary"] == "Test summary"
+    assert card["rating"] == 9.0  # CommunityRating takes precedence
+    assert card["duration"] == "2h 15m"
+    assert card["year"] == 2024
+    assert card["thumb"] == "/proxy?path=jellyfin/movie-123/Primary"
+
+    # Test with missing CommunityRating (should fall back to CriticRating)
+    item2 = {
+        "Id": "movie-456",
+        "Name": "Movie 2",
+        "Overview": "",
+        "RunTimeTicks": 27000000000,  # 45m (45 minutes = 2700 seconds)
+        "ProductionYear": 2023,
+        "CriticRating": 7.5
+    }
+    card2 = provider._item_to_card(item2)
+    assert card2["rating"] == 7.5
+    assert card2["duration"] == "45m"
+
+    # Test with empty runtime
+    item3 = {
+        "Id": "movie-789",
+        "Name": "Movie 3",
+        "Overview": "",
+        "RunTimeTicks": 0,
+        "ProductionYear": 2022
+    }
+    card3 = provider._item_to_card(item3)
+    assert card3["duration"] == ""
+
+
+def test_resolve_item_for_tmdb_success(mocker, monkeypatch):
+    """Test that resolve_item_for_tmdb returns title and year."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return item details
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Id": "movie-123",
+        "Name": "Test Movie",
+        "OriginalTitle": "Original Name",
+        "ProductionYear": 2024
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Resolve item for TMDB
+    result = provider.resolve_item_for_tmdb("movie-123")
+
+    # Verify title and year are returned
+    assert isinstance(result, SimpleNamespace)
+    assert result.title == "Test Movie"  # Name takes precedence
+    assert result.year == 2024
+
+    # Verify GET /Items/{id} was called
+    call_args = mock_session.request.call_args
+    assert call_args[0][0] == "GET"
+    assert "/Items/movie-123" in call_args[0][1]
+    assert call_args[1]['params']['Fields'] == "Name,OriginalTitle,ProductionYear"
+
+
+def test_resolve_item_for_tmdb_fallback_to_user_endpoint(mocker, monkeypatch):
+    """Test that resolve_item_for_tmdb falls back to user-scoped endpoint."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request - first call fails, second succeeds
+    mock_response_200 = mocker.MagicMock()
+    mock_response_200.ok = True
+    mock_response_200.status_code = 200
+    mock_response_200.json.return_value = {
+        "Id": "movie-123",
+        "Name": "Test Movie",
+        "ProductionYear": 2024
+    }
+
+    mock_session = mocker.MagicMock()
+    # First call to /Items/movie-123 raises RuntimeError
+    # Second call to /Users/{uid}/Items/movie-123 succeeds
+    call_count = [0]
+    def mock_request(method, url, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise RuntimeError("Global lookup failed")
+        return mock_response_200
+    mock_session.request.side_effect = mock_request
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Resolve item for TMDB
+    result = provider.resolve_item_for_tmdb("movie-123")
+
+    # Verify both endpoints were attempted
+    assert call_count[0] == 2
+    assert result.title == "Test Movie"
+    assert result.year == 2024
+
