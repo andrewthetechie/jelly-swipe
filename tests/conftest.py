@@ -58,3 +58,50 @@ def mock_env_vars(monkeypatch):
     monkeypatch.setenv("TMDB_API_KEY", "test-tmdb-key")
     monkeypatch.setenv("FLASK_SECRET", "test-secret-key")
     yield
+
+
+@pytest.fixture
+def db_path(tmp_path):
+    """
+    Create a temporary database file path for isolated testing.
+
+    This fixture is function-scoped to ensure each test gets its own database.
+    tmp_path automatically handles cleanup of the temporary file after the test.
+
+    Per D-01: Use tmp_path fixture for isolated SQLite databases.
+    """
+    db_file = tmp_path / "test.db"
+    yield str(db_file)
+
+
+@pytest.fixture
+def db_connection(db_path, monkeypatch):
+    """
+    Provide a database connection with fresh schema for each test.
+
+    This fixture:
+    1. Patches jellyswipe.db.DB_PATH to use the temporary database file
+    2. Initializes the database schema by calling init_db()
+    3. Yields a database connection to the test
+    4. Closes the connection after the test
+
+    Per D-03: Use monkeypatch to set DB_PATH global variable.
+    Per D-06: Each test receives a fresh database with init_db() already called.
+
+    The function scope ensures complete test isolation - no state leaks between tests.
+    """
+    import jellyswipe.db
+
+    # Patch the global DB_PATH to use the temporary database file
+    monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
+
+    # Initialize the database schema
+    jellyswipe.db.init_db()
+
+    # Get a database connection and yield it to the test
+    conn = jellyswipe.db.get_db()
+    try:
+        yield conn
+    finally:
+        # Ensure the connection is closed after the test
+        conn.close()
