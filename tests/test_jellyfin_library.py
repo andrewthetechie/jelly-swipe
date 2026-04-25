@@ -793,3 +793,193 @@ def test_resolve_item_for_tmdb_fallback_to_user_endpoint(mocker, monkeypatch):
     assert result.title == "Test Movie"
     assert result.year == 2024
 
+
+# ---- Error & Edge Case Tests ----
+
+def test_fetch_deck_with_empty_items(mocker, monkeypatch):
+    """Test that fetch_deck returns empty list when Items array is empty."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return empty Items array
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"Items": []}
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call fetch_deck
+    deck = provider.fetch_deck()
+
+    # Verify empty list is returned (not None)
+    assert deck == []
+    assert isinstance(deck, list)
+
+
+def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
+    """Test that fetch_deck handles missing fields with defaults."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return item with missing fields
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {"Id": "movie-1"}  # Missing Name, Overview, etc.
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call fetch_deck
+    deck = provider.fetch_deck()
+
+    # Verify card uses defaults for missing fields
+    assert len(deck) == 1
+    card = deck[0]
+    assert card["id"] == "movie-1"
+    assert card["title"] == ""  # Default for missing string
+    assert card["summary"] == ""  # Default for missing string
+    assert card["rating"] is None  # Default for missing numeric
+    assert card["year"] is None  # Default for missing numeric
+
+
+def test_fetch_library_image_403_forbidden(mocker, monkeypatch):
+    """Test that fetch_library_image raises PermissionError for 403."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return 403
+    mock_response = mocker.MagicMock()
+    mock_response.ok = False
+    mock_response.status_code = 403
+    mock_session = mocker.MagicMock()
+    mock_session.get.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+
+    # Verify PermissionError is raised (using valid UUID format)
+    with pytest.raises(PermissionError, match="Jellyfin image forbidden"):
+        provider.fetch_library_image("jellyfin/1234567890abcdef1234567890abcdef/Primary")
+
+
+def test_fetch_library_image_404_not_found(mocker, monkeypatch):
+    """Test that fetch_library_image raises FileNotFoundError for 404."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return 404
+    mock_response = mocker.MagicMock()
+    mock_response.ok = False
+    mock_response.status_code = 404
+    mock_session = mocker.MagicMock()
+    mock_session.get.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+
+    # Verify FileNotFoundError is raised (using valid UUID format)
+    with pytest.raises(FileNotFoundError, match="Jellyfin image not found"):
+        provider.fetch_library_image("jellyfin/1234567890abcdef1234567890abcdef/Primary")
+
+
+def test_fetch_library_image_invalid_path(mocker, monkeypatch):
+    """Test that fetch_library_image raises PermissionError for invalid path."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Create provider
+    provider = JellyfinLibraryProvider("http://test.local")
+
+    # Verify PermissionError is raised for invalid path
+    with pytest.raises(PermissionError, match="Invalid Jellyfin image path"):
+        provider.fetch_library_image("invalid/path")
+
+
+def test_authenticate_user_session_missing_credentials(mocker, monkeypatch):
+    """Test that authenticate_user_session raises RuntimeError for empty credentials."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Create provider
+    provider = JellyfinLibraryProvider("http://test.local")
+
+    # Verify RuntimeError is raised for empty username/password
+    with pytest.raises(RuntimeError, match="Jellyfin login failed \\(missing username/password\\)"):
+        provider.authenticate_user_session("", "")
+
+
+def test_authenticate_user_session_missing_token_or_user_id(mocker, monkeypatch):
+    """Test that authenticate_user_session raises RuntimeError when response lacks token or user_id."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return response with AccessToken but missing User.Id
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"AccessToken": "token-123"}  # Missing User.Id
+    mock_session = mocker.MagicMock()
+    mock_session.post.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider
+    provider = JellyfinLibraryProvider("http://test.local")
+
+    # Verify RuntimeError is raised
+    with pytest.raises(RuntimeError, match="Jellyfin login failed \\(missing token or user id\\)"):
+        provider.authenticate_user_session("user", "pass")
+
+
+def test_api_non_json_response(mocker, monkeypatch):
+    """Test that _api raises RuntimeError for non-JSON response."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return 200 OK but with invalid JSON
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.side_effect = ValueError("Invalid JSON")
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+
+    # Verify RuntimeError is raised
+    with pytest.raises(RuntimeError, match="Jellyfin returned non-JSON body"):
+        provider._api("GET", "/Items")
+
