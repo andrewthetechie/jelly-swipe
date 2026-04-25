@@ -17,7 +17,18 @@ def setup_test_environment():
 
     # Monkeypatch Flask() to prevent app initialization
     # Tests import jellyswipe.db and jellyfin_library directly without needing Flask app
-    mock_flask = patch('flask.Flask', side_effect=lambda *args, **kwargs: None)
+    # Return mock object with required attributes/methods to satisfy __init__.py
+    class MockApp:
+        wsgi_app = type('MockWsgiApp', (), {})()
+        secret_key = None
+
+        @staticmethod
+        def route(path, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+
+    mock_flask = patch('flask.Flask', side_effect=lambda *args, **kwargs: MockApp())
     mock_flask.start()
 
     # Set required environment variables to satisfy jellyswipe/__init__.py validation
