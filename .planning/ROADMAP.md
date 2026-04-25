@@ -42,10 +42,18 @@
 
 **Requirements:** PKG-01, PKG-02
 
+**Plans:** 4 plans
+
+**Plan list:**
+- [ ] 11-01-PLAN.md — Create jellyswipe package structure and flatten media_provider modules
+- [ ] 11-02-PLAN.md — Move database functions to jellyswipe/db.py and create Flask app in jellyswipe/__init__.py
+- [ ] 11-03-PLAN.md — Move templates/ and static/ under jellyswipe/ and configure package data
+- [ ] 11-04-PLAN.md — Update imports throughout codebase and update Gunicorn entry point to jellyswipe:app
+
 **Success criteria:**
 
-1. No remaining production logic in a repo-root **`app.py`** monolith unless it is a documented thin re-export (prefer none).  
-2. **`media_provider`** (and related modules) import cleanly from **`jellyswipe`**.  
+1. No remaining production logic in a repo-root **`app.py`** monolith unless it is a documented thin re-export (prefer none).
+2. **`media_provider`** (and related modules) import cleanly from **`jellyswipe`**.
 3. **`gunicorn 'jellyswipe.<module>:app'`** (exact module from implementation) starts with the same env contract as today.
 
 ---
