@@ -2,7 +2,7 @@
 
 [![GitHub](https://img.shields.io/github/stars/AndrewTheTechie/jelly-swipe?style=social)](https://github.com/AndrewTheTechie/jelly-swipe)
 
-**Fork:** This project was forked from [Bergasha/kino-swipe](https://github.com/Bergasha/kino-swipe) to add Jellyfin support. It is maintained by [@AndrewTheTechie](https://github.com/AndrewTheTechie).
+**Fork:** This project was forked from [Bergasha/kino-swipe](https://github.com/Bergasha/kino-swipe). It is maintained by [@AndrewTheTechie](https://github.com/AndrewTheTechie).
 
 Always trying to decide on a movie to watch together?, This may be the fun solution you've been looking for.
 Dating app style swipe right for like swipe left for nope, If you both swipe right on the 
@@ -32,83 +32,70 @@ same movie, IT'S A MATCH!!
 
 
 ## Features
-- **Plex Integration:** Connects directly to your server to pull random movies.
+- **Jellyfin Integration:** Connects directly to your server to pull random movies.
 - **Real-Time Sync:** Host a room, share a 4-digit code, and swipe with a partner instantly.
 - **Visual Feedback:** Faint Red/Green "glow" overlays that react as you drag the posters left or right.
 - **Select Genre:** Both sessions will stay in sync while browsing genres.
-- **Add to watchlist:** Tap on each match and either open in Plex or add to watchlist for later.
-- **Watch trailer** Tap on the main poster in swipedeck for full synopsis and even watch the trailer. 
+- **Add to watchlist:** Tap on each match and either open in Jellyfin or add to watchlist for later.
+- **Watch trailer** Tap on the main poster in swipedeck for full synopsis and even watch the trailer.
 - **PWA Support:** Add it to your Home Screen for a native app feel.
 - **Match Notifications:** Instant alerts when you both swipe right on the same movie.
 - **Match History** All matches now live in Match History until you're ready to delete them.
 - **Solo Mode** Flying solo? no worries, just host session and flick the solo toggle. (Every right swipe saves to Match History) 
 
-## Media backend (Plex or Jellyfin)
+## Media backend: Jellyfin
 
-Each deployment uses **exactly one** media backend, selected with `MEDIA_PROVIDER`:
-
-- `plex` (default if unset) — today’s Plex integration.
-- `jellyfin` — Jellyfin-oriented configuration. **Phase 3+:** env vars are validated at import (Phase 1); the **first** `get_provider()` use in jellyfin mode obtains a server access token (API key or username/password) and verifies a minimal authenticated **`/Items`** call. **Phase 4+:** deck, genres, `/proxy` thumbs (`jellyfin/{itemId}/Primary`), TMDB routes, and `/plex/server-info` JSON parity are implemented behind `JellyfinLibraryProvider`. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
-
-**Two instances rule:** Plex and Jellyfin are **not** supported in a single process. If you need both, run **two instances** (two containers or two hosts), each with its own database volume and `MEDIA_PROVIDER`.
+This application connects directly to a **Jellyfin** server to pull random movies from your library. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
 
 ### Upgrade note (Kino Swipe → Jelly Swipe)
 
-- **Plex.tv:** The in-app Plex client identifier changed. If you used Plex pin login before, you may need to sign in again once.
 - **Database file:** The default SQLite file is now `data/jellyswipe.db`. To keep an existing database from Kino Swipe, either copy `data/kinoswipe.db` to `data/jellyswipe.db` or set `DB_PATH` to your old file.
 
 ### Environment variables
 
 | Variable | Required when | Description |
 |----------|-----------------|-------------|
-| `MEDIA_PROVIDER` | Optional | `plex` (default) or `jellyfin` (case-insensitive). |
 | `FLASK_SECRET` | Always | Flask session secret. |
 | `TMDB_API_KEY` | Always | TMDB API key (trailers / cast). |
-| `PLEX_URL` | Plex only | Base URL of your Plex server (no trailing slash). |
-| `PLEX_TOKEN` | Plex only | Server admin token for library access. |
-| `JELLYFIN_URL` | Jellyfin only | Base URL of your Jellyfin server (no trailing slash). |
-| `JELLYFIN_API_KEY` | Jellyfin (one of two auth bundles) | API key for unattended server access. |
-| `JELLYFIN_USERNAME` | Jellyfin (with password, if no API key) | Account username for Jellyfin. |
-| `JELLYFIN_PASSWORD` | Jellyfin (with username, if no API key) | Account password for Jellyfin. |
-| `JELLYFIN_DEVICE_ID` | Optional (Jellyfin) | Stable device id string sent with Jellyfin auth headers (default is built-in). |
+| `JELLYFIN_URL` | Always | Base URL of your Jellyfin server (no trailing slash). |
+| `JELLYFIN_API_KEY` | With API key | API key for unattended server access. |
+| `JELLYFIN_USERNAME` | With password (if no API key) | Account username for Jellyfin. |
+| `JELLYFIN_PASSWORD` | With username (if no API key) | Account password for Jellyfin. |
+| `JELLYFIN_DEVICE_ID` | Optional | Stable device id string sent with Jellyfin auth headers (default is built-in). |
 
-### Jellyfin user identity contract (Phase 5)
+### Jellyfin user identity contract
 
-In Jellyfin mode, this app keeps the legacy `plex_id` DB column name for compatibility, but
-stores **Jellyfin user IDs** in that field. Requests can include either:
+This app stores **Jellyfin user IDs** in the database user_id field. Requests can include the user identity via:
 
 - `X-Provider-User-Id` (preferred neutral header), or
-- `X-Plex-User-ID` (legacy compatibility header),
+- `X-Jellyfin-User-Id` (Jellyfin-specific header),
 
 and for user-scoped list actions must include a Jellyfin user token via:
 
 - `Authorization: MediaBrowser ... Token=\"<user-token>\"` (preferred), or
-- `X-Plex-Token` (legacy compatibility path).
+- `X-Emby-Token` (alternative header).
 
 ### Jellyfin operator checks (manual)
 
-1. **Happy path:** With valid `JELLYFIN_URL` and credentials, start the app and hit provider endpoints (`/genres`, `/movies`, `/plex/server-info`). Confirm logs show **no** API keys or access tokens.  
-2. **Re-login / reset:** Revoke the API key or set a wrong password, restart or trigger a code path that calls `reset()` on the provider (same spirit as Plex connection recovery), restore valid credentials, and confirm authenticated **`/Items`** succeeds again (Phase 3 success criterion).
+1. **Happy path:** With valid `JELLYFIN_URL` and credentials, start the app and hit provider endpoints (`/genres`, `/movies`, `/plex/server-info`). Confirm logs show **no** API keys or access tokens.
+2. **Re-login / reset:** Revoke the API key or set a wrong password, restart or trigger a code path that calls `reset()` on the provider, restore valid credentials, and confirm authenticated **`/Items`** succeeds again.
 3. **After recovery:** Restart the process (or rely on the next provider use after `reset()`) and hit `/genres` or create/join a room so `get_provider()` re-authenticates — you should be back to a working deck without pasting any tokens into logs or tickets.
 
-### Minimal `.env` examples
-
-**Plex mode**
+### Minimal `.env` example
 
 ```env
-MEDIA_PROVIDER=plex
-PLEX_URL=https://your-plex-host:32400
-PLEX_TOKEN=your-plex-token-here
+JELLYFIN_URL=http://your-jellyfin-host:8096
+JELLYFIN_API_KEY=your-jellyfin-api-key
 TMDB_API_KEY=your-tmdb-v3-key
 FLASK_SECRET=long-random-string
 ```
 
-**Jellyfin mode** (library deck/UI parity is Phase 4; auth + token in Phase 3)
+Alternatively, use username/password authentication instead of API key:
 
 ```env
-MEDIA_PROVIDER=jellyfin
 JELLYFIN_URL=http://your-jellyfin-host:8096
-JELLYFIN_API_KEY=your-jellyfin-api-key
+JELLYFIN_USERNAME=your-username
+JELLYFIN_PASSWORD=your-password
 TMDB_API_KEY=your-tmdb-v3-key
 FLASK_SECRET=long-random-string
 ```
@@ -118,7 +105,7 @@ FLASK_SECRET=long-random-string
   
 
 ## Requirements
-- **Media backend:** Plex or Jellyfin — see [Media backend (Plex or Jellyfin)](#media-backend-plex-or-jellyfin) and the env table above.
+- **Media backend:** Jellyfin — see [Media backend: Jellyfin](#media-backend-jellyfin) and the env table above.
 - **TMDB API key** — required at startup (trailers/cast); keep the key private.
 - **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone so it looks like an app, you must access it over an HTTPS connection. If you access it over local ip, it will work in the browser but when added to homescreen it will just act as a shortcut not like an app.
 
@@ -154,7 +141,7 @@ Application Name: Jelly-Swipe.
 
 Application URL: (You can put localhost or your server's IP).
 
-Application Summary: "An app to help find movies to watch from my Plex library with a Tinder-style swipe interface."
+Application Summary: "An app to help find movies to watch from my Jellyfin library with a Tinder-style swipe interface."
 
 Submit the form.
 
@@ -175,8 +162,8 @@ services:
     ports:
       - "5005:5005"
     environment:
-      - PLEX_URL=https://YOUR_PLEX_IP:32400
-      - PLEX_TOKEN=YOUR_PLEX_TOKEN
+      - JELLYFIN_URL=http://YOUR_JELLYFIN_IP:8096
+      - JELLYFIN_API_KEY=your-jellyfin-api-key
       - FLASK_SECRET=SomeRandomString
       - TMDB_API_KEY=your_copied_tmdb_key_here
     volumes:
@@ -190,8 +177,8 @@ services:
 docker run -d \
   --name jelly-swipe \
   -p 5005:5005 \
-  -e PLEX_URL=https://YOUR_PLEX_IP:32400 \
-  -e PLEX_TOKEN=YOUR_PLEX_TOKEN \
+  -e JELLYFIN_URL=http://YOUR_JELLYFIN_IP:8096 \
+  -e JELLYFIN_API_KEY=your-jellyfin-api-key \
   -e FLASK_SECRET=SomeRandomString \
   -e TMDB_API_KEY=your_copied_tmdb_key_here \
   -v ./data:/app/data \
