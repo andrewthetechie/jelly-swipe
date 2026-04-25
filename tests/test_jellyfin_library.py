@@ -331,3 +331,191 @@ def test_user_id_fallback_to_first_user(mocker, monkeypatch):
     # Verify first user in list is selected
     assert user_id == "user-999"
     assert provider._cached_user_id == "user-999"
+
+
+# ---- Library Discovery Tests ----
+
+def test_movies_library_id_finds_movies_collection(mocker, monkeypatch):
+    """Test that _movies_library_id finds the movies collection type."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return library list with movies collection
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"},
+            {"Id": "lib-tv", "CollectionType": "tvshows", "Name": "TV Shows"}
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Call _movies_library_id
+    lib_id = provider._movies_library_id()
+
+    # Verify correct library ID is returned and cached
+    assert lib_id == "lib-123"
+    assert provider._cached_library_id == "lib-123"
+
+    # Verify GET /Users/{uid}/Views was called
+    mock_session.request.assert_called_once()
+    call_args = mock_session.request.call_args
+    assert call_args[0][0] == "GET"
+    assert "/Users/user-123/Views" in call_args[0][1]
+
+
+def test_movies_library_id_raises_when_no_movies_collection(mocker, monkeypatch):
+    """Test that _movies_library_id raises RuntimeError when no movies collection exists."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return library list without movies
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-tv", "CollectionType": "tvshows", "Name": "TV Shows"}
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Verify RuntimeError is raised
+    with pytest.raises(RuntimeError, match="Jellyfin: no library with CollectionType=movies"):
+        provider._movies_library_id()
+
+
+def test_list_genres_from_items_filters(mocker, monkeypatch):
+    """Test that list_genres fetches genres from /Items/Filters endpoint."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request to return genre filters
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "GenreFilters": [
+            {"Name": "Action"},
+            {"Name": "Science Fiction"},
+            {"Name": "Drama"}
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call list_genres
+    genres = provider.list_genres()
+
+    # Verify genres are returned with "Science Fiction" mapped to "Sci-Fi"
+    assert "Action" in genres
+    assert "Sci-Fi" in genres  # Mapped from "Science Fiction"
+    assert "Drama" in genres
+    assert provider._genre_cache == genres
+
+    # Verify GET /Items/Filters was called with correct params
+    mock_session.request.assert_called_once()
+    call_args = mock_session.request.call_args
+    assert call_args[0][0] == "GET"
+    assert "/Items/Filters" in call_args[0][1]
+    assert call_args[1]['params']['ParentId'] == "lib-123"
+    assert call_args[1]['params']['UserId'] == "user-123"
+    assert call_args[1]['params']['IncludeItemTypes'] == "Movie"
+
+
+def test_genre_cache_prevents_redundant_api_calls(mocker, monkeypatch):
+    """Test that cached genres prevent redundant API calls."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request (should not be called)
+    mock_session = mocker.MagicMock()
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"GenreFilters": []}
+    mock_session.request.return_value = mock_response
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state with cached genres
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+    provider._genre_cache = ["Action", "Sci-Fi"]
+
+    # Call list_genres
+    genres = provider.list_genres()
+
+    # Verify cached genres are returned without API call
+    assert genres == ["Action", "Sci-Fi"]
+    mock_session.request.assert_not_called()
+
+
+def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
+    """Test that list_genres falls back to /Genres when /Items/Filters fails."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request - first call returns empty, second returns genres
+    mock_response_empty = mocker.MagicMock()
+    mock_response_empty.ok = True
+    mock_response_empty.status_code = 200
+    mock_response_empty.json.return_value = {"GenreFilters": []}
+
+    mock_response_genres = mocker.MagicMock()
+    mock_response_genres.ok = True
+    mock_response_genres.status_code = 200
+    mock_response_genres.json.return_value = {
+        "Items": [
+            {"Name": "Comedy"},
+            {"Name": "Horror"}
+        ]
+    }
+
+    mock_session = mocker.MagicMock()
+    mock_session.request.side_effect = [mock_response_empty, mock_response_genres]
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    provider._cached_library_id = "lib-123"
+
+    # Call list_genres
+    genres = provider.list_genres()
+
+    # Verify both endpoints were called and genres are returned
+    assert "Comedy" in genres
+    assert "Horror" in genres
+    assert mock_session.request.call_count == 2  # /Items/Filters and /Genres
+
