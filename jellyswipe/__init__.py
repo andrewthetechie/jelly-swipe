@@ -55,7 +55,9 @@ else:
 if missing:
     raise RuntimeError(f"Missing env vars: {missing}")
 
-app = Flask(__name__)
+app = Flask(__name__,
+            template_folder=os.path.join(_APP_ROOT, 'templates'),
+            static_folder=os.path.join(_APP_ROOT, 'static'))
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 app.secret_key = os.environ["FLASK_SECRET"]
 
