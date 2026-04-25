@@ -29,10 +29,14 @@ Requirements for unit testing milestone. Each maps to roadmap phases.
 
 ### API Testing
 
-- [ ] **API-01**: Jellyfin library tests mock HTTP requests to prevent real API calls
-- [ ] **API-02**: Jellyfin library tests cover authentication, token caching, and user ID resolution
-- [ ] **API-03**: Jellyfin library tests cover library discovery, genre listing, and deck fetching
-- [ ] **API-04**: Jellyfin library tests cover item-to-card transformation and TMDB resolution
+- [x] **API-01
+**: Jellyfin library tests mock HTTP requests to prevent real API calls
+- [x] **API-02
+**: Jellyfin library tests cover authentication, token caching, and user ID resolution
+- [x] **API-03
+**: Jellyfin library tests cover library discovery, genre listing, and deck fetching
+- [x] **API-04
+**: Jellyfin library tests cover item-to-card transformation and TMDB resolution
 
 ### Coverage & CI
 

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Unit Tests
 status: verifying
-stopped_at: Completed Phase 15 - database module tests
-last_updated: "2026-04-25T19:18:34.407Z"
+stopped_at: Completed Phase 16 - jellyfin provider tests
+last_updated: "2026-04-25T22:30:02.787Z"
 last_activity: 2026-04-25
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 8
   percent: 100
 ---
 
@@ -54,6 +54,10 @@ Progress: [██████████] 100%
 *Updated after each plan completion*
 | Phase 14 Ptest-infrastructure-setup | 6 minutes | 4 tasks | 5 files |
 | Phase 15 P01 | 211 | 2 tasks | 2 files |
+| Phase 16 P02 | 1 | 5 tasks | 1 files |
+| Phase 16 P01 | 2 | 5 tasks | 1 files |
+| Phase 16 P04 | 1 | 8 tasks | 1 files |
+| Phase 16 P03 | 1 | 6 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -69,6 +73,9 @@ Recent decisions affecting current work:
 - Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging and match production behavior
 - Function-scoped fixtures for maximum test isolation (no state leakage between tests)
 - Set environment variables at module level in conftest.py to satisfy __init__.py validation during test collection
+- Use mocker.patch('jellyswipe.jellyfin_library.requests.Session') to mock all HTTP calls
+- Use correct RunTimeTicks conversion: ticks / 10,000,000 = seconds
+- Use valid UUID format (32 hex chars) for image path tests to match regex pattern
 
 ### Pending Todos
 
@@ -93,6 +100,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-04-25T19:18:34.164Z
-Stopped at: Completed Phase 15 - database module tests
+Last session: 2026-04-25T22:30:02.312Z
+Stopped at: Completed Phase 16 - jellyfin provider tests
 Resume file: None
