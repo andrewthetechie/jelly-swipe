@@ -197,7 +197,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. pytest-cov generates coverage reports in terminal output
   2. GitHub Actions workflow runs tests on every push and pull request
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 17-01-PLAN.md — Add pytest-cov configuration and create GitHub Actions test workflow
 
 ### 📋 v2.0 Advanced Features (Planned)
 
@@ -228,4 +231,4 @@ Phases execute in numeric order: 14 → 15 → 16 → 17
 | 14. Test Infrastructure Setup | v1.3 | 0/3 | Ready to execute | - |
 | 15. Database Module Tests | v1.3 | 0/1 | Ready to execute | - |
 | 16. Jellyfin Provider Tests | v1.3 | 0/4 | Ready to execute | - |
-| 17. Coverage & CI Integration | v1.3 | 0/0 | Not started | - |
+| 17. Coverage & CI Integration | v1.3 | 0/1 | Ready to execute | - |
