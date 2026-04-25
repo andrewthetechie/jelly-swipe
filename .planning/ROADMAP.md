@@ -182,7 +182,13 @@ Plans:
   2. Tests verify authentication, token caching, and user ID resolution
   3. Tests cover library discovery, genre listing, and deck fetching
   4. Tests verify item-to-card transformation and TMDB resolution
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 16-01-PLAN.md — Authentication tests (API key, username/password, 401 retry, token caching, user ID resolution)
+- [ ] 16-02-PLAN.md — Library discovery tests (library ID resolution, genre listing, genre mapping, genre cache)
+- [ ] 16-03-PLAN.md — Deck fetching and transformation tests (deck retrieval, item-to-card, TMDB resolution, genre filtering)
+- [ ] 16-04-PLAN.md — Error and edge case tests (network failures, empty responses, missing fields, HTTP errors)
 
 #### Phase 17: Coverage & CI Integration
 **Goal**: Configure coverage reporting and GitHub Actions workflow
@@ -221,5 +227,5 @@ Phases execute in numeric order: 14 → 15 → 16 → 17
 | 13. Plex Removal | v1.2 | 3/3 | Complete | 2026-04-25 |
 | 14. Test Infrastructure Setup | v1.3 | 0/3 | Ready to execute | - |
 | 15. Database Module Tests | v1.3 | 0/1 | Ready to execute | - |
-| 16. Jellyfin Provider Tests | v1.3 | 0/0 | Not started | - |
+| 16. Jellyfin Provider Tests | v1.3 | 0/4 | Ready to execute | - |
 | 17. Coverage & CI Integration | v1.3 | 0/0 | Not started | - |
