@@ -1,6 +1,14 @@
 import pytest
 import os
 
+# Set required environment variables at module level to satisfy jellyswipe/__init__.py
+# This must happen before any imports that trigger __init__.py validation
+os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
+os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
+os.environ.setdefault("TMDB_API_KEY", "test-tmdb-key")
+os.environ.setdefault("FLASK_SECRET", "test-secret-key")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
     """
@@ -30,13 +38,6 @@ def setup_test_environment():
 
     mock_flask = patch('flask.Flask', side_effect=lambda *args, **kwargs: MockApp())
     mock_flask.start()
-
-    # Set required environment variables to satisfy jellyswipe/__init__.py validation
-    # These are test values only - real API calls will be mocked in test files
-    os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
-    os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
-    os.environ.setdefault("TMDB_API_KEY", "test-tmdb-key")
-    os.environ.setdefault("FLASK_SECRET", "test-secret-key")
 
     # Yield control to tests - they can now import jellyswipe modules safely
     yield
