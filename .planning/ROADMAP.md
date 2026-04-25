@@ -67,10 +67,16 @@
 
 **Requirements:** DOCK-01, DOC-01, DIST-01
 
+**Plans:** 2 plans
+
+**Plan list:**
+- [ ] 12-01-PLAN.md — Convert Dockerfile to multi-stage build with uv
+- [ ] 12-02-PLAN.md — Add Development section to README with uv documentation
+
 **Success criteria:**
 
-1. **`docker build .`** succeeds using the lockfile; container listens on **5005** and supports persistent DB path patterns used in compose.  
-2. README “Development / install” (or equivalent) uses **uv** commands.  
+1. **`docker build .`** succeeds using the lockfile; container listens on **5005** and supports persistent DB path patterns used in compose.
+2. README “Development / install” (or equivalent) uses **uv** commands.
 3. No new GitHub Actions or docs implying **`pip install jellyswipe`** from PyPI; **DIST-01** satisfied.
 
 ---
