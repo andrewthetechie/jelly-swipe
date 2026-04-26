@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-25)
 
 Phase: 18 (Unraid Template Cleanup)
 Plan: —
-Status: Ready to discuss phase
-Last activity: 2026-04-25 — Roadmap created, ready for phase 18 discussion
+Status: Context gathered, ready for planning
+Last activity: 2026-04-25 — Phase 18 context captured (API key only auth, blank placeholders, separate CI lint)
 
 ## Performance Metrics
 
