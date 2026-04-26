@@ -236,3 +236,26 @@ Commit both `pyproject.toml` and `uv.lock` when adding or updating dependencies.
 - Distribution is Docker-only (Docker Hub and GHCR). There is no PyPI package to install via pip.
 
 "This product uses the TMDB API but is not endorsed or certified by TMDB."
+
+
+## License
+
+Licensed under the [MIT License](./LICENSE)
+
+## Contributing
+
+Contributions are very welcome.
+To learn more, see the [Contributor Guide](./CONTRIBUTING.md)
+
+### Contributors
+
+Thanks go to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
