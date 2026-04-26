@@ -2,7 +2,7 @@
   "id": "io.github.andrewthetechie.jellyswipe",
   "name": "Jelly-Swipe",
   "short_name": "JellySwipe",
-  "description": "Tinder-style movie matching for your Plex or Jellyfin library.",
+  "description": "Tinder-style movie matching for your Jellyfin library.",
   "icons": [
     {
       "src": "/static/icon-192.png",
