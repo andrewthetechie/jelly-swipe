@@ -560,30 +560,119 @@
             data.forEach(m => {
                 const card = document.createElement('div');
                 card.className = 'mini-poster';
+
+                // Create mini-inner container
+                const miniInner = document.createElement('div');
+                miniInner.className = 'mini-inner';
+
+                // Create mini-front
+                const miniFront = document.createElement('div');
+                miniFront.className = 'mini-front';
+
+                // Create image with safe src assignment
+                const img = document.createElement('img');
+                img.src = m.thumb;
+                img.alt = 'Movie poster';
+                miniFront.appendChild(img);
+
+                // Create title overlay div
+                const titleOverlay = document.createElement('div');
+                titleOverlay.style.position = 'absolute';
+                titleOverlay.style.bottom = '0';
+                titleOverlay.style.width = '100%';
+                titleOverlay.style.background = 'linear-gradient(transparent, black)';
+                titleOverlay.style.fontSize = '12px';
+                titleOverlay.style.padding = '8px 4px';
+                titleOverlay.style.fontWeight = 'bold';
+                titleOverlay.style.color = '#e5a00d';
+                titleOverlay.textContent = m.title;
+                miniFront.appendChild(titleOverlay);
+
+                miniInner.appendChild(miniFront);
+
+                // Create mini-back
+                const miniBack = document.createElement('div');
+                miniBack.className = 'mini-back';
+
+                // Title text
+                const titleText = document.createElement('div');
+                titleText.className = 'mini-title-text';
+                titleText.textContent = m.title;
+                miniBack.appendChild(titleText);
+
+                // Stats row
+                const statsRow = document.createElement('div');
+                statsRow.className = 'stats-row';
+                statsRow.style.justifyContent = 'center';
+
+                if (m.rating) {
+                    const ratingBadge = document.createElement('span');
+                    ratingBadge.className = 'stat-badge';
+                    ratingBadge.textContent = `IMDb ${m.rating}`;
+                    statsRow.appendChild(ratingBadge);
+                }
+                if (m.duration) {
+                    const durationBadge = document.createElement('span');
+                    durationBadge.className = 'stat-badge';
+                    durationBadge.textContent = m.duration;
+                    statsRow.appendChild(durationBadge);
+                }
+                if (m.year) {
+                    const yearBadge = document.createElement('span');
+                    yearBadge.className = 'stat-badge';
+                    yearBadge.textContent = m.year;
+                    statsRow.appendChild(yearBadge);
+                }
+                miniBack.appendChild(statsRow);
+
+                // Open in Plex/Jellyfin button
                 const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
                 const openLabel = mediaProvider === 'jellyfin' ? 'OPEN IN JELLYFIN' : 'OPEN IN PLEX';
-                card.innerHTML = `
-                    <div class="mini-inner">
-                        <div class="mini-front">
-                            <img src="${m.thumb}" alt="${m.title}">
-                            <div style="position:absolute; bottom:0; width:100%; background:linear-gradient(transparent, black); font-size:12px; padding:8px 4px; font-weight:bold; color:#e5a00d;">
-                               ${m.title}
-                           </div>
-                        </div>
-                        <div class="mini-back">
-                            <div class="mini-title-text">${m.title}</div>
-                            <div class="stats-row" style="justify-content:center;">
-                                ${m.rating ? `<span class="stat-badge">IMDb ${m.rating}</span>` : ''}
-                                ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
-                                ${m.year ? `<span class="stat-badge">${m.year}</span>` : ''}
-                            </div>
-                            <a href="${plexLink}" class="plex-open-btn" target="_blank" rel="noopener noreferrer">${openLabel}</a>
-                            <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#333; color:#e5a00d; border:1px solid #e5a00d; margin-top:5px;" onclick="addToWatchlist(event, '${m.movie_id}')">SAVE TO WATCHLIST</button>
-                            <button class="menu-btn" style="width:90%; padding:8px; font-size:0.7rem; background:#d32f2f; margin-top:5px; color:black;" onclick="deleteMatch(event, '${m.movie_id}')">DELETE</button>
-                        </div>
-                    </div>
-                `;
-                card.onclick = (e) => { if (!e.target.closest('a') && !e.target.closest('button')) card.classList.toggle('flipped'); };
+                const plexBtn = document.createElement('a');
+                plexBtn.href = plexLink;
+                plexBtn.className = 'plex-open-btn';
+                plexBtn.target = '_blank';
+                plexBtn.rel = 'noopener noreferrer';
+                plexBtn.textContent = openLabel;
+                miniBack.appendChild(plexBtn);
+
+                // Watchlist button
+                const watchlistBtn = document.createElement('button');
+                watchlistBtn.className = 'menu-btn';
+                watchlistBtn.style.width = '90%';
+                watchlistBtn.style.padding = '8px';
+                watchlistBtn.style.fontSize = '0.7rem';
+                watchlistBtn.style.background = '#333';
+                watchlistBtn.style.color = '#e5a00d';
+                watchlistBtn.style.border = '1px solid #e5a00d';
+                watchlistBtn.style.marginTop = '5px';
+                watchlistBtn.textContent = 'SAVE TO WATCHLIST';
+                watchlistBtn.onclick = (event) => addToWatchlist(event, m.movie_id);
+                miniBack.appendChild(watchlistBtn);
+
+                // Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'menu-btn';
+                deleteBtn.style.width = '90%';
+                deleteBtn.style.padding = '8px';
+                deleteBtn.style.fontSize = '0.7rem';
+                deleteBtn.style.background = '#d32f2f';
+                deleteBtn.style.marginTop = '5px';
+                deleteBtn.style.color = 'black';
+                deleteBtn.textContent = 'DELETE';
+                deleteBtn.onclick = (event) => deleteMatch(event, m.movie_id);
+                miniBack.appendChild(deleteBtn);
+
+                miniInner.appendChild(miniBack);
+                card.appendChild(miniInner);
+
+                // Click handler for flip
+                card.onclick = (e) => {
+                    if (!e.target.closest('a') && !e.target.closest('button')) {
+                        card.classList.toggle('flipped');
+                    }
+                };
+
                 list.appendChild(card);
             });
             document.getElementById('matches-modal').classList.remove('hidden');
