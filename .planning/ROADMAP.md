@@ -38,7 +38,8 @@
   2. `client` fixture provides Flask test client for HTTP requests
   3. Fixtures use function-scoped isolation (no state leakage between tests)
   4. Fixtures work with existing conftest.py patterns (db_connection, mock_env_vars)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 22-01-PLAN.md — Add FakeProvider class, app fixture, and client fixture to conftest.py
 
 ### Phase 23: Auth Route Tests
 **Goal**: Authentication routes have comprehensive test coverage
