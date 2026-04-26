@@ -1,5 +1,38 @@
 # Milestones — Jelly Swipe
 
+## v1.5 — Route Test Coverage
+
+**Shipped:** 2026-04-26  
+**Theme:** Refactor Flask app to factory pattern and add comprehensive route tests achieving 78% coverage for `jellyswipe/__init__.py`, plus CSP compliance fixes.
+**Phases:** 21-29 (9 phases, 9 plans)
+
+**Archives:**
+
+- [v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) — full phase roadmap snapshot at close
+- [v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md) — FACTORY/TEST-ROUTE/COV requirements at close (7/7 complete)
+
+**Deliverables (high level):**
+- Flask app factory pattern (`create_app(test_config=None)`) enabling isolated test instances
+- 159 tests across 8 test files with 75% total coverage and 70% CI enforcement threshold
+- OWASP-compliant XSS defense via `_XSSSafeJSONProvider` in all JSON responses
+- CSP-compliant HTML with external CSS/JS and self-hosted Allura font
+
+**Stats:** 9 phases, 9 plans, ~16 tasks, 53 commits, 159 tests, 75% total coverage, ~30 minutes execution window
+
+**Key accomplishments:**
+1. Refactored Flask app to factory pattern with `create_app(test_config=None)` while preserving `jellyswipe:app` Gunicorn import.
+2. Built shared test infrastructure (FakeProvider, app/client fixtures) enabling all subsequent route test phases.
+3. Added 14 auth route tests (20 parametrized cases) with EPIC-01 header-spoof protection for all 3 auth endpoints.
+4. Implemented global `_XSSSafeJSONProvider` for OWASP JSON XSS defense with 13 security tests covering stored XSS, proxy injection, and input validation.
+5. Added 27 room lifecycle tests, 16 proxy SSRF tests, and 8 SSE streaming tests covering all application routes.
+6. Enforced 70% coverage threshold in CI and externalized all inline CSS/JS for CSP compliance.
+
+**Known gaps at close:** None — all FACTORY/TEST-ROUTE/COV requirements validated.
+
+**Deferred items at milestone close:** `gsd-tools.cjs audit-open` reported **all artifact types clear**.
+
+---
+
 ## v1.4 — Authorization Hardening
 
 **Shipped:** 2026-04-26  

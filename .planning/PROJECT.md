@@ -2,88 +2,71 @@
 
 ## What This Is
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, and **v1.3** added comprehensive unit tests with 48 tests and CI workflow.
-
-**v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
-
-**v1.2** shipped **uv** dependency management with **Python 3.13** lockfile, **`jellyswipe/`** package layout with all code under a single importable package, multi-stage Docker build using uv, and comprehensive maintainer documentation. Plex support was removed to become Jellyfin-only.
-
-**v1.3** shipped comprehensive unit tests with 48 tests covering database and Jellyfin provider modules, pytest-cov terminal coverage reporting, and GitHub Actions workflow for automated testing on every push/PR.
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a Jellyfin media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0** shipped Jellyfin backend, **v1.1** renamed to Jelly Swipe, **v1.2** migrated to uv + removed Plex, **v1.3** added 48 unit tests with CI, **v1.4** hardened authorization, and **v1.5** added comprehensive route tests (159 total) achieving 75% coverage with CSP compliance.
 
 ## Core Value
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.5 — Route Test Coverage
+## Current Milestone: Planning v1.6
 
-**Goal:** Refactor Flask app to factory pattern and add comprehensive route tests to achieve 70% coverage for `jellyswipe/__init__.py`
-
-**Target features:**
-- Refactor `jellyswipe/__init__.py` into `create_app()` factory function
-- Add route test files: auth, xss, room, proxy, sse
-- Add pytest `--cov-fail-under=70` for CI enforcement
+**Next:** Define scope via `/gsd-new-milestone`
 
 ## Requirements
 
 ### Validated
 
-- ✓ **Jellyfin server auth** — Configure base URL and credentials (or API key per server policy); obtain and reuse an access token for server API calls. *Phases 3–5 (v1.0).*
-- ✓ **Jellyfin library parity** — Build the same in-app movie list shape the front end expects (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movies; genre filtering and a “Recently Added”–style sort where the API allows. *Phases 4–5 (v1.0).*
-- ✓ **Images** — Serve Jellyfin artwork through the app (extend or complement `/proxy` so thumbs work without exposing secrets in the browser). *Phases 4–5 (v1.0).*
-- ✓ **User-scoped parity (within reason)** — Per-user match/history/undo and “add to list” behavior work in Jellyfin mode using Jellyfin identity (not Plex headers). Exact UX may use Jellyfin login/token headers instead of Plex pin, but outcomes should mirror Plex mode. *Phase 5 (v1.0).*
-- ✓ **Milestone evidence and validation closure** — Jellyfin-forward operator E2E narrative, Nyquist-aligned `01–05` validation artifacts, and re-audit inputs consolidated for `/gsd-audit-milestone`. *Phase 8 (v1.0).*
-- ✓ **Jellyfin browser delegate path** — When env credentials are configured, the SPA can bind to the server session without exposing API tokens in JSON; stale `localStorage` tokens cleared on success. *Phase 9 (v1.0).*
-- ✓ **Poster containment** — Main deck, mini-posters, and match popup use `object-fit: contain` with black backing so wide one-sheets are not cropped. *Phase 9 (v1.0).*
-- ✓ **Jelly Swipe branding & packaging (v1.1)** — BRAND-01–04: UI titles and PWA manifest; README/LICENSE fork policy; Unraid `jelly-swipe.html`; default DB path and Docker/CI image `andrewthetechie/jelly-swipe`; Jellyfin client identifier as Jelly Swipe. *v1.1.*
-- ✓ **UV-01** — uv is the canonical dependency workflow; `pyproject.toml` + committed `uv.lock`; root `requirements.txt` explicitly non-canonical for local dev. *Validated in Phase 10 (v1.2).*
-- ✓ **UV-02** — Tooling targets **Python 3.13** (`requires-python = ">=3.13,<3.14"`, `.python-version`). *Validated in Phase 10 (v1.2).*
-- ✓ **DEP-01** — Direct runtime dependencies resolved to **newest 3.13-compatible** versions; `uv sync` and `py_compile` smoke pass. *Validated in Phase 10 (v1.2).*
-- ✓ **PKG-01** — Application modules (Flask routes/DB/SSE and media provider) live under **`jellyswipe/`** with coherent imports. *Validated in Phase 11 (v1.2).*
-- ✓ **PKG-02** — Gunicorn CMD (and documented local command) load the WSGI app from the **`jellyswipe`** package (`jellyswipe:app`). *Validated in Phase 11 (v1.2).*
-- ✓ **DOCK-01** — `Dockerfile` installs dependencies via **uv** and runs the packaged application; behavior parity for operators (port, data dir, env contract). *Validated in Phase 12 (v1.2).*
-- ✓ **DOC-01** — README (and compose snippets if present) describe **uv**-based setup for contributors/maintainers. *Validated in Phase 12 (v1.2).*
-- ✓ **PLEX-REM-01** — Plex implementation code (plex_library.py, factory.py) removed; JellyfinLibraryProvider used directly. *Validated in Phase 13 (v1.2).*
-- ✓ **PLEX-REM-02** — plexapi dependency removed; database schema updated (plex_id → user_id); documentation updated. *Validated in Phase 13 (v1.2).*
-- ✓ **PLEX-REM-03** — Application verified to work with Jellyfin-only configuration; Docker image builds successfully. *Validated in Phase 13 (v1.2).*
-- ✓ **TEST-01** — Unit test suite for existing codebase with framework-agnostic approach. *Validated in Phase 14 (v1.3).*
-- ✓ **TEST-02** — Modern pytest methods with fixtures and parametrize. *Validated in Phase 14 (v1.3).*
-- ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
-- ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
-- ✓ **SEC-01** — Identity is resolved only from delegated server identity or validated Jellyfin token. *Validated in Phase 18 (v1.4).*
-- ✓ **SEC-02** — Client-supplied identity headers are rejected as identity aliases. *Validated in Phase 18 (v1.4).*
+- ✓ **Jellyfin server auth** — Configure base URL and credentials; obtain and reuse access token for server API calls. *v1.0.*
+- ✓ **Jellyfin library parity** — Build movie list from Jellyfin; genre filtering and sort. *v1.0.*
+- ✓ **Images** — Serve Jellyfin artwork through `/proxy` without exposing secrets. *v1.0.*
+- ✓ **User-scoped parity** — Per-user match/history/undo using Jellyfin identity. *v1.0.*
+- ✓ **Milestone evidence and validation closure** — E2E narrative and validation artifacts. *v1.0.*
+- ✓ **Jellyfin browser delegate path** — SPA binds to server session without token leakage. *v1.0.*
+- ✓ **Poster containment** — `object-fit: contain` with black backing. *v1.0.*
+- ✓ **Jelly Swipe branding & packaging** — BRAND-01–04 complete. *v1.1.*
+- ✓ **UV-01** — uv canonical dependency workflow. *v1.2.*
+- ✓ **UV-02** — Python 3.13 target. *v1.2.*
+- ✓ **DEP-01** — Newest 3.13-compatible versions. *v1.2.*
+- ✓ **PKG-01** — `jellyswipe/` package with coherent imports. *v1.2.*
+- ✓ **PKG-02** — Gunicorn loads from `jellyswipe:app`. *v1.2.*
+- ✓ **DOCK-01** — Docker installs via uv, runs packaged app. *v1.2.*
+- ✓ **DOC-01** — README describes uv-based setup. *v1.2.*
+- ✓ **PLEX-REM-01/02/03** — All Plex code removed, Jellyfin-only. *v1.2.*
+- ✓ **TEST-01/02/03/04** — 48 unit tests, CI workflow, coverage reporting. *v1.3.*
+- ✓ **SEC-01/02** — Identity from trusted sources only; client headers rejected. *v1.4.*
+- ✓ **FACTORY-01** — `create_app(test_config=None)` factory function with backwards-compatible global `app` instance. *v1.5 Phase 21.*
+- ✓ **TEST-ROUTE-01** — 14 auth route tests (20 parametrized cases) with EPIC-01 header-spoof protection. *v1.5 Phase 23.*
+- ✓ **TEST-ROUTE-02** — 13 XSS security tests with `_XSSSafeJSONProvider` for OWASP JSON XSS defense. *v1.5 Phase 24.*
+- ✓ **TEST-ROUTE-03** — 27 room lifecycle tests covering all 6 endpoints. *v1.5 Phase 25.*
+- ✓ **TEST-ROUTE-04** — 16 proxy SSRF prevention tests. *v1.5 Phase 26.*
+- ✓ **TEST-ROUTE-05** — 8 SSE streaming tests achieving 78% coverage for `__init__.py`. *v1.5 Phase 27.*
+- ✓ **COV-01** — `--cov-fail-under=70` CI enforcement; 75% total coverage. *v1.5 Phase 28.*
 
 ### Active
 
-- [ ] **FACTORY-01** — Refactor `jellyswipe/__init__.py` into explicit `create_app(config=None)` factory function
-- [ ] **TEST-ROUTE-01** — Add `tests/test_routes_auth.py` with header-spoof tests for EPIC-01
-- [ ] **TEST-ROUTE-02** — Add `tests/test_routes_xss.py` with stored XSS blocking tests (EPIC-03)
-- [x] **TEST-ROUTE-03** — Add `tests/test_routes_room.py` with happy path for create/join/swipe/match/quit. *Validated in Phase 25 (v1.5).*
-- [x] **TEST-ROUTE-04** — Add `tests/test_routes_proxy.py` with allowlist regex and rate limit tests (EPIC-04). *Validated in Phase 26 (v1.5).*
-- [ ] **TEST-ROUTE-05** — Add `tests/test_routes_sse.py` with SSE event streaming and shutdown tests
-- [x] **TEST-COV-01** — Add pytest `--cov-fail-under=70` to ensure CI enforces coverage threshold. *Validated in Phase 28 (v1.5).*
+(No active requirements — awaiting v1.6 scope definition)
 
 ### Out of Scope
 
 - **Plex support** — Explicit product decision: removed in v1.2, application is Jellyfin-only.
 - **Replacing TMDB** — Trailers/cast stay on TMDB; no requirement to use Jellyfin plugins for trailers in v1.
 - **TV shows / music** — Movies library only, matching current Plex `Movies` section assumption.
-- **PyPI distribution (v1.2)** — The `jellyswipe` package is for repo layout and Docker/runtime imports only; no publishing to PyPI or `pip install jellyswipe` product story.
-- **Flask route integration tests** — Framework-agnostic approach required for v1.3; can be added in future as integration tests.
-- **Real Jellyfin/TMDB API calls in tests** — Unit tests should be isolated from external dependencies.
-- **Parallel test execution (pytest-xdist)** — Not needed for initial test suite; can be added when test count grows.
-- **Property-based testing (Hypothesis)** — Nice to have, not critical for v1.3.
-- **End-to-end integration tests** — Separate concern from unit testing; can be added in v2+.
+- **PyPI distribution** — `jellyswipe` package is for repo layout and Docker/runtime imports only.
+- **Flask route integration tests** — Framework-agnostic approach required; route tests added in v1.5.
+- **Real Jellyfin/TMDB API calls in tests** — Unit tests isolated from external dependencies.
+- **Parallel test execution (pytest-xdist)** — Deferred to v2.
+- **Property-based testing (Hypothesis)** — Deferred to v2.
+- **End-to-end integration tests** — Deferred to v2+.
 
 ## Current state
 
-- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
-- **Shipped:** **v1.4 Authorization Hardening** completed and archived under `.planning/milestones/v1.4-*`.
-- **Shipped:** **v1.5 Route Test Coverage** — Phase 29 (CSP compliance) completed. All inline styles/JS externalized, self-hosted font. This was the last phase of v1.5.
+- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package), **v1.3** (unit tests), **v1.4** (auth hardening), **v1.5** (route test coverage + CSP compliance).
 - **In flight:** Next milestone definition (`/gsd-new-milestone`).
-- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
-- **UI:** External CSS (`jellyswipe/static/styles.css`) and JS (`jellyswipe/static/app.js`) files with CSP-compliant HTML template (`jellyswipe/templates/index.html`); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
-- **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
-- **Tests:** 159 tests across 8 test files with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting; 75% total coverage; CI enforces 70% coverage threshold (--cov-fail-under=70).
+- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv; app factory pattern (`create_app(test_config=None)`).
+- **Security:** `_XSSSafeJSONProvider` escapes HTML in all JSON responses; CSP-compliant HTML with external CSS/JS; verified identity hardening (v1.4).
+- **UI:** External CSS (`jellyswipe/static/styles.css`), JS (`jellyswipe/static/app.js`), self-hosted Allura font (`jellyswipe/static/fonts/`), CSP-compliant HTML template.
+- **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest`; GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release.
+- **Tests:** 159 tests across 8 test files; GitHub Actions on every push/PR; 75% total coverage; CI enforces 70% threshold (`--cov-fail-under=70`).
 
 ## Context
 
@@ -116,6 +99,9 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 | Independent test CI workflow (v1.3) | Tests run on every PR for code review quality; Docker workflow focuses on deployment; no workflow coupling. | Shipped v1.3 Phase 17 |
 | No coverage threshold in v1.3 (v1.3) | ADV-01 is v2 requirement; track coverage in reports but don't fail builds. | Shipped v1.3 Phase 17 |
 | Verified identity hardening (v1.4) | Close Issue #4 by removing client-controlled identity trust and enforcing strict route authorization. | Shipped v1.4 Phases 18-20 |
+| Flask app factory pattern (v1.5) | `create_app(test_config=None)` enables test isolation while preserving `jellyswipe:app` import. | ✓ Shipped v1.5 Phase 21 |
+| Global XSS-safe JSON provider (v1.5) | `_XSSSafeJSONProvider` escapes `<`, `>`, `&` in all JSON output (OWASP recommendation). | ✓ Shipped v1.5 Phase 24 |
+| External CSS/JS for CSP compliance (v1.5) | All inline styles/JS externalized; self-hosted font. CSP `default-src 'self'` compliant. | ✓ Shipped v1.5 Phase 29 |
 
 ## Evolution
 
@@ -137,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after Phase 29 execution*
+*Last updated: 2026-04-26 after v1.5 milestone*
