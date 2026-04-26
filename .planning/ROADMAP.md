@@ -63,9 +63,11 @@ Plans:
 4. No Plex-related localStorage keys (`plex_token`, `plex_id`), HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`), or literal Plex URLs exist in the codebase
 5. No Plex UI copy ("Login with Plex", "OPEN IN PLEX") appears in the application interface
 
-**Plans:** TBD
+**Plans:** 2 plans
 
-**UI hint**: yes
+Plans:
+- [ ] 24-01-PLAN.md — Add Jellyfin server-info endpoint and rename Plex CSS classes
+- [ ] 24-02-PLAN.md — Remove all Plex JS functions, branches, localStorage, URLs, and UI copy
 
 ---
 
@@ -112,7 +114,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 23. Backend Source Cleanup | 0/1 | Not started | - |
-| 24. Frontend Plex Cleanup | 0/? | Not started | - |
+| 24. Frontend Plex Cleanup | 0/2 | Planned | - |
 | 25. Config & Deploy Cleanup | 0/? | Not started | - |
 | 26. Acceptance Validation | 0/? | Not started | - |
 
