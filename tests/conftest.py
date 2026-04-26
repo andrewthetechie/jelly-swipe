@@ -1,5 +1,7 @@
-import pytest
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Set required environment variables at module level to satisfy jellyswipe/__init__.py
 # This must happen before any imports that trigger __init__.py validation
@@ -19,32 +21,44 @@ def setup_test_environment():
     """
     # Monkeypatch load_dotenv() to skip .env file loading
     # This prevents loading .env from project root which may not exist or have wrong values
-    from unittest.mock import patch
     mock_load_dotenv = patch('dotenv.load_dotenv', side_effect=lambda *args, **kwargs: None)
     mock_load_dotenv.start()
-
-    # Monkeypatch Flask() to prevent app initialization
-    # Tests import jellyswipe.db and jellyfin_library directly without needing Flask app
-    # Return mock object with required attributes/methods to satisfy __init__.py
-    class MockApp:
-        wsgi_app = type('MockWsgiApp', (), {})()
-        secret_key = None
-
-        @staticmethod
-        def route(path, **kwargs):
-            def decorator(f):
-                return f
-            return decorator
-
-    mock_flask = patch('flask.Flask', side_effect=lambda *args, **kwargs: MockApp())
-    mock_flask.start()
 
     # Yield control to tests - they can now import jellyswipe modules safely
     yield
 
     # Cleanup: stop all mocks
     mock_load_dotenv.stop()
-    mock_flask.stop()
+
+
+@pytest.fixture
+def mocker():
+    """
+    Lightweight pytest-mock compatible fixture for this repository.
+
+    Supports the subset currently used by tests: MagicMock and patch(...).
+    """
+
+    class _Mocker:
+        MagicMock = MagicMock
+
+        def __init__(self):
+            self._patchers = []
+
+        def patch(self, target, *args, **kwargs):
+            patcher = patch(target, *args, **kwargs)
+            self._patchers.append(patcher)
+            return patcher.start()
+
+        def stopall(self):
+            while self._patchers:
+                self._patchers.pop().stop()
+
+    helper = _Mocker()
+    try:
+        yield helper
+    finally:
+        helper.stopall()
 
 @pytest.fixture
 def mock_env_vars(monkeypatch):
