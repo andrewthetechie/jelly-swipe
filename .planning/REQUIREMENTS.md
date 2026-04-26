@@ -1,0 +1,69 @@
+# Requirements: Jelly Swipe
+
+**Defined:** 2026-04-25
+**Milestone:** v1.4 Authorization Hardening
+**Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
+
+## v1 Requirements
+
+Requirements for this milestone are scoped to Issue #4 (`EPIC-01`) authorization hardening.
+
+### Security
+
+- [ ] **SEC-01**: User identity is resolved only from delegated server identity or a validated Jellyfin access token.
+- [ ] **SEC-02**: Requests with `X-Provider-User-Id`, `X-Jellyfin-User-Id`, or `X-Emby-UserId` do not establish identity.
+- [ ] **SEC-03**: `/room/swipe` does not accept a request-body `user_id` as an identity source.
+- [ ] **SEC-04**: Protected user-scoped routes return `401 Unauthorized` when identity cannot be verified.
+- [ ] **SEC-05**: User-scoped database operations only read/write/delete rows for the verified identity.
+
+### Verification
+
+- [ ] **VER-01**: Automated route tests prove spoofed identity headers are rejected.
+- [ ] **VER-02**: Automated route tests prove request-body `user_id` injection does not allow cross-user access.
+- [ ] **VER-03**: Automated route tests prove valid token/delegated identity flows continue to function.
+
+## v2 Requirements
+
+Deferred to future milestones.
+
+### Existing Deferred Candidates
+
+- **ARC-02**: Formal Plex regression matrix closure in archived v1.0 verification artifacts.
+- **OPS-01 / PRD-01**: Neutral DB column naming and multi-library selection.
+- **ADV-01**: Coverage thresholds enforced in CI to prevent regression.
+- **ADV-02**: Multiple coverage reports (HTML for local, XML for CI).
+- **ADV-03**: pytest-mock integration for cleaner mock API patterns.
+- **ADV-04**: Parametrized fixtures for broader scenario coverage.
+- **ADV-05**: Module-scoped fixtures for test performance optimization.
+
+## Out of Scope
+
+Explicitly excluded from v1.4.
+
+| Feature | Reason |
+|---------|--------|
+| Re-introducing Plex support | Product is Jellyfin-only since v1.2 |
+| Full auth system redesign (OAuth, SSO, external IdP) | Milestone is a targeted hardening of existing Jellyfin identity model |
+| Non-security feature work unrelated to Issue #4 | Keep scope focused and ship risk reduction quickly |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| SEC-01 | Phase 18 | Pending |
+| SEC-02 | Phase 18 | Pending |
+| SEC-03 | Phase 19 | Pending |
+| SEC-04 | Phase 19 | Pending |
+| SEC-05 | Phase 19 | Pending |
+| VER-01 | Phase 20 | Pending |
+| VER-02 | Phase 20 | Pending |
+| VER-03 | Phase 20 | Pending |
+
+**Coverage:**
+- v1 requirements: 8 total
+- Mapped to phases: 8
+- Unmapped: 0
+
+---
+*Requirements defined: 2026-04-25*
+*Last updated: 2026-04-25 after milestone initialization*
