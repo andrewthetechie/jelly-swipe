@@ -26,7 +26,8 @@ Requirements for route test coverage milestone. Each maps to roadmap phases.
 
 ### Coverage
 
-- [ ] **COV-01**: Add `--cov-fail-under=70` to pytest configuration in pyproject.toml to enforce 70% coverage threshold for `jellyswipe/__init__.py`
+- [x] **COV-01
+**: Add `--cov-fail-under=70` to pytest configuration in pyproject.toml to enforce 70% coverage threshold for `jellyswipe/__init__.py`
 
 ## v2 Requirements
 
