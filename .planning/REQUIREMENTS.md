@@ -34,10 +34,14 @@ Requirements for this milestone are scoped to Issue #6 (`EPIC-03`) XSS vulnerabi
 
 ### XSS Testing
 
-- [ ] **XSS-01**: Test file `tests/test_routes_xss.py` exists with smoke test proving XSS is blocked.
-- [ ] **XSS-02**: Test verifies that swipe with `title: "<script>...</script>"` renders as literal text, not executed.
-- [ ] **XSS-03**: Test verifies that CSP header is present on all HTTP responses.
-- [ ] **XSS-04**: Test verifies that server rejects client-supplied `title`/`thumb` parameters.
+- [x] **XSS-01
+**: Test file `tests/test_routes_xss.py` exists with smoke test proving XSS is blocked.
+- [x] **XSS-02
+**: Test verifies that swipe with `title: "<script>...</script>"` renders as literal text, not executed.
+- [x] **XSS-03
+**: Test verifies that CSP header is present on all HTTP responses.
+- [x] **XSS-04
+**: Test verifies that server rejects client-supplied `title`/`thumb` parameters.
 
 ## v2 Requirements
 
