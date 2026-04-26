@@ -60,24 +60,24 @@ Explicitly excluded from v1.5.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SSV-01 | Pending | |
-| SSV-02 | Pending | |
-| SSV-03 | Pending | |
-| DOM-01 | Pending | |
-| DOM-02 | Pending | |
-| DOM-03 | Pending | |
-| CSP-01 | Pending | |
-| CSP-02 | Pending | |
-| CSP-03 | Pending | |
-| XSS-01 | Pending | |
-| XSS-02 | Pending | |
-| XSS-03 | Pending | |
-| XSS-04 | Pending | |
+| SSV-01 | Phase 19 | Pending |
+| SSV-02 | Phase 19 | Pending |
+| SSV-03 | Phase 19 | Pending |
+| DOM-01 | Phase 20 | Pending |
+| DOM-02 | Phase 20 | Pending |
+| DOM-03 | Phase 20 | Pending |
+| CSP-01 | Phase 21 | Pending |
+| CSP-02 | Phase 21 | Pending |
+| CSP-03 | Phase 21 | Pending |
+| XSS-01 | Phase 22 | Pending |
+| XSS-02 | Phase 22 | Pending |
+| XSS-03 | Phase 22 | Pending |
+| XSS-04 | Phase 22 | Pending |
 
 **Coverage:**
 - v1.5 requirements: 13 total
-- Mapped to phases: 0 (roadmap not yet created)
-- Unmapped: 13 ⚠️
+- Mapped to phases: 13/13 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-25*

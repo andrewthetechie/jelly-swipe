@@ -1,187 +1,149 @@
----
-gsd_state_version: 1.0
-milestone: v1.5
-<<<<<<< HEAD
-milestone_name: — (undefined)
-status: idle
-stopped_at: Milestone v1.4 complete and archived
-last_updated: "2026-04-26T00:15:29.000Z"
-last_activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
-=======
-milestone_name: XSS Security Fix
-status: Defining requirements
-stopped_at:
-last_updated: "2026-04-25T00:00:00.000Z"
-last_activity: 2026-04-25
->>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
-progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 100
----
+# State — Jelly Swipe
 
-# Project State
+**Milestone:** v1.5 XSS Security Fix
+**Phase:** Not started
+**Status:** Planning complete
+**Progress:** 0/4 phases
+
+---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-25)
+**What This Is:**
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB.
 
-**Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-<<<<<<< HEAD
-**Current focus:** v1.5 (undefined - next milestone to be planned)
+**Core Value:**
+Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Position
+**Current Focus:**
+Eliminating stored XSS vulnerability where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection.
 
-Phase: —
-Plan: —
-Status: Milestone v1.4 complete, awaiting v1.5 planning
-Last activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
-=======
-**Current focus:** v1.5 XSS security fix
+---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-25 — Milestone v1.5 started
->>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
+**Phase:** Not started
+**Milestone:** v1.5 XSS Security Fix
+**Plan:** TBD
+**Status:** Roadmap created, ready to begin Phase 19
+
+**Progress Bar:**
+```
+[████████░░░░░░░░░░░░] 25% - Roadmap created, 0/4 phases complete
+```
+
+**Next Step:** `/gsd-plan-phase 19`
+
+---
 
 ## Performance Metrics
 
-**Velocity:**
+**Phase History:**
+- v1.0 (Jellyfin support): Phases 1-9 completed
+- v1.1 (Rename): No numbered phases
+- v1.2 (uv + Package Layout + Plex Removal): Phases 10-13 completed
+- v1.3 (Unit Tests): Phases 14-17 completed
+- v1.4 (Authorization Hardening): Phases 1-18 completed (numbering reset)
+- v1.5 (XSS Security Fix): Phases 19-22 planned (continuing from v1.4)
 
-- Total plans completed: 9
-- Average duration: 3 min
-- Total execution time: 0.5 hours
+**Current Milestone Metrics:**
+- Phases planned: 4
+- Requirements: 13
+- Estimated plans: ~8-12 (2-3 per phase)
 
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 14 | 3 | 6 min | 2 min |
-| 15 | 1 | 2 min | 2 min |
-| 16 | 4 | 4 min | 1 min |
-| 17 | 1 | 2 min | 2 min |
-
-**Recent Trend:**
-
-- Last 5 plans: All complete, average 1.8 min/plan
-- Trend: Consistent execution velocity, no bottlenecks
+---
 
 ## Accumulated Context
 
-### Decisions
+### Decisions Made
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions from v1.3:
+**v1.5 Security Strategy (Current Milestone):**
+- Three-layer defense: server validation + safe DOM + CSP
+- Server-side: Resolve all metadata from movie_id via JellyfinLibraryProvider.resolve_item_for_tmdb()
+- Client-side: Replace innerHTML with textContent/DOM construction
+- CSP: Strict policy with no unsafe-inline, restrict img-src to 'self' + image.tmdb.org
+- Testing: Smoke tests proving XSS is blocked on all layers
 
-<<<<<<< HEAD
-- Phase 14: pytest framework with framework-agnostic imports (monkeypatch load_dotenv and Flask)
-- Phase 14: Function-scoped fixtures for maximum test isolation
-- Phase 14: Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging
-- Phase 16: Use mocker.patch('jellyswipe.jellyfin_library.requests.Session') to mock all HTTP calls
-- Phase 16: Use correct RunTimeTicks conversion: ticks / 10,000,000 = seconds
-- Phase 16: Use valid UUID format (32 hex chars) for image path tests to match regex pattern
-- Phase 17: Terminal-only coverage reporting (--cov-report=term-missing, no HTML/XML)
-- Phase 17: Independent test.yml workflow, Docker workflows unchanged
-- Phase 17: No coverage threshold in v1.3 (deferred to v2 per ADV-01)
-- Phase 17: Python 3.13 only in CI (matches production requirement)
-=======
-- v1.5 focuses exclusively on Issue #6 XSS vulnerability elimination.
-- Client-supplied title/thumb will not be trusted; must be resolved server-side from movie_id.
-- Strict CSP header enforcement required to prevent script injection.
-- XSS smoke tests are mandatory before milestone closure.
->>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
+**Previous Milestone Decisions:**
+- v1.4: Authorization hardening (details in v1.4 archives)
+- v1.3: pytest with framework-agnostic imports, terminal-only coverage
+- v1.2: uv dependency management, jellyswipe/ package layout, Plex removal
+- v1.1: Jelly Swipe rename, AndrewTheTechie branding
+- v1.0: Jellyfin as alternative backend, provider abstraction
 
-Historical decisions affecting current work:
+### Active Todos
 
-- Phase 13 (v1.2): Remove all Plex support to simplify codebase and focus on Jellyfin as single backend
-- Phase 10 (v1.2): Adopt uv for faster reproducible installs with Python 3.13 lockfile
-- Phase 11 (v1.2): Refactor to jellyswipe/ package layout for clearer module boundaries
+**Immediate:**
+- [ ] Plan Phase 19: Server-Side Validation
+- [ ] Execute Phase 19 plans
+- [ ] Validate Phase 19 success criteria
+- [ ] Transition to Phase 20
 
-### Pending Todos
+**Milestone:**
+- [ ] Complete all 4 phases (19-22)
+- [ ] Validate all 13 requirements
+- [ ] Archive milestone artifacts
+- [ ] Tag v1.5 release
 
-[From .planning/todos/pending/ — ideas captured during sessions]
+### Known Blockers
 
-None yet.
+None at roadmap creation.
 
-### Blockers/Concerns
+### Risks and Concerns
 
-[Issues that affect future work]
+**Security-First Development:**
+- All changes must maintain or improve security posture
+- No regressions in existing security features
+- CSP policy must not break legitimate functionality (TMDB images, YouTube trailers)
 
-None yet.
+**Backward Compatibility:**
+- Database schema changes must be handled carefully (if any)
+- Existing matches in database may contain client-supplied data; consider migration
 
-## Deferred Items
+**Testing Coverage:**
+- XSS tests must be comprehensive to prove vulnerability is closed
+- Consider edge cases: malformed movie_id, Jellyfin API failures, network issues
 
-Items acknowledged and carried forward from previous milestone close:
-
-| Category | Item | Status | Deferred At |
-|----------|------|--------|-------------|
-| ARC-02 | Plex regression matrix verification in v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md remains partial | Partial | v1.0 close |
-| OPS-01/PRD-01 | Neutral DB column naming and multi-library selection | Deferred | v1.0 close |
-| ADV-01 | Coverage thresholds enforced in CI to prevent regression | Deferred | v1.3 close (v2 requirement) |
-| ADV-02 | Multiple coverage reports (HTML for local, XML for CI) | Deferred | v1.3 close (v2 requirement) |
+---
 
 ## Session Continuity
 
-<<<<<<< HEAD
-Last session: 2026-04-26T00:15:29.000Z
-Stopped at: Milestone v1.4 complete and archived
-Resume file: None
+**Last Session:**
+- 2026-04-25: Created roadmap for v1.5 XSS Security Fix milestone
+- Roadmap structure: 4 phases (19-22) covering server validation, safe DOM, CSP, and testing
+- All 13 requirements mapped to phases with traceability table updated
 
-## v1.4 Milestone Summary
+**Current Session:**
+- 2026-04-25: Roadmap creation completed, files written
+- Ready to begin planning Phase 19: Server-Side Validation
 
-**Shipped:** 2026-04-26
-**Phases:** 1 (18)
-**Plans:** 3 total
-**Files Modified:** 3
-**Lines Changed:** 482 insertions, 0 deletions
-**Timeline:** ~15 minutes
+**Handoff Notes:**
+- Phase numbering continues from v1.4 (phases 1-18 completed)
+- v1.5 is a focused security milestone with clear, testable success criteria
+- Three-layer defense strategy provides defense-in-depth against XSS
+- All user input must be considered untrusted until verified server-side
 
-**Key Deliverables:**
+---
 
-- Unraid template updated with JELLYFIN_URL and JELLYFIN_API_KEY environment variables
-- All fake placeholder values removed from template
-- Python lint script for template validation
-- GitHub Actions workflow for CI validation
-- README.md documentation for Unraid deployment
+## Quick Reference
 
-**Archived:**
+**Key Files:**
+- Project context: `.planning/PROJECT.md`
+- Requirements: `.planning/REQUIREMENTS.md`
+- Roadmap: `.planning/ROADMAP.md`
+- Milestones: `.planning/MILESTONES.md`
+- State: `.planning/STATE.md` (this file)
 
-- .planning/milestones/v1.4-ROADMAP.md
-- .planning/milestones/v1.4-REQUIREMENTS.md
+**Important Commands:**
+- `/gsd-plan-phase 19` — Begin planning Phase 19
+- `/gsd-transition` — Mark phase complete and move to next
+- `/gsd-complete-milestone` — Close v1.5 milestone
+- `/gsd-progress` — View current progress
 
-**Planned Phase:** None — v1.5 to be planned
+**Issue Reference:**
+- XSS vulnerability: https://github.com/andrewthetechie/jelly-swipe/issues/6
 
-## v1.3 Milestone Summary
+---
 
-**Shipped:** 2026-04-25
-**Phases:** 4 (14-17)
-**Plans:** 9 total
-**Tests:** 48 total (15 infrastructure + 17 database + 29 Jellyfin provider)
-**Files Modified:** 27
-**Lines Changed:** 4,096 insertions, 26 deletions
-**LOC:** 2,446 Python (jellyswipe + tests)
-**Timeline:** ~1 hour
-
-**Key Deliverables:**
-
-- pytest testing framework with pytest-cov, pytest-mock, responses, pytest-timeout
-- Framework-agnostic test infrastructure (conftest.py with monkeypatching)
-- 17 database tests with 87% coverage
-- 29 Jellyfin provider tests with 95%+ coverage
-- pytest-cov terminal output with per-file percentages
-- GitHub Actions workflow running tests on every push/PR
-
-**Archived:**
-
-- .planning/milestones/v1.3-ROADMAP.md
-- .planning/milestones/v1.3-REQUIREMENTS.md
-=======
-Last session:
-Stopped at:
-Resume file:
->>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
+*State created: 2026-04-25*
+*Last updated: 2026-04-25*

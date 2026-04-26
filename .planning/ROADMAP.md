@@ -1,226 +1,134 @@
-# Roadmap: Jelly Swipe
+# Roadmap — Jelly Swipe
+
+**Milestone:** v1.5 XSS Security Fix
+**Granularity:** Standard (5-8 phases)
+**Current Phase:** Not started
+**Last Updated:** 2026-04-25
+
+---
 
 ## Overview
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.4 shipped** Unraid template cleanup with Jellyfin environment variables and CI validation.
+This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection. The fix operates on three layers: server-side validation, safe DOM rendering, and Content Security Policy enforcement, with comprehensive testing to verify the vulnerability is closed.
 
-## Milestones
+**Phases:** 4
+**Requirements:** 13
+**Starting Phase:** 19 (continuing from v1.4)
 
-- ✅ **v1.0 Jellyfin Support** - Phases 1-9 (shipped 2026-04-24)
-- ✅ **v1.1 Jelly Swipe Rename** - Branding and identity (shipped 2026-04-24)
-- ✅ **v1.2 uv + Package Layout + Plex Removal** - Phases 10-13 (shipped 2026-04-25)
-- ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
-- ✅ **v1.4 Clean up Unraid Template** - Phase 18 (shipped 2026-04-26)
-- 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01)
+---
 
 ## Phases
 
-<details>
-<summary>✅ v1.0 Jellyfin Support (Phases 1-9) - SHIPPED 2026-04-24</summary>
+- [ ] **Phase 19: Server-Side Validation** - Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id
+- [ ] **Phase 20: Safe DOM Rendering** - Replace innerHTML with textContent/DOM construction for all user-controlled content
+- [ ] **Phase 21: CSP Header** - Add strict Content-Security-Policy header via Flask after_request hook
+- [ ] **Phase 22: XSS Testing** - Add smoke tests proving XSS is blocked and CSP is enforced
 
-### Phase 1: Project Setup
-**Goal**: Initialize project scaffolding and development environment
-**Plans**: 3 plans
+---
 
-Plans:
-- [x] 01-01: Initialize Git repository and directory structure
-- [x] 01-02: Set up Flask application skeleton
-- [x] 01-03: Configure basic logging and error handling
+## Phase Details
 
-### Phase 2: Database Schema
-**Goal**: Design and implement SQLite database schema for rooms, swipes, and matches
-**Plans**: 2 plans
+### Phase 19: Server-Side Validation
 
-Plans:
-- [x] 02-01: Design database schema and create migrations
-- [x] 02-02: Implement database connection and query functions
+**Goal:** Client cannot inject malicious content via title/thumb parameters; all movie metadata is resolved server-side from trusted Jellyfin source.
 
-### Phase 3: Media Provider Abstraction
-**Goal**: Create abstract base class for media provider with Plex implementation
-**Plans**: 2 plans
+**Depends on:** Nothing (first phase of v1.5)
 
-Plans:
-- [x] 03-01: Define LibraryMediaProvider abstract interface
-- [x] 03-02: Implement PlexLibraryProvider with auth and library browsing
+**Requirements:** SSV-01, SSV-02, SSV-03
 
-### Phase 4: Jellyfin Integration
-**Goal**: Implement Jellyfin as alternative media backend
-**Plans**: 3 plans
+**Success Criteria** (what must be TRUE):
+1. `/room/swipe` endpoint ignores any `title` or `thumb` parameters sent by client
+2. When a user swipes on a movie, the server resolves title and thumb from Jellyfin using only the movie_id
+3. If Jellyfin metadata resolution fails, the server returns an error instead of storing incomplete/invalid data
+4. Match records in database contain only server-resolved title and thumb values (no client-provided data)
 
-Plans:
-- [x] 04-01: Implement JellyfinLibraryProvider with server authentication
-- [x] 04-02: Build Jellyfin library browsing and deck fetching
-- [x] 04-03: Add genre filtering and "Recently Added" sorting
+**Plans:** TBD
 
-### Phase 5: Verification & Validation
-**Goal**: Verify Jellyfin parity and validate implementation
-**Plans**: 3 plans
+---
 
-Plans:
-- [x] 05-01: Verify Jellyfin authentication and token handling
-- [x] 05-02: Validate library browsing and card transformation
-- [x] 05-03: Test user-scoped features (matches, history, watchlist)
+### Phase 20: Safe DOM Rendering
 
-### Phase 6: Infrastructure Validation
-**Goal**: Validate deployment infrastructure and Docker setup
-**Plans**: 2 plans
+**Goal:** All user-controlled content in the frontend is rendered using safe DOM APIs that prevent script injection.
 
-Plans:
-- [x] 06-01: Validate Docker image builds and runs correctly
-- [x] 06-02: Test environment configuration and port binding
+**Depends on:** Phase 19 (server no longer accepts client-supplied metadata)
 
-### Phase 7: Data Layer Validation
-**Goal**: Validate database operations and data integrity
-**Plans**: 2 plans
+**Requirements:** DOM-01, DOM-02, DOM-03
 
-Plans:
-- [x] 07-01: Validate database schema and migrations
-- [x] 07-02: Test CRUD operations and data consistency
+**Success Criteria** (what must be TRUE):
+1. Movie titles, summaries, actor names, and character names are rendered using textContent (not innerHTML)
+2. Image sources and movie IDs are set using setAttribute() or DOM property assignment (not innerHTML)
+3. All innerHTML usages for user-controlled content have been removed or refactored to safe DOM construction
+4. Malicious script tags in movie data render as literal text in the browser (not executed)
 
-### Phase 8: E2E Validation
-**Goal**: End-to-end validation of complete user workflows
-**Plans**: 3 plans
+**Plans:** TBD
 
-Plans:
-- [x] 08-01: Test complete room creation and guest join flow
-- [x] 08-02: Verify swiping, matching, and notification behavior
-- [x] 08-03: Validate operator deployment and configuration
+**UI hint**: yes
 
-### Phase 9: UI Enhancements
-**Goal**: Enhance UI for Jellyfin delegate auth and poster display
-**Plans**: 2 plans
+---
 
-Plans:
-- [x] 09-01: Implement Jellyfin browser delegate auth
-- [x] 09-02: Fix poster containment with object-fit: contain
+### Phase 21: CSP Header
 
-</details>
+**Goal:** Content Security Policy header blocks inline scripts and restricts external resource loading to trusted domains.
 
-<details>
-<summary>✅ v1.1 Jelly Swipe Rename - SHIPPED 2026-04-24</summary>
+**Depends on:** Phase 20 (safe DOM rendering in place as defense-in-depth)
 
-No numbered phases - branding updates completed as single milestone.
+**Requirements:** CSP-01, CSP-02, CSP-03
 
-</details>
+**Success Criteria** (what must be TRUE):
+1. All HTTP responses from the Flask app include a Content-Security-Policy header
+2. CSP policy allows scripts only from 'self' (no 'unsafe-inline' or 'unsafe-eval')
+3. CSP policy restricts image sources to 'self' and https://image.tmdb.org
+4. CSP policy restricts frame sources to https://www.youtube.com (for trailers)
 
-<details>
-<summary>✅ v1.2 uv + Package Layout + Plex Removal (Phases 10-13) - SHIPPED 2026-04-25</summary>
+**Plans:** TBD
 
-### Phase 10: uv Dependency Management
-**Goal**: Migrate from requirements.txt to uv-based dependency management with Python 3.13
-**Plans**: 2 plans
+---
 
-Plans:
-- [x] 10-01: Create pyproject.toml with Python 3.13 requirements
-- [x] 10-02: Generate uv.lock and update Docker/CI workflows
+### Phase 22: XSS Testing
 
-### Phase 11: Package Layout
-**Goal**: Refactor code into jellyswipe/ package structure
-**Plans**: 2 plans
+**Goal:** Comprehensive tests verify that XSS is blocked on all three security layers and the vulnerability is closed.
 
-Plans:
-- [x] 11-01: Create jellyswipe/ package with __init__.py, db.py, jellyfin_library.py
-- [x] 11-02: Update Gunicorn and local run commands to use jellyswipe:app
+**Depends on:** Phase 21 (all security defenses in place)
 
-### Phase 12: Docker Multi-Stage Build
-**Goal**: Implement multi-stage Docker build using uv for smaller, reproducible images
-**Plans**: 2 plans
+**Requirements:** XSS-01, XSS-02, XSS-03, XSS-04
 
-Plans:
-- [x] 12-01: Create multi-stage Dockerfile with uv sync
-- [x] 12-02: Update maintainer documentation for uv-based setup
+**Success Criteria** (what must be TRUE):
+1. Test file `tests/test_routes_xss.py` exists and passes all XSS smoke tests
+2. Test proves that a swipe with malicious script in title renders as literal text (not executed)
+3. Test verifies that CSP header is present on all HTTP responses with correct directives
+4. Test verifies that server rejects client-supplied title/thumb parameters with appropriate error
 
-### Phase 13: Plex Removal
-**Goal**: Remove all Plex support to make application Jellyfin-only
-**Plans**: 3 plans
+**Plans:** TBD
 
-Plans:
-- [x] 13-01: Remove Plex implementation code (plex_library.py, factory.py)
-- [x] 13-02: Remove plexapi dependency and update database schema
-- [x] 13-03: Verify application works with Jellyfin-only configuration
+---
 
-</details>
+## Progress Table
 
-<details>
-<summary>✅ v1.3 Unit Tests (Phases 14-17) - SHIPPED 2026-04-25</summary>
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 19. Server-Side Validation | 0/0 | Not started | - |
+| 20. Safe DOM Rendering | 0/0 | Not started | - |
+| 21. CSP Header | 0/0 | Not started | - |
+| 22. XSS Testing | 0/0 | Not started | - |
 
-### Phase 14: Test Infrastructure Setup
-**Goal**: Configure pytest environment and establish shared fixtures for isolated testing
-**Plans**: 3 plans
+---
 
-Plans:
-- [x] 14-01: Add pytest dependencies to pyproject.toml and regenerate uv.lock
-- [x] 14-02: Create tests/conftest.py with environment fixtures
-- [x] 14-03: Create smoke tests and verify pytest setup
+## Milestone Context
 
-### Phase 15: Database Module Tests
-**Goal**: Test database operations with in-memory SQLite for complete isolation
-**Plans**: 1 plan
+**Previous Milestone:** v1.4 (Authorization Hardening) — Phases 1-18 completed
+**Current Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 planned
+**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/6
 
-Plans:
-- [x] 15-01: Create database fixtures and comprehensive tests for db.py module
+**Vulnerability Description:**
+The `/room/swipe` endpoint currently accepts `title` and `thumb` parameters from the client request body and stores them directly in the database. When matches are rendered, this unsanitized content is inserted into the DOM using `innerHTML`, allowing attackers to inject JavaScript that executes when other users view the match.
 
-### Phase 16: Jellyfin Provider Tests
-**Goal**: Test Jellyfin library provider with mocked external API calls
-**Plans**: 4 plans
+**Fix Strategy:**
+Three-layer defense:
+1. **Server-side:** Never trust client data; resolve all metadata server-side from trusted Jellyfin API
+2. **Client-side:** Use safe DOM APIs (textContent, createElement, setAttribute) instead of innerHTML
+3. **Headers:** Enforce strict CSP to block inline scripts even if bugs slip through
 
-Plans:
-- [x] 16-01: Authentication tests (API key, username/password, 401 retry, token caching, user ID resolution)
-- [x] 16-02: Library discovery tests (library ID resolution, genre listing, genre mapping, genre cache)
-- [x] 16-03: Deck fetching and transformation tests (deck retrieval, item-to-card, TMDB resolution, genre filtering)
-- [x] 16-04: Error and edge case tests (network failures, empty responses, missing fields, HTTP errors)
+---
 
-### Phase 17: Coverage & CI Integration
-**Goal**: Configure coverage reporting and GitHub Actions workflow
-**Plans**: 1 plan
-
-Plans:
-- [x] 17-01: Add pytest-cov configuration and create GitHub Actions test workflow
-
-</details>
-
-<details>
-<summary>✅ v1.4 Clean up Unraid Template (Phase 18) - SHIPPED 2026-04-26</summary>
-
-### Phase 18: Unraid Template Cleanup
-**Goal**: Update Unraid template variables and add CI validation
-**Plans**: 3 plans
-
-Plans:
-- [x] 18-01: Update Unraid template with Jellyfin environment variables and blank placeholders
-- [x] 18-02: Create CI lint workflow to validate Unraid template variables
-- [x] 18-03: Document Unraid template and CI validation in README
-
-</details>
-
-### 📋 v2.0 Advanced Features (Planned)
-
-**Milestone Goal:** Close ARC-02 regression matrix and implement multi-library selection
-
-No phases defined yet - requirements are active candidates.
-
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 1 → 17 → 18
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Project Setup | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 2. Database Schema | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 3. Media Provider Abstraction | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 4. Jellyfin Integration | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 5. Verification & Validation | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 6. Infrastructure Validation | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 7. Data Layer Validation | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 8. E2E Validation | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 9. UI Enhancements | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 10. uv Dependency Management | v1.2 | 2/2 | Complete | 2026-04-25 |
-| 11. Package Layout | v1.2 | 2/2 | Complete | 2026-04-25 |
-| 12. Docker Multi-Stage Build | v1.2 | 2/2 | Complete | 2026-04-25 |
-| 13. Plex Removal | v1.2 | 3/3 | Complete | 2026-04-25 |
-| 14. Test Infrastructure Setup | v1.3 | 3/3 | Complete | 2026-04-25 |
-| 15. Database Module Tests | v1.3 | 1/1 | Complete | 2026-04-25 |
-| 16. Jellyfin Provider Tests | v1.3 | 4/4 | Complete | 2026-04-25 |
-| 17. Coverage & CI Integration | v1.3 | 1/1 | Complete | 2026-04-25 |
-| 18. Unraid Template Cleanup | v1.4 | 3/3 | Complete | 2026-04-26 |
+*Roadmap created: 2026-04-25*
+*Last updated: 2026-04-25*
