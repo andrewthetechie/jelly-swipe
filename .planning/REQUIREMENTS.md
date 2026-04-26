@@ -34,7 +34,7 @@ Requirements for this milestone are scoped to Issue #11 (EPIC-08) — remove all
 
 ### Acceptance Validation (ACC)
 
-- [ ] **ACC-01**: `rg -i 'plex'` against source returns only intentional historical references (README fork attribution).
+- [x] **ACC-01**: `rg -i 'plex'` against source returns only intentional historical references (README fork attribution).
 
 ## v2 Requirements
 
@@ -77,7 +77,7 @@ Explicitly excluded from v1.6.
 | CFG-02 | Phase 25 | Complete |
 | CFG-03 | Phase 25 | Complete |
 | CFG-04 | Phase 25 | Complete |
-| ACC-01 | Phase 26 | Pending |
+| ACC-01 | Phase 26 | Complete |
 
 **Coverage:**
 - v1.6 requirements: 16 total

@@ -22,7 +22,7 @@ This roadmap removes all remaining Plex references from the source code so `rg -
 - [ ] **Phase 23: Backend Source Cleanup** — Remove dead `/plex/server-info` route, stale `plex_id` comments from db.py, and fix base.py docstring to reference Jellyfin API path
 - [x] **Phase 24: Frontend Plex Cleanup** — Strip all Plex CSS classes, JS functions, conditional branches, localStorage keys, URLs, and UI copy from templates/index.html (completed 2026-04-26)
 - [x] **Phase 25: Config & Deploy Cleanup** — Update manifest descriptions, delete dead data/index.html, clean Unraid template, and remove/strip requirements.txt (completed 2026-04-26)
-- [ ] **Phase 26: Acceptance Validation** — Run `rg -i 'plex'` and verify only intentional historical references remain
+- [x] **Phase 26: Acceptance Validation** — Run `rg -i 'plex'` and verify only intentional historical references remain (completed 2026-04-26)
 
 ---
 
@@ -105,10 +105,10 @@ Plans:
 2. All 16 v1.6 requirements pass individual verification
 3. Application still starts and serves correctly with Jellyfin configuration after all deletions
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 26-01-PLAN.md — Fix stale README reference and run full acceptance sweep
+- [x] 26-01-PLAN.md — Fix stale README reference and run full acceptance sweep
 
 ---
 
@@ -122,7 +122,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26
 | 23. Backend Source Cleanup | 1/1 | Complete    | 2026-04-26 |
 | 24. Frontend Plex Cleanup | 2/2 | Complete    | 2026-04-26 |
 | 25. Config & Deploy Cleanup | 1/1 | Complete    | 2026-04-26 |
-| 26. Acceptance Validation | 0/1 | Not started | - |
+| 26. Acceptance Validation | 1/1 | Complete    | 2026-04-26 |
 
 ---
 
