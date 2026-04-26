@@ -2,8 +2,8 @@
 
 **Milestone:** v1.5 XSS Security Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** Not started
-**Last Updated:** 2026-04-25
+**Current Phase:** 19 - server-side-validation
+**Last Updated:** 2026-04-26
 
 ---
 
@@ -19,7 +19,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 
 ## Phases
 
-- [ ] **Phase 19: Server-Side Validation** - Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id
+- [x] **Phase 19: Server-Side Validation** - Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id
 - [ ] **Phase 20: Safe DOM Rendering** - Replace innerHTML with textContent/DOM construction for all user-controlled content
 - [ ] **Phase 21: CSP Header** - Add strict Content-Security-Policy header via Flask after_request hook
 - [ ] **Phase 22: XSS Testing** - Add smoke tests proving XSS is blocked and CSP is enforced
@@ -44,7 +44,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 
 **Plans:** 1 plan
 
-- [ ] 19-01-PLAN.md — Modify /room/swipe endpoint to resolve metadata server-side
+- [x] 19-01-PLAN.md — Modify /room/swipe endpoint to resolve metadata server-side
 
 ---
 
@@ -108,7 +108,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Server-Side Validation | 0/1 | Ready to execute | - |
+| 19. Server-Side Validation | 1/1 | Complete | 2026-04-26 |
 | 20. Safe DOM Rendering | 0/0 | Not started | - |
 | 21. CSP Header | 0/0 | Not started | - |
 | 22. XSS Testing | 0/0 | Not started | - |
@@ -133,4 +133,4 @@ Three-layer defense:
 ---
 
 *Roadmap created: 2026-04-25*
-*Last updated: 2026-04-25*
+*Last updated: 2026-04-26*
