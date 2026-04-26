@@ -10,7 +10,7 @@
   <Support>https://github.com/AndrewTheTechie/jelly-swipe/issues</Support>
   <Project>https://github.com/AndrewTheTechie/jelly-swipe</Project>
   <Overview>
-Swipe and match movies for Plex or Jellyfin
+Swipe and match movies for Jellyfin
 
 Tired of trying to pick a movie to watch together? Jelly Swipe turns it into a fun game. Basic dating app rules: swipe left if it is a no and swipe right if it is a yes. Two right swipes and it is a match. All matches are stored in your match history for later viewing.
 
@@ -25,7 +25,7 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Description>Swipe and match movies for Plex or Jellyfin</Description>
+  <Description>Swipe and match movies for Jellyfin</Description>
   <Networking>
     <Mode>bridge</Mode>
     <Publish>
@@ -38,23 +38,23 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
   </Networking>
   <Environment>
     <Variable>
-      <Name>PLEX_URL</Name>
-      <Value>https://YOUR_PLEX_URL</Value>
+      <Name>JELLYFIN_URL</Name>
+      <Value></Value>
       <Mode/>
     </Variable>
     <Variable>
-      <Name>PLEX_TOKEN</Name>
-      <Value>YOUR_PLEX_TOKEN</Value>
+      <Name>JELLYFIN_API_KEY</Name>
+      <Value></Value>
       <Mode>password</Mode>
     </Variable>
     <Variable>
       <Name>TMDB_API_KEY</Name>
-      <Value>YOUR_TMDB_API_KEY</Value>
+      <Value></Value>
       <Mode>password</Mode>
     </Variable>
     <Variable>
       <Name>FLASK_SECRET</Name>
-      <Value>Enter_random_string</Value>
+      <Value></Value>
       <Mode>password</Mode>
     </Variable>
   </Environment>
@@ -66,8 +66,8 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
     </Volume>
   </Data>
   <Config Name="WebUI Port" Target="5005" Default="5005" Mode="tcp" Description="Port used to access Jelly Swipe" Type="Port" Display="always" Required="true" Mask="false">5005</Config>
-  <Config Name="PLEX_URL" Target="PLEX_URL" Default="https://YOUR_PLEX_URL" Mode="" Description="URL of your Plex server" Type="Variable" Display="always" Required="true" Mask="false"/>
-  <Config Name="PLEX_TOKEN" Target="PLEX_TOKEN" Default="" Mode="" Description="Your Plex token" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="JELLYFIN_URL" Target="JELLYFIN_URL" Default="" Mode="" Description="URL of your Jellyfin server" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="JELLYFIN_API_KEY" Target="JELLYFIN_API_KEY" Default="" Mode="" Description="Your Jellyfin API key" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="TMDB_API_KEY" Target="TMDB_API_KEY" Default="" Mode="" Description="TMDB API key for Trailers to work" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="FLASK_SECRET" Target="FLASK_SECRET" Default="" Mode="" Description="Random secret string for session security" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="AppData Config Path" Target="/app/data" Default="/mnt/user/appdata/jelly-swipe/data" Mode="rw" Description="Persistent storage for Jelly Swipe data" Type="Path" Display="always" Required="true" Mask="false"/>
