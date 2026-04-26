@@ -129,14 +129,14 @@ Plans:
 | 26. Proxy Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 27. SSE Streaming Tests | 1/1 | Complete    | 2026-04-26 |
 | 28. Coverage Enforcement | 1/1 | Complete    | 2026-04-26 |
-| 29. Fix CSP Inline Style Errors | 1/1 | Complete | 2026-04-26 |
+| 29. Fix CSP Inline Style Errors | 1/1 | Complete    | 2026-04-26 |
 
 ### Phase 29: Fix CSP Inline Style Errors
 
 **Goal:** Eliminate all Content-Security-Policy violations under `default-src 'self'` by externalizing inline CSS/JS, converting inline styles to CSS classes, and self-hosting the Allura font
 **Requirements**: TBD
 **Depends on:** Phase 28
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [x] 29-01-PLAN.md — Externalize CSS/JS to static files, remove all inline styles and event handlers, self-host Allura font
