@@ -18,19 +18,6 @@ same movie, IT'S A MATCH!!
 <img width="320" height="640" alt="5" src="https://github.com/user-attachments/assets/3f1199eb-c21e-405c-8b27-7323585efe5c" />
 
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/37a2a485-ef1f-4c45-9eea-7a858323e01a" 
-    width="750" 
-    autoplay 
-    loop 
-    muted 
-    playsinline>
-  </video>
-</div>
-
-
-
-
 ## Features
 - **Jellyfin Integration:** Connects directly to your server to pull random movies.
 - **Real-Time Sync:** Host a room, share a 4-digit code, and swipe with a partner instantly.
