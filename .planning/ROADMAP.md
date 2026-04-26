@@ -41,7 +41,10 @@ This roadmap removes all remaining Plex references from the source code so `rg -
 2. `jellyswipe/db.py` contains zero `plex_id` references in comments or code
 3. `base.py` docstring references Jellyfin API path (`jellyfin/{id}/Primary`) instead of Plex `/library/metadata/`
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 23-01-PLAN.md — Remove dead Plex route code and stale references from 3 backend Python files
 
 ---
 
@@ -108,7 +111,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 23. Backend Source Cleanup | 0/? | Not started | - |
+| 23. Backend Source Cleanup | 0/1 | Not started | - |
 | 24. Frontend Plex Cleanup | 0/? | Not started | - |
 | 25. Config & Deploy Cleanup | 0/? | Not started | - |
 | 26. Acceptance Validation | 0/? | Not started | - |
