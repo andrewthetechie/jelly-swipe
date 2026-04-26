@@ -71,7 +71,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-ROUTE-01 | Phase 23 | Complete |
 | TEST-ROUTE-02 | Phase 24 | Pending |
 | TEST-ROUTE-03 | Phase 25 | Complete |
-| TEST-ROUTE-04 | Phase 26 | Pending |
+| TEST-ROUTE-04 | Phase 26 | Complete |
 | TEST-ROUTE-05 | Phase 27 | Pending |
 | COV-01 | Phase 28 | Pending |
 

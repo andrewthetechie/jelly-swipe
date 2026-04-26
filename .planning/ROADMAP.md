@@ -11,7 +11,7 @@
 - [x] **Phase 23: Auth Route Tests** - Add authentication route tests with header-spoof protection
 - [ ] **Phase 24: XSS Security Tests** - Add XSS blocking tests for input validation ✓ 2026-04-26
 - [x] **Phase 25: Room Operation Tests** - Add room lifecycle tests (create/join/swipe/match/quit) (completed 2026-04-26)
-- [ ] **Phase 26: Proxy Route Tests** - Add proxy route tests for SSRF prevention
+- [x] **Phase 26: Proxy Route Tests** - Add proxy route tests for SSRF prevention (completed 2026-04-26)
 - [ ] **Phase 27: SSE Streaming Tests** - Add SSE event streaming and shutdown tests
 - [ ] **Phase 28: Coverage Enforcement** - Add 70% coverage threshold enforcement to CI
 
@@ -89,7 +89,7 @@
   3. Allowlist regex blocks non-whitelisted paths (EPIC-04)
   4. Content-type verification returns correct image types
 **Plans**: 1 plan
-- [ ] 26-01-PLAN.md — Create tests/test_routes_proxy.py with comprehensive proxy route tests for SSRF prevention (EPIC-04)
+- [x] 26-01-PLAN.md — Create tests/test_routes_proxy.py with comprehensive proxy route tests for SSRF prevention (EPIC-04)
 
 ### Phase 27: SSE Streaming Tests
 **Goal**: SSE streaming works correctly and handles edge cases
@@ -122,7 +122,7 @@
 | 23. Auth Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 24. XSS Security Tests | 1/1 | Complete    | 2026-04-26 |
 | 25. Room Operation Tests | 1/1 | Complete    | 2026-04-26 |
-| 26. Proxy Route Tests | 0/1 | ◆ Planned | - |
+| 26. Proxy Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 27. SSE Streaming Tests | 0/0 | Not started | - |
 | 28. Coverage Enforcement | 0/0 | Not started | - |
 
