@@ -14,15 +14,19 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.5 — XSS Security Fix
+## Current Milestone: v1.6 — Plex Reference Cleanup
 
-**Goal:** Eliminate stored XSS vulnerability where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection.
+**Goal:** Remove all remaining Plex references from the source code so `rg -i 'plex'` returns only intentional historical references (README fork attribution).
 
 **Target features:**
-- Server-side: Never accept title/thumb from client; resolve from movie_id via JellyfinLibraryProvider.resolve_item_for_tmdb()
-- Client-side: Replace innerHTML with textContent/DOM construction or strict escape helper for all user-controlled data
-- Security: Set strict Content-Security-Policy header (no unsafe-inline scripts, restrict img-src to 'self' + image.tmdb.org, restrict frame-src to https://www.youtube.com)
-- Testing: Add smoke test in tests/test_routes_xss.py proving XSS is blocked (script tags render as literal text)
+- Delete `/plex/server-info` route and Plex auth PIN flows from `__init__.py`
+- Remove `plex_id` comments from `db.py`
+- Clean `templates/index.html`: rename Plex CSS classes, remove Plex JS functions/branches/localStorage/URLs/copy
+- Update `manifest.json` descriptions from "Plex or Jellyfin" to "Jellyfin"
+- Delete dead `data/index.html` (never-fetched PWA shell)
+- Clean `unraid_template/jelly-swipe.html` Plex env block
+- Remove or strip deprecated `requirements.txt` (lists plexapi)
+- Update `base.py` docstring (references Plex API path)
 
 ## Requirements
 
@@ -53,9 +57,15 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active
 
-- **SSV-01** — `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body. *Validated in Phase 19 (v1.5).*
-- **SSV-02** — `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`. *Validated in Phase 19 (v1.5).*
-- **SSV-03** — Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data). *Validated in Phase 19 (v1.5).*
+- **CLN-01** — `/plex/server-info` route deleted from `jellyswipe/__init__.py` (dead code, nothing calls it).
+- **CLN-02** — `plex_id` references removed from `jellyswipe/db.py` comments.
+- **CLN-03** — All Plex CSS classes, JS functions, localStorage keys, API URLs, and UI copy removed from `jellyswipe/templates/index.html`.
+- **CLN-04** — Manifest descriptions updated to "Jellyfin only" in both `jellyswipe/static/manifest.json` and `data/manifest.json`.
+- **CLN-05** — Dead `data/index.html` deleted (never-fetched PWA shell).
+- **CLN-06** — Plex env block removed from `unraid_template/jelly-swipe.html`.
+- **CLN-07** — `requirements.txt` deleted or stripped of plexapi (deprecated file, Docker uses uv).
+- **CLN-08** — `base.py` docstring updated to reference Jellyfin API path instead of Plex `/library/metadata/`.
+- **CLN-09** — `rg -i 'plex'` against source returns only intentional historical references (README fork attribution).
 
 ### Out of Scope
 
@@ -72,7 +82,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), and **v1.4** (authorization hardening) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, `v1.3-*`, and `v1.4-*`.
-- **In flight:** **v1.5 XSS Security Fix** (Phase 19 complete, 3 of 13 requirements validated) to close Issue #6 (`https://github.com/andrewthetechie/jelly-swipe/issues/6`).
+- **In flight:** **v1.6 Plex Reference Cleanup** (EPIC-08, Issue #11) — remove all remaining Plex references from source code.
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -129,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after Phase 19 completion*
+*Last updated: 2026-04-26 after v1.6 milestone kickoff*
