@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, and **v1.3** added comprehensive unit tests with 48 tests and CI workflow.
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, **v1.3** added comprehensive unit tests with 48 tests and CI workflow, and **v1.4** cleans up the Unraid template to use Jellyfin variables.
 
 **v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
 
@@ -10,18 +10,18 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **v1.3** shipped comprehensive unit tests with 48 tests covering database and Jellyfin provider modules, pytest-cov terminal coverage reporting, and GitHub Actions workflow for automated testing on every push/PR.
 
+**v1.4** shipped Unraid template cleanup, replacing Plex variables with Jellyfin environment variables, removing fake placeholder values, adding CI lint workflow for template validation, and documenting Unraid deployment in README.
+
 ## Core Value
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v2.0 — Planning Next Milestone
+## Current Milestone: v1.5 — (undefined)
 
-**Goal:** Define the next post-hardening product milestone after shipping v1.4.
+**Goal:** TBD
 
 **Target features:**
-- Finalize next milestone scope from deferred candidates (`ARC-02`, `OPS-01/PRD-01`, `ADV-*`)
-- Capture fresh requirements in a new `.planning/REQUIREMENTS.md`
-- Build roadmap phases for v2.0 execution
+- TBD
 
 ## Requirements
 
@@ -47,15 +47,24 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **PLEX-REM-03** — Application verified to work with Jellyfin-only configuration; Docker image builds successfully. *Validated in Phase 13 (v1.2).*
 - ✓ **TEST-01** — Unit test suite for existing codebase with framework-agnostic approach. *Validated in Phase 14 (v1.3).*
 - ✓ **TEST-02** — Modern pytest methods with fixtures and parametrize. *Validated in Phase 14 (v1.3).*
+- ✓ **TEMP-01** — Unraid template uses JELLYFIN_URL instead of PLEX_URL. *Validated in Phase 18 (v1.4).*
+- ✓ **TEMP-02** — Unraid template uses JELLYFIN_API_KEY or JELLYFIN_USERNAME/JELLYFIN_PASSWORD instead of PLEX_TOKEN. *Validated in Phase 18 (v1.4).*
+- ✓ **TEMP-03** — Unraid template includes TMDB_API_KEY masked variable. *Validated in Phase 18 (v1.4).*
+- ✓ **TEMP-04** — Unraid template includes FLASK_SECRET masked variable. *Validated in Phase 18 (v1.4).*
+- ✓ **UX-01** — Unraid template masked fields have no fake placeholder values (blank by default). *Validated in Phase 18 (v1.4).*
+- ✓ **CI-01** — CI workflow lints Unraid template to verify variables are a strict subset of recognized app env vars. *Validated in Phase 18 (v1.4).*
 - ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
 - ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
-- ✓ **SEC-01** — Identity is resolved only from delegated server identity or validated Jellyfin token. *Validated in Phase 18 (v1.4).*
-- ✓ **SEC-02** — Client-supplied identity headers are rejected as identity aliases. *Validated in Phase 18 (v1.4).*
 
-### Active
+### Active (future milestone candidates)
 
-- [ ] **NEXT-01** — Define and lock v2.0 milestone scope.
-- [ ] **NEXT-02** — Author new milestone requirements and roadmap phases.
+- [ ] **ARC-02 closure** — Formal Plex regression matrix in archived `v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md` still partial; hardening unless descoped.
+- [ ] **OPS-01 / PRD-01** — Neutral DB column naming and multi-library selection (see archived `v1.0-REQUIREMENTS.md` v2 section).
+- [ ] **ADV-01** — Coverage thresholds enforced in CI to prevent regression (v2 requirement).
+- [ ] **ADV-02** — Multiple coverage reports (HTML for local, XML for CI) (v2 requirement).
+- [ ] **ADV-03** — pytest-mock integration for cleaner mock API (v2 requirement).
+- [ ] **ADV-04** — Parametrized fixtures for comprehensive scenario coverage (v2 requirement).
+- [ ] **ADV-05** — Module-scoped fixtures for test performance optimization (v2 requirement).
 
 ### Out of Scope
 
@@ -72,8 +81,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
-- **Shipped:** **v1.4 Authorization Hardening** completed and archived under `.planning/milestones/v1.4-*`.
-- **In flight:** Next milestone definition (`/gsd-new-milestone`).
+- **In flight:** v1.4 (Unraid template cleanup) — defining requirements. Future candidates: ARC-02 closure, OPS-01/PRD-01, v2 advanced testing features (see Active candidates).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -109,7 +117,6 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 | Terminal-only coverage reporting (v1.3) | Simple, meets COV-01, no extra files or directories; HTML/XML deferred to v2. | Shipped v1.3 Phase 17 |
 | Independent test CI workflow (v1.3) | Tests run on every PR for code review quality; Docker workflow focuses on deployment; no workflow coupling. | Shipped v1.3 Phase 17 |
 | No coverage threshold in v1.3 (v1.3) | ADV-01 is v2 requirement; track coverage in reports but don't fail builds. | Shipped v1.3 Phase 17 |
-| Verified identity hardening (v1.4) | Close Issue #4 by removing client-controlled identity trust and enforcing strict route authorization. | Shipped v1.4 Phases 18-20 |
 
 ## Evolution
 
@@ -131,4 +138,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v1.4 milestone completion*
+*Last updated: 2026-04-25 after v1.4 milestone start*

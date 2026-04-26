@@ -2,29 +2,18 @@
 
 ## Overview
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.4** focuses on authorization hardening to prevent identity spoofing on user-scoped routes.
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.4 shipped** Unraid template cleanup with Jellyfin environment variables and CI validation.
 
 ## Milestones
 
-- ✅ **v1.0 Jellyfin Support** - Phases 1-5 (shipped 2026-04-24)
+- ✅ **v1.0 Jellyfin Support** - Phases 1-9 (shipped 2026-04-24)
 - ✅ **v1.1 Jelly Swipe Rename** - Branding and identity (shipped 2026-04-24)
 - ✅ **v1.2 uv + Package Layout + Plex Removal** - Phases 10-13 (shipped 2026-04-25)
 - ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
-- ✅ **v1.4 Authorization Hardening** - Phases 18-20 (shipped 2026-04-26, archive: `.planning/milestones/v1.4-ROADMAP.md`)
-- 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01, advanced test ergonomics)
+- ✅ **v1.4 Clean up Unraid Template** - Phase 18 (shipped 2026-04-26)
+- 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01)
 
 ## Phases
-
-<details>
-<summary>✅ v1.4 Authorization Hardening (Phases 18-20) - SHIPPED 2026-04-26</summary>
-
-Archive: `.planning/milestones/v1.4-ROADMAP.md`
-
-- [x] Phase 18: Verified Identity Resolution (1/1 plans) — completed 2026-04-26
-- [x] Phase 19: Route Authorization Enforcement (1/1 plans) — completed 2026-04-26
-- [x] Phase 20: Security Regression Tests (1/1 plans) — completed 2026-04-26
-
-</details>
 
 <details>
 <summary>✅ v1.0 Jellyfin Support (Phases 1-9) - SHIPPED 2026-04-24</summary>
@@ -190,16 +179,30 @@ Plans:
 
 </details>
 
+<details>
+<summary>✅ v1.4 Clean up Unraid Template (Phase 18) - SHIPPED 2026-04-26</summary>
+
+### Phase 18: Unraid Template Cleanup
+**Goal**: Update Unraid template variables and add CI validation
+**Plans**: 3 plans
+
+Plans:
+- [x] 18-01: Update Unraid template with Jellyfin environment variables and blank placeholders
+- [x] 18-02: Create CI lint workflow to validate Unraid template variables
+- [x] 18-03: Document Unraid template and CI validation in README
+
+</details>
+
 ### 📋 v2.0 Advanced Features (Planned)
 
-**Milestone Goal:** Close ARC-02 regression matrix, implement multi-library selection, and improve advanced testing ergonomics
+**Milestone Goal:** Close ARC-02 regression matrix and implement multi-library selection
 
-No phases defined yet - requirements remain deferred candidates.
+No phases defined yet - requirements are active candidates.
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 17 (complete), then 18 → 20 (planned)
+Phases execute in numeric order: 1 → 17 → 18
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -220,6 +223,4 @@ Phases execute in numeric order: 1 → 17 (complete), then 18 → 20 (planned)
 | 15. Database Module Tests | v1.3 | 1/1 | Complete | 2026-04-25 |
 | 16. Jellyfin Provider Tests | v1.3 | 4/4 | Complete | 2026-04-25 |
 | 17. Coverage & CI Integration | v1.3 | 1/1 | Complete | 2026-04-25 |
-| 18. Verified Identity Resolution | v1.4 | 1/1 | Complete    | 2026-04-26 |
-| 19. Route Authorization Enforcement | v1.4 | 1/1 | Complete    | 2026-04-26 |
-| 20. Security Regression Tests | v1.4 | 1/1 | Complete    | 2026-04-26 |
+| 18. Unraid Template Cleanup | v1.4 | 3/3 | Complete | 2026-04-26 |
