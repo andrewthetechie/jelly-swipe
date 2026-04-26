@@ -21,7 +21,7 @@ This roadmap removes all remaining Plex references from the source code so `rg -
 
 - [ ] **Phase 23: Backend Source Cleanup** — Remove dead `/plex/server-info` route, stale `plex_id` comments from db.py, and fix base.py docstring to reference Jellyfin API path
 - [x] **Phase 24: Frontend Plex Cleanup** — Strip all Plex CSS classes, JS functions, conditional branches, localStorage keys, URLs, and UI copy from templates/index.html (completed 2026-04-26)
-- [ ] **Phase 25: Config & Deploy Cleanup** — Update manifest descriptions, delete dead data/index.html, clean Unraid template, and remove/strip requirements.txt
+- [x] **Phase 25: Config & Deploy Cleanup** — Update manifest descriptions, delete dead data/index.html, clean Unraid template, and remove/strip requirements.txt (completed 2026-04-26)
 - [ ] **Phase 26: Acceptance Validation** — Run `rg -i 'plex'` and verify only intentional historical references remain
 
 ---
@@ -85,10 +85,10 @@ Plans:
 3. `unraid_template/jelly-swipe.html` contains no Plex environment variables
 4. `requirements.txt` is either deleted or contains no `plexapi` reference
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 25-01-PLAN.md — Update manifest descriptions and delete dead config files
+- [x] 25-01-PLAN.md — Update manifest descriptions and delete dead config files
 
 ---
 
@@ -118,7 +118,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26
 |-------|----------------|--------|-----------|
 | 23. Backend Source Cleanup | 0/1 | Not started | - |
 | 24. Frontend Plex Cleanup | 2/2 | Complete    | 2026-04-26 |
-| 25. Config & Deploy Cleanup | 0/1 | Not started | - |
+| 25. Config & Deploy Cleanup | 1/1 | Complete    | 2026-04-26 |
 | 26. Acceptance Validation | 0/? | Not started | - |
 
 ---

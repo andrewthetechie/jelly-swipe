@@ -27,10 +27,10 @@ Requirements for this milestone are scoped to Issue #11 (EPIC-08) — remove all
 
 ### Config & Deploy Cleanup (CFG)
 
-- [ ] **CFG-01**: Manifest descriptions updated from "Plex or Jellyfin" to "Jellyfin" in both `jellyswipe/static/manifest.json` and `data/manifest.json`.
-- [ ] **CFG-02**: Dead `data/index.html` deleted (never-fetched PWA shell).
-- [ ] **CFG-03**: Plex env block removed from `unraid_template/jelly-swipe.html`.
-- [ ] **CFG-04**: `requirements.txt` deleted or stripped of plexapi (file is deprecated; Docker uses uv).
+- [x] **CFG-01**: Manifest descriptions updated from "Plex or Jellyfin" to "Jellyfin" in both `jellyswipe/static/manifest.json` and `data/manifest.json`.
+- [x] **CFG-02**: Dead `data/index.html` deleted (never-fetched PWA shell).
+- [x] **CFG-03**: Plex env block removed from `unraid_template/jelly-swipe.html`.
+- [x] **CFG-04**: `requirements.txt` deleted or stripped of plexapi (file is deprecated; Docker uses uv).
 
 ### Acceptance Validation (ACC)
 
@@ -73,10 +73,10 @@ Explicitly excluded from v1.6.
 | FE-06 | Phase 24 | Complete |
 | FE-07 | Phase 24 | Complete |
 | FE-08 | Phase 24 | Complete |
-| CFG-01 | Phase 25 | Pending |
-| CFG-02 | Phase 25 | Pending |
-| CFG-03 | Phase 25 | Pending |
-| CFG-04 | Phase 25 | Pending |
+| CFG-01 | Phase 25 | Complete |
+| CFG-02 | Phase 25 | Complete |
+| CFG-03 | Phase 25 | Complete |
+| CFG-04 | Phase 25 | Complete |
 | ACC-01 | Phase 26 | Pending |
 
 **Coverage:**
