@@ -9,7 +9,8 @@ except ImportError:
 
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
-from typing import Optional
+from typing import Dict, Optional, Tuple
+import hashlib
 import sqlite3, os, random, re, requests, json, secrets, time
 
 # Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
@@ -52,6 +53,13 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 from .jellyfin_library import JellyfinLibraryProvider
 
 _provider_singleton: Optional[JellyfinLibraryProvider] = None
+TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
+_token_user_id_cache: Dict[str, Tuple[str, float]] = {}
+IDENTITY_ALIAS_HEADERS = (
+    "X-Provider-User-Id",
+    "X-Jellyfin-User-Id",
+    "X-Emby-UserId",
+)
 
 def get_provider() -> JellyfinLibraryProvider:
     """Get or create the JellyfinLibraryProvider singleton."""
@@ -89,6 +97,39 @@ def _jellyfin_user_token_from_request() -> str:
     return token or ""
 
 
+def _request_has_identity_alias_headers() -> bool:
+    for header in IDENTITY_ALIAS_HEADERS:
+        if request.headers.get(header):
+            return True
+    return False
+
+
+def _token_cache_key(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _resolve_user_id_from_token_cached(token: str) -> Optional[str]:
+    now = time.time()
+    cache_key = _token_cache_key(token)
+    cached = _token_user_id_cache.get(cache_key)
+    if cached:
+        user_id, expires_at = cached
+        if expires_at > now:
+            return user_id
+        _token_user_id_cache.pop(cache_key, None)
+
+    try:
+        user_id = get_provider().resolve_user_id_from_token(token)
+    except Exception:
+        return None
+
+    _token_user_id_cache[cache_key] = (
+        user_id,
+        now + TOKEN_USER_ID_CACHE_TTL_SECONDS,
+    )
+    return user_id
+
+
 def _provider_user_id_from_request():
     if session.get("jf_delegate_server_identity"):
         prov = get_provider()
@@ -96,20 +137,15 @@ def _provider_user_id_from_request():
             return prov.server_primary_user_id_for_delegate()
         except RuntimeError:
             pass
-    alias = (
-        request.headers.get("X-Provider-User-Id")
-        or request.headers.get("X-Jellyfin-User-Id")
-        or request.headers.get("X-Emby-UserId")
-    )
-    if alias:
-        return alias
+    # Alias headers are client-controlled; never treat them as identity.
+    if _request_has_identity_alias_headers():
+        request.environ["jellyswipe.identity_rejected"] = "spoofed_alias_header"
+        return None
+
     token = _jellyfin_user_token_from_request()
     if not token:
         return None
-    try:
-        return get_provider().resolve_user_id_from_token(token)
-    except Exception:
-        return None
+    return _resolve_user_id_from_token_cached(token)
 
 @app.route('/get-trailer/<movie_id>')
 def get_trailer(movie_id):
