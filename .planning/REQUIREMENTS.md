@@ -62,27 +62,27 @@ Explicitly excluded from v1.6.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SRC-01 | — | Pending |
-| SRC-02 | — | Pending |
-| SRC-03 | — | Pending |
-| FE-01 | — | Pending |
-| FE-02 | — | Pending |
-| FE-03 | — | Pending |
-| FE-04 | — | Pending |
-| FE-05 | — | Pending |
-| FE-06 | — | Pending |
-| FE-07 | — | Pending |
-| FE-08 | — | Pending |
-| CFG-01 | — | Pending |
-| CFG-02 | — | Pending |
-| CFG-03 | — | Pending |
-| CFG-04 | — | Pending |
-| ACC-01 | — | Pending |
+| SRC-01 | Phase 23 | Pending |
+| SRC-02 | Phase 23 | Pending |
+| SRC-03 | Phase 23 | Pending |
+| FE-01 | Phase 24 | Pending |
+| FE-02 | Phase 24 | Pending |
+| FE-03 | Phase 24 | Pending |
+| FE-04 | Phase 24 | Pending |
+| FE-05 | Phase 24 | Pending |
+| FE-06 | Phase 24 | Pending |
+| FE-07 | Phase 24 | Pending |
+| FE-08 | Phase 24 | Pending |
+| CFG-01 | Phase 25 | Pending |
+| CFG-02 | Phase 25 | Pending |
+| CFG-03 | Phase 25 | Pending |
+| CFG-04 | Phase 25 | Pending |
+| ACC-01 | Phase 26 | Pending |
 
 **Coverage:**
 - v1.6 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-26*

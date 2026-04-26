@@ -1,151 +1,134 @@
 # Roadmap — Jelly Swipe
 
-**Milestone:** v1.5 XSS Security Fix — ✅ **SHIPPED**
+**Milestone:** v1.6 Plex Reference Cleanup
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 22 - xss-testing (Complete)
+**Current Phase:** 23 - Backend Source Cleanup (Not started)
 **Last Updated:** 2026-04-26
 
 ---
 
 ## Overview
 
-This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection. The fix operates on three layers: server-side validation, safe DOM rendering, and Content Security Policy enforcement, with comprehensive testing to verify the vulnerability is closed.
+This roadmap removes all remaining Plex references from the source code so `rg -i 'plex'` returns only intentional historical references (README fork attribution). Purely a deletion milestone — no new features. Work spans four phases covering backend source files, the frontend template, configuration/deploy artifacts, and a final acceptance sweep.
 
-**Status:** ✅ **COMPLETE** — All 4 phases shipped 2026-04-26
 **Phases:** 4
-**Requirements:** 13
-**Starting Phase:** 19 (continuing from v1.4)
-
-**Archives:**
-- [v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) — full phase roadmap snapshot
-- [v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md) — requirements at close (13/13 complete)
-- [v1.5-phases/](milestones/v1.5-phases/) — phase execution directories (Phases 19–22)
+**Requirements:** 16 (SRC-01–03, FE-01–08, CFG-01–04, ACC-01)
+**Starting Phase:** 23 (continuing from v1.5 Phase 22)
 
 ---
 
 ## Phases
 
-- [x] **Phase 19: Server-Side Validation** — Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id (Complete 2026-04-26)
-- [x] **Phase 20: Safe DOM Rendering** — Replace innerHTML with textContent/DOM construction for all user-controlled content (Complete 2026-04-26)
-- [x] **Phase 21: CSP Header** — Add strict Content-Security-Policy header via Flask after_request hook (Complete 2026-04-26)
-- [x] **Phase 22: XSS Testing** — Add smoke tests proving XSS is blocked and CSP is enforced (Complete 2026-04-26)
+- [ ] **Phase 23: Backend Source Cleanup** — Remove dead `/plex/server-info` route, stale `plex_id` comments from db.py, and fix base.py docstring to reference Jellyfin API path
+- [ ] **Phase 24: Frontend Plex Cleanup** — Strip all Plex CSS classes, JS functions, conditional branches, localStorage keys, URLs, and UI copy from templates/index.html
+- [ ] **Phase 25: Config & Deploy Cleanup** — Update manifest descriptions, delete dead data/index.html, clean Unraid template, and remove/strip requirements.txt
+- [ ] **Phase 26: Acceptance Validation** — Run `rg -i 'plex'` and verify only intentional historical references remain
 
 ---
 
 ## Phase Details
 
-### Phase 19: Server-Side Validation
+### Phase 23: Backend Source Cleanup
 
-**Goal:** Client cannot inject malicious content via title/thumb parameters; all movie metadata is resolved server-side from trusted Jellyfin source.
+**Goal:** All dead Plex route code and stale Plex references removed from backend Python source files.
 
-**Depends on:** Nothing (first phase of v1.5)
+**Depends on:** Nothing (first phase of v1.6)
 
-**Requirements:** SSV-01, SSV-02, SSV-03
+**Requirements:** SRC-01, SRC-02, SRC-03
 
 **Success Criteria** (what must be TRUE):
-1. `/room/swipe` endpoint ignores any `title` or `thumb` parameters sent by client
-2. When a user swipes on a movie, the server resolves title and thumb from Jellyfin using only the movie_id
-3. If Jellyfin metadata resolution fails, the server returns an error instead of storing incomplete/invalid data
-4. Match records in database contain only server-resolved title and thumb values (no client-provided data)
+1. `/plex/server-info` route no longer exists in `jellyswipe/__init__.py` — requesting it returns 404
+2. `jellyswipe/db.py` contains zero `plex_id` references in comments or code
+3. `base.py` docstring references Jellyfin API path (`jellyfin/{id}/Primary`) instead of Plex `/library/metadata/`
 
-**Plans:** 1 plan
-
-- [x] 19-01-PLAN.md — Modify /room/swipe endpoint to resolve metadata server-side
+**Plans:** TBD
 
 ---
 
-### Phase 20: Safe DOM Rendering
+### Phase 24: Frontend Plex Cleanup
 
-**Goal:** All user-controlled content in the frontend is rendered using safe DOM APIs that prevent script injection.
+**Goal:** All Plex-specific CSS, JavaScript, localStorage keys, URLs, and UI copy removed from the main template — leaving only Jellyfin code paths.
 
-**Depends on:** Phase 19 (server no longer accepts client-supplied metadata)
+**Depends on:** Phase 23 (backend clean first, then frontend)
 
-**Requirements:** DOM-01, DOM-02, DOM-03
+**Requirements:** FE-01, FE-02, FE-03, FE-04, FE-05, FE-06, FE-07, FE-08
 
 **Success Criteria** (what must be TRUE):
-1. Movie titles, summaries, actor names, and character names are rendered using textContent (not innerHTML)
-2. Image sources and movie IDs are set using setAttribute() or DOM property assignment (not innerHTML)
-3. All innerHTML usages for user-controlled content have been removed or refactored to safe DOM construction
-4. Malicious script tags in movie data render as literal text in the browser (not executed)
+1. No CSS classes containing "plex" exist in `jellyswipe/templates/index.html`
+2. No JavaScript functions referencing Plex (`loginWithPlex`, `fetchPlexServerId`) exist in the template
+3. No `mediaProvider === 'plex'` conditional branches remain in any frontend code
+4. No Plex-related localStorage keys (`plex_token`, `plex_id`), HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`), or literal Plex URLs exist in the codebase
+5. No Plex UI copy ("Login with Plex", "OPEN IN PLEX") appears in the application interface
 
-**Plans:** 2 plans
-
-- [ ] 20-01-PLAN.md — Refactor jellyswipe/templates/index.html for safe DOM construction
-- [ ] 20-02-PLAN.md — Refactor data/index.html for safe DOM construction
+**Plans:** TBD
 
 **UI hint**: yes
 
 ---
 
-### Phase 21: CSP Header
+### Phase 25: Config & Deploy Cleanup
 
-**Goal:** Content Security Policy header blocks inline scripts and restricts external resource loading to trusted domains.
+**Goal:** All deployment and configuration artifacts are free of Plex references and dead files are removed.
 
-**Depends on:** Phase 20 (safe DOM rendering in place as defense-in-depth)
+**Depends on:** Phase 24 (frontend clean, then sweep remaining config files)
 
-**Requirements:** CSP-01, CSP-02, CSP-03
+**Requirements:** CFG-01, CFG-02, CFG-03, CFG-04
 
 **Success Criteria** (what must be TRUE):
-1. All HTTP responses from the Flask app include a Content-Security-Policy header
-2. CSP policy allows scripts only from 'self' (no 'unsafe-inline' or 'unsafe-eval')
-3. CSP policy restricts image sources to 'self' and https://image.tmdb.org
-4. CSP policy restricts frame sources to https://www.youtube.com (for trailers)
+1. Both `manifest.json` files describe "Jellyfin" only — no "Plex or Jellyfin" text
+2. `data/index.html` no longer exists on disk
+3. `unraid_template/jelly-swipe.html` contains no Plex environment variables
+4. `requirements.txt` is either deleted or contains no `plexapi` reference
 
-**Plans:** 1 plan
-
-- [x] 21-01-PLAN.md — Add @app.after_request hook for CSP header
+**Plans:** TBD
 
 ---
 
-### Phase 22: XSS Testing
+### Phase 26: Acceptance Validation
 
-**Goal:** Comprehensive tests verify that XSS is blocked on all three security layers and the vulnerability is closed.
+**Goal:** Verified that `rg -i 'plex'` against source returns only intentional historical references (README fork attribution), confirming the cleanup is complete.
 
-**Depends on:** Phase 21 (all security defenses in place)
+**Depends on:** Phase 25 (all cleanup complete before final sweep)
 
-**Requirements:** XSS-01, XSS-02, XSS-03, XSS-04
+**Requirements:** ACC-01
 
 **Success Criteria** (what must be TRUE):
-1. Test file `tests/test_routes_xss.py` exists and passes all XSS smoke tests
-2. Test proves that a swipe with malicious script in title renders as literal text (not executed)
-3. Test verifies that CSP header is present on all HTTP responses with correct directives
-4. Test verifies that server rejects client-supplied title/thumb parameters with appropriate error
+1. `rg -i 'plex'` returns only README fork attribution references — no hits in source, templates, config, or deploy files
+2. All 16 v1.6 requirements pass individual verification
+3. Application still starts and serves correctly with Jellyfin configuration after all deletions
 
-**Plans:** 1 plan
-
-- [x] 22-01-PLAN.md — Create comprehensive XSS smoke tests for all three security layers
+**Plans:** TBD
 
 ---
 
-## Progress Table
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 23 → 24 → 25 → 26
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Server-Side Validation | 1/1 | Complete ✅ | 2026-04-26 |
-| 20. Safe DOM Rendering | 2/2 | Complete ✅ | 2026-04-26 |
-| 21. CSP Header | 1/1 | Complete ✅ | 2026-04-26 |
-| 22. XSS Testing | 1/1 | Complete ✅ | 2026-04-26 |
-| **Total** | **5/5** | **Complete ✅** | **2026-04-26** |
+| 23. Backend Source Cleanup | 0/? | Not started | - |
+| 24. Frontend Plex Cleanup | 0/? | Not started | - |
+| 25. Config & Deploy Cleanup | 0/? | Not started | - |
+| 26. Acceptance Validation | 0/? | Not started | - |
 
 ---
 
 ## Milestone Context
 
-**Previous Milestone:** v1.4 (Authorization Hardening) — Phases 1-18 completed
-**Current Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 completed ✅
-**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/6
-**Status:** **SHIPPED** — All 4 phases, 5 plans, and 13 requirements complete and validated
+**Previous Milestones:**
+- v1.0 (Jellyfin support): Phases 1–9 ✅
+- v1.1 (Rename): No numbered phases ✅
+- v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 ✅
+- v1.3 (Unit Tests): Phases 14–17 ✅
+- v1.4 (Authorization Hardening): Phases 1–18 ✅
+- v1.5 (XSS Security Fix): Phases 19–22 ✅
 
-**Vulnerability Description:**
-The `/room/swipe` endpoint currently accepts `title` and `thumb` parameters from the client request body and stores them directly in the database. When matches are rendered, this unsanitized content is inserted into the DOM using `innerHTML`, allowing attackers to inject JavaScript that executes when other users view the match.
-
-**Fix Strategy:**
-Three-layer defense:
-1. **Server-side:** Never trust client data; resolve all metadata server-side from trusted Jellyfin API
-2. **Client-side:** Use safe DOM APIs (textContent, createElement, setAttribute) instead of innerHTML
-3. **Headers:** Enforce strict CSP to block inline scripts even if bugs slip through
+**Current Milestone:** v1.6 Plex Reference Cleanup — Phases 23–26
+**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/11
 
 ---
 
-*Roadmap created: 2026-04-25*
+*Roadmap created: 2026-04-26*
 *Last updated: 2026-04-26*
