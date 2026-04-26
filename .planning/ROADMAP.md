@@ -2,7 +2,7 @@
 
 ## Overview
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.3 shipped** comprehensive unit tests for the Jellyfin backend with framework-agnostic pytest approach.
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.4** focuses on authorization hardening to prevent identity spoofing on user-scoped routes.
 
 ## Milestones
 
@@ -10,9 +10,38 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✅ **v1.1 Jelly Swipe Rename** - Branding and identity (shipped 2026-04-24)
 - ✅ **v1.2 uv + Package Layout + Plex Removal** - Phases 10-13 (shipped 2026-04-25)
 - ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
-- 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01)
+- 🚧 **v1.4 Authorization Hardening** - Phases 18-20 (planned)
+- 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01, advanced test ergonomics)
 
 ## Phases
+
+### 🚧 v1.4 Authorization Hardening (Planned)
+
+**Milestone Goal:** Resolve Issue #4 by removing trust in client-supplied identity and enforcing verified user identity on protected routes.
+
+### Phase 18: Verified Identity Resolution
+**Goal**: Restrict identity resolution to trusted server-side sources only
+**Requirements**: SEC-01, SEC-02
+**Success Criteria**:
+1. `_provider_user_id_from_request()` resolves identity only from delegated session identity or validated Jellyfin token lookup
+2. `X-Provider-User-Id`, `X-Jellyfin-User-Id`, and `X-Emby-UserId` are not accepted as identity inputs
+3. Token-based resolution behavior remains compatible for legitimate callers
+
+### Phase 19: Route Authorization Enforcement
+**Goal**: Enforce verified identity usage and unauthorized error behavior across user-scoped endpoints
+**Requirements**: SEC-03, SEC-04, SEC-05
+**Success Criteria**:
+1. `/room/swipe` ignores/rejects request-body `user_id` as an identity fallback
+2. Protected routes return `401 Unauthorized` when identity cannot be verified
+3. `/room/swipe`, `/matches`, `/matches/delete`, `/undo`, and `/watchlist/add` operate only on verified identity scope
+
+### Phase 20: Security Regression Tests
+**Goal**: Add route-level tests proving spoofing is blocked and valid flows still work
+**Requirements**: VER-01, VER-02, VER-03
+**Success Criteria**:
+1. Tests cover spoofed header attempts and verify they fail with `401`
+2. Tests cover request-body `user_id` injection and verify cross-user operations are blocked
+3. Tests cover valid token/delegated identity paths and verify expected behavior remains functional
 
 <details>
 <summary>✅ v1.0 Jellyfin Support (Phases 1-9) - SHIPPED 2026-04-24</summary>
@@ -180,14 +209,14 @@ Plans:
 
 ### 📋 v2.0 Advanced Features (Planned)
 
-**Milestone Goal:** Close ARC-02 regression matrix and implement multi-library selection
+**Milestone Goal:** Close ARC-02 regression matrix, implement multi-library selection, and improve advanced testing ergonomics
 
-No phases defined yet - requirements are active candidates.
+No phases defined yet - requirements remain deferred candidates.
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 13 → 17
+Phases execute in numeric order: 1 → 17 (complete), then 18 → 20 (planned)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -208,3 +237,6 @@ Phases execute in numeric order: 1 → 13 → 17
 | 15. Database Module Tests | v1.3 | 1/1 | Complete | 2026-04-25 |
 | 16. Jellyfin Provider Tests | v1.3 | 4/4 | Complete | 2026-04-25 |
 | 17. Coverage & CI Integration | v1.3 | 1/1 | Complete | 2026-04-25 |
+| 18. Verified Identity Resolution | v1.4 | 0/0 | Planned | — |
+| 19. Route Authorization Enforcement | v1.4 | 0/0 | Planned | — |
+| 20. Security Regression Tests | v1.4 | 0/0 | Planned | — |
