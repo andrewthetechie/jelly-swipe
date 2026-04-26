@@ -8,7 +8,7 @@
 
 - [x] **Phase 21: App Factory Refactor** - Refactor Flask app into factory pattern for test isolation
 - [x] **Phase 22: Test Infrastructure Setup** - Add app and client fixtures to conftest.py
-- [ ] **Phase 23: Auth Route Tests** - Add authentication route tests with header-spoof protection
+- [x] **Phase 23: Auth Route Tests** - Add authentication route tests with header-spoof protection
 - [ ] **Phase 24: XSS Security Tests** - Add XSS blocking tests for input validation
 - [ ] **Phase 25: Room Operation Tests** - Add room lifecycle tests (create/join/swipe/match/quit)
 - [ ] **Phase 26: Proxy Route Tests** - Add proxy route tests for SSRF prevention
@@ -51,7 +51,7 @@
   3. `/auth/jellyfin-login` authenticates with valid credentials
   4. Header-spoof tests verify EPIC-01 protection (client identity rejected)
 **Plans**: 1 plan
-- [ ] 23-01-PLAN.md — Create tests/test_routes_auth.py with comprehensive auth route tests for all 3 endpoints
+- [x] 23-01-PLAN.md — Create tests/test_routes_auth.py with comprehensive auth route tests for all 3 endpoints
 
 ### Phase 24: XSS Security Tests
 **Goal**: XSS vulnerabilities are prevented and tested
@@ -116,7 +116,7 @@
 |-------|----------------|--------|-----------|
 | 21. App Factory Refactor | 1/1 | ✓ Complete | 2026-04-26 |
 | 22. Test Infrastructure Setup | 0/0 | Not started | - |
-| 23. Auth Route Tests | 0/1 | ○ Planned | - |
+| 23. Auth Route Tests | 1/1 | ✓ Complete | 2026-04-26 |
 | 24. XSS Security Tests | 0/0 | Not started | - |
 | 25. Room Operation Tests | 0/0 | Not started | - |
 | 26. Proxy Route Tests | 0/0 | Not started | - |

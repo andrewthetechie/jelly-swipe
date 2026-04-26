@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-26T19:38:46.227Z"
+last_updated: "2026-04-26T19:50:00.000Z"
 progress:
   total_phases: 8
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
   percent: 100
 ---
 
@@ -23,8 +23,8 @@ progress:
 ## Current Position
 
 **Milestone:** v1.5 — Route Test Coverage
-**Phase:** 22 (Test Infrastructure Setup) — ✓ Complete
-**Plan:** 22-01 (autonomous)
+**Phase:** 23 (Auth Route Tests) — ✓ Complete
+**Plan:** 23-01 (autonomous)
 **Status:** Phase complete
 **Progress:** [██████████] 100%
 
@@ -32,13 +32,13 @@ progress:
 
 **Test Coverage:**
 
-- Current: ~0% for jellyswipe/__init__.py (no route tests yet)
+- Current: 52% for jellyswipe/__init__.py (auth route tests added)
 - Target: 70% for jellyswipe/__init__.py (COV-01)
 - v1.4: 87% db.py coverage, 95%+ jellyfin_library.py coverage (from v1.3)
 
 **Test Suite:**
 
-- Current: 75 tests (test_infrastructure.py, test_db.py, test_jellyfin_library.py, test_route_authorization.py)
+- Current: 95 tests (test_infrastructure.py, test_db.py, test_jellyfin_library.py, test_route_authorization.py, test_routes_auth.py)
 - Target: Add 5 route test files with comprehensive coverage
 
 **Milestone Velocity:**
@@ -66,6 +66,7 @@ progress:
 | No coverage threshold in v1.3 (v1.3) | ADV-01 is v2 requirement; track coverage in reports but don't fail builds. | Shipped v1.3 Phase 17 |
 | Verified identity hardening (v1.4) | Close Issue #4 by removing client-controlled identity trust and enforcing strict route authorization. | Shipped v1.4 Phases 18-20 |
 | Phase 22 P01 | 167 | 2 tasks | 1 files |
+| Phase 23 P01 | 65 | 2 tasks | 1 files |
 
 ### v1.5 Context (from research/SUMMARY.md)
 
@@ -100,11 +101,11 @@ progress:
 
 ### What was last done
 
-Phase 22 (Test Infrastructure Setup) completed on 2026-04-26. Added FakeProvider class, app fixture, and client fixture to tests/conftest.py. All 75 existing tests pass.
+Phase 23 (Auth Route Tests) completed on 2026-04-26. Created tests/test_routes_auth.py with 14 test functions (20 parametrized cases) covering all 3 auth endpoints. Coverage for jellyswipe/__init__.py increased from ~0% to 52%. Full test suite: 95 tests passing.
 
 ### What's next
 
-Plan Phase 23: Auth Route Tests — add authentication route tests using the new app/client fixtures.
+Plan Phase 24: XSS Security Tests — add XSS blocking tests for input validation.
 
 ### Known blockers
 
@@ -116,6 +117,6 @@ None at this time.
 
 ---
 
-*Last updated: 2026-04-26 after Phase 22 execution*
+*Last updated: 2026-04-26 after Phase 23 execution*
 
-**Planned Phase:** 23 (Auth Route Tests)
+**Planned Phase:** 24 (XSS Security Tests) — TBD plans
