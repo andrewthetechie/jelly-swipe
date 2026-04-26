@@ -50,7 +50,8 @@
   2. `/auth/jellyfin-use-server-identity` handles valid and invalid tokens
   3. `/auth/jellyfin-login` authenticates with valid credentials
   4. Header-spoof tests verify EPIC-01 protection (client identity rejected)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 23-01-PLAN.md — Create tests/test_routes_auth.py with comprehensive auth route tests for all 3 endpoints
 
 ### Phase 24: XSS Security Tests
 **Goal**: XSS vulnerabilities are prevented and tested
@@ -115,7 +116,7 @@
 |-------|----------------|--------|-----------|
 | 21. App Factory Refactor | 1/1 | ✓ Complete | 2026-04-26 |
 | 22. Test Infrastructure Setup | 0/0 | Not started | - |
-| 23. Auth Route Tests | 0/0 | Not started | - |
+| 23. Auth Route Tests | 0/1 | ○ Planned | - |
 | 24. XSS Security Tests | 0/0 | Not started | - |
 | 25. Room Operation Tests | 0/0 | Not started | - |
 | 26. Proxy Route Tests | 0/0 | Not started | - |
