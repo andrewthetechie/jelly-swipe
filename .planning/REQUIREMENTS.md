@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-ROUTE-03 | Phase 25 | Complete |
 | TEST-ROUTE-04 | Phase 26 | Complete |
 | TEST-ROUTE-05 | Phase 27 | Complete |
-| COV-01 | Phase 28 | Pending |
+| COV-01 | Phase 28 | Complete |
 
 **Coverage:**
 - v1.5 requirements: 7 total
