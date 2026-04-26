@@ -2,15 +2,15 @@
 
 ## Overview
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.3 shipped** comprehensive unit tests for the Jellyfin backend with framework-agnostic pytest approach.
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.4 shipped** Unraid template cleanup with Jellyfin environment variables and CI validation.
 
 ## Milestones
 
-- ✅ **v1.0 Jellyfin Support** - Phases 1-5 (shipped 2026-04-24)
+- ✅ **v1.0 Jellyfin Support** - Phases 1-9 (shipped 2026-04-24)
 - ✅ **v1.1 Jelly Swipe Rename** - Branding and identity (shipped 2026-04-24)
 - ✅ **v1.2 uv + Package Layout + Plex Removal** - Phases 10-13 (shipped 2026-04-25)
 - ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
-- 📋 **v1.4 Clean up Unraid Template** - Phase 18 (in progress)
+- ✅ **v1.4 Clean up Unraid Template** - Phase 18 (shipped 2026-04-26)
 - 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01)
 
 ## Phases
@@ -179,20 +179,19 @@ Plans:
 
 </details>
 
-### 📋 v1.4 — Clean up Unraid Template
-
-**Milestone Goal:** Fix the Unraid template to use Jellyfin environment variables instead of removed Plex variables, ensuring users can successfully deploy the application
-
-**Phases defined:** 1 phase (18)
+<details>
+<summary>✅ v1.4 Clean up Unraid Template (Phase 18) - SHIPPED 2026-04-26</summary>
 
 ### Phase 18: Unraid Template Cleanup
 **Goal**: Update Unraid template variables and add CI validation
 **Plans**: 3 plans
 
 Plans:
-- [ ] 18-01: Update Unraid template with Jellyfin environment variables and blank placeholders
-- [ ] 18-02: Create CI lint workflow to validate Unraid template variables
-- [ ] 18-03: Document Unraid template and CI validation in README
+- [x] 18-01: Update Unraid template with Jellyfin environment variables and blank placeholders
+- [x] 18-02: Create CI lint workflow to validate Unraid template variables
+- [x] 18-03: Document Unraid template and CI validation in README
+
+</details>
 
 ### 📋 v2.0 Advanced Features (Planned)
 
@@ -224,4 +223,4 @@ Phases execute in numeric order: 1 → 17 → 18
 | 15. Database Module Tests | v1.3 | 1/1 | Complete | 2026-04-25 |
 | 16. Jellyfin Provider Tests | v1.3 | 4/4 | Complete | 2026-04-25 |
 | 17. Coverage & CI Integration | v1.3 | 1/1 | Complete | 2026-04-25 |
-| 18. Unraid Template Cleanup | v1.4 | 0/3 | Not started | — |
+| 18. Unraid Template Cleanup | v1.4 | 3/3 | Complete | 2026-04-26 |
