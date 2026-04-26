@@ -672,24 +672,94 @@
             const c = document.createElement('div');
             c.className = 'movie-card';
             c.dataset.id = m.id; c.dataset.title = m.title; c.dataset.thumb = m.thumb;
-            c.innerHTML = `
-                <div class="card-inner">
-                    <div class="card-front"><img src="${m.thumb}"></div>
-                    <div class="card-back">
-                        <div class="movie-title">${m.title}</div>
-                        <div class="stats-row">
-                            ${m.rating ? `<span class="stat-badge">IMDb ${m.rating}</span>` : ''}
-                            ${m.duration ? `<span class="stat-badge">${m.duration}</span>` : ''}
-                            ${m.year ? `<span class="stat-badge">${m.year}</span>` : ''}
-                        </div>
-                        <div id="vid-${m.id}" class="trailer-box"></div>
-                        <button class="trailer-btn" onclick="watchTrailer(event, '${m.id}', this)">WATCH TRAILER</button>
-                        <div class="back-content"><p>${m.summary || 'No description available.'}</p></div>
-                        <div id="cast-${m.id}" class="cast-row"></div>
-                        <div style="font-size:0.75rem; color:#e5a00d; text-align:center; margin-top: auto; padding-bottom:10px;">Tap to flip back</div>
-                    </div>
-                </div>
-            `;
+
+            // Create card-inner
+            const cardInner = document.createElement('div');
+            cardInner.className = 'card-inner';
+
+            // Create card-front
+            const cardFront = document.createElement('div');
+            cardFront.className = 'card-front';
+            const frontImg = document.createElement('img');
+            frontImg.src = m.thumb;
+            frontImg.alt = 'Movie poster';
+            cardFront.appendChild(frontImg);
+            cardInner.appendChild(cardFront);
+
+            // Create card-back
+            const cardBack = document.createElement('div');
+            cardBack.className = 'card-back';
+
+            // Movie title
+            const movieTitle = document.createElement('div');
+            movieTitle.className = 'movie-title';
+            movieTitle.textContent = m.title;
+            cardBack.appendChild(movieTitle);
+
+            // Stats row
+            const statsRow = document.createElement('div');
+            statsRow.className = 'stats-row';
+
+            if (m.rating) {
+                const ratingBadge = document.createElement('span');
+                ratingBadge.className = 'stat-badge';
+                ratingBadge.textContent = `IMDb ${m.rating}`;
+                statsRow.appendChild(ratingBadge);
+            }
+            if (m.duration) {
+                const durationBadge = document.createElement('span');
+                durationBadge.className = 'stat-badge';
+                durationBadge.textContent = m.duration;
+                statsRow.appendChild(durationBadge);
+            }
+            if (m.year) {
+                const yearBadge = document.createElement('span');
+                yearBadge.className = 'stat-badge';
+                yearBadge.textContent = m.year;
+                statsRow.appendChild(yearBadge);
+            }
+            cardBack.appendChild(statsRow);
+
+            // Trailer box (empty container)
+            const trailerBox = document.createElement('div');
+            trailerBox.id = `vid-${m.id}`;
+            trailerBox.className = 'trailer-box';
+            cardBack.appendChild(trailerBox);
+
+            // Trailer button
+            const trailerBtn = document.createElement('button');
+            trailerBtn.className = 'trailer-btn';
+            trailerBtn.textContent = 'WATCH TRAILER';
+            trailerBtn.onclick = (event) => watchTrailer(event, m.id, trailerBtn);
+            cardBack.appendChild(trailerBtn);
+
+            // Back content with summary
+            const backContent = document.createElement('div');
+            backContent.className = 'back-content';
+            const summaryP = document.createElement('p');
+            summaryP.textContent = m.summary || 'No description available.';
+            backContent.appendChild(summaryP);
+            cardBack.appendChild(backContent);
+
+            // Cast row (empty container, populated later)
+            const castRow = document.createElement('div');
+            castRow.id = `cast-${m.id}`;
+            castRow.className = 'cast-row';
+            cardBack.appendChild(castRow);
+
+            // Tap to flip instruction
+            const flipHint = document.createElement('div');
+            flipHint.style.fontSize = '0.75rem';
+            flipHint.style.color = '#e5a00d';
+            flipHint.style.textAlign = 'center';
+            flipHint.style.marginTop = 'auto';
+            flipHint.style.paddingBottom = '10px';
+            flipHint.textContent = 'Tap to flip back';
+            cardBack.appendChild(flipHint);
+
+            cardInner.appendChild(cardBack);
+            c.appendChild(cardInner);
+
             c.addEventListener('click', async (e) => {
                 if (!e.target.classList.contains('trailer-btn') && Math.abs(globalCurrentX) < 5) {
                     c.classList.toggle('flipped');
@@ -697,24 +767,42 @@
                         const castEl = document.getElementById(`cast-${m.id}`);
                         if (castEl && castEl.dataset.loaded !== 'true') {
                             castEl.dataset.loaded = 'true';
-                            castEl.innerHTML = '<span style="font-size:0.7rem;color:#666;">Loading cast...</span>';
+                            castEl.textContent = 'Loading cast...';
                             try {
                                 const res = await fetch(`/cast/${m.id}`);
                                 const data = await res.json();
                                 if (data.cast && data.cast.length > 0) {
-                                    castEl.innerHTML = data.cast.map(actor => `
-                                        <div class="cast-member">
-                                            ${actor.profile_path
-                                                ? `<img src="${actor.profile_path}" alt="${actor.name}" loading="lazy">`
-                                                : `<div class="no-photo">🎬</div>`}
-                                            <span>${actor.name}</span>
-                                        </div>
-                                    `).join('');
+                                    // Clear loading text
+                                    castEl.textContent = '';
+
+                                    data.cast.forEach(actor => {
+                                        const castMember = document.createElement('div');
+                                        castMember.className = 'cast-member';
+
+                                        if (actor.profile_path) {
+                                            const actorImg = document.createElement('img');
+                                            actorImg.src = actor.profile_path;
+                                            actorImg.alt = actor.name;
+                                            actorImg.loading = 'lazy';
+                                            castMember.appendChild(actorImg);
+                                        } else {
+                                            const noPhoto = document.createElement('div');
+                                            noPhoto.className = 'no-photo';
+                                            noPhoto.textContent = '🎬';
+                                            castMember.appendChild(noPhoto);
+                                        }
+
+                                        const actorName = document.createElement('span');
+                                        actorName.textContent = actor.name;
+                                        castMember.appendChild(actorName);
+
+                                        castEl.appendChild(castMember);
+                                    });
                                 } else {
-                                    castEl.innerHTML = '';
+                                    castEl.textContent = '';
                                 }
                             } catch(err) {
-                                castEl.innerHTML = '';
+                                castEl.textContent = '';
                             }
                         }
                     }
@@ -728,7 +816,11 @@
             const container = document.getElementById(`vid-${id}`);
             const backContent = container.closest('.card-back').querySelector('.back-content');
             if (container.style.display === 'block') {
-                container.style.display = 'none'; container.innerHTML = ''; btn.innerText = 'WATCH TRAILER';
+                container.style.display = 'none';
+                while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
+                btn.innerText = 'WATCH TRAILER';
                 backContent.style.display = '';
             } else {
                 btn.innerText = 'LOADING...';
@@ -737,7 +829,11 @@
                 if (data.youtube_key) {
                     backContent.style.display = 'none';
                     container.style.display = 'block';
-                    container.innerHTML = `<iframe src="https://www.youtube.com/embed/${data.youtube_key}?autoplay=1&playsinline=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                    const iframe = document.createElement('iframe');
+                    iframe.src = `https://www.youtube.com/embed/${data.youtube_key}?autoplay=1&playsinline=1`;
+                    iframe.allow = 'autoplay; encrypted-media';
+                    iframe.allowFullscreen = true;
+                    container.appendChild(iframe);
                     btn.innerText = 'CLOSE TRAILER';
                 } else btn.innerText = 'TRAILER NOT FOUND';
             }
