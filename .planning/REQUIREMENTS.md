@@ -10,9 +10,9 @@ Requirements for this milestone are scoped to Issue #6 (`EPIC-03`) XSS vulnerabi
 
 ### Server-Side Validation
 
-- [ ] **SSV-01**: `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body.
-- [ ] **SSV-02**: `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`.
-- [ ] **SSV-03**: Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data).
+- [x] **SSV-01**: `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body.
+- [x] **SSV-02**: `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`.
+- [x] **SSV-03**: Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data).
 
 ### Safe DOM Rendering
 
@@ -60,9 +60,9 @@ Explicitly excluded from v1.5.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SSV-01 | Phase 19 | Pending |
-| SSV-02 | Phase 19 | Pending |
-| SSV-03 | Phase 19 | Pending |
+| SSV-01 | Phase 19 | Validated |
+| SSV-02 | Phase 19 | Validated |
+| SSV-03 | Phase 19 | Validated |
 | DOM-01 | Phase 20 | Pending |
 | DOM-02 | Phase 20 | Pending |
 | DOM-03 | Phase 20 | Pending |
@@ -81,4 +81,4 @@ Explicitly excluded from v1.5.
 
 ---
 *Requirements defined: 2026-04-25*
-*Last updated: 2026-04-25 after v1.5 milestone initialization*
+*Last updated: 2026-04-26 after Phase 19 completion*
