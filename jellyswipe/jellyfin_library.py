@@ -349,6 +349,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             return {
                 "machineIdentifier": j.get("ServerId") or j.get("Id") or "",
                 "name": j.get("ServerName") or "Jellyfin",
+                "webUrl": self._base,
             }
         except RuntimeError:
             r = requests.get(f"{self._base}/System/Info/Public", timeout=15)
@@ -357,6 +358,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             return {
                 "machineIdentifier": pub.get("Id") or "",
                 "name": pub.get("ServerName") or "Jellyfin",
+                "webUrl": self._base,
             }
 
     def fetch_library_image(self, path: str) -> Tuple[bytes, str]:

@@ -311,6 +311,14 @@ def create_app(test_config=None):
         except Exception:
             return jsonify({"error": "Jellyfin login failed"}), 401
 
+    @app.route("/jellyfin/server-info", methods=["GET"])
+    def jellyfin_server_info():
+        try:
+            info = get_provider().server_info()
+            return jsonify({"baseUrl": info.get("machineIdentifier", ""), "webUrl": info.get("webUrl", "")})
+        except Exception:
+            return jsonify({"baseUrl": "", "webUrl": ""}), 200
+
     @app.route('/room/create', methods=['POST'])
     def create_room():
         pairing_code = str(random.randint(1000, 9999))
