@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, and **v1.3** added comprehensive unit tests with 48 tests and CI workflow.
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, **v1.3** added comprehensive unit tests with 48 tests and CI workflow, and **v1.4** cleans up the Unraid template to use Jellyfin variables.
 
 **v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
 
@@ -14,6 +14,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
+<<<<<<< HEAD
 ## Current Milestone: v2.0 — Planning Next Milestone
 
 **Goal:** Define the next post-hardening product milestone after shipping v1.4.
@@ -72,6 +73,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
+<<<<<<< HEAD
 - **Shipped:** **v1.4 Authorization Hardening** completed and archived under `.planning/milestones/v1.4-*`.
 - **In flight:** Next milestone definition (`/gsd-new-milestone`).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
@@ -131,4 +133,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+<<<<<<< HEAD
 *Last updated: 2026-04-26 after v1.4 milestone completion*
+=======
+*Last updated: 2026-04-25 after v1.4 milestone start*
+>>>>>>> c97ec34 (docs: start milestone v1.4 Clean up Unraid template)
