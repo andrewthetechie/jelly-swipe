@@ -57,7 +57,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - [ ] **FACTORY-01** — Refactor `jellyswipe/__init__.py` into explicit `create_app(config=None)` factory function
 - [ ] **TEST-ROUTE-01** — Add `tests/test_routes_auth.py` with header-spoof tests for EPIC-01
 - [ ] **TEST-ROUTE-02** — Add `tests/test_routes_xss.py` with stored XSS blocking tests (EPIC-03)
-- [ ] **TEST-ROUTE-03** — Add `tests/test_routes_room.py` with happy path for create/join/swipe/match/quit
+- [x] **TEST-ROUTE-03** — Add `tests/test_routes_room.py` with happy path for create/join/swipe/match/quit. *Validated in Phase 25 (v1.5).*
 - [ ] **TEST-ROUTE-04** — Add `tests/test_routes_proxy.py` with allowlist regex and rate limit tests (EPIC-04)
 - [ ] **TEST-ROUTE-05** — Add `tests/test_routes_sse.py` with SSE event streaming and shutdown tests
 - [ ] **TEST-COV-01** — Add pytest `--cov-fail-under=70` to ensure CI enforces coverage threshold
@@ -82,7 +82,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
-- **Tests:** 48 tests across 3 test files (test_infrastructure.py, test_db.py, test_jellyfin_library.py) with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting.
+- **Tests:** 135 tests across 5 test files with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting; 70% total coverage achieved.
 
 ## Context
 
@@ -136,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v1.5 milestone start*
+*Last updated: 2026-04-26 after Phase 25 execution*
