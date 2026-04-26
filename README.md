@@ -11,11 +11,11 @@ same movie, IT'S A MATCH!!
 
 
 ## Screenshots
-<img width="320" height="640" alt="1" src="https://github.com/user-attachments/assets/4517d22b-aba7-419f-8fc1-19cf5b93af8d" />
-<img width="320" height="640" alt="2" src="https://github.com/user-attachments/assets/d23fad4e-6f39-4ba8-9840-d1c8b745cd38" />
-<img width="320" height="640" alt="3" src="https://github.com/user-attachments/assets/f95ae259-8a1d-4021-a344-ea0dc288f905" />
-<img width="320" height="640" alt="4" src="https://github.com/user-attachments/assets/3dea1bdc-3bb4-43aa-879d-ae5b6b85b6ef" />
-<img width="320" height="640" alt="5" src="https://github.com/user-attachments/assets/3f1199eb-c21e-405c-8b27-7323585efe5c" />
+![Main Screen](screenshots/main_page.png?raw=true "Main App Screen")
+![Host A Session](screenshots/host_session.png?raw=true "Host Session Screen")
+![View A Movie](screenshots/view_movie.png?raw=true "View Movie Screen")
+![View A Movie's Details](screenshots/view_movie_2.png?raw=true "View Movie Details")
+![Make a Match](screenshots/match_movie.png?raw=true "Make a Match")
 
 
 ## Features
