@@ -16,9 +16,12 @@ Requirements for this milestone are scoped to Issue #6 (`EPIC-03`) XSS vulnerabi
 
 ### Safe DOM Rendering
 
-- [ ] **DOM-01**: Template `jellyswipe/templates/index.html` replaces `innerHTML` with `textContent` for all user-controlled text content (title, summary, actor names).
-- [ ] **DOM-02**: Template uses safe DOM construction methods (`document.createElement()`, `setAttribute()`) for structured HTML containing user data.
-- [ ] **DOM-03**: Template removes or refactors unsafe innerHTML usages for `m.title`, `m.summary`, `m.thumb`, `m.movie_id`, `actor.name`, `actor.character`.
+- [x] **DOM-01
+**: Template `jellyswipe/templates/index.html` replaces `innerHTML` with `textContent` for all user-controlled text content (title, summary, actor names).
+- [x] **DOM-02
+**: Template uses safe DOM construction methods (`document.createElement()`, `setAttribute()`) for structured HTML containing user data.
+- [x] **DOM-03
+**: Template removes or refactors unsafe innerHTML usages for `m.title`, `m.summary`, `m.thumb`, `m.movie_id`, `actor.name`, `actor.character`.
 
 ### Content Security Policy
 
