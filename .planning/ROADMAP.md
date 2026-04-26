@@ -42,7 +42,9 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 3. If Jellyfin metadata resolution fails, the server returns an error instead of storing incomplete/invalid data
 4. Match records in database contain only server-resolved title and thumb values (no client-provided data)
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+- [ ] 19-01-PLAN.md — Modify /room/swipe endpoint to resolve metadata server-side
 
 ---
 
@@ -106,7 +108,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Server-Side Validation | 0/0 | Not started | - |
+| 19. Server-Side Validation | 0/1 | Ready to execute | - |
 | 20. Safe DOM Rendering | 0/0 | Not started | - |
 | 21. CSP Header | 0/0 | Not started | - |
 | 22. XSS Testing | 0/0 | Not started | - |
