@@ -95,6 +95,18 @@ def create_app(test_config=None):
     # Set secret key from environment
     app.secret_key = os.environ["FLASK_SECRET"]
 
+    @app.after_request
+    def add_csp_header(response):
+        csp_policy = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "object-src 'none'; "
+            "img-src 'self' https://image.tmdb.org; "
+            "frame-src https://www.youtube.com"
+        )
+        response.headers['Content-Security-Policy'] = csp_policy
+        return response
+
     # Store environment variables in app.config for future use
     app.config['JELLYFIN_URL'] = os.getenv("JELLYFIN_URL", "").rstrip("/")
     app.config['TMDB_API_KEY'] = os.getenv("TMDB_API_KEY")
