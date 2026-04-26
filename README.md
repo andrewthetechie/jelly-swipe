@@ -151,7 +151,6 @@ services:
       - TMDB_API_KEY=your_copied_tmdb_key_here
     volumes:
       - ./data:/app/data
-      - ./static:/app/static
     restart: unless-stopped
 ```
 
@@ -165,7 +164,6 @@ docker run -d \
   -e FLASK_SECRET=SomeRandomString \
   -e TMDB_API_KEY=your_copied_tmdb_key_here \
   -v ./data:/app/data \
-  -v ./static:/app/static \
   --restart unless-stopped \
   andrewthetechie/jelly-swipe:latest
 ```
@@ -183,7 +181,6 @@ All fields are blank by default and must be filled in by the user. The template 
 
 **CI Validation:** The Unraid template is automatically validated by a GitHub Actions workflow (`.github/workflows/unraid-template-lint.yml`) that ensures all template variables are a recognized subset of the application's environment variables. This prevents template drift and maintains consistency between the template and the application code.
 
-<img src="https://github.com/user-attachments/assets/97e2c08b-5421-4f16-a798-acca2bb76a60" width="100"/>
 
 ## Development
 
