@@ -1,5 +1,35 @@
 # Milestones — Jelly Swipe
 
+## v1.4 — Authorization Hardening
+
+**Shipped:** 2026-04-26  
+**Theme:** Eliminate client-controlled identity trust and enforce verified identity across protected routes with security regression proof.
+**Phases:** 18-20 (3 phases, 3 plans)
+
+**Archives:**
+
+- [v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) — full phase roadmap snapshot at close
+- [v1.4-REQUIREMENTS.md](milestones/v1.4-REQUIREMENTS.md) — security and verification requirement set at close
+- [v1.4-phases/](milestones/v1.4-phases/) — full phase execution artifacts (contexts, plans, summaries, verification)
+
+**Deliverables (high level):**
+- Hardened identity resolution to trusted delegate/token sources only
+- Standardized protected routes on strict `401 {"error":"Unauthorized"}` behavior
+- Full route-level regression suite covering spoofing, body injection, and valid delegate/token flows
+
+**Stats:** 3 phases, 3 plans, 7 tasks, 19 files changed, 1326 insertions, 77 deletions, ~32 minutes execution window
+
+**Key accomplishments:**
+1. Removed alias-header identity trust and added request-scoped spoof rejection classification with short-lived token-hash caching.
+2. Enforced verified identity only on `/room/swipe`, `/matches`, `/matches/delete`, `/undo`, and `/watchlist/add`.
+3. Added full route-level security regression coverage (27 tests) for spoofed headers and body `user_id` injection controls.
+4. Added delegate/token happy-path regression coverage to ensure hardening preserved legitimate access.
+5. Restored full test-suite stability with local mocker fixture compatibility and route-test harness support (`75 passed`).
+
+**Known gaps at close:** None — all `SEC-01..05` and `VER-01..03` validated.
+
+---
+
 Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`.
 
 ---
@@ -20,6 +50,7 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 **Stats:** 4 phases, 9 plans, 19 tasks, 48 tests, 27 files changed, 4,096 insertions, 2 deletions, ~1 hour execution time
 
 **Key accomplishments:**
+
 1. pytest Testing Framework Setup — Installed pytest 9.0.3, pytest-cov, pytest-mock, responses, pytest-timeout; configured test discovery and output; generated frozen uv.lock
 2. Framework-Agnostic Test Infrastructure — Created conftest.py with environment fixtures and monkeypatching to import modules directly without Flask app initialization
 3. Database Module Testing — Created 17 tests for db.py with tmp_path fixture, function-scoped isolation, and 87% coverage

@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Authorization Hardening
-status: milestone_complete
-stopped_at: Phase 20 context gathered
-last_updated: "2026-04-26T04:28:52.127Z"
+milestone: v2.0
+milestone_name: Next Milestone Planning
+status: planning
+stopped_at: Milestone v1.4 archived
+last_updated: "2026-04-26T04:57:05.891Z"
 last_activity: 2026-04-26
 progress:
   total_phases: 20
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 2
-  percent: 15
+  completed_phases: 20
+  total_plans: 0
+  completed_plans: 0
+  percent: 100
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** Phase --phase — 18
+**Current focus:** Milestone planning — define next roadmap
 
 ## Current Position
 
-Phase: 20
-Plan: Not started
-Milestone: v1.4 (Authorization Hardening) — STARTED
-Status: Milestone complete
+Phase: N/A
+Plan: N/A
+Milestone: v2.0 (Next Milestone Planning) — STARTED
+Status: Ready to define
 Last activity: 2026-04-26
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100% (v1.4 complete)
 
 ## Performance Metrics
 
@@ -79,8 +79,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 20 context gathered
-Resume file: --resume-file
+Last session: milestone-close
+Stopped at: Milestone v1.4 archived
+Resume file: .planning/MILESTONES.md
 
-**Planned Phase:** 20 (Security Regression Tests) — 1 plans — 2026-04-26T04:28:52.123Z
+**Next action:** `/gsd-new-milestone`

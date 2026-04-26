@@ -14,16 +14,14 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.4 — Authorization Hardening
+## Current Milestone: v2.0 — Planning Next Milestone
 
-**Goal:** Resolve Issue #4 by eliminating client-controlled identity trust and enforcing verified user identity across all user-scoped routes.
+**Goal:** Define the next post-hardening product milestone after shipping v1.4.
 
 **Target features:**
-- Derive requester identity only from delegated server identity or validated Jellyfin token (`/Users/Me` resolution)
-- Reject spoofable identity sources (`X-Provider-User-Id`, `X-Jellyfin-User-Id`, `X-Emby-UserId`, request-body `user_id`)
-- Enforce 401 behavior when identity cannot be verified on protected endpoints
-- Guarantee reads/writes/deletes are scoped to the verified identity only
-- Add route-level tests proving spoofed headers are rejected and valid-token access still works
+- Finalize next milestone scope from deferred candidates (`ARC-02`, `OPS-01/PRD-01`, `ADV-*`)
+- Capture fresh requirements in a new `.planning/REQUIREMENTS.md`
+- Build roadmap phases for v2.0 execution
 
 ## Requirements
 
@@ -56,9 +54,8 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active
 
-- [ ] **SEC-03** — Protected endpoints return 401 when identity cannot be verified.
-- [ ] **SEC-04** — User-scoped operations (`/room/swipe`, `/matches`, `/matches/delete`, `/undo`, `/watchlist/add`) operate only on the verified identity.
-- [ ] **VER-01** — Automated tests prove header spoofing and body `user_id` injection cannot read/write/delete another user's data.
+- [ ] **NEXT-01** — Define and lock v2.0 milestone scope.
+- [ ] **NEXT-02** — Author new milestone requirements and roadmap phases.
 
 ### Out of Scope
 
@@ -75,7 +72,8 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
-- **In flight:** **v1.4 Authorization Hardening** planning to close Issue #4 (`https://github.com/andrewthetechie/jelly-swipe/issues/4`).
+- **Shipped:** **v1.4 Authorization Hardening** completed and archived under `.planning/milestones/v1.4-*`.
+- **In flight:** Next milestone definition (`/gsd-new-milestone`).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -111,6 +109,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 | Terminal-only coverage reporting (v1.3) | Simple, meets COV-01, no extra files or directories; HTML/XML deferred to v2. | Shipped v1.3 Phase 17 |
 | Independent test CI workflow (v1.3) | Tests run on every PR for code review quality; Docker workflow focuses on deployment; no workflow coupling. | Shipped v1.3 Phase 17 |
 | No coverage threshold in v1.3 (v1.3) | ADV-01 is v2 requirement; track coverage in reports but don't fail builds. | Shipped v1.3 Phase 17 |
+| Verified identity hardening (v1.4) | Close Issue #4 by removing client-controlled identity trust and enforcing strict route authorization. | Shipped v1.4 Phases 18-20 |
 
 ## Evolution
 
@@ -132,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after Phase 18 completion*
+*Last updated: 2026-04-26 after v1.4 milestone completion*
