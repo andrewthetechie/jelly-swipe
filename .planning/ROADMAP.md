@@ -14,7 +14,7 @@
 - [x] **Phase 26: Proxy Route Tests** - Add proxy route tests for SSRF prevention (completed 2026-04-26)
 - [x] **Phase 27: SSE Streaming Tests** - Add SSE event streaming and shutdown tests (completed 2026-04-26)
 - [x] **Phase 28: Coverage Enforcement** - Add 70% coverage threshold enforcement to CI (completed 2026-04-26)
-- [ ] **Phase 29: Fix CSP Inline Style Errors** - Fix Content-Security-Policy violations blocking inline styles
+- [x] **Phase 29: Fix CSP Inline Style Errors** - Fix Content-Security-Policy violations blocking inline styles
 
 ## Phase Details
 
@@ -129,7 +129,7 @@ Plans:
 | 26. Proxy Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 27. SSE Streaming Tests | 1/1 | Complete    | 2026-04-26 |
 | 28. Coverage Enforcement | 1/1 | Complete    | 2026-04-26 |
-| 29. Fix CSP Inline Style Errors | 0/1 | Planned | - |
+| 29. Fix CSP Inline Style Errors | 1/1 | Complete | 2026-04-26 |
 
 ### Phase 29: Fix CSP Inline Style Errors
 
@@ -139,7 +139,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 29-01-PLAN.md — Externalize CSS/JS to static files, remove all inline styles and event handlers, self-host Allura font
+- [x] 29-01-PLAN.md — Externalize CSS/JS to static files, remove all inline styles and event handlers, self-host Allura font
 
 ---
 
