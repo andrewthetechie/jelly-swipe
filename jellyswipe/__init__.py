@@ -535,17 +535,29 @@ def proxy():
         abort(403)
     return Response(body, content_type=content_type)
 
+def serve_static(path: str, mimetype: str = None) -> Response:
+    """ Serve static assets from the static directory. """
+    call_args = ('static', path)
+    call_kwargs = {}
+    if mimetype:
+        call_kwargs['mimetype'] = mimetype
+    return send_from_directory(*call_args, **call_kwargs)
+
 @app.route('/manifest.json')
 def serve_manifest():
-    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
+    return serve_static(path='manifest.json', mimetype='application/manifest+json')
 
 @app.route('/sw.js')
 def serve_sw():
-    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+    return serve_static(path="sw.js", mimetype='application/javascript')
 
 @app.route('/static/<path:path>')
-def serve_static(path): return send_from_directory('static', path)
+def serve_static_route(path):
+    return serve_static(path=path)
 
+@app.route('/favicon.ico')
+def serve_favicon():
+    return serve_static(path="favicon.ico", mimetype='image/x-icon')
 
 # Initialize database at module load time
 init_db()
