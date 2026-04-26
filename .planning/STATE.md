@@ -3,20 +3,20 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-26T16:02:49.000Z"
+last_updated: "2026-04-26T16:17:02.000Z"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 4
+  total_plans: 5
+  completed_plans: 5
   percent: 100
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v1.5 XSS Security Fix
-**Phase:** 21 - csp-header
-**Status:** Phase 21 complete
+**Phase:** 22 - xss-testing
+**Status:** Phase 22 complete
 **Progress:** [██████████] 100%
 
 ---
@@ -30,26 +30,26 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
 **Current Focus:**
-Phase 19 - server-side-validation (1/1 plans complete)
+Phase 22 - xss-testing (1/1 plans complete)
 
 ---
 
 ## Current Position
 
-Phase: 21 (csp-header) — COMPLETE
+Phase: 22 (xss-testing) — COMPLETE
 Plan: 1/1 complete
-**Phase:** CSP Header implemented
+**Phase:** XSS smoke tests created and passing
 **Milestone:** v1.5 XSS Security Fix
-**Plan:** 21-01 (CSP header via @app.after_request hook) complete
-**Status:** Phase 21 complete, all 3 security layers in place
+**Plan:** 22-01 (comprehensive XSS smoke tests) complete
+**Status:** Phase 22 complete, all 4 phases of v1.5 milestone finished
 
 **Progress Bar:**
 
 ```
-[██████████████████] 100% - Phases 19-21 complete, Phase 22 (smoke tests) remaining
+[██████████████████] 100% - All 4 phases complete (19-22), v1.5 milestone ready for completion
 ```
 
-**Next Step:** `/gsd-execute-phase 21`
+**Next Step:** `/gsd-complete-milestone` to archive v1.5 artifacts and tag release
 
 ---
 
@@ -155,13 +155,15 @@ None at roadmap creation.
 
 **Current Session:**
 
-- 2026-04-26: Phase 19-21 execution completed (3 plans total)
-- /room/swipe endpoint now resolves all metadata server-side from Jellyfin
-- Security logging in place for client-supplied title/thumb parameters
-- Safe DOM rendering implemented (textContent instead of innerHTML)
-- Content Security Policy header added via @app.after_request hook
-- All three XSS defense layers now in place: server validation, safe DOM, CSP
-- Ready to proceed to Phase 22: Smoke Tests
+- 2026-04-26: Phase 22 execution completed (1 plan total)
+- Created comprehensive XSS smoke tests in tests/test_routes_xss.py (413 lines, 6 tests)
+- Verified Layer 1 (server-side validation): client-supplied title/thumb ignored
+- Verified Layer 2 (safe DOM rendering): validated via manual testing in Phase 20
+- Verified Layer 3 (CSP header): present on all responses with correct directives
+- End-to-end XSS blocking test confirms all three layers work together
+- Edge case test verifies graceful handling of Jellyfin failures
+- All 6 tests passing, all 4 XSS requirements (XSS-01 through XSS-04) met
+- v1.5 milestone complete - ready for `/gsd-complete-milestone`
 
 **Handoff Notes:**
 
