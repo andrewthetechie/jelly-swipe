@@ -14,6 +14,7 @@
 - [x] **Phase 26: Proxy Route Tests** - Add proxy route tests for SSRF prevention (completed 2026-04-26)
 - [x] **Phase 27: SSE Streaming Tests** - Add SSE event streaming and shutdown tests (completed 2026-04-26)
 - [x] **Phase 28: Coverage Enforcement** - Add 70% coverage threshold enforcement to CI (completed 2026-04-26)
+- [ ] **Phase 29: Fix CSP Inline Style Errors** - Fix Content-Security-Policy violations blocking inline styles
 
 ## Phase Details
 
@@ -128,16 +129,17 @@ Plans:
 | 26. Proxy Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 27. SSE Streaming Tests | 1/1 | Complete    | 2026-04-26 |
 | 28. Coverage Enforcement | 1/1 | Complete    | 2026-04-26 |
+| 29. Fix CSP Inline Style Errors | 0/1 | Planned | - |
 
-### Phase 29: Some other changes to the site html is causing an error that wasn't adequately tested. Content-Security-Policy: The page's settings blocked an inline style (style-src-elem) from being applied because it violates the following directive: "default-src 'self'". Consider using a hash ('sha256-dd4J3UnQShsOmqcYi4vN5BT3mGZB/0fOwBA72rsguKc=', requires 'unsafe-hashes' for style attributes) or a nonce. Content-Security-Policy: The page's settings blocked an inline style (style-src-elem) from being applied because it violates the following directive: "default-src 'self'". Consider using a hash ('sha256-2cG7ALxgDA4FN2Rxo1w6FLiEw9x1lZbttS+dW4OiamU=', requires 'unsafe-hashes' for style attributes) or a nonce. and many other Content-Security-Policy errors that cause the page to not load properly
+### Phase 29: Fix CSP Inline Style Errors
 
-**Goal:** [To be planned]
+**Goal:** Eliminate all Content-Security-Policy violations under `default-src 'self'` by externalizing inline CSS/JS, converting inline styles to CSS classes, and self-hosting the Allura font
 **Requirements**: TBD
 **Depends on:** Phase 28
-**Plans:** 1/1 plans complete
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 29 to break down)
+- [ ] 29-01-PLAN.md — Externalize CSS/JS to static files, remove all inline styles and event handlers, self-host Allura font
 
 ---
 
