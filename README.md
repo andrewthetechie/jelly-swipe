@@ -8,15 +8,19 @@ Always trying to decide on a movie to watch together?, This may be the fun solut
 Dating app style swipe right for like swipe left for nope, If you both swipe right on the 
 same movie, IT'S A MATCH!!
 
-
-
 ## Screenshots
-![Main Screen](screenshots/main_page.png?raw=true "Main App Screen")
-![Host A Session](screenshots/host_session.png?raw=true "Host Session Screen")
-![View A Movie](screenshots/view_movie.png?raw=true "View Movie Screen")
-![View A Movie's Details](screenshots/view_movie_2.png?raw=true "View Movie Details")
-![Make a Match](screenshots/match_movie.png?raw=true "Make a Match")
+<details>
+<summary>Click to expand screenshots</summary>
 
+<br>
+
+<img src="screenshots/main_page.png" alt="Main App Screen" width="320" height="640" />
+<img src="screenshots/host_session.png" alt="Host Session Screen" width="320" height="640" />
+<img src="screenshots/view_movie.png" alt="View Movie Screen" width="320" height="640" />
+<img src="screenshots/view_movie_2.png" alt="View Movie Details" width="320" height="640" />
+<img src="screenshots/match_movie.png" alt="Make a Match" width="320" height="640" />
+
+</details>
 
 ## Features
 - **Jellyfin Integration:** Connects directly to your server to pull random movies.
