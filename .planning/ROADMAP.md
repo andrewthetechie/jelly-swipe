@@ -7,7 +7,7 @@
 ## Phases
 
 - [x] **Phase 21: App Factory Refactor** - Refactor Flask app into factory pattern for test isolation
-- [ ] **Phase 22: Test Infrastructure Setup** - Add app and client fixtures to conftest.py
+- [x] **Phase 22: Test Infrastructure Setup** - Add app and client fixtures to conftest.py
 - [ ] **Phase 23: Auth Route Tests** - Add authentication route tests with header-spoof protection
 - [ ] **Phase 24: XSS Security Tests** - Add XSS blocking tests for input validation
 - [ ] **Phase 25: Room Operation Tests** - Add room lifecycle tests (create/join/swipe/match/quit)
@@ -39,7 +39,7 @@
   3. Fixtures use function-scoped isolation (no state leakage between tests)
   4. Fixtures work with existing conftest.py patterns (db_connection, mock_env_vars)
 **Plans**: 1 plan
-- [ ] 22-01-PLAN.md — Add FakeProvider class, app fixture, and client fixture to conftest.py
+- [x] 22-01-PLAN.md — Add FakeProvider class, app fixture, and client fixture to conftest.py
 
 ### Phase 23: Auth Route Tests
 **Goal**: Authentication routes have comprehensive test coverage

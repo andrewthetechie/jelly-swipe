@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-26T19:15:01.075Z"
+last_updated: "2026-04-26T19:25:15.964Z"
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
   percent: 100
 ---
 
@@ -23,10 +23,10 @@ progress:
 ## Current Position
 
 **Milestone:** v1.5 — Route Test Coverage
-**Phase:** 21 (App Factory Refactor) — ✓ Complete
-**Plan:** 21-01 (autonomous)
+**Phase:** 22 (Test Infrastructure Setup) — ✓ Complete
+**Plan:** 22-01 (autonomous)
 **Status:** Phase complete
-**Progress:** 1/8 phases complete (12.5%)
+**Progress:** [██████████] 100%
 
 ## Performance Metrics
 
@@ -38,7 +38,7 @@ progress:
 
 **Test Suite:**
 
-- Current: 48 tests (test_infrastructure.py, test_db.py, test_jellyfin_library.py, test_route_authorization.py)
+- Current: 75 tests (test_infrastructure.py, test_db.py, test_jellyfin_library.py, test_route_authorization.py)
 - Target: Add 5 route test files with comprehensive coverage
 
 **Milestone Velocity:**
@@ -65,6 +65,7 @@ progress:
 | Independent test CI workflow (v1.3) | Tests run on every PR for code review quality; Docker workflow focuses on deployment; no workflow coupling. | Shipped v1.3 Phase 17 |
 | No coverage threshold in v1.3 (v1.3) | ADV-01 is v2 requirement; track coverage in reports but don't fail builds. | Shipped v1.3 Phase 17 |
 | Verified identity hardening (v1.4) | Close Issue #4 by removing client-controlled identity trust and enforcing strict route authorization. | Shipped v1.4 Phases 18-20 |
+| Phase 22 P01 | 167 | 2 tasks | 1 files |
 
 ### v1.5 Context (from research/SUMMARY.md)
 
@@ -99,11 +100,11 @@ progress:
 
 ### What was last done
 
-Phase 21 context was gathered on 2026-04-26. Context captured without user discussion (no gray areas identified).
+Phase 22 (Test Infrastructure Setup) completed on 2026-04-26. Added FakeProvider class, app fixture, and client fixture to tests/conftest.py. All 75 existing tests pass.
 
 ### What's next
 
-Plan Phase 21: App Factory Refactor — create execution plans for refactoring `jellyswipe/__init__.py` into factory pattern.
+Plan Phase 23: Auth Route Tests — add authentication route tests using the new app/client fixtures.
 
 ### Known blockers
 
@@ -115,4 +116,6 @@ None at this time.
 
 ---
 
-*Last updated: 2026-04-26 after Phase 21 context gathering*
+*Last updated: 2026-04-26 after Phase 22 execution*
+
+**Planned Phase:** 23 (Auth Route Tests)
