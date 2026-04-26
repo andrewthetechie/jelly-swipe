@@ -238,5 +238,5 @@ Phases execute in numeric order: 1 → 17 (complete), then 18 → 20 (planned)
 | 16. Jellyfin Provider Tests | v1.3 | 4/4 | Complete | 2026-04-25 |
 | 17. Coverage & CI Integration | v1.3 | 1/1 | Complete | 2026-04-25 |
 | 18. Verified Identity Resolution | v1.4 | 1/1 | Complete    | 2026-04-26 |
-| 19. Route Authorization Enforcement | v1.4 | 0/0 | Planned | — |
+| 19. Route Authorization Enforcement | v1.4 | 1/1 | Complete    | 2026-04-26 |
 | 20. Security Regression Tests | v1.4 | 0/0 | Planned | — |

@@ -12,9 +12,9 @@ Requirements for this milestone are scoped to Issue #4 (`EPIC-01`) authorization
 
 - [x] **SEC-01**: User identity is resolved only from delegated server identity or a validated Jellyfin access token.
 - [x] **SEC-02**: Requests with `X-Provider-User-Id`, `X-Jellyfin-User-Id`, or `X-Emby-UserId` do not establish identity.
-- [ ] **SEC-03**: `/room/swipe` does not accept a request-body `user_id` as an identity source.
-- [ ] **SEC-04**: Protected user-scoped routes return `401 Unauthorized` when identity cannot be verified.
-- [ ] **SEC-05**: User-scoped database operations only read/write/delete rows for the verified identity.
+- [x] **SEC-03**: `/room/swipe` does not accept a request-body `user_id` as an identity source.
+- [x] **SEC-04**: Protected user-scoped routes return `401 Unauthorized` when identity cannot be verified.
+- [x] **SEC-05**: User-scoped database operations only read/write/delete rows for the verified identity.
 
 ### Verification
 
@@ -52,9 +52,9 @@ Explicitly excluded from v1.4.
 |-------------|-------|--------|
 | SEC-01 | Phase 18 | Complete |
 | SEC-02 | Phase 18 | Complete |
-| SEC-03 | Phase 19 | Pending |
-| SEC-04 | Phase 19 | Pending |
-| SEC-05 | Phase 19 | Pending |
+| SEC-03 | Phase 19 | Complete |
+| SEC-04 | Phase 19 | Complete |
+| SEC-05 | Phase 19 | Complete |
 | VER-01 | Phase 20 | Pending |
 | VER-02 | Phase 20 | Pending |
 | VER-03 | Phase 20 | Pending |
