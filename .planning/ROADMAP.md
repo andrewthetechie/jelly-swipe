@@ -105,7 +105,9 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 3. Test verifies that CSP header is present on all HTTP responses with correct directives
 4. Test verifies that server rejects client-supplied title/thumb parameters with appropriate error
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+- [ ] 22-01-PLAN.md — Create comprehensive XSS smoke tests for all three security layers
 
 ---
 
@@ -116,7 +118,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 | 19. Server-Side Validation | 1/1 | Complete | 2026-04-26 |
 | 20. Safe DOM Rendering | 2/2 | Complete | 2026-04-26 |
 | 21. CSP Header | 1/1 | Complete | 2026-04-26 |
-| 22. XSS Testing | 0/0 | Not started | - |
+| 22. XSS Testing | 0/1 | Planning in progress | - |
 
 ---
 
