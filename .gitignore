@@ -5,3 +5,4 @@ __pycache__/
 .env
 .python-version
 .DS_Store
+.coverage
