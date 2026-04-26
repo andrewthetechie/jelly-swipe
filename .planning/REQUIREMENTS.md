@@ -15,7 +15,8 @@ Requirements for route test coverage milestone. Each maps to roadmap phases.
 
 - [x] **TEST-ROUTE-01
 **: Add `tests/test_routes_auth.py` with authentication route tests (provider, server identity, login) including header-spoof tests for EPIC-01
-- [ ] **TEST-ROUTE-02**: Add `tests/test_routes_xss.py` with XSS security tests (HTML tag escaping, javascript: URL rejection, script injection prevention) for EPIC-03
+- [x] **TEST-ROUTE-02
+**: Add `tests/test_routes_xss.py` with XSS security tests (HTML tag escaping, javascript: URL rejection, script injection prevention) for EPIC-03
 - [ ] **TEST-ROUTE-03**: Add `tests/test_routes_room.py` with room operation tests (create, join, swipe, match, quit, status, go-solo) covering happy paths and edge cases
 - [ ] **TEST-ROUTE-04**: Add `tests/test_routes_proxy.py` with proxy route tests (valid/invalid paths, allowlist regex validation, content-type verification) for EPIC-04 SSRF prevention
 - [ ] **TEST-ROUTE-05**: Add `tests/test_routes_sse.py` with SSE streaming tests (event streaming, invalid room handling, state change events, GeneratorExit handling)
