@@ -26,7 +26,8 @@
   2. Global `app` instance exists for backwards compatibility
   3. Factory accepts test_config parameter for test overrides
   4. Application runs with existing configuration (no breaking changes)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 21-01-PLAN.md — Refactor jellyswipe/__init__.py into factory pattern with create_app(test_config=None) function and global app instance
 
 ### Phase 22: Test Infrastructure Setup
 **Goal**: Route tests have app and client fixtures available
@@ -111,7 +112,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 21. App Factory Refactor | 0/0 | Not started | - |
+| 21. App Factory Refactor | 0/1 | Ready to execute | - |
 | 22. Test Infrastructure Setup | 0/0 | Not started | - |
 | 23. Auth Route Tests | 0/0 | Not started | - |
 | 24. XSS Security Tests | 0/0 | Not started | - |
