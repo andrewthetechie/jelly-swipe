@@ -1,8 +1,8 @@
 # Roadmap — Jelly Swipe
 
-**Milestone:** v1.5 XSS Security Fix
+**Milestone:** v1.5 XSS Security Fix — ✅ **SHIPPED**
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 21 - csp-header
+**Current Phase:** 22 - xss-testing (Complete)
 **Last Updated:** 2026-04-26
 
 ---
@@ -11,18 +11,24 @@
 
 This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection. The fix operates on three layers: server-side validation, safe DOM rendering, and Content Security Policy enforcement, with comprehensive testing to verify the vulnerability is closed.
 
+**Status:** ✅ **COMPLETE** — All 4 phases shipped 2026-04-26
 **Phases:** 4
 **Requirements:** 13
 **Starting Phase:** 19 (continuing from v1.4)
+
+**Archives:**
+- [v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) — full phase roadmap snapshot
+- [v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md) — requirements at close (13/13 complete)
+- [v1.5-phases/](milestones/v1.5-phases/) — phase execution directories (Phases 19–22)
 
 ---
 
 ## Phases
 
-- [x] **Phase 19: Server-Side Validation** - Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id
-- [ ] **Phase 20: Safe DOM Rendering** - Replace innerHTML with textContent/DOM construction for all user-controlled content
-- [ ] **Phase 21: CSP Header** - Add strict Content-Security-Policy header via Flask after_request hook
-- [ ] **Phase 22: XSS Testing** - Add smoke tests proving XSS is blocked and CSP is enforced
+- [x] **Phase 19: Server-Side Validation** — Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id (Complete 2026-04-26)
+- [x] **Phase 20: Safe DOM Rendering** — Replace innerHTML with textContent/DOM construction for all user-controlled content (Complete 2026-04-26)
+- [x] **Phase 21: CSP Header** — Add strict Content-Security-Policy header via Flask after_request hook (Complete 2026-04-26)
+- [x] **Phase 22: XSS Testing** — Add smoke tests proving XSS is blocked and CSP is enforced (Complete 2026-04-26)
 
 ---
 
@@ -115,18 +121,20 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Server-Side Validation | 1/1 | Complete | 2026-04-26 |
-| 20. Safe DOM Rendering | 2/2 | Complete | 2026-04-26 |
-| 21. CSP Header | 1/1 | Complete | 2026-04-26 |
-| 22. XSS Testing | 1/1 | Complete | 2026-04-26 |
+| 19. Server-Side Validation | 1/1 | Complete ✅ | 2026-04-26 |
+| 20. Safe DOM Rendering | 2/2 | Complete ✅ | 2026-04-26 |
+| 21. CSP Header | 1/1 | Complete ✅ | 2026-04-26 |
+| 22. XSS Testing | 1/1 | Complete ✅ | 2026-04-26 |
+| **Total** | **5/5** | **Complete ✅** | **2026-04-26** |
 
 ---
 
 ## Milestone Context
 
 **Previous Milestone:** v1.4 (Authorization Hardening) — Phases 1-18 completed
-**Current Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 planned
+**Current Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 completed ✅
 **Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/6
+**Status:** **SHIPPED** — All 4 phases, 5 plans, and 13 requirements complete and validated
 
 **Vulnerability Description:**
 The `/room/swipe` endpoint currently accepts `title` and `thumb` parameters from the client request body and stores them directly in the database. When matches are rendered, this unsanitized content is inserted into the DOM using `innerHTML`, allowing attackers to inject JavaScript that executes when other users view the match.
