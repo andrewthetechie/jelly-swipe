@@ -1,11 +1,19 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.5
+<<<<<<< HEAD
 milestone_name: — (undefined)
 status: idle
 stopped_at: Milestone v1.4 complete and archived
 last_updated: "2026-04-26T00:15:29.000Z"
 last_activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
+=======
+milestone_name: XSS Security Fix
+status: Defining requirements
+stopped_at:
+last_updated: "2026-04-25T00:00:00.000Z"
+last_activity: 2026-04-25
+>>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
 progress:
   total_phases: 0
   completed_phases: 0
@@ -21,6 +29,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
+<<<<<<< HEAD
 **Current focus:** v1.5 (undefined - next milestone to be planned)
 
 ## Current Position
@@ -29,6 +38,16 @@ Phase: —
 Plan: —
 Status: Milestone v1.4 complete, awaiting v1.5 planning
 Last activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
+=======
+**Current focus:** v1.5 XSS security fix
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-25 — Milestone v1.5 started
+>>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
 
 ## Performance Metrics
 
@@ -59,6 +78,7 @@ Last activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions from v1.3:
 
+<<<<<<< HEAD
 - Phase 14: pytest framework with framework-agnostic imports (monkeypatch load_dotenv and Flask)
 - Phase 14: Function-scoped fixtures for maximum test isolation
 - Phase 14: Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging
@@ -69,6 +89,12 @@ Recent decisions from v1.3:
 - Phase 17: Independent test.yml workflow, Docker workflows unchanged
 - Phase 17: No coverage threshold in v1.3 (deferred to v2 per ADV-01)
 - Phase 17: Python 3.13 only in CI (matches production requirement)
+=======
+- v1.5 focuses exclusively on Issue #6 XSS vulnerability elimination.
+- Client-supplied title/thumb will not be trusted; must be resolved server-side from movie_id.
+- Strict CSP header enforcement required to prevent script injection.
+- XSS smoke tests are mandatory before milestone closure.
+>>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
 
 Historical decisions affecting current work:
 
@@ -101,6 +127,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
+<<<<<<< HEAD
 Last session: 2026-04-26T00:15:29.000Z
 Stopped at: Milestone v1.4 complete and archived
 Resume file: None
@@ -153,3 +180,8 @@ Resume file: None
 
 - .planning/milestones/v1.3-ROADMAP.md
 - .planning/milestones/v1.3-REQUIREMENTS.md
+=======
+Last session:
+Stopped at:
+Resume file:
+>>>>>>> bc19c94 (docs: start milestone v1.5 XSS Security Fix)
