@@ -16,6 +16,16 @@
         "code",
         "ideas"
       ]
+    },
+    {
+      "login": "andrewthetechie",
+      "name": "Andrew",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1377314?v=4",
+      "profile": "https://github.com/andrewthetechie",
+      "contributions": [
+        "code",
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,
