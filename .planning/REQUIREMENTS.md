@@ -16,14 +16,14 @@ Requirements for this milestone are scoped to Issue #11 (EPIC-08) — remove all
 
 ### Frontend Cleanup (FE)
 
-- [ ] **FE-01**: `.plex-yellow` and `.plex-open-btn` CSS classes renamed to neutral names in `jellyswipe/templates/index.html`.
-- [ ] **FE-02**: `loginWithPlex` and `fetchPlexServerId` JS functions removed from `jellyswipe/templates/index.html`.
-- [ ] **FE-03**: All `mediaProvider === 'plex'` conditional branches removed from `jellyswipe/templates/index.html`.
-- [ ] **FE-04**: Plex-related localStorage keys (`plex_token`, `plex_id`) and Plex HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`) removed.
-- [ ] **FE-05**: Literal Plex URLs removed (`plex.tv/api/v2/user`, `app.plex.tv/desktop`).
-- [ ] **FE-06**: `plexServerId` variable and `plex_id` references removed from `/room/swipe` body handler.
-- [ ] **FE-07**: Plex auth PIN flow removed (`/auth/check-returned-pin`, `/auth/plex-url` route calls).
-- [ ] **FE-08**: Plex UI copy removed ("Login with Plex", "OPEN IN PLEX").
+- [x] **FE-01**: `.plex-yellow` and `.plex-open-btn` CSS classes renamed to neutral names in `jellyswipe/templates/index.html`.
+- [x] **FE-02**: `loginWithPlex` and `fetchPlexServerId` JS functions removed from `jellyswipe/templates/index.html`.
+- [x] **FE-03**: All `mediaProvider === 'plex'` conditional branches removed from `jellyswipe/templates/index.html`.
+- [x] **FE-04**: Plex-related localStorage keys (`plex_token`, `plex_id`) and Plex HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`) removed.
+- [x] **FE-05**: Literal Plex URLs removed (`plex.tv/api/v2/user`, `app.plex.tv/desktop`).
+- [x] **FE-06**: `plexServerId` variable and `plex_id` references removed from `/room/swipe` body handler.
+- [x] **FE-07**: Plex auth PIN flow removed (`/auth/check-returned-pin`, `/auth/plex-url` route calls).
+- [x] **FE-08**: Plex UI copy removed ("Login with Plex", "OPEN IN PLEX").
 
 ### Config & Deploy Cleanup (CFG)
 
@@ -65,14 +65,14 @@ Explicitly excluded from v1.6.
 | SRC-01 | Phase 23 | Pending |
 | SRC-02 | Phase 23 | Pending |
 | SRC-03 | Phase 23 | Pending |
-| FE-01 | Phase 24 | Pending |
-| FE-02 | Phase 24 | Pending |
-| FE-03 | Phase 24 | Pending |
-| FE-04 | Phase 24 | Pending |
-| FE-05 | Phase 24 | Pending |
-| FE-06 | Phase 24 | Pending |
-| FE-07 | Phase 24 | Pending |
-| FE-08 | Phase 24 | Pending |
+| FE-01 | Phase 24 | Complete |
+| FE-02 | Phase 24 | Complete |
+| FE-03 | Phase 24 | Complete |
+| FE-04 | Phase 24 | Complete |
+| FE-05 | Phase 24 | Complete |
+| FE-06 | Phase 24 | Complete |
+| FE-07 | Phase 24 | Complete |
+| FE-08 | Phase 24 | Complete |
 | CFG-01 | Phase 25 | Pending |
 | CFG-02 | Phase 25 | Pending |
 | CFG-03 | Phase 25 | Pending |

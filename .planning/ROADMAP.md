@@ -20,7 +20,7 @@ This roadmap removes all remaining Plex references from the source code so `rg -
 ## Phases
 
 - [ ] **Phase 23: Backend Source Cleanup** — Remove dead `/plex/server-info` route, stale `plex_id` comments from db.py, and fix base.py docstring to reference Jellyfin API path
-- [ ] **Phase 24: Frontend Plex Cleanup** — Strip all Plex CSS classes, JS functions, conditional branches, localStorage keys, URLs, and UI copy from templates/index.html
+- [x] **Phase 24: Frontend Plex Cleanup** — Strip all Plex CSS classes, JS functions, conditional branches, localStorage keys, URLs, and UI copy from templates/index.html (completed 2026-04-26)
 - [ ] **Phase 25: Config & Deploy Cleanup** — Update manifest descriptions, delete dead data/index.html, clean Unraid template, and remove/strip requirements.txt
 - [ ] **Phase 26: Acceptance Validation** — Run `rg -i 'plex'` and verify only intentional historical references remain
 
@@ -63,11 +63,11 @@ Plans:
 4. No Plex-related localStorage keys (`plex_token`, `plex_id`), HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`), or literal Plex URLs exist in the codebase
 5. No Plex UI copy ("Login with Plex", "OPEN IN PLEX") appears in the application interface
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 24-01-PLAN.md — Add Jellyfin server-info endpoint and rename Plex CSS classes
-- [ ] 24-02-PLAN.md — Remove all Plex JS functions, branches, localStorage, URLs, and UI copy
+- [x] 24-01-PLAN.md — Add Jellyfin server-info endpoint and rename Plex CSS classes
+- [x] 24-02-PLAN.md — Remove all Plex JS functions, branches, localStorage, URLs, and UI copy
 
 ---
 
@@ -114,7 +114,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 23. Backend Source Cleanup | 0/1 | Not started | - |
-| 24. Frontend Plex Cleanup | 0/2 | Planned | - |
+| 24. Frontend Plex Cleanup | 2/2 | Complete    | 2026-04-26 |
 | 25. Config & Deploy Cleanup | 0/? | Not started | - |
 | 26. Acceptance Validation | 0/? | Not started | - |
 
