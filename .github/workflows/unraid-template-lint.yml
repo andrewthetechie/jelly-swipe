@@ -1,6 +1,6 @@
 name: Unraid Template Lint
 
-on:
+"on":
   push:
     paths:
       - 'unraid_template/jelly-swipe.html'
