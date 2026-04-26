@@ -62,7 +62,10 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 3. All innerHTML usages for user-controlled content have been removed or refactored to safe DOM construction
 4. Malicious script tags in movie data render as literal text in the browser (not executed)
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+- [ ] 20-01-PLAN.md — Refactor jellyswipe/templates/index.html for safe DOM construction
+- [ ] 20-02-PLAN.md — Refactor data/index.html for safe DOM construction
 
 **UI hint**: yes
 
@@ -109,7 +112,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 19. Server-Side Validation | 1/1 | Complete | 2026-04-26 |
-| 20. Safe DOM Rendering | 0/0 | Not started | - |
+| 20. Safe DOM Rendering | 0/2 | Not started | - |
 | 21. CSP Header | 0/0 | Not started | - |
 | 22. XSS Testing | 0/0 | Not started | - |
 
