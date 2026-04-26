@@ -45,6 +45,19 @@ app = Flask(__name__,
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 app.secret_key = os.environ["FLASK_SECRET"]
 
+@app.after_request
+def add_csp_header(response):
+    """Add Content Security Policy header to block inline scripts and restrict external resources."""
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "object-src 'none'; "
+        "img-src 'self' https://image.tmdb.org; "
+        "frame-src https://www.youtube.com"
+    )
+    response.headers['Content-Security-Policy'] = csp_policy
+    return response
+
 JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
