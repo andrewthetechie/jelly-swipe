@@ -25,9 +25,12 @@ Requirements for this milestone are scoped to Issue #6 (`EPIC-03`) XSS vulnerabi
 
 ### Content Security Policy
 
-- [ ] **CSP-01**: Flask app sets `Content-Security-Policy` header on all responses via `@app.after_request` hook.
-- [ ] **CSP-02**: CSP policy includes `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`.
-- [ ] **CSP-03**: CSP policy does not include `'unsafe-inline'` or `'unsafe-eval'` directives.
+- [x] **CSP-01
+**: Flask app sets `Content-Security-Policy` header on all responses via `@app.after_request` hook.
+- [x] **CSP-02
+**: CSP policy includes `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`.
+- [x] **CSP-03
+**: CSP policy does not include `'unsafe-inline'` or `'unsafe-eval'` directives.
 
 ### XSS Testing
 

@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-26T15:46:50.990Z"
+last_updated: "2026-04-26T16:02:49.000Z"
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 3
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -16,8 +16,8 @@ progress:
 
 **Milestone:** v1.5 XSS Security Fix
 **Phase:** 21 - csp-header
-**Status:** Planning Phase 21
-**Progress:** [██████████████████] 50%
+**Status:** Phase 21 complete
+**Progress:** [██████████] 100%
 
 ---
 
@@ -36,17 +36,17 @@ Phase 19 - server-side-validation (1/1 plans complete)
 
 ## Current Position
 
-Phase: 21 (csp-header) — PLANNED
-Plan: 0/1 complete
-**Phase:** CSP Header planned, ready for execution
+Phase: 21 (csp-header) — COMPLETE
+Plan: 1/1 complete
+**Phase:** CSP Header implemented
 **Milestone:** v1.5 XSS Security Fix
-**Plan:** 21-01 (CSP header via @app.after_request hook) ready
-**Status:** Phase 21 planned with 1 plan, ready for execution
+**Plan:** 21-01 (CSP header via @app.after_request hook) complete
+**Status:** Phase 21 complete, all 3 security layers in place
 
 **Progress Bar:**
 
 ```
-[██████████████████░░] 50% - Phase 19 complete, Phase 20 planned, Phase 21 planned, 1/4 phases complete
+[██████████████████] 100% - Phases 19-21 complete, Phase 22 (smoke tests) remaining
 ```
 
 **Next Step:** `/gsd-execute-phase 21`
@@ -106,11 +106,13 @@ Plan: 0/1 complete
 - [x] Validate Phase 19 success criteria
 - [x] Transition to Phase 20
 - [x] Plan Phase 20: Safe DOM Rendering
-- [ ] Execute Phase 20 plans
-- [ ] Validate Phase 20 success criteria
+- [x] Execute Phase 20 plans
+- [x] Validate Phase 20 success criteria
 - [x] Plan Phase 21: CSP Header
-- [ ] Execute Phase 21 plans
-- [ ] Validate Phase 21 success criteria
+- [x] Execute Phase 21 plans
+- [x] Validate Phase 21 success criteria
+- [ ] Plan Phase 22: Smoke Tests
+- [ ] Execute Phase 22 plans
 
 **Milestone:**
 
@@ -153,10 +155,13 @@ None at roadmap creation.
 
 **Current Session:**
 
-- 2026-04-26: Phase 19 execution completed (1 plan)
+- 2026-04-26: Phase 19-21 execution completed (3 plans total)
 - /room/swipe endpoint now resolves all metadata server-side from Jellyfin
 - Security logging in place for client-supplied title/thumb parameters
-- Ready to proceed to Phase 20: Safe DOM Rendering
+- Safe DOM rendering implemented (textContent instead of innerHTML)
+- Content Security Policy header added via @app.after_request hook
+- All three XSS defense layers now in place: server validation, safe DOM, CSP
+- Ready to proceed to Phase 22: Smoke Tests
 
 **Handoff Notes:**
 
