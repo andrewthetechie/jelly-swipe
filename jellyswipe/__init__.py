@@ -536,3 +536,8 @@ def create_app(test_config=None):
         return send_from_directory('static', path)
 
     return app
+
+
+# Create global app instance for backwards compatibility
+# Dockerfile CMD uses: gunicorn jellyswipe:app
+app = create_app()
