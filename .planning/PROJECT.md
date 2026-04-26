@@ -78,9 +78,10 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
 - **Shipped:** **v1.4 Authorization Hardening** completed and archived under `.planning/milestones/v1.4-*`.
+- **Shipped:** **v1.5 Route Test Coverage** — Phase 29 (CSP compliance) completed. All inline styles/JS externalized, self-hosted font. This was the last phase of v1.5.
 - **In flight:** Next milestone definition (`/gsd-new-milestone`).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
-- **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
+- **UI:** External CSS (`jellyswipe/static/styles.css`) and JS (`jellyswipe/static/app.js`) files with CSP-compliant HTML template (`jellyswipe/templates/index.html`); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
 - **Tests:** 159 tests across 8 test files with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting; 75% total coverage; CI enforces 70% coverage threshold (--cov-fail-under=70).
 
@@ -136,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after Phase 28 execution*
+*Last updated: 2026-04-26 after Phase 29 execution*
