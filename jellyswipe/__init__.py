@@ -114,6 +114,10 @@ def _identity_rejection_reason() -> Optional[str]:
     return str(value) if value else None
 
 
+def _unauthorized_response():
+    return jsonify({'error': 'Unauthorized'}), 401
+
+
 def _token_cache_key(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -212,9 +216,12 @@ def add_to_watchlist():
     try:
         data = request.json
         movie_id = data.get('movie_id')
+        user_id = _provider_user_id_from_request()
+        if not user_id:
+            return _unauthorized_response()
         user_token = _jellyfin_user_token_from_request()
         if not user_token:
-            return jsonify({'error': 'Unauthorized'}), 401
+            return _unauthorized_response()
         get_provider().add_to_user_favorites(user_token, movie_id)
         return jsonify({'status': 'success'})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -293,10 +300,9 @@ def swipe():
     uid = session.get('my_user_id')
     data = request.json
     mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
-    user_id = data.get('user_id')
-    user_id = _provider_user_id_from_request() or user_id
+    user_id = _provider_user_id_from_request()
     if not user_id:
-        return jsonify({'error': 'Missing Jellyfin user identity', 'match': False}), 400
+        return _unauthorized_response()
 
     if not code: return jsonify({'match': False})
 
@@ -341,7 +347,7 @@ def get_matches():
     view = request.args.get('view')
     user_id = _provider_user_id_from_request()
     if not user_id:
-        return jsonify([]) if view else jsonify([])
+        return _unauthorized_response()
 
     with get_db() as conn:
         if view == 'history':
@@ -367,7 +373,7 @@ def delete_match():
     mid = str(request.json.get('movie_id'))
     user_id = _provider_user_id_from_request()
     if not user_id:
-        return jsonify({'error': 'Missing user identity'}), 400
+        return _unauthorized_response()
     with get_db() as conn:
         conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, user_id))
     return jsonify({'status': 'deleted'})
@@ -379,7 +385,7 @@ def undo_swipe():
     mid = str(request.json.get('movie_id'))
     user_id = _provider_user_id_from_request()
     if not user_id:
-        return jsonify({'error': 'Missing user identity'}), 400
+        return _unauthorized_response()
     with get_db() as conn:
         conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
         conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, user_id))
