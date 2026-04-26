@@ -87,7 +87,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 
 **Plans:** 1 plan
 
-- [ ] 21-01-PLAN.md — Add @app.after_request hook for CSP header
+- [x] 21-01-PLAN.md — Add @app.after_request hook for CSP header
 
 ---
 
@@ -114,8 +114,8 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 19. Server-Side Validation | 1/1 | Complete | 2026-04-26 |
-| 20. Safe DOM Rendering | 0/2 | Not started | - |
-| 21. CSP Header | 0/1 | Planned | - |
+| 20. Safe DOM Rendering | 2/2 | Complete | 2026-04-26 |
+| 21. CSP Header | 1/1 | Complete | 2026-04-26 |
 | 22. XSS Testing | 0/0 | Not started | - |
 
 ---
