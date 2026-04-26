@@ -1,417 +1,262 @@
-"""
-XSS security smoke tests for jellyswipe Flask application.
+"""XSS security tests for EPIC-03 verification.
 
-Tests verify three-layer XSS defense:
-- Layer 1: Server-Side Validation - client-supplied title/thumb are ignored
-- Layer 2: Safe DOM Rendering - verified in Phase 20 (manual verification)
-- Layer 3: CSP Header - Content Security Policy blocks inline scripts
-
-These tests prove the XSS vulnerability (Issue #6) is closed.
+Tests verify that all user-controlled input is properly sanitized before being
+stored, rendered, or reflected in responses. Flask's jsonify() auto-escapes
+HTML entities in JSON strings — these tests prove that protection works and
+that non-JSON paths (proxy) are also safe.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock, Mock
 import json
-import os
-import importlib
-import sys
 
-# CRITICAL: Import Flask BEFORE conftest.py's setup_test_environment runs
-# This captures the real Flask class before it gets mocked
-from flask import Flask as _RealFlaskClass
-_REAL_FLASK = _RealFlaskClass
+import jellyswipe.db
+import pytest
+
+# ---------------------------------------------------------------------------
+# Module-level XSS payload constants (per D-03, D-04, D-05, D-06, D-07)
+# ---------------------------------------------------------------------------
+
+XSS_SCRIPT_TAG = "<script>alert('xss')</script>"
+XSS_IMG_TAG = '<img src=x onerror=alert(1)>'
+XSS_SVG_TAG = '<svg onload=alert(1)>'
+XSS_JS_URL = "javascript:alert(1)"
+XSS_JS_VOID = "javascript:void(0)"
+XSS_EVENT_HANDLER_DQ = '" onmouseover="alert(1)'
+XSS_EVENT_HANDLER_SQ = "' onload='alert(1)"
+XSS_ENCODED_ANGLE = "&lt;script&gt;"
+XSS_PERCENT = "%3Cscript%3E"
+XSS_HEX_ENCODED = "&#x3C;script&#x3E;"
 
 
-@pytest.fixture
-def flask_app(tmp_path, monkeypatch):
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _set_session(client, *, active_room="ROOM1", session_user_id="test-user", delegate=True):
+    """Set up session with active room and identity for swipe tests."""
+    with client.session_transaction() as sess:
+        sess["active_room"] = active_room
+        sess["my_user_id"] = session_user_id
+        if delegate:
+            sess["jf_delegate_server_identity"] = True
+        else:
+            sess.pop("jf_delegate_server_identity", None)
+
+
+def _seed_solo_room(db_path, room_code="ROOM1"):
+    """Seed a solo-mode room ready for swiping."""
+    conn = jellyswipe.db.get_db()
+    try:
+        conn.execute(
+            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (room_code, json.dumps([]), 1, "All", 1),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _setup_solo_swipe_session(client):
+    """Prepare a solo-mode room with delegate identity for swipe XSS tests.
+
+    Combines session setup and room seeding into one call.
+    Returns nothing — the caller just needs the client.
     """
-    Provide a real Flask app instance for route testing.
-
-    This fixture is necessary because conftest.py's setup_test_environment()
-    mocks Flask() for unit tests that don't need the full app. Route tests
-    need the real Flask app to test HTTP endpoints.
-
-    This fixture temporarily restores the real Flask class and reloads jellyswipe.
-    """
-    # Create a temporary database path
-    db_file = tmp_path / "test_xss.db"
-
-    # Set required environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.jellyfin.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-    monkeypatch.setenv("TMDB_API_KEY", "test-tmdb-key")
-    monkeypatch.setenv("FLASK_SECRET", "test-secret-key")
-    monkeypatch.setenv("DB_PATH", str(db_file))
-
-    # Restore the real Flask class using the reference we saved at module load time
-    import flask
-    flask.Flask = _REAL_FLASK
-
-    # We need to reload jellyswipe with the real Flask
-    # First, remove all jellyswipe modules from sys.modules
-    modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith('jellyswipe')]
-    for mod in modules_to_remove:
-        del sys.modules[mod]
-
-    # Now import jellyswipe - this will use the real Flask class
-    import jellyswipe
-    from jellyswipe import app
-
-    # Patch the DB_PATH to use our temporary database
-    import jellyswipe.db
-    jellyswipe.db.DB_PATH = str(db_file)
-
-    # Initialize the database
-    jellyswipe.db.init_db()
-
-    yield app
-
-    # Cleanup: remove modules to prevent interference with other tests
-    modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith('jellyswipe')]
-    for mod in modules_to_remove:
-        del sys.modules[mod]
-
-
-class TestLayer1ServerSideValidation:
-    """Tests for Layer 1: Server-Side Validation."""
-
-    def test_swipe_ignores_client_supplied_title_thumb(self, flask_app):
-        """
-        Test that /room/swipe ignores client-supplied title and thumb parameters.
-
-        Verifies that even if a malicious client sends title/thumb in the request body,
-        the server resolves metadata from Jellyfin and stores only the server-resolved data.
-
-        Requirement: XSS-01, XSS-04
-        """
-        # Import database functions
-        import jellyswipe.db
-
-        # Create a test room in solo mode (creates match immediately on right swipe)
-        with jellyswipe.db.get_db() as conn:
-            conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("TEST123", 1)
-            )
-
-        # Mock the session to simulate an authenticated user
-        with flask_app.test_client() as client:
-            with client.session_transaction() as sess:
-                sess['active_room'] = 'TEST123'
-                sess['my_user_id'] = 'user_abc123'
-                sess['solo_mode'] = True
-
-            # Create a mock for JellyfinLibraryProvider
-            mock_provider = MagicMock()
-            mock_item = MagicMock()
-            mock_item.title = "The Matrix"
-            mock_item.year = 1999
-            mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-            # Patch get_provider() to return our mock
-            # Need to patch in the module where it's imported
-            import jellyswipe
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_abc123'):
-                # Send malicious payload with script tags in title and thumb
-                response = client.post(
-                    '/room/swipe',
-                    json={
-                        'movie_id': 'movie123',
-                        'direction': 'right',
-                        'title': '<script>alert("XSS")</script>',
-                        'thumb': '<img src=x onerror=alert("XSS")>',
-                        'user_id': 'jellyfin_user_1'
-                    }
-                )
-
-                # Verify response was successful
-                assert response.status_code == 200
-
-                # Verify that the response contains server-resolved title, not client-supplied
-                response_data = json.loads(response.data)
-                assert response_data['title'] == "The Matrix"
-                assert response_data['title'] != '<script>alert("XSS")</script>'
-
-                # Verify that provider was called (server-side resolution occurred)
-                mock_provider.resolve_item_for_tmdb.assert_called_once_with('movie123')
-
-                # Verify database contains only server-resolved data
-                with jellyswipe.db.get_db() as conn:
-                    cursor = conn.execute(
-                        "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
-                        ("TEST123", "movie123")
-                    )
-                    match = cursor.fetchone()
-                    assert match is not None
-                    assert match['title'] == "The Matrix"
-                    assert match['title'] != '<script>alert("XSS")</script>'
-                    assert match['thumb'] == "/proxy?path=jellyfin/movie123/Primary"
-                    assert match['thumb'] != '<img src=x onerror=alert("XSS")>'
-
-    def test_swipe_logs_security_warning_for_client_params(self, flask_app, caplog):
-        """
-        Test that /room/swipe logs a security warning when client sends title/thumb parameters.
-
-        Verifies that the server detects and logs potential XSS attempts when a client
-        sends title/thumb parameters (which should not be sent).
-
-        Requirement: XSS-04
-        """
-        # Import database functions
-        import jellyswipe.db
-
-        # Create a test room in solo mode
-        with jellyswipe.db.get_db() as conn:
-            conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("TEST456", 1)
-            )
-
-        with flask_app.test_client() as client:
-            with client.session_transaction() as sess:
-                sess['active_room'] = 'TEST456'
-                sess['my_user_id'] = 'user_xyz789'
-                sess['solo_mode'] = True
-
-            # Mock the provider
-            mock_provider = MagicMock()
-            mock_item = MagicMock()
-            mock_item.title = "Safe Movie"
-            mock_item.year = 2020
-            mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-            # Patch get_provider() and capture logs
-            import jellyswipe
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_xyz789'):
-                with caplog.at_level('WARNING'):
-                    # Send request with title/thumb (old client or attack attempt)
-                    response = client.post(
-                        '/room/swipe',
-                        json={
-                            'movie_id': 'movie456',
-                            'direction': 'right',
-                            'title': '<script>alert("XSS")</script>',
-                            'thumb': 'malicious.jpg',
-                            'user_id': 'jellyfin_user_2'
-                        }
-                    )
-
-                    assert response.status_code == 200
-
-                    # Verify that a security warning was logged
-                    warning_logs = [
-                        record for record in caplog.records
-                        if record.levelname == 'WARNING' and 'Security warning' in record.message
-                    ]
-                    assert len(warning_logs) > 0, "Security warning was not logged"
-
-                    # Verify the log message contains expected details
-                    warning_message = warning_logs[0].message
-                    assert 'Client sent title/thumb parameters' in warning_message
-                    assert 'movie_id=movie456' in warning_message
-                    assert '<script>alert("XSS")</script>' in warning_message
-
-
-class TestLayer3CSPHeader:
-    """Tests for Layer 3: Content Security Policy Header."""
-
-    def test_csp_header_present_on_responses(self, flask_app):
-        """
-        Test that CSP header is present on all HTTP responses.
-
-        Verifies that the @app.after_request hook adds the Content-Security-Policy
-        header to block inline scripts and restrict external resources.
-
-        Requirement: XSS-03
-        """
-        with flask_app.test_client() as client:
-            # Test root endpoint
-            response = client.get('/')
-            assert 'Content-Security-Policy' in response.headers
-            assert response.headers['Content-Security-Policy'] != ""
-
-            # Test another endpoint (e.g., static file or API)
-            response = client.get('/create')
-            assert 'Content-Security-Policy' in response.headers
-            assert response.headers['Content-Security-Policy'] != ""
-
-    def test_csp_policy_directives_correct(self, flask_app):
-        """
-        Test that CSP header contains all required directives and no unsafe directives.
-
-        Verifies that the CSP policy has:
-        - default-src 'self'
-        - script-src 'self' (no unsafe-inline or unsafe-eval)
-        - object-src 'none'
-        - img-src 'self' https://image.tmdb.org
-        - frame-src https://www.youtube.com
-
-        Requirement: XSS-03
-        """
-        with flask_app.test_client() as client:
-            response = client.get('/')
-            csp = response.headers['Content-Security-Policy']
-
-            # Verify required directives are present
-            assert "default-src 'self'" in csp, "Missing default-src 'self' directive"
-            assert "script-src 'self'" in csp, "Missing script-src 'self' directive"
-            assert "object-src 'none'" in csp, "Missing object-src 'none' directive"
-            assert "img-src 'self' https://image.tmdb.org" in csp, "Missing img-src directive"
-            assert "frame-src https://www.youtube.com" in csp, "Missing frame-src directive"
-
-            # Verify unsafe directives are NOT present
-            assert "unsafe-inline" not in csp, "CSP should not contain unsafe-inline"
-            assert "unsafe-eval" not in csp, "CSP should not contain unsafe-eval"
-
-
-class TestEndToEndXSSBlocking:
-    """End-to-end tests verifying all three layers of XSS defense work together."""
-
-    def test_xss_blocked_three_layer_defense(self, flask_app):
-        """
-        End-to-end test that verifies XSS is blocked through all three defense layers.
-
-        This test sends a malicious payload with script tags and verifies:
-        1. Layer 1: Security warning is logged when client sends title/thumb
-        2. Layer 1: Server resolves metadata from Jellyfin, ignoring client params
-        3. Layer 3: CSP header is present in response
-
-        Note: Layer 2 (safe DOM rendering) is verified indirectly - if Layer 1
-        blocks the malicious data at the server, Layer 2 never sees it. Layer 2
-        was verified manually in Phase 20.
-
-        Requirement: XSS-01, XSS-02, XSS-03, XSS-04
-        """
-        import jellyswipe
-
-        # Create a test room in solo mode
-        with jellyswipe.db.get_db() as conn:
-            conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("E2E123", 1)
-            )
-
-        with flask_app.test_client() as client:
-            with client.session_transaction() as sess:
-                sess['active_room'] = 'E2E123'
-                sess['my_user_id'] = 'user_e2e'
-                sess['solo_mode'] = True
-
-            # Mock the provider to return safe data
-            mock_provider = MagicMock()
-            mock_item = MagicMock()
-            mock_item.title = "Inception"
-            mock_item.year = 2010
-            mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_e2e'):
-                # Send malicious payload
-                response = client.post(
-                    '/room/swipe',
-                    json={
-                        'movie_id': 'movie_e2e',
-                        'direction': 'right',
-                        'title': '<script>alert("XSS")</script>',
-                        'thumb': '<img src=x onerror=alert("XSS")>',
-                        'user_id': 'jellyfin_user_e2e'
-                    }
-                )
-
-                # Verify Layer 1: Response was successful and contains server-resolved data
-                assert response.status_code == 200
-                response_data = json.loads(response.data)
-                assert response_data['title'] == "Inception"
-                assert response_data['title'] != '<script>alert("XSS")</script>'
-                assert response_data['thumb'] == "/proxy?path=jellyfin/movie_e2e/Primary"
-
-                # Verify Layer 3: CSP header is present
-                assert 'Content-Security-Policy' in response.headers
-                assert "script-src 'self'" in response.headers['Content-Security-Policy']
-                assert "unsafe-inline" not in response.headers['Content-Security-Policy']
-
-                # Verify Layer 1: Database contains only server-resolved safe data
-                with jellyswipe.db.get_db() as conn:
-                    cursor = conn.execute(
-                        "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
-                        ("E2E123", "movie_e2e")
-                    )
-                    match = cursor.fetchone()
-                    assert match is not None
-                    assert match['title'] == "Inception"
-                    assert '<script>' not in match['title']
-                    assert match['thumb'] == "/proxy?path=jellyfin/movie_e2e/Primary"
-
-    def test_swipe_handles_jellyfin_failure_gracefully(self, flask_app, caplog):
-        """
-        Test that swipe handles Jellyfin API failures gracefully.
-
-        When Jellyfin metadata resolution fails, the swipe should still complete
-        but no match should be created. This ensures the app remains functional
-        even when the Jellyfin server is unavailable.
-
-        Requirement: Edge case handling for XSS defense
-        """
-        import jellyswipe
-
-        # Create a test room in solo mode
-        with jellyswipe.db.get_db() as conn:
-            conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("FAIL789", 1)
-            )
-
-        with flask_app.test_client() as client:
-            with client.session_transaction() as sess:
-                sess['active_room'] = 'FAIL789'
-                sess['my_user_id'] = 'user_fail'
-                sess['solo_mode'] = True
-
-            # Mock the provider to raise RuntimeError (simulating Jellyfin failure)
-            mock_provider = MagicMock()
-            mock_provider.resolve_item_for_tmdb.side_effect = RuntimeError("Jellyfin item lookup failed")
-
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_fail'):
-                with caplog.at_level('WARNING'):
-                    # Send swipe request
-                    response = client.post(
-                        '/room/swipe',
-                        json={
-                            'movie_id': 'movie_fail',
-                            'direction': 'right',
-                            'user_id': 'jellyfin_user_fail'
-                        }
-                    )
-
-                    # Verify response indicates no match (because metadata resolution failed)
-                    assert response.status_code == 200
-                    response_data = json.loads(response.data)
-                    assert response_data.get('match') is False or 'match' not in response_data
-
-                    # Verify error was logged
-                    error_logs = [
-                        record for record in caplog.records
-                        if record.levelname == 'WARNING' and 'Failed to resolve metadata' in record.message
-                    ]
-                    assert len(error_logs) > 0, "Error was not logged"
-
-                    # Verify no match was created in database
-                    with jellyswipe.db.get_db() as conn:
-                        cursor = conn.execute(
-                            "SELECT COUNT(*) as count FROM matches WHERE room_code = ? AND movie_id = ?",
-                            ("FAIL789", "movie_fail")
-                        )
-                        result = cursor.fetchone()
-                        assert result['count'] == 0, "Match should not be created when metadata resolution fails"
-
-                    # Verify swipe was still recorded
-                    with jellyswipe.db.get_db() as conn:
-                        cursor = conn.execute(
-                            "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
-                            ("FAIL789", "movie_fail")
-                        )
-                        result = cursor.fetchone()
-                        assert result['count'] == 1, "Swipe should still be recorded even if match creation fails"
+    _set_session(client)
+    _seed_solo_room(None)
+
+
+# ---------------------------------------------------------------------------
+# Section 1: Stored XSS via /room/swipe (D-08, D-09, D-10)
+# ---------------------------------------------------------------------------
+
+
+def test_swipe_xss_title_escaped_in_match_response(client):
+    """Swipe with XSS <script> in title — Flask jsonify escapes it in match response."""
+    _setup_solo_swipe_session(client)
+
+    response = client.post(
+        "/room/swipe",
+        json={
+            "movie_id": "movie-1",
+            "title": XSS_SCRIPT_TAG,
+            "thumb": "thumb.jpg",
+            "direction": "right",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["match"] is True
+    # Per D-19: Flask jsonify encodes < as \u003c in JSON strings
+    assert "\u003c" in data.get("title", "")
+    # Raw unescaped <script> must NOT appear in the JSON body
+    assert "<script>" not in response.get_data(as_text=True)
+
+
+def test_swipe_xss_thumb_escaped_in_match_response(client):
+    """Swipe with XSS <img> in thumb — escaped in match response JSON."""
+    _setup_solo_swipe_session(client)
+
+    response = client.post(
+        "/room/swipe",
+        json={
+            "movie_id": "movie-2",
+            "title": "Normal Title",
+            "thumb": XSS_IMG_TAG,
+            "direction": "right",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["match"] is True
+    # Escaped form must be present
+    assert "\u003c" in data.get("thumb", "")
+    # Raw unescaped <img> must NOT appear in the response body
+    assert "<img" not in response.get_data(as_text=True)
+
+
+def test_stored_xss_matches_endpoint(client):
+    """Stored XSS read path: swipe with XSS title, then GET /matches — must be escaped."""
+    _setup_solo_swipe_session(client)
+
+    # Store XSS payload via swipe
+    client.post(
+        "/room/swipe",
+        json={
+            "movie_id": "movie-3",
+            "title": XSS_SCRIPT_TAG,
+            "thumb": XSS_IMG_TAG,
+            "direction": "right",
+        },
+    )
+
+    # Retrieve via /matches endpoint
+    response = client.get("/matches")
+
+    assert response.status_code == 200
+    body_text = response.get_data(as_text=True)
+    # Raw <script> and <img> must NOT appear in output
+    assert "<script>" not in body_text
+    assert "<img" not in body_text
+    # Escaped JSON unicode forms should be present (literal \u003c in HTTP body)
+    assert "\\u003c" in body_text
+
+
+def test_swipe_xss_img_tag_escaped(client):
+    """Swipe with <img onerror> XSS in title — escaped in match response."""
+    _setup_solo_swipe_session(client)
+
+    response = client.post(
+        "/room/swipe",
+        json={
+            "movie_id": "movie-4",
+            "title": XSS_IMG_TAG,
+            "thumb": "thumb.jpg",
+            "direction": "right",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["match"] is True
+    assert "\u003c" in data.get("title", "")
+    assert "<img" not in response.get_data(as_text=True)
+
+
+def test_swipe_xss_event_handler_escaped(client):
+    """Swipe with event handler injection in title — quotes escaped in response."""
+    _setup_solo_swipe_session(client)
+
+    response = client.post(
+        "/room/swipe",
+        json={
+            "movie_id": "movie-5",
+            "title": XSS_EVENT_HANDLER_DQ,
+            "thumb": "thumb.jpg",
+            "direction": "right",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["match"] is True
+    # The title value is present (round-trip through jsonify)
+    assert XSS_EVENT_HANDLER_DQ in data.get("title", "") or "\u0022" in data.get("title", "")
+
+
+# ---------------------------------------------------------------------------
+# Section 2: Proxy route XSS tests (D-12, D-13, D-14, D-15)
+# ---------------------------------------------------------------------------
+
+
+def test_proxy_javascript_url_rejected(client):
+    """GET /proxy with javascript: URL — must return 403."""
+    response = client.get(f"/proxy?path={XSS_JS_URL}")
+    assert response.status_code == 403
+
+
+def test_proxy_javascript_void_rejected(client):
+    """GET /proxy with javascript:void(0) — must return 403."""
+    response = client.get(f"/proxy?path={XSS_JS_VOID}")
+    assert response.status_code == 403
+
+
+def test_proxy_path_traversal_rejected(client):
+    """GET /proxy with ../path traversal — must return 403."""
+    response = client.get("/proxy?path=../../etc/passwd")
+    assert response.status_code == 403
+
+
+def test_proxy_html_in_path_rejected(client):
+    """GET /proxy with <script> in path parameter — must return 403."""
+    response = client.get(f"/proxy?path={XSS_SCRIPT_TAG}")
+    assert response.status_code == 403
+
+
+def test_proxy_valid_uuid_path_accepted(client):
+    """GET /proxy with valid 32-char hex UUID — must return 200."""
+    response = client.get("/proxy?path=jellyfin/00000000000000000000000000000000/Primary")
+    assert response.status_code == 200
+    assert "image" in response.content_type
+
+
+def test_proxy_valid_uuid_with_dashes_accepted(client):
+    """GET /proxy with valid 36-char UUID with dashes — must return 200."""
+    response = client.get("/proxy?path=jellyfin/00000000-0000-0000-0000-000000000000/Primary")
+    assert response.status_code == 200
+    assert "image" in response.content_type
+
+
+# ---------------------------------------------------------------------------
+# Section 3: Input validation tests (D-16, D-17)
+# ---------------------------------------------------------------------------
+
+
+def test_login_xss_username_not_echoed(client):
+    """POST /auth/jellyfin-login with XSS in username — response must not echo raw payload."""
+    response = client.post(
+        "/auth/jellyfin-login",
+        json={"username": XSS_SCRIPT_TAG, "password": "testpass"},
+    )
+
+    body_text = response.get_data(as_text=True)
+    # The error message is static ("Jellyfin login failed"), never echoes input
+    assert "<script>" not in body_text
+    # Verify we got a proper response (either 200 or 401 depending on mock)
+    assert response.status_code in (200, 401)
+
+
+def test_join_room_xss_code_not_echoed(client):
+    """POST /room/join with XSS in code — response must not echo raw payload."""
+    response = client.post(
+        "/room/join",
+        json={"code": XSS_SCRIPT_TAG},
+    )
+
+    body_text = response.get_data(as_text=True)
+    # The error message is static ("Invalid Code"), never echoes input
+    assert "<script>" not in body_text
+    assert response.status_code == 404

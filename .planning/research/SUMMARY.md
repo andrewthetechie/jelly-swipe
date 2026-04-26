@@ -1,169 +1,230 @@
 # Project Research Summary
 
-**Project:** Jelly Swipe (v1.3 — Unit Tests)
-**Domain:** Python Flask Application Unit Testing
-**Researched:** 2026-04-25
+**Project:** Jelly Swipe - v1.5 Route Test Coverage
+**Domain:** Flask web application with route testing and app factory pattern
+**Researched:** 2026-04-26
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This is a unit testing initiative for a Flask web application (Jelly Swipe) that uses SQLite for data persistence and integrates with external APIs (Jellyfin, TMDB). The project requires implementing a framework-agnostic test suite for core business logic modules (`db.py`, `jellyfin_library.py`) without coupling to Flask's request/response cycle. Expert approach: Use pytest as the testing foundation with fixtures for database setup, pytest-mock for external API isolation, and in-memory SQLite databases for complete test isolation.
+v1.5 is a focused testing milestone: refactor the Flask app to the standard app factory pattern and add comprehensive route tests to achieve 70% coverage of `jellyswipe/__init__.py`. Research confirms this is a well-established pattern in the Flask ecosystem with no new dependencies required. The existing stack (Flask 3.1.3+, pytest 9.0.0+, pytest-cov 7.1.0+) already provides all necessary components. Flask's built-in test client (`app.test_client()`) is sufficient—no need for pytest-flask plugin.
 
-The recommended approach prioritizes test infrastructure first to establish proper isolation patterns, preventing common pitfalls like state leakage and flaky tests. Key risks include over-mocking external dependencies (which hides integration bugs) and coupling tests to implementation details (which causes test fragility during refactoring). Mitigation strategy: Use framework-agnostic tests for pure Python modules, mock only external HTTP calls (Jellyfin/TMDB APIs), test database operations with temporary isolated databases, and establish clear fixture patterns in conftest.py before writing extensive tests.
+The recommended approach is straightforward: (1) refactor `jellyswipe/__init__.py` into a `create_app(test_config=None)` factory function with backwards-compatible global `app` instance, (2) add `app` and `client` fixtures to `conftest.py`, (3) create 5 route test files (auth, xss, room, proxy, sse) following existing patterns, and (4) add `--cov-fail-under=70` to pytest configuration for CI enforcement. Critical risks are test isolation (state leakage between tests) and testing implementation details rather than behavior—both addressed by following Flask's official testing documentation and the existing framework-agnostic test patterns in the codebase.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack research confirms pytest as the industry standard for Python testing, with excellent Python 3.13+ compatibility. The recommended core technologies are pytest (^9.0.0) as the framework, pytest-mock (^3.14.0) for cleaner mocking via the `mocker` fixture, and responses (^0.25.0) for mocking HTTP requests to external APIs. Coverage reporting via pytest-cov (^6.0.0) provides quality metrics with multiple output formats (terminal, HTML, XML). pytest-timeout prevents hanging tests in SSE scenarios, while pytest-xdist offers optional parallel execution as the test suite grows.
+No new dependencies required for v1.5. The existing stack has all necessary components for Flask route testing with app factory pattern.
 
 **Core technologies:**
-- **pytest (^9.0.0)**: Testing framework with fixtures and parametrize — Python 3.13 compatible, de facto standard, supports modern pytest.mark.parametrize and fixture-based tests, auto-discovery, rich assertion introspection
-- **pytest-mock (^3.14.0)**: Mocking utilities — Thin wrapper around unittest.mock with cleaner API via `mocker` fixture, automatic cleanup, type annotations support, spy/stub utilities
-- **responses (^0.25.0)**: HTTP request mocking — Mocks requests library calls to external APIs (Jellyfin, TMDB), decorator/context manager patterns, call tracking, dynamic response generation
-- **pytest-cov (^6.0.0)**: Coverage measurement — Integrates coverage.py with pytest, provides multiple report formats (term, HTML, XML for CI), append mode for combining unit/integration test coverage
+- **Flask 3.1.3+** — Web framework with built-in test client and app factory pattern support. Standard Flask pattern, no additional plugins needed.
+- **pytest 9.0.0+** — Test framework with excellent fixture support and parametrization. Already in use with 48 tests, well-understood in the codebase.
+- **pytest-cov 7.1.0+** — Coverage measurement with `--cov-fail-under=70` threshold enforcement. Single configuration change to pyproject.toml.
+
+**Supporting technologies:**
+- **pytest-mock 3.14.0+** — Mocking utilities for external API calls. Already used in existing tests.
+- **responses 0.25.0+** — HTTP request mocking for Jellyfin/TMDB APIs. Prevents real API calls during tests.
 
 ### Expected Features
 
-The feature research identifies table stakes expected in any professional Python test suite. Core requirements include the pytest framework, fixtures for reusable test setup, automatic test discovery, parametrization for data-driven testing, mocking/patching for external dependency isolation, temporary resources for test isolation, conftest.py for shared fixtures, coverage reporting, and CI integration. The key differentiator for this project is the framework-agnostic approach—testing modules directly without Flask integration—which matches the explicit TEST-01 requirement.
+**Must have (table stakes) for v1.5:**
+- Test client usage with `app.test_client()` for making HTTP requests
+- Status code assertions (200, 400, 401, 403, 404, 500) for all routes
+- Response JSON validation for API routes
+- Session testing via `client.session_transaction()` for stateful routes
+- Database state verification for routes that modify SQLite
+- Authentication testing for protected routes
+- Input validation testing for malformed requests
+- Header validation for Authorization and Content-Type headers
+- Parametrized tests for multiple scenarios per route
+- Error handling testing for exception paths
 
-**Must have (table stakes):**
-- **pytest framework** — Industry standard for Python testing; modern, powerful, widely adopted
-- **Fixtures** — Reusable test setup/teardown logic prevents code duplication
-- **Mocking/patching** — Isolating units from external dependencies is fundamental
-- **Temporary resources** — Tests must not interfere with each other or system state
-- **conftest.py** — Shared fixtures and configuration across test modules is expected
-- **Coverage reporting** — Measuring test completeness is basic quality metric
-- **CI integration** — Tests should run automatically in CI/CD pipelines
-
-**Should have (competitive):**
-- **Framework-agnostic testing** — Tests modules in isolation, not tied to Flask app lifecycle
-- **pytest-mock integration** — Cleaner mock API than unittest.mock
-- **Module-scoped fixtures** — Efficient resource sharing across tests in same module
-- **Coverage thresholds** — Enforce minimum coverage in CI to prevent regression
+**Should have (differentiators) for v1.5:**
+- Security regression testing (authorization bypass, XSS, injection attacks)
+- SSE streaming testing for real-time updates
+- Proxy route allowlist testing for SSRF prevention
+- Coverage threshold enforcement (70%) in CI
 
 **Defer (v2+):**
-- **Parallel test execution** — pytest-xdist for faster test runs (requires test isolation verification)
-- **Integration test suite** — End-to-end tests with real Jellyfin server (separate from unit tests)
-- **Property-based testing** — Hypothesis for edge case discovery
+- Edge case tests (concurrent operations, connection failures, malformed JSON)
+- Performance tests (load testing, SSE with many clients)
+- Integration tests (end-to-end workflows)
+- Property-based testing (Hypothesis)
+- Contract testing (Pact)
 
 ### Architecture Approach
 
-The architecture research establishes a clear separation between test suite, test dependencies, production code, and external dependencies. The recommended project structure uses `tests/conftest.py` for shared fixtures, `tests/unit/` for isolated business logic tests (test_db.py, test_jellyfin_library.py, test_base.py), and `tests/integration/` for optional Flask route tests. Key architectural patterns include: (1) In-memory SQLite with tmp_path for complete database isolation, (2) Mock external API calls with pytest-mock to prevent network dependencies, (3) Environment variable monkeypatching for test-specific configuration, and (4) Parametrized fixtures for comprehensive scenario coverage.
+The test suite follows a layered architecture: Test Suite (pytest) → Test Dependencies (pytest-mock, tmp_path, monkeypatch) → Production Code (jellyswipe modules) → External Dependencies (SQLite, Jellyfin API, Flask). The app factory pattern allows creating isolated test instances with test configuration, enabling proper test isolation. Existing framework-agnostic tests (test_db.py, test_jellyfin_library.py) remain unchanged—route tests are additive.
 
 **Major components:**
-1. **conftest.py** — Centralized shared fixtures (database initialization, provider mocks, environment setup) with appropriate scopes (function, module, session)
-2. **test_db.py** — Tests database schema, migrations, and CRUD operations using in-memory SQLite with tmp_path fixture
-3. **test_jellyfin_library.py** — Tests Jellyfin API client logic, error handling, and caching using mocked requests library
-4. **pytest-mock & tmp_path** — Test dependencies providing mocker fixture for patching and isolated temporary directories for each test
+1. **conftest.py** — Shared fixtures (app, client, db_connection, mock_env_vars, mocker). Centralizes test setup/teardown.
+2. **jellyswipe/__init__.py (refactored)** — `create_app(test_config=None)` factory function with backwards-compatible global `app` instance.
+3. **Route test files** — 5 test files organized by route category (auth, xss, room, proxy, sse) for maintainability.
+4. **pytest-cov** — Coverage measurement with 70% threshold enforcement in CI.
+
+**Key patterns:**
+- In-memory SQLite with tmp_path fixture for database isolation
+- Mock external API calls with pytest-mock and responses
+- Environment variable monkeypatching for test configuration
+- Function-scoped fixtures for complete test isolation
+- Framework-agnostic imports for existing module tests
 
 ### Critical Pitfalls
 
-The pitfalls research identifies critical risks that must be addressed during test infrastructure setup. The most severe is over-mocking external dependencies, where excessive mocking of Jellyfin/TMDB APIs creates tests that pass even when actual integration fails. Another critical pitfall is test coupling to implementation details, where tests break when refactoring code that doesn't change behavior. Flaky tests from state leakage are also critical—tests pass individually but fail together due to shared database state, singleton providers, or Flask sessions. Testing libraries instead of application logic provides no value, and hard-to-maintain test setups with complex fixture hierarchies create technical debt.
+**Top 5 pitfalls to avoid:**
 
-1. **Over-mocking external dependencies** — Keep mocks minimal and realistic; use integration tests for API boundary layers; prefer test doubles over mocks where possible; use autospec to match real method signatures
-2. **Test coupling to implementation details** — Test behavior, not implementation; verify outcomes rather than how they're achieved; for database code, test state changes; avoid mocking private methods
-3. **Flaky tests from state leakage** — Use pytest fixtures with yield for setup/teardown; reset singletons in fixtures; use in-memory SQLite databases; clear Flask session state; use autouse fixtures to prevent state leakage
-4. **Testing libraries instead of application logic** — Test your code, not libraries; verify the logic you wrote, not what Flask/SQLite/requests do; use framework-agnostic tests for pure Python modules
-5. **Hard-to-maintain test setups** — Keep fixtures simple and focused; prefer function-scoped fixtures (default); use monkeypatch for env var injection; document fixture dependencies clearly
+1. **Flaky tests from state leakage** — Tests pass individually but fail together. Use function-scoped fixtures with yield, in-memory databases, and explicit session clearing. All tests must be order-independent.
+
+2. **Test coupling to implementation details** — Tests break when refactoring code without behavior change. Test behavior (given input X, expect output Y), not how it's achieved. Use black-box testing for routes.
+
+3. **Over-mocking external dependencies** — Tests pass even when integration fails. Mock only what's necessary; use realistic mock data. Prefer test doubles over mocks where possible.
+
+4. **Testing libraries instead of application logic** — Tests verify Flask/SQLite/requests work, not your code. Test your code, not well-tested libraries. Verify business logic and integration, not framework behavior.
+
+5. **Hard-to-maintain test setups** — Complex fixture hierarchies become unmaintainable. Keep fixtures simple and focused (one responsibility per fixture). Prefer function-scoped fixtures. Use helper functions for complex setup.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, suggested phase structure for v1.5:
 
-### Phase 1: Test Infrastructure Setup
-**Rationale:** Foundational infrastructure must be established first to prevent technical debt. Research emphasizes that flaky tests and hard-to-maintain setups are critical pitfalls that originate from poor fixture design. Creating proper isolation patterns (in-memory DB, provider reset, env var handling) before writing tests prevents rework.
-**Delivers:** Configured pytest environment, conftest.py with basic fixtures (db_path, db_connection, mock_env_vars, mock_jellyfin_api), CI workflow configuration
-**Addresses:** pytest framework, fixtures, temporary resources, conftest.py, CI integration (FEATURES.md P1)
-**Avoids:** Flaky tests from state leakage, hard-to-maintain test setups (PITFALLS.md critical pitfalls)
-**Uses:** pytest, pytest-mock, pytest-cov, pytest-timeout (STACK.md core)
+### Phase 1: App Factory Refactor
+**Rationale:** Must come first—route tests require app factory pattern for test isolation. This is a prerequisite for all subsequent phases.
+**Delivers:** `jellyswipe/__init__.py` refactored into `create_app(test_config=None)` factory function with backwards-compatible global `app` instance.
+**Addresses:** FACTORY-01 requirement
+**Avoids:** "Testing libraries instead of application logic" pitfall by providing proper test infrastructure
+**Features:** None (infrastructure phase)
 
-### Phase 2: Core Module Tests (Database)
-**Rationale:** Database module (db.py) has the fewest dependencies and provides a foundation for testing patterns. Architecture research recommends this as the first test module because it tests pure SQLite functions without external API dependencies. Establishes test patterns for state-based testing and database isolation.
-**Delivers:** tests/unit/test_db.py with coverage of schema initialization, CRUD operations, migrations, and orphaned data cleanup
-**Uses:** In-memory SQLite with tmp_path fixture (ARCHITECTURE.md Pattern 1)
-**Implements:** Database testing fixture patterns, state change assertions (not implementation details)
-**Addresses:** Database fixtures (FEATURES.md P1)
-**Avoids:** Testing implementation details, shared database state (PITFALLS.md)
+### Phase 2: Test Infrastructure Setup
+**Rationale:** Route tests need `app` and `client` fixtures before writing tests. This phase establishes the foundation for all route testing.
+**Delivers:** Updated `conftest.py` with `app` and `client` fixtures that work with app factory pattern.
+**Uses:** Flask's built-in test client, pytest fixtures
+**Implements:** Architecture Pattern 3 (environment variable monkeypatching)
+**Avoids:** "Flaky tests from state leakage" pitfall by establishing proper fixture patterns
+**Features:** None (infrastructure phase)
 
-### Phase 3: Core Module Tests (Base Abstraction)
-**Rationale:** The abstract base class (base.py) defines the contract that JellyfinLibraryProvider implements. Testing this contract first establishes expectations for the concrete implementation. Architecture research lists this as Phase 3 in the build order.
-**Delivers:** tests/unit/test_base.py testing the LibraryMediaProvider abstract contract
-**Uses:** Mock subclasses or concrete test implementations
-**Implements:** Contract-based testing patterns
-**Addresses:** Test discovery, parametrization (FEATURES.md)
-**Avoids:** Testing libraries instead of application logic (PITFALLS.md)
+### Phase 3: Auth Route Tests
+**Rationale:** Authentication is a security-critical dependency for most other routes. Testing auth first validates the test infrastructure on a focused domain.
+**Delivers:** `tests/test_routes_auth.py` with tests for `/auth/provider`, `/auth/jellyfin-use-server-identity`, `/auth/jellyfin-login`.
+**Uses:** app fixture, client fixture, FakeProvider for mocking
+**Implements:** Table stakes features (authentication testing, status code assertions, session testing)
+**Avoids:** "Over-mocking external dependencies" by using realistic mock data for Jellyfin responses
+**Features:** TEST-ROUTE-01 (auth route tests)
 
-### Phase 4: Core Module Tests (Jellyfin Provider)
-**Rationale:** The JellyfinLibraryProvider has high complexity (authentication, caching, genre filtering, deck fetching, TMDB integration) and requires comprehensive mocking. This is the most complex module to test. Architecture research recommends this as Phase 4 after patterns are established in earlier phases.
-**Delivers:** tests/unit/test_jellyfin_library.py with coverage of authentication, token caching, user ID resolution, library discovery, genre listing, deck fetching, item-to-card transformation, TMDB resolution, image fetching
-**Uses:** pytest-mock to mock requests.Session, responses library for HTTP mocking (STACK.md)
-**Implements:** Mock external API calls pattern, parametrized fixtures for genre variants (ARCHITECTURE.md Patterns 2 & 4)
-**Addresses:** HTTP mocking, framework-agnostic testing, parametrization (FEATURES.md P1)
-**Avoids:** Over-mocking, testing implementation details (PITFALLS.md critical)
+### Phase 4: XSS Security Tests
+**Rationale:** Security testing is a competitive differentiator and should be done early to catch vulnerabilities. Independent of auth routes—can be tested in parallel.
+**Delivers:** `tests/test_routes_xss.py` with tests for HTML tag escaping, `javascript:` URL rejection, script injection prevention.
+**Uses:** app fixture, client fixture, db_connection fixture, XSS payload helpers
+**Implements:** Differentiator features (security regression testing, input validation testing)
+**Avoids:** "Testing implementation details" by focusing on observable behavior (escaped output, rejected input)
+**Features:** TEST-ROUTE-02 (XSS security tests)
 
-### Phase 5: Test Suite Optimization (Deferred to v1.3+)
-**Rationale:** Once core coverage is achieved, optimize the test suite for performance and maintainability. Features research identifies this as P2/P3 priority. PITFALLS.md performance traps indicate optimization is needed at 50-100+ tests, which is premature during initial implementation.
-**Delivers:** Coverage thresholds, multiple coverage reports (HTML, XML), module-scoped fixtures for efficiency, pytest-mock integration, flaky test detection
-**Uses:** pytest-cov advanced features, pytest-mock, pytest-xdist (optional)
-**Implements:** Performance optimization patterns, quality gates
-**Addresses:** Coverage thresholds, pytest-mock integration, module-scoped fixtures (FEATURES.md P2)
-**Avoids:** Performance traps as suite grows (PITFALLS.md)
+### Phase 5: Room Operation Tests
+**Rationale:** Core business logic—rooms, swipes, matches are the primary value of the application. Depends on database state management, so comes after auth/xss tests validate test infrastructure.
+**Delivers:** `tests/test_routes_room.py` with tests for `/room/create`, `/room/join`, `/room/swipe`, `/room/quit`, `/room/status`, `/room/go-solo`.
+**Uses:** app fixture, client fixture, db_connection fixture, room seeding helpers
+**Implements:** Table stakes features (database state verification, error handling testing)
+**Avoids:** "Flaky tests from state leakage" by using function-scoped db_connection fixture
+**Features:** TEST-ROUTE-03 (room operation tests)
+
+### Phase 6: Proxy Route Tests
+**Rationale:** SSRF prevention is a security requirement. Independent of room operations—tests proxy allowlist and rate limiting without room context.
+**Delivers:** `tests/test_routes_proxy.py` with tests for `/proxy` with valid/invalid paths, allowlist regex validation, content-type verification.
+**Uses:** app fixture, client fixture, FakeProvider for mocking
+**Implements:** Differentiator features (proxy route allowlist testing, SSRF prevention)
+**Avoids:** "Over-mocking external dependencies" by testing actual proxy behavior with mocked backends
+**Features:** TEST-ROUTE-04 (proxy route tests)
+
+### Phase 7: SSE Streaming Tests
+**Rationale:** SSE is the most complex testing domain (generator functions, streaming responses). Comes last as it depends on room operations working correctly and requires special handling for streaming responses.
+**Delivers:** `tests/test_routes_sse.py` with tests for `/room/stream` event streaming, invalid room handling, state change events, GeneratorExit handling.
+**Uses:** app fixture, client fixture, db_connection fixture, room seeding helpers, SSE event parsing
+**Implements:** Differentiator features (SSE streaming testing, generator/iterator testing)
+**Avoids:** "Hard-to-maintain test setups" by keeping SSE test fixtures focused and simple
+**Features:** TEST-ROUTE-05 (SSE streaming tests)
+
+### Phase 8: Coverage Enforcement
+**Rationale:** Final phase—add coverage threshold enforcement after all tests are written to avoid blocking development.
+**Delivers:** Updated `pyproject.toml` with `--cov-fail-under=70` in pytest.ini_options.
+**Uses:** pytest-cov 7.1.0+
+**Implements:** Coverage threshold enforcement (70%)
+**Avoids:** None—this is the validation phase
+**Features:** TEST-COV-01 (coverage enforcement)
 
 ### Phase Ordering Rationale
 
-The order follows the dependency hierarchy and complexity gradient identified in ARCHITECTURE.md. Test infrastructure (Phase 1) must precede all testing to establish proper isolation patterns—this prevents the critical pitfalls of flaky tests and hard-to-maintain setups. Database tests (Phase 2) come first among modules because they have no external dependencies, allowing test patterns to be validated in isolation. Base abstraction tests (Phase 3) establish the contract before testing the concrete implementation. Jellyfin provider tests (Phase 4) are most complex and require all patterns to be in place. Optimization (Phase 5) is deferred until coverage is achieved, as recommended in FEATURES.md and PITFALLS.md.
+- **Factory refactor first:** App factory pattern is a hard dependency for route tests. Cannot write route tests without it.
+- **Test infrastructure second:** Fixtures must exist before tests can be written. Establishes patterns for all subsequent phases.
+- **Auth and XSS early:** Security-critical domains tested early to catch vulnerabilities. Independent of each other—could be parallelized.
+- **Room operations after auth:** Core business logic depends on database state management, validated by earlier phases.
+- **Proxy after room:** Independent of room operations but validates SSRF prevention (security priority).
+- **SSE last:** Most complex domain (streaming, generators), depends on room operations working correctly.
+- **Coverage enforcement last:** Threshold added after all tests exist to avoid blocking development.
 
-This grouping avoids the critical pitfalls identified in research: early fixture setup prevents state leakage (Pitfall 3), testing behavior over implementation prevents coupling (Pitfall 2), and mocking only external dependencies prevents over-mocking (Pitfall 1). The framework-agnostic approach (testing db.py and jellyfin_library.py directly, not through Flask) matches the explicit TEST-01 requirement and differentiates this test suite from typical Flask test suites.
+**How this avoids pitfalls:**
+- Function-scoped fixtures in Phase 2 prevent state leakage (Pitfall 1)
+- Behavior-focused tests in Phases 3-7 avoid testing implementation details (Pitfall 2)
+- Realistic mock data in Phases 3, 4, 6 prevent over-mocking (Pitfall 3)
+- Testing routes through HTTP contract in Phases 3-7 avoids testing libraries (Pitfall 4)
+- Simple, focused fixtures in Phase 2 prevent hard-to-maintain setups (Pitfall 5)
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 4:** Jellyfin provider test scenarios require detailed knowledge of API response structures, error conditions, and authentication flows. May need to review Jellyfin API documentation or inspect existing code for realistic test data.
-- **Phase 5:** Optimization thresholds (coverage targets, performance budgets) may need project-specific decisions based on team quality standards and CI infrastructure.
+**Phases likely needing deeper research during planning:**
+- **Phase 5 (Room Operation Tests):** Complex business logic with multiple database operations. May need to plan test scenarios carefully for edge cases (concurrent swipes, race conditions).
+- **Phase 7 (SSE Streaming Tests):** Generator functions and streaming responses are niche. Flask documentation on SSE testing is sparse—may need to research generator testing patterns and SSE event format validation.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** pytest fixture patterns, conftest.py organization, and CI configuration are well-documented with established patterns from official docs.
-- **Phase 2:** SQLite in-memory database testing is a standard pattern with clear guidance from ARCHITECTURE.md and PITFALLS.md.
-- **Phase 3:** Abstract base class testing follows standard contract testing patterns.
+**Phases with standard patterns (skip research-phase):**
+- **Phase 1 (App Factory Refactor):** Well-documented Flask pattern. Official Flask tutorial has examples.
+- **Phase 2 (Test Infrastructure Setup):** Standard pytest fixture patterns. Already used in existing conftest.py.
+- **Phase 3 (Auth Route Tests):** Standard Flask authentication testing. Existing test_route_authorization.py shows the pattern.
+- **Phase 4 (XSS Security Tests):** Standard input validation and escaping tests. Well-understood security testing patterns.
+- **Phase 6 (Proxy Route Tests):** Standard SSRF prevention testing. Regex allowlist testing is straightforward.
+- **Phase 8 (Coverage Enforcement):** Single configuration change. Well-documented pytest-cov usage.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All recommendations based on official library documentation (pytest, pytest-mock, responses) with verified Python 3.13+ compatibility |
-| Features | HIGH | Table stakes and differentiators derived from pytest best practices, official docs, and Flask testing patterns |
-| Architecture | HIGH | Patterns based on official pytest documentation, Flask testing guide, and established testing pyramid principles |
-| Pitfalls | HIGH | Identified from official docs, Google Testing Blog, and direct analysis of existing codebase challenges |
+| Stack | HIGH | All technologies verified with official Flask and pytest documentation. No new dependencies required—existing stack is sufficient. |
+| Features | HIGH | Flask testing patterns well-documented. Existing 48 tests demonstrate successful patterns. Feature dependencies clear from codebase. |
+| Architecture | HIGH | App factory pattern is standard Flask. Layered test architecture verified with official docs. Anti-patterns identified from community best practices. |
+| Pitfalls | HIGH | Pitfalls based on official pytest/Flask documentation and industry best practices. Anti-patterns map to well-known testing mistakes. |
 
 **Overall confidence:** HIGH
 
+All research sources are official documentation (Flask, pytest) or direct codebase analysis. No inference required. The recommended approach follows established patterns in the Flask ecosystem.
+
 ### Gaps to Address
 
-No significant gaps identified in research. All core questions about stack, features, architecture, and pitfalls were answered with high-confidence sources.
+No significant gaps. Research was comprehensive:
 
-- **Jellyfin API response structures:** Phase 4 will need realistic test data for API responses. This can be derived from existing code inspection or Jellyfin API documentation during implementation—no upfront research needed.
-- **Coverage threshold targets:** Phase 5 optimization may require project-specific decisions. This is a team/quality standard decision, not a research gap.
+- **SSE testing patterns:** Flask documentation on SSE is sparse, but generator testing is standard Python. May need to research SSE event format validation during Phase 7 planning.
+- **Coverage threshold target:** 70% is a milestone requirement, not derived from research. May need to validate this threshold is achievable after writing tests.
+- **Room operation edge cases:** Complex business logic may have unanticipated edge cases. Tests should be written to surface these during implementation, not before.
+
+These gaps are minor and don't block roadmap creation. They can be addressed during phase planning.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- **pytest-dev/pytest** — Test framework, fixtures, parametrization, Python 3.13 compatibility
-- **pytest-dev/pytest-cov** — Coverage measurement and reporting formats
-- **pytest-dev/pytest-mock** — Mocking API, mocker fixture, type annotations
-- **getsentry/responses** — HTTP request mocking for requests library, decorator patterns
-- **gevent/gevent** — Python 3.13 support confirmed in CHANGES.rst
-- **Official pytest docs** (docs.pytest.org) — Fixture parametrization, pytest.mark.parametrize usage
-- **Flask testing guide** (flask.palletsprojects.com) — Test client, fixture patterns
-- **Python unittest.mock docs** (docs.python.org) — Mocking best practices, autospec, patching
+- **Flask Official Documentation (Testing)** — https://flask.palletsprojects.com/en/stable/testing/ — Test client usage, app factory pattern, session management
+- **Flask Official Documentation (Application Factory)** — https://flask.palletsprojects.com/en/stable/tutorial/factory/ — Factory pattern implementation
+- **pytest Documentation** — https://docs.pytest.org/en/stable/ — Fixture system, parametrization, test discovery
+- **pytest-mock Documentation** — https://pytest-mock.readthedocs.io/ — Mocking patterns, mocker fixture
+- **pytest-cov Documentation** — `--cov-fail-under` threshold enforcement
+- **Existing Jelly Swipe Test Suite** — `tests/conftest.py`, `tests/test_db.py`, `tests/test_jellyfin_library.py`, `tests/test_route_authorization.py` — Demonstrates successful patterns in the codebase
 
 ### Secondary (MEDIUM confidence)
-- **Google Testing Blog - "Just Say No to More End-to-End Tests"** — Testing pyramid and test strategy principles
-- **Existing codebase analysis** — Reviewed `jellyswipe/__init__.py`, `jellyswipe/db.py`, and `jellyswipe/jellyfin_library.py` to identify specific testing challenges (singleton provider, global state, environment dependencies)
+- **Flask Tutorial Tests** — https://github.com/pallets/flask/blob/main/docs/tutorial/tests.md — AuthActions helper class, database fixtures, authorization testing
+- **Flask Web Security Documentation** — https://flask.palletsprojects.com/en/stable/security/ — XSS prevention, input validation
+- **Project pyproject.toml** — Confirms current versions: pytest >=9.0.0, pytest-cov >=6.0.0, pytest-mock >=3.14.0, responses >=0.25.0
+- **uv.lock** — Confirms pytest-cov version 7.1.0 is locked
 
 ### Tertiary (LOW confidence)
-None identified. All sources are either official documentation or direct code analysis.
+- **Community blog posts on Flask testing** — Reinforced official documentation patterns, no new findings
+- **pytest-xdist documentation** — Parallel execution patterns (deferred to v2+, not needed for v1.5)
 
 ---
-*Research completed: 2026-04-25*
+*Research completed: 2026-04-26*
 *Ready for roadmap: yes*
