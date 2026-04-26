@@ -88,7 +88,8 @@
   2. Invalid paths are rejected with 403 error
   3. Allowlist regex blocks non-whitelisted paths (EPIC-04)
   4. Content-type verification returns correct image types
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 26-01-PLAN.md — Create tests/test_routes_proxy.py with comprehensive proxy route tests for SSRF prevention (EPIC-04)
 
 ### Phase 27: SSE Streaming Tests
 **Goal**: SSE streaming works correctly and handles edge cases
@@ -121,7 +122,7 @@
 | 23. Auth Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 24. XSS Security Tests | 1/1 | Complete    | 2026-04-26 |
 | 25. Room Operation Tests | 1/1 | Complete    | 2026-04-26 |
-| 26. Proxy Route Tests | 0/0 | Not started | - |
+| 26. Proxy Route Tests | 0/1 | ◆ Planned | - |
 | 27. SSE Streaming Tests | 0/0 | Not started | - |
 | 28. Coverage Enforcement | 0/0 | Not started | - |
 
