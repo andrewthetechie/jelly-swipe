@@ -116,7 +116,7 @@
 |-------|----------------|--------|-----------|
 | 21. App Factory Refactor | 1/1 | ✓ Complete | 2026-04-26 |
 | 22. Test Infrastructure Setup | 0/0 | Not started | - |
-| 23. Auth Route Tests | 1/1 | ✓ Complete | 2026-04-26 |
+| 23. Auth Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 24. XSS Security Tests | 0/0 | Not started | - |
 | 25. Room Operation Tests | 0/0 | Not started | - |
 | 26. Proxy Route Tests | 0/0 | Not started | - |

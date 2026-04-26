@@ -65,7 +65,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FACTORY-01 | Phase 21 | Pending |
-| TEST-ROUTE-01 | Phase 23 | Pending |
+| TEST-ROUTE-01 | Phase 23 | Complete |
 | TEST-ROUTE-02 | Phase 24 | Pending |
 | TEST-ROUTE-03 | Phase 25 | Pending |
 | TEST-ROUTE-04 | Phase 26 | Pending |
