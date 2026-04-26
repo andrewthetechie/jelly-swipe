@@ -40,6 +40,18 @@ if not has_api and not has_user_pass:
 if missing:
     raise RuntimeError(f"Missing env vars: {missing}")
 
+# Direct Jellyfin provider instantiation (no factory pattern)
+from .jellyfin_library import JellyfinLibraryProvider
+
+_provider_singleton: Optional[JellyfinLibraryProvider] = None
+TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
+_token_user_id_cache: Dict[str, Tuple[str, float]] = {}
+IDENTITY_ALIAS_HEADERS = (
+    "X-Provider-User-Id",
+    "X-Jellyfin-User-Id",
+    "X-Emby-UserId",
+)
+
 
 def create_app(test_config=None):
     """
@@ -71,21 +83,9 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
-    # Direct Jellyfin provider instantiation (no factory pattern)
-    from .jellyfin_library import JellyfinLibraryProvider
-
-    _provider_singleton: Optional[JellyfinLibraryProvider] = None
-    TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
-    _token_user_id_cache: Dict[str, Tuple[str, float]] = {}
-    IDENTITY_ALIAS_HEADERS = (
-        "X-Provider-User-Id",
-        "X-Jellyfin-User-Id",
-        "X-Emby-UserId",
-    )
-
     def get_provider() -> JellyfinLibraryProvider:
         """Get or create the JellyfinLibraryProvider singleton."""
-        nonlocal _provider_singleton
+        global _provider_singleton
         if _provider_singleton is None:
             _provider_singleton = JellyfinLibraryProvider(app.config['JELLYFIN_URL'])
         return _provider_singleton
