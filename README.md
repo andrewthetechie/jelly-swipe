@@ -38,10 +38,6 @@ same movie, IT'S A MATCH!!
 
 This application connects directly to a **Jellyfin** server to pull random movies from your library. Target **Jellyfin 10.8+** unless you pin an older server—call out version quirks in ops notes if you diverge.
 
-### Upgrade note (Kino Swipe → Jelly Swipe)
-
-- **Database file:** The default SQLite file is now `data/jellyswipe.db`. To keep an existing database from Kino Swipe, either copy `data/kinoswipe.db` to `data/jellyswipe.db` or set `DB_PATH` to your old file.
-
 ### Environment variables
 
 | Variable | Required when | Description |
@@ -90,10 +86,6 @@ JELLYFIN_PASSWORD=your-password
 TMDB_API_KEY=your-tmdb-v3-key
 FLASK_SECRET=long-random-string
 ```
-
-## Coming Soon
-~~Match History: Match history folder accessible outside session for easy access.~~   
-  
 
 ## Requirements
 - **Media backend:** Jellyfin — see [Media backend: Jellyfin](#media-backend-jellyfin) and the env table above.
