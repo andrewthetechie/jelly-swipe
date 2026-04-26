@@ -1,8 +1,4 @@
 # Jelly-Swipe
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
-
 <p align="center">
     <a href="https://github.com/andrewthetechie/jelly-swipe" target="_blank">
         <img src="https://img.shields.io/github/last-commit/andrewthetechie/jelly-swipe" alt="Latest Commit">
@@ -12,7 +8,9 @@
     <br />
     <a href="https://github.com/andrewthetechie/jelly-swipe/issues"><img src="https://img.shields.io/github/issues/andrewthetechie/jelly-swipe" /></a>
     <img alt="GitHub Workflow Status Test and Lint (branch)" src="https://img.shields.io/github/actions/workflow/status/andrewthetechie/jelly-swipe/tests.yml?branch=main">
-    <img alt="Contributors" src="https://img.shields.io/github/contributors/andrewthetechie/jelly-swipe">
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
     <br />
 </p>
 
