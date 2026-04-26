@@ -18,9 +18,9 @@ Requirements for this milestone are scoped to Issue #4 (`EPIC-01`) authorization
 
 ### Verification
 
-- [ ] **VER-01**: Automated route tests prove spoofed identity headers are rejected.
-- [ ] **VER-02**: Automated route tests prove request-body `user_id` injection does not allow cross-user access.
-- [ ] **VER-03**: Automated route tests prove valid token/delegated identity flows continue to function.
+- [x] **VER-01**: Automated route tests prove spoofed identity headers are rejected.
+- [x] **VER-02**: Automated route tests prove request-body `user_id` injection does not allow cross-user access.
+- [x] **VER-03**: Automated route tests prove valid token/delegated identity flows continue to function.
 
 ## v2 Requirements
 
@@ -55,9 +55,9 @@ Explicitly excluded from v1.4.
 | SEC-03 | Phase 19 | Complete |
 | SEC-04 | Phase 19 | Complete |
 | SEC-05 | Phase 19 | Complete |
-| VER-01 | Phase 20 | Pending |
-| VER-02 | Phase 20 | Pending |
-| VER-03 | Phase 20 | Pending |
+| VER-01 | Phase 20 | Complete |
+| VER-02 | Phase 20 | Complete |
+| VER-03 | Phase 20 | Complete |
 
 **Coverage:**
 - v1 requirements: 8 total
