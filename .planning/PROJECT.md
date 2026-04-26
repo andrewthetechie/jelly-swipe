@@ -58,7 +58,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - [ ] **TEST-ROUTE-01** — Add `tests/test_routes_auth.py` with header-spoof tests for EPIC-01
 - [ ] **TEST-ROUTE-02** — Add `tests/test_routes_xss.py` with stored XSS blocking tests (EPIC-03)
 - [x] **TEST-ROUTE-03** — Add `tests/test_routes_room.py` with happy path for create/join/swipe/match/quit. *Validated in Phase 25 (v1.5).*
-- [ ] **TEST-ROUTE-04** — Add `tests/test_routes_proxy.py` with allowlist regex and rate limit tests (EPIC-04)
+- [x] **TEST-ROUTE-04** — Add `tests/test_routes_proxy.py` with allowlist regex and rate limit tests (EPIC-04). *Validated in Phase 26 (v1.5).*
 - [ ] **TEST-ROUTE-05** — Add `tests/test_routes_sse.py` with SSE event streaming and shutdown tests
 - [ ] **TEST-COV-01** — Add pytest `--cov-fail-under=70` to ensure CI enforces coverage threshold
 
@@ -136,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after Phase 25 execution*
+*Last updated: 2026-04-26 after Phase 26 execution*
