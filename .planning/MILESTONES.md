@@ -4,6 +4,34 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 ---
 
+## v1.5 — XSS Security Fix
+
+**Shipped:** 2026-04-26
+**Theme:** Eliminate stored XSS vulnerability (Issue #6) via three-layer defense: server-side validation, safe DOM rendering, and Content Security Policy
+**Phases:** 19–22 (server validation 19, safe DOM 20, CSP 21, testing 22)
+
+**Archives:**
+
+- [v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) — full phase roadmap snapshot
+- [v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md) — SSV/DOM/CSP/XSS requirements at close (13/13 complete)
+- [v1.5-phases/](milestones/v1.5-phases/) — phase execution directories (Phases 19–22)
+
+**Deliverables (high level):** Server-side metadata resolution from trusted Jellyfin source; safe DOM rendering using textContent/DOM APIs; strict Content Security Policy header; comprehensive XSS smoke tests (6 tests, all passing); all 13 security requirements validated.
+
+**Stats:** 4 phases, 5 plans, 13 requirements, 6 tests, all requirements satisfied
+
+**Key accomplishments:**
+1. Server-Side Validation — Modified `/room/swipe` endpoint to ignore client-supplied title/thumb parameters and resolve metadata server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb()`
+2. Safe DOM Rendering — Refactored all innerHTML usage to safe DOM construction (textContent, createElement, setAttribute) in templates
+3. Content Security Policy — Implemented strict CSP header via `@app.after_request` hook blocking inline scripts and restricting external resources
+4. XSS Testing — Created comprehensive smoke tests proving XSS is blocked on all three security layers
+
+**Known gaps at close:** None — all requirements validated
+
+**Deferred items at milestone close:** None
+
+---
+
 ## v1.3 — Unit Tests
 
 **Shipped:** 2026-04-25
