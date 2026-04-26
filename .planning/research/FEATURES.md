@@ -1,267 +1,203 @@
-# Feature Research
+# Feature Landscape: XSS Security Fixes for Jelly Swipe
 
-**Domain:** Unit Testing for Flask/Python Application
+**Domain:** Flask Web Application Security
 **Researched:** 2026-04-25
-**Confidence:** HIGH
+**Overall confidence:** HIGH
 
-## Feature Landscape
+## Executive Summary
 
-### Table Stakes (Users Expect These)
+Jelly Swipe v1.5 requires XSS security fixes to address a stored XSS vulnerability where client-supplied `title` and `thumb` parameters are rendered unsafely using `innerHTML` in the template. Research indicates three primary defensive layers are needed: **Content Security Policy (CSP) headers**, **safe HTML escaping patterns** (textContent/DOM construction), and **server-side input validation**. The vulnerability manifests in `jellyswipe/templates/index.html` at lines 644-661 and 565-585 where user-controlled data is injected directly into the DOM without sanitization.
 
-Features developers assume exist in a professional test suite. Missing these = testing feels incomplete/unprofessional.
+**Recommended approach:** Implement CSP as a defense-in-depth layer while fixing the root cause by replacing `innerHTML` with safe DOM APIs and removing client-controlled title/thumb from the API contract.
+
+## Table Stakes
+
+Features users expect in a secure web application. Missing these = product feels insecure and vulnerable.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **pytest framework** | Industry standard for Python testing; modern, powerful, widely adopted | LOW | Core requirement - provides test discovery, fixtures, and assertions |
-| **Fixtures** | Reusable test setup/teardown logic prevents code duplication | LOW-MEDIUM | Essential for database setup, mock configuration, test data |
-| **Test discovery** | Automatic test file/function discovery is standard behavior | LOW | Built-in to pytest - no manual test runner configuration needed |
-| **Parametrization** | Testing multiple scenarios with one test function is expected | LOW-MEDIUM | @pytest.mark.parametrize for data-driven testing |
-| **Mocking/patching** | Isolating units from external dependencies is fundamental | MEDIUM | monkeypatch fixture or pytest-mock for HTTP calls, database, etc. |
-| **Temporary resources** | Tests must not interfere with each other or system state | LOW | tmp_path fixture for temporary files/directories |
-| **conftest.py** | Shared fixtures and configuration across test modules is expected | LOW | Standard pattern for organizing test infrastructure |
-| **Coverage reporting** | Measuring test completeness is basic quality metric | LOW | pytest-cov for coverage percentage and missing lines |
-| **CI integration** | Tests should run automatically in CI/CD pipelines | LOW | JUnit XML output, coverage thresholds, exit codes |
-| **Clear failure messages** | Developers need to understand why tests failed quickly | LOW | Built-in pytest assertion introspection |
+| **Content Security Policy (CSP) Header** | Security-conscious users expect CSP headers on all modern web apps; absence indicates poor security posture | LOW | Set via Flask `@app.after_request` hook; recommended policy: `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com` |
+| **HTML Entity Escaping for User Data** | Basic XSS prevention requirement; without it, any user input can execute JavaScript | LOW | Replace `innerHTML` with `textContent` for text content; use `document.createElement()` for structured HTML; or implement strict escape helper |
+| **Server-Side Input Validation** | Never trust client data; validate and sanitize all inputs before storage or processing | MEDIUM | Reject title/thumb from client; resolve from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`; validate JSON structure |
+| **XSS Smoke Tests** | Automated verification that XSS is blocked; required for security regression testing | LOW | Add test file `tests/test_routes_xss.py` with tests proving script tags render as literal text, not executed |
 
-### Differentiators (Competitive Advantage)
+## Differentiators
 
-Features that set the test suite apart. Not required, but valuable for long-term maintainability.
+Features that set the security posture apart. Not expected, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Framework-agnostic testing** | Tests modules in isolation, not tied to Flask app lifecycle | MEDIUM | Matches TEST-01 requirement - test db.py and jellyfin_library.py without Flask |
-| **Module-scoped fixtures** | Efficient resource sharing across tests in same module | LOW-MEDIUM | One database setup per module vs. per test |
-| **Session-scoped fixtures** | One-time expensive setup (e.g., test data generation) | MEDIUM | Cache test data that's expensive to generate |
-| **pytest-mock integration** | Cleaner mock API than unittest.mock | LOW | mocker fixture with Mock, MagicMock, AsyncMock, ANY, call |
-| **Coverage thresholds** | Enforce minimum coverage in CI to prevent regression | LOW | --cov-fail-under=85 ensures quality gate |
-| **Multiple coverage reports** | HTML for local review, XML for CI, terminal for quick feedback | LOW | Generate term-missing, html, and xml simultaneously |
-| **Parametrized fixtures** | Test multiple configurations without test code duplication | MEDIUM | @pytest.fixture(params=[...]) for exhaustive testing |
-| **Test isolation guarantees** | Each test gets fresh instances - no state leakage | LOW | Built-in pytest behavior for class-based tests |
-| **Flaky test detection** | Identify tests that fail intermittently due to timing/state | MEDIUM | Split unit vs integration tests; use --cache-clear in CI |
-| **Monkeypatch fixture safety** | Automatic cleanup prevents test pollution | LOW | All changes undone after test completes |
+| **Nonce-Based Strict CSP** | Provides strongest XSS protection by only allowing scripts with server-generated nonces; exceeds standard CSP implementations | HIGH | Generate cryptographically random nonce per response (128+ bits, Base64); inject into CSP header and all `<script nonce="...">` tags; requires template refactoring |
+| **Comprehensive Escape Helper** | Reusable utility for safe HTML rendering; reduces developer error surface area | MEDIUM | Implement JavaScript escape function using textContent or manual HTML entity encoding (`&` → `&amp;`, `<` → `&lt;`, etc.); document safe sinks vs unsafe sinks |
+| **CSP Violation Reporting** | Detects attempted XSS attacks in production; provides security monitoring | MEDIUM | Add `Content-Security-Policy-Report-Only` header during development; integrate reporting endpoint for production monitoring |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Anti-Features
 
-Features that seem good but create problems.
+Features to explicitly NOT build.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Shared test state** | Avoid recreating resources for each test | Causes test order dependency, flaky failures | Use fixtures with appropriate scope (function/module/session) |
-| **Business logic in tests** | Tests that "verify" complex scenarios | Makes tests brittle, hard to debug when failing | Keep tests simple - test one thing, use multiple simple tests |
-| **Over-mocking** | Isolate everything to avoid dependencies | Tests pass but don't verify real behavior | Mock only external dependencies (HTTP, DB), test real code paths |
-| **Integration tests as gate** | Comprehensive end-to-end validation | Slow, flaky, blocks development | Use fast unit tests as merge gate, run integration tests separately |
-| **Global fixtures** | One setup for all tests | Breaks test isolation, causes pollution | Use conftest.py hierarchically with scoped fixtures |
-| **Testing private methods** | "Need to verify internal logic" | Tests implementation, not behavior; breaks on refactoring | Test public API only; private methods are implementation details |
-| **Hard-coded test data** | "Just need a few test cases" | Brittle, doesn't catch edge cases | Use parametrize with diverse test cases |
-| **Database state sharing** | Avoid creating fresh DB for each test | Tests interfere with each other | Use tmp_path for isolated databases per test/module |
-| **Sleep-based synchronization** | "Wait for async operation" | Flaky tests, slow execution | Use mocks/stubs to control timing, event loops |
-| **Exception catching in tests** | "Test should pass even with errors" | Masks real failures | Test expected exceptions with pytest.raises() |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **`'unsafe-inline'` in CSP** | Defeats the purpose of CSP by allowing inline scripts; common anti-pattern that creates false sense of security | Use nonce-based CSP or refactor to external scripts |
+| **`eval()` or `setTimeout(string)`** | Dangerous JavaScript patterns that execute arbitrary strings; blocked by strict CSP | Use `JSON.parse()` for JSON, pass functions to `setTimeout` |
+| **Client-Side Title/Thumb Parameters** | Original vulnerability source; allows attacker to inject malicious content | Resolve all metadata server-side from `movie_id` using `JellyfinLibraryProvider.resolve_item_for_tmdb()` |
+| **`dangerouslySetInnerHTML` Pattern** | Explicitly marks content as unsafe; exactly what we're trying to prevent | Use textContent, createElement, or DOMPurify if HTML is absolutely required |
 
 ## Feature Dependencies
 
 ```
-[pytest framework]
-    └──requires──> [test discovery]
-    └──enables──> [fixtures]
-                    └──requires──> [conftest.py]
-                    └──enables──> [module-scoped fixtures]
-                                    └──enhances──> [database testing]
-                    └──enables──> [mocking/patching]
-                                    └──enhances──> [framework-agnostic testing]
+[Server-Side Validation]
+    └──requires──> [Remove Client Title/Thumb from API]
+                       └──requires──> [Refactor /room/swipe Endpoint]
 
-[pytest-cov]
-    └──requires──> [pytest framework]
+[Safe DOM Rendering]
+    └──requires──> [Replace innerHTML with textContent]
+                       └──requires──> [Template Refactoring]
 
-[pytest-mock]
-    └──requires──> [pytest framework]
-    └──enhances──> [mocking/patching]
+[CSP Header]
+    └──enhances──> [All Other Features]
 
-[framework-agnostic testing]
-    └──requires──> [mocking/patching]
-    └──requires──> [fixtures]
-    └──enables──> [test db.py]
-    └──enables──> [test jellyfin_library.py]
-
-[CI integration]
-    └──requires──> [pytest framework]
-    └──requires──> [coverage reporting]
-    └──enhances──> [coverage thresholds]
-
-[parametrization]
-    └──requires──> [pytest framework]
-
-[temporary resources]
-    └──requires──> [pytest framework]
-    └──enables──> [database testing]
-
-[database testing]
-    └──requires──> [temporary resources]
-    └──requires──> [fixtures]
-    └──requires──> [test isolation]
+[XSS Smoke Tests]
+    └──requires──> [All Security Fixes Implemented]
 ```
 
 ### Dependency Notes
 
-- **pytest framework enables fixtures**: Pytest's fixture system is built on the framework's test discovery and execution model
-- **fixtures enhance mocking/patching**: Fixtures provide clean setup/teardown for mock objects and monkeypatches
-- **framework-agnostic testing requires mocking**: To test db.py and jellyfin_library.py without Flask, HTTP requests must be mocked
-- **database testing requires temporary resources**: SQLite databases must be isolated using tmp_path to prevent test interference
-- **CI integration requires coverage reporting**: Quality gates depend on measuring coverage and enforcing thresholds
-- **parametrization requires pytest framework**: @pytest.mark.parametrize is a pytest-specific feature
-- **module-scoped fixtures enhance database testing**: One database setup per test module is more efficient than per-test setup
-- **test isolation prevents flaky tests**: Shared state causes order-dependent failures; each test must be independent
+- **Server-Side Validation requires Remove Client Title/Thumb from API:** The `/room/swipe` endpoint currently accepts `title` and `thumb` from the client (line 244 of `jellyswipe/__init__.py`). These must be removed and resolved server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb(movie_id)` to prevent malicious data from entering the system.
+
+- **Safe DOM Rendering requires Replace innerHTML with textContent:** Lines 644-661 and 565-585 of `index.html` use `innerHTML` with template literals containing user data (`${m.title}`, `${m.thumb}`). These must be refactored to use `textContent` or DOM construction methods to prevent script execution.
+
+- **CSP Header enhances All Other Features:** CSP provides defense-in-depth but is not a substitute for proper escaping and validation. It should be implemented alongside, not instead of, the other security features.
+
+- **XSS Smoke Tests requires All Security Fixes Implemented:** Tests should verify the complete fix chain: server rejects bad input, client renders safely, CSP blocks any remaining injection attempts.
 
 ## MVP Definition
 
-### Launch With (v1.3 - Current Milestone)
+### Launch With (v1.5)
 
-Minimum viable test suite to improve reliability when making changes.
+Minimum viable security fixes — what's needed to close the XSS vulnerability.
 
-- [ ] **pytest framework** — Core testing engine for test discovery and execution
-- [ ] **Fixtures for database setup** — Temporary SQLite database with schema initialization (db.py testing)
-- [ ] **Mocking for HTTP requests** — Isolate Jellyfin API calls (jellyfin_library.py testing)
-- [ ] **Framework-agnostic test structure** — Test modules directly, not through Flask routes
-- [ ] **conftest.py organization** — Shared fixtures for database, mocks, test data
-- [ ] **Basic coverage reporting** — pytest-cov with terminal output to measure test completeness
-- [ ] **CI configuration** — GitHub Actions workflow to run tests on push/PR
+- [x] **Server-Side Input Validation** — Remove title/thumb from client API; resolve from movie_id via JellyfinLibraryProvider
+- [x] **Safe DOM Rendering** — Replace all `innerHTML` with `textContent` or DOM construction for user-controlled data
+- [x] **Basic CSP Header** — Set `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`
+- [x] **XSS Smoke Tests** — Add `tests/test_routes_xss.py` proving XSS is blocked
 
-### Add After Validation (v1.3+)
+### Add After Validation (v1.5.1)
 
-Features to add once core testing is working.
+Features to add once core security is verified.
 
-- [ ] **Coverage thresholds** — Enforce minimum coverage (e.g., 80-85%) in CI
-- [ ] **Multiple coverage reports** — HTML for local development, XML for CI tools
-- [ ] **pytest-mock integration** — Cleaner mock API than unittest.mock
-- [ ] **Parametrized fixtures** — Test multiple Jellyfin API response scenarios
-- [ ] **Module-scoped database fixture** — Optimize database setup across tests
-- [ ] **Flaky test detection** — Identify and isolate intermittent test failures
+- [ ] **Nonce-Based Strict CSP** — Upgrade to nonce-based CSP for stronger protection
+- [ ] **CSP Violation Reporting** — Add reporting endpoint for security monitoring
+- [ ] **Comprehensive Escape Helper** — Reusable utility function for safe HTML rendering
 
 ### Future Consideration (v2+)
 
-Features to defer until test suite is mature.
+Features to defer until security posture is stable.
 
-- [ ] **Parallel test execution** — pytest-xdist for faster test runs (requires test isolation verification)
-- [ ] **Integration test suite** — End-to-end tests with real Jellyfin server (separate from unit tests)
-- [ ] **Performance benchmarking** — pytest-benchmark to detect performance regressions
-- [ ] **Test data factories** — factory_boy or similar for complex test data generation
-- [ ] **Property-based testing** — Hypothesis for edge case discovery
+- [ ] **Trusted Types API** — Browser-native API for preventing DOM-based XSS (requires modern browser support)
+- [ ] **HTML Sanitization (DOMPurify)** — If user-generated HTML is ever needed, integrate DOMPurify library
+- [ ] **Subresource Integrity (SRI)** — Add integrity hashes for external scripts
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| pytest framework | HIGH | LOW | P1 |
-| Database fixtures | HIGH | MEDIUM | P1 |
-| HTTP mocking | HIGH | MEDIUM | P1 |
-| Framework-agnostic tests | HIGH | MEDIUM | P1 |
-| conftest.py | HIGH | LOW | P1 |
-| Coverage reporting | HIGH | LOW | P1 |
-| CI integration | HIGH | LOW | P1 |
-| Test discovery | HIGH | LOW | P1 |
-| Parametrization | MEDIUM | LOW | P2 |
-| Temporary resources | MEDIUM | LOW | P2 |
-| pytest-mock | MEDIUM | LOW | P2 |
-| Module-scoped fixtures | MEDIUM | MEDIUM | P2 |
-| Coverage thresholds | MEDIUM | LOW | P2 |
-| Multiple coverage reports | MEDIUM | LOW | P2 |
-| Parametrized fixtures | MEDIUM | MEDIUM | P3 |
-| Session-scoped fixtures | LOW | MEDIUM | P3 |
-| Flaky test detection | LOW | MEDIUM | P3 |
-| Parallel test execution | LOW | HIGH | P3 |
-| Integration tests | MEDIUM | HIGH | P3 |
+| Server-Side Input Validation | CRITICAL (closes vulnerability) | MEDIUM | P1 |
+| Safe DOM Rendering | CRITICAL (closes vulnerability) | MEDIUM | P1 |
+| Basic CSP Header | HIGH (defense-in-depth) | LOW | P1 |
+| XSS Smoke Tests | HIGH (regression prevention) | LOW | P1 |
+| Nonce-Based Strict CSP | MEDIUM (enhanced protection) | HIGH | P2 |
+| CSP Violation Reporting | MEDIUM (security monitoring) | MEDIUM | P2 |
+| Comprehensive Escape Helper | LOW (developer convenience) | MEDIUM | P3 |
+| Trusted Types API | LOW (future-proofing) | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for v1.3 milestone
-- P2: Should have, add when possible in v1.3+
+- P1: Must have for v1.5 (closes XSS vulnerability)
+- P2: Should have, add in v1.5.1 (enhanced protection)
 - P3: Nice to have, future consideration (v2+)
 
 ## Competitor Feature Analysis
 
-| Feature | Typical Flask Test Suites | Our Approach |
-|---------|---------------------------|--------------|
-| Framework coupling | Many test Flask routes directly (flask.test_client) | Framework-agnostic: test db.py and jellyfin_library.py modules directly |
-| Database handling | Often use in-memory SQLite or shared test DB | tmp_path fixture for isolated databases per test/module |
-| Mocking strategy | Mix of unittest.mock and monkeypatch | Standardize on pytest monkeypatch + pytest-mock for consistency |
-| Coverage enforcement | Often manual review or low thresholds | Automated coverage thresholds in CI (future P2) |
-| Test organization | Sometimes flat structure with fixtures in test files | conftest.py hierarchy for shared fixtures, clear separation |
-| External dependencies | Some use real services, some over-mock | Mock all external dependencies (Jellyfin API, TMDB) for reliable unit tests |
+| Feature | Standard Flask Apps | OWASP Recommendations | Our Approach |
+|---------|---------------------|----------------------|--------------|
+| CSP Header | Often missing or too permissive | Strict nonce-based CSP recommended | Start with basic CSP, upgrade to nonce-based in v1.5.1 |
+| HTML Escaping | Depends on template engine (Jinja2 autoescapes by default) | Output encoding for all contexts | Replace innerHTML with textContent (client-side) + Jinja2 autoescaping (server-side) |
+| Input Validation | Varies; often client-side only | Validate on server, whitelist approach | Server-side resolution from trusted source (Jellyfin/TMDB) |
+| XSS Testing | Rarely comprehensive | Unit tests + security testing | Add dedicated XSS smoke test suite |
 
-## Module-Specific Testing Requirements
+## Complexity Notes
 
-### db.py Testing
+### Server-Side Validation (MEDIUM)
+- Requires refactoring `/room/swipe` endpoint to ignore client `title`/`thumb`
+- Must handle case where `JellyfinLibraryProvider.resolve_item_for_tmdb()` fails (graceful degradation)
+- Existing code already has `resolve_item_for_tmdb()` method for TMDB integration (lines 117-130)
+- **Dependency:** Requires understanding of movie_id to Jellyfin item mapping
 
-**Complexity:** MEDIUM
-**Dependencies:**
-- Temporary SQLite database (tmp_path)
-- Schema initialization fixture
-- Test data setup/teardown
+### Safe DOM Rendering (MEDIUM)
+- Template has 11+ `innerHTML` usages (found via grep)
+- Must identify which contain user data vs static HTML
+- Static HTML can remain with `innerHTML` if no user data (e.g., trailer iframe at line 709)
+- **Pattern:** Replace `c.innerHTML = \`${m.title}\`` with `c.textContent = m.title` or use DOM creation API
+- **Safe sinks:** `textContent`, `insertAdjacentText`, `setAttribute`, `value`, `className` (per OWASP)
+- **Unsafe sinks:** `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` (must avoid)
 
-**Test scenarios:**
-- Database connection management (get_db returns same connection within context)
-- Schema initialization (tables created, migrations applied)
-- Database cleanup (connections closed after context)
-- CRUD operations (rooms, swipes, matches tables)
-- Migration logic (ALTER TABLE for new columns)
-- Orphaned data cleanup (DELETE FROM swipes WHERE room_code NOT IN rooms)
+### Basic CSP Header (LOW)
+- Single `@app.after_request` hook in `jellyswipe/__init__.py`
+- Policy format validated by MDN and web.dev sources
+- Must allow `https://image.tmdb.org` for images (TMDB integration requirement)
+- Must allow `https://www.youtube.com` for trailer embeds (existing feature)
+- **Implementation:**
+```python
+@app.after_request
+def add_security_headers(response):
+    csp = "default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com"
+    response.headers['Content-Security-Policy'] = csp
+    return response
+```
 
-**Key fixtures needed:**
-- `test_db_path`: tmp_path for isolated database
-- `test_db_conn`: Database connection with initialized schema
-- `test_data`: Sample rooms, swipes, matches for query testing
+### XSS Smoke Tests (LOW)
+- Create `tests/test_routes_xss.py`
+- Test 1: Send malicious payload in swipe endpoint, verify it's not rendered as executable script
+- Test 2: Verify CSP header is present on all responses
+- Test 3: Verify server rejects title/thumb from client
+- **Framework:** Use existing pytest setup with mock responses (follows pattern of `test_db.py`)
 
-### jellyfin_library.py Testing
-
-**Complexity:** HIGH
-**Dependencies:**
-- Mock HTTP requests (monkeypatch or pytest-mock)
-- Mock environment variables (JELLYFIN_API_KEY, JELLYFIN_USERNAME, etc.)
-- Test data for Jellyfin API responses
-- Provider instance fixture
-
-**Test scenarios:**
-- Authentication (API key vs username/password)
-- Token caching and reuse
-- User ID resolution (from /Users/Me or /Users)
-- Library ID discovery (find movies library)
-- Genre listing (with caching)
-- Deck fetching (with genre filtering, "Recently Added", shuffle)
-- Item-to-card transformation (formatting runtime, ratings)
-- TMDB item resolution (title/year extraction)
-- Server info (fallback to public endpoint)
-- Image fetching (path validation, auth retry on 401)
-- User session authentication
-- User ID resolution from token
-- Add to user favorites
-
-**Key fixtures needed:**
-- `mock_jellyfin_api`: Mock requests.Session for API calls
-- `mock_env_vars`: Set test environment variables
-- `jellyfin_provider`: Fresh provider instance per test
-- `sample_jellyfin_responses`: Realistic API response data
-
-### Route Testing (Future Consideration)
-
-**Complexity:** HIGH
-**Dependencies:**
-- Flask test client
-- Database fixture
-- Mock Jellyfin provider
-- Session management
-
-**Note:** Not in scope for v1.3 milestone (framework-agnostic approach). Consider for integration test suite in future.
+### Nonce-Based Strict CSP (HIGH)
+- Requires generating random nonce per response: `secrets.token_urlsafe(16)` or `os.urandom(16).base64()`
+- Must inject nonce into all `<script>` tags via template variable
+- Template currently has inline scripts; must be refactored to accept nonce parameter
+- **Implementation complexity:** HIGH because all scripts need nonce attribute, including any dynamically created scripts
+- **Browser support:** Chrome 52+, Edge 79+, Firefox 52+, Safari 15.4+ (per web.dev sources)
 
 ## Sources
 
-- **pytest documentation** (https://docs.pytest.org/en/stable/) — HIGH confidence (official docs)
-- **Flask testing tutorial** (https://flask.palletsprojects.com/en/stable/tutorial/tests/) — HIGH confidence (official docs)
-- **pytest-cov documentation** (https://pytest-cov.readthedocs.io/) — HIGH confidence (official docs)
-- **pytest-mock documentation** (https://pytest-mock.readthedocs.io/) — HIGH confidence (official docs)
-- **Python unittest.mock documentation** (https://docs.python.org/3/library/unittest.mock.html) — HIGH confidence (official docs)
-- **Context7: pytest-dev/pytest** — HIGH confidence (verified library documentation)
-- **Context7: pallets/flask** — HIGH confidence (verified library documentation)
-- **Context7: pytest-dev/pytest-cov** — HIGH confidence (verified library documentation)
-- **Context7: pytest-dev/pytest-mock** — HIGH confidence (verified library documentation)
+**Context7 Documentation (HIGH confidence):**
+- Flask web security: CSP header configuration, after_request pattern
+- Jinja2 autoescaping: Automatic HTML escaping enabled by default
+- Flask input handling: `request.json`, `get_json()`, HTML escaping with `markupsafe.escape`
+
+**MDN Web Docs (HIGH confidence):**
+- Content Security Policy guide: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP
+- CSP header reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+
+**web.dev Articles (HIGH confidence):**
+- Strict CSP guide: https://web.dev/articles/strict-csp
+- Nonce-based CSP implementation patterns and browser support
+
+**OWASP Cheat Sheet Series (HIGH confidence):**
+- XSS Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+- Safe sinks (textContent, insertAdjacentText) vs unsafe sinks (innerHTML)
+- Output encoding rules for HTML, JavaScript, CSS, URL contexts
+
+**Code Analysis (HIGH confidence):**
+- Vulnerable locations: `jellyswipe/templates/index.html` lines 644-661, 565-585
+- Server endpoint: `jellyswipe/__init__.py` line 244 (`/room/swipe` accepts title/thumb from client)
+- Existing method: `JellyfinLibraryProvider.resolve_item_for_tmdb()` can be leveraged for server-side resolution
+
+**Confidence Level Rationale:**
+- **HIGH confidence** for all sources: All information from official documentation (Flask, MDN, OWASP) or direct code analysis
+- **Verified through multiple sources:** CSP patterns cross-referenced between Context7, MDN, and web.dev
+- **No LOW confidence findings:** All claims backed by authoritative sources or direct code inspection
 
 ---
-*Feature research for: Unit Testing for Jelly Swipe (v1.3)*
+*Feature research for: XSS Security Fixes in Jelly Swipe Flask App*
 *Researched: 2026-04-25*

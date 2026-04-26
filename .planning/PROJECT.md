@@ -16,12 +16,15 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.5 — (undefined)
+## Current Milestone: v1.5 — XSS Security Fix
 
-**Goal:** TBD
+**Goal:** Eliminate stored XSS vulnerability where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection.
 
 **Target features:**
-- TBD
+- Server-side: Never accept title/thumb from client; resolve from movie_id via JellyfinLibraryProvider.resolve_item_for_tmdb()
+- Client-side: Replace innerHTML with textContent/DOM construction or strict escape helper for all user-controlled data
+- Security: Set strict Content-Security-Policy header (no unsafe-inline scripts, restrict img-src to 'self' + image.tmdb.org, restrict frame-src to https://www.youtube.com)
+- Testing: Add smoke test in tests/test_routes_xss.py proving XSS is blocked (script tags render as literal text)
 
 ## Requirements
 
@@ -58,13 +61,9 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active (future milestone candidates)
 
-- [ ] **ARC-02 closure** — Formal Plex regression matrix in archived `v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md` still partial; hardening unless descoped.
-- [ ] **OPS-01 / PRD-01** — Neutral DB column naming and multi-library selection (see archived `v1.0-REQUIREMENTS.md` v2 section).
-- [ ] **ADV-01** — Coverage thresholds enforced in CI to prevent regression (v2 requirement).
-- [ ] **ADV-02** — Multiple coverage reports (HTML for local, XML for CI) (v2 requirement).
-- [ ] **ADV-03** — pytest-mock integration for cleaner mock API (v2 requirement).
-- [ ] **ADV-04** — Parametrized fixtures for comprehensive scenario coverage (v2 requirement).
-- [ ] **ADV-05** — Module-scoped fixtures for test performance optimization (v2 requirement).
+- **SSV-01** — `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body. *Validated in Phase 19 (v1.5).*
+- **SSV-02** — `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`. *Validated in Phase 19 (v1.5).*
+- **SSV-03** — Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data). *Validated in Phase 19 (v1.5).*
 
 ### Out of Scope
 
@@ -80,8 +79,8 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ## Current state
 
-- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
-- **In flight:** v1.4 (Unraid template cleanup) — defining requirements. Future candidates: ARC-02 closure, OPS-01/PRD-01, v2 advanced testing features (see Active candidates).
+- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), and **v1.4** (authorization hardening) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, `v1.3-*`, and `v1.4-*`.
+- **In flight:** **v1.5 XSS Security Fix** (Phase 19 complete, 3 of 13 requirements validated) to close Issue #6 (`https://github.com/andrewthetechie/jelly-swipe/issues/6`).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -138,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after v1.4 milestone start*
+*Last updated: 2026-04-26 after Phase 19 completion*

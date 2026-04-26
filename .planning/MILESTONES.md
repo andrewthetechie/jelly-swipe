@@ -34,29 +34,31 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 ---
 
-## v1.4 — Clean up Unraid Template
+## v1.5 — XSS Security Fix
 
 **Shipped:** 2026-04-26
-**Theme:** Unraid template migration from Plex to Jellyfin environment variables with CI validation to prevent template drift
-**Phases:** 18 (template cleanup, CI validation, documentation)
+**Theme:** Eliminate stored XSS vulnerability (Issue #6) via three-layer defense: server-side validation, safe DOM rendering, and Content Security Policy
+**Phases:** 19–22 (server validation 19, safe DOM 20, CSP 21, testing 22)
 
 **Archives:**
 
-- [v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) — full phase roadmap snapshot
-- [v1.4-REQUIREMENTS.md](milestones/v1.4-REQUIREMENTS.md) — TEMP/UX/CI requirements at close (6/6 complete)
+- [v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) — full phase roadmap snapshot
+- [v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md) — SSV/DOM/CSP/XSS requirements at close (13/13 complete)
+- [v1.5-phases/](milestones/v1.5-phases/) — phase execution directories (Phases 19–22)
 
-**Deliverables (high level):** Unraid template updated with JELLYFIN_URL and JELLYFIN_API_KEY environment variables; all fake placeholder values removed; Python lint script for template validation; GitHub Actions workflow for CI validation; README.md documentation for Unraid deployment.
+**Deliverables (high level):** Server-side metadata resolution from trusted Jellyfin source; safe DOM rendering using textContent/DOM APIs; strict Content Security Policy header; comprehensive XSS smoke tests (6 tests, all passing); all 13 security requirements validated.
 
-**Stats:** 1 phase, 3 plans, 3 tasks, 482 insertions, 0 deletions, ~15 minutes execution time
+**Stats:** 4 phases, 5 plans, 13 requirements, 6 tests, all requirements satisfied
 
 **Key accomplishments:**
-1. Unraid Template Migration — Replaced PLEX_URL and PLEX_TOKEN with JELLYFIN_URL and JELLYFIN_API_KEY in both Variable and Config sections; removed all fake placeholder values; set masked fields to empty values with blank defaults
-2. CI Validation Workflow — Created Python script (scripts/lint-unraid-template.py) that parses Unraid template XML and validates variables against recognized app env vars; created GitHub Actions workflow (.github/workflows/unraid-template-lint.yml) that fails builds on unknown variables
-3. Documentation — Added comprehensive README.md section for Unraid template deployment with file location, required environment variables, and CI validation reference
+1. Server-Side Validation — Modified `/room/swipe` endpoint to ignore client-supplied title/thumb parameters and resolve metadata server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb()`
+2. Safe DOM Rendering — Refactored all innerHTML usage to safe DOM construction (textContent, createElement, setAttribute) in templates
+3. Content Security Policy — Implemented strict CSP header via `@app.after_request` hook blocking inline scripts and restricting external resources
+4. XSS Testing — Created comprehensive smoke tests proving XSS is blocked on all three security layers
 
 **Known gaps at close:** None — all requirements validated
 
-**Deferred items at milestone close:** `gsd-tools.cjs audit-open` reported **all artifact types clear** (no blocking open debug/UAT items)
+**Deferred items at milestone close:** None
 
 ---
 
