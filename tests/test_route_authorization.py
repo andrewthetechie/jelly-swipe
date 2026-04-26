@@ -123,7 +123,9 @@ def test_spoofed_alias_headers_rejected_with_401(db_connection, client, method, 
     response = _send_request(client, method, path, payload, {spoof_header: "attacker-id"})
 
     assert response.status_code == 401
-    assert response.get_json() == {"error": "Unauthorized"}
+    data = response.get_json()
+    assert data["error"] == "Unauthorized"
+    assert "request_id" in data
 
 
 def test_room_swipe_body_user_id_injection_unauthorized_and_no_side_effects(db_connection, client):
@@ -148,7 +150,9 @@ def test_room_swipe_body_user_id_injection_unauthorized_and_no_side_effects(db_c
     after_matches = db_connection.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
 
     assert response.status_code == 401
-    assert response.get_json() == {"error": "Unauthorized"}
+    data = response.get_json()
+    assert data["error"] == "Unauthorized"
+    assert "request_id" in data
     assert after_swipes == before_swipes
     assert after_matches == before_matches
 

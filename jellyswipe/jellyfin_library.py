@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from .base import LibraryMediaProvider
+from .http_client import make_http_request
 
 _DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "jelly-swipe-jellyfin-v1")
 
@@ -352,9 +353,12 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                 "webUrl": self._base,
             }
         except RuntimeError:
-            r = requests.get(f"{self._base}/System/Info/Public", timeout=15)
-            r.raise_for_status()
-            pub = r.json()
+            response = make_http_request(
+                method='GET',
+                url=f"{self._base}/System/Info/Public",
+                timeout=(5, 15)  # Convert single timeout to (connect, read) tuple
+            )
+            pub = response.json()
             return {
                 "machineIdentifier": pub.get("Id") or "",
                 "name": pub.get("ServerName") or "Jellyfin",

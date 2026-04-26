@@ -40,9 +40,9 @@ def test_env_vars_set():
 
     This test passes if:
     - JELLYFIN_URL is set to test value
-    - TMDB_API_KEY is set to test value
+    - TMDB_ACCESS_TOKEN is set to test value
     - FLASK_SECRET is set to test value
     """
     assert os.getenv("JELLYFIN_URL") == "http://test.jellyfin.local"
-    assert os.getenv("TMDB_API_KEY") == "test-tmdb-key"
+    assert os.getenv("TMDB_ACCESS_TOKEN") == "test-tmdb-token"
     assert os.getenv("FLASK_SECRET") == "test-secret-key"

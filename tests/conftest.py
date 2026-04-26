@@ -8,8 +8,9 @@ import pytest
 # This must happen before any imports that trigger __init__.py validation
 os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
 os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
-os.environ.setdefault("TMDB_API_KEY", "test-tmdb-key")
+os.environ.setdefault("TMDB_ACCESS_TOKEN", "test-tmdb-token")
 os.environ.setdefault("FLASK_SECRET", "test-secret-key")
+os.environ.setdefault("ALLOW_PRIVATE_JELLYFIN", "1")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -71,8 +72,9 @@ def mock_env_vars(monkeypatch):
     """
     monkeypatch.setenv("JELLYFIN_URL", "http://test.jellyfin.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-    monkeypatch.setenv("TMDB_API_KEY", "test-tmdb-key")
+    monkeypatch.setenv("TMDB_ACCESS_TOKEN", "test-tmdb-token")
     monkeypatch.setenv("FLASK_SECRET", "test-secret-key")
+    monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
     yield
 
 
