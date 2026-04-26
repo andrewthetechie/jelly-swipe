@@ -34,6 +34,32 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 ---
 
+## v1.4 — Clean up Unraid Template
+
+**Shipped:** 2026-04-26
+**Theme:** Unraid template migration from Plex to Jellyfin environment variables with CI validation to prevent template drift
+**Phases:** 18 (template cleanup, CI validation, documentation)
+
+**Archives:**
+
+- [v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) — full phase roadmap snapshot
+- [v1.4-REQUIREMENTS.md](milestones/v1.4-REQUIREMENTS.md) — TEMP/UX/CI requirements at close (6/6 complete)
+
+**Deliverables (high level):** Unraid template updated with JELLYFIN_URL and JELLYFIN_API_KEY environment variables; all fake placeholder values removed; Python lint script for template validation; GitHub Actions workflow for CI validation; README.md documentation for Unraid deployment.
+
+**Stats:** 1 phase, 3 plans, 3 tasks, 482 insertions, 0 deletions, ~15 minutes execution time
+
+**Key accomplishments:**
+1. Unraid Template Migration — Replaced PLEX_URL and PLEX_TOKEN with JELLYFIN_URL and JELLYFIN_API_KEY in both Variable and Config sections; removed all fake placeholder values; set masked fields to empty values with blank defaults
+2. CI Validation Workflow — Created Python script (scripts/lint-unraid-template.py) that parses Unraid template XML and validates variables against recognized app env vars; created GitHub Actions workflow (.github/workflows/unraid-template-lint.yml) that fails builds on unknown variables
+3. Documentation — Added comprehensive README.md section for Unraid template deployment with file location, required environment variables, and CI validation reference
+
+**Known gaps at close:** None — all requirements validated
+
+**Deferred items at milestone close:** `gsd-tools.cjs audit-open` reported **all artifact types clear** (no blocking open debug/UAT items)
+
+---
+
 ## v1.3 — Unit Tests
 
 **Shipped:** 2026-04-25
