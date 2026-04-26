@@ -15,9 +15,9 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v1.5 XSS Security Fix
-**Phase:** 19 - server-side-validation
-**Status:** Executing Phase 19
-**Progress:** [██████████] 100%
+**Phase:** 21 - csp-header
+**Status:** Planning Phase 21
+**Progress:** [██████████████████] 50%
 
 ---
 
@@ -36,20 +36,20 @@ Phase 19 - server-side-validation (1/1 plans complete)
 
 ## Current Position
 
-Phase: 20 (safe-dom-rendering) — PLANNED
-Plan: 0/2 complete
-**Phase:** Safe DOM Rendering planned, ready for execution
+Phase: 21 (csp-header) — PLANNED
+Plan: 0/1 complete
+**Phase:** CSP Header planned, ready for execution
 **Milestone:** v1.5 XSS Security Fix
-**Plan:** 20-01, 20-02 (safe DOM construction for templates) ready
-**Status:** Phase 20 planned with 2 plans, ready for execution
+**Plan:** 21-01 (CSP header via @app.after_request hook) ready
+**Status:** Phase 21 planned with 1 plan, ready for execution
 
 **Progress Bar:**
 
 ```
-[████████████░░░░░░░░] 75% - Phase 19 complete, Phase 20 planned, 1/4 phases complete
+[██████████████████░░] 50% - Phase 19 complete, Phase 20 planned, Phase 21 planned, 1/4 phases complete
 ```
 
-**Next Step:** `/gsd-execute-phase 20`
+**Next Step:** `/gsd-execute-phase 21`
 
 ---
 
@@ -108,6 +108,9 @@ Plan: 0/2 complete
 - [x] Plan Phase 20: Safe DOM Rendering
 - [ ] Execute Phase 20 plans
 - [ ] Validate Phase 20 success criteria
+- [x] Plan Phase 21: CSP Header
+- [ ] Execute Phase 21 plans
+- [ ] Validate Phase 21 success criteria
 
 **Milestone:**
 

@@ -2,7 +2,7 @@
 
 **Milestone:** v1.5 XSS Security Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 19 - server-side-validation
+**Current Phase:** 21 - csp-header
 **Last Updated:** 2026-04-26
 
 ---
@@ -85,7 +85,9 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 3. CSP policy restricts image sources to 'self' and https://image.tmdb.org
 4. CSP policy restricts frame sources to https://www.youtube.com (for trailers)
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+- [ ] 21-01-PLAN.md — Add @app.after_request hook for CSP header
 
 ---
 
@@ -113,7 +115,7 @@ This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-sup
 |-------|----------------|--------|-----------|
 | 19. Server-Side Validation | 1/1 | Complete | 2026-04-26 |
 | 20. Safe DOM Rendering | 0/2 | Not started | - |
-| 21. CSP Header | 0/0 | Not started | - |
+| 21. CSP Header | 0/1 | Planned | - |
 | 22. XSS Testing | 0/0 | Not started | - |
 
 ---
