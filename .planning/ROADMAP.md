@@ -190,9 +190,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 18-01: Update Unraid template with Jellyfin environment variables
-- [ ] 18-02: Remove fake placeholder values from masked fields
-- [ ] 18-03: Add CI lint step to verify template variables
+- [ ] 18-01: Update Unraid template with Jellyfin environment variables and blank placeholders
+- [ ] 18-02: Create CI lint workflow to validate Unraid template variables
+- [ ] 18-03: Document Unraid template and CI validation in README
 
 ### 📋 v2.0 Advanced Features (Planned)
 

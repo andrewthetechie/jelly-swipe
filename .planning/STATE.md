@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.4
-milestone_name: Clean up Unraid template
-status: in_progress
-stopped_at: Defining requirements
-last_updated: "2026-04-25T23:45:00.000Z"
-last_activity: 2026-04-25
+milestone_name: — Clean up Unraid Template
+status: planning
+stopped_at: Milestone v1.3 complete and archived
+last_updated: "2026-04-26T04:34:27.266Z"
+last_activity: 2026-04-25 — Phase 18 context captured (API key only auth, blank placeholders, separate CI lint)
 progress:
   total_phases: 1
   completed_phases: 0
@@ -117,6 +117,7 @@ Resume file: None
 **Timeline:** ~1 hour
 
 **Key Deliverables:**
+
 - pytest testing framework with pytest-cov, pytest-mock, responses, pytest-timeout
 - Framework-agnostic test infrastructure (conftest.py with monkeypatching)
 - 17 database tests with 87% coverage
@@ -125,5 +126,8 @@ Resume file: None
 - GitHub Actions workflow running tests on every push/PR
 
 **Archived:**
+
 - .planning/milestones/v1.3-ROADMAP.md
 - .planning/milestones/v1.3-REQUIREMENTS.md
+
+**Planned Phase:** 18 (Unraid Template Cleanup) — 3 plans — 2026-04-26T04:34:27.263Z
