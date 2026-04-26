@@ -187,6 +187,19 @@ docker run -d \
   andrewthetechie/jelly-swipe:latest
 ```
 
+### Unraid Template
+
+For Unraid users, a pre-configured template is provided at `unraid_template/jelly-swipe.html`. This template uses Jellyfin API key authentication and requires the following environment variables:
+
+- **JELLYFIN_URL** — Base URL of your Jellyfin server (no trailing slash)
+- **JELLYFIN_API_KEY** — API key for unattended server access
+- **TMDB_API_KEY** — TMDB API key for trailers and cast information
+- **FLASK_SECRET** — Random secret string for Flask session security
+
+All fields are blank by default and must be filled in by the user. The template does not expose username/password authentication options — it uses API key authentication only.
+
+**CI Validation:** The Unraid template is automatically validated by a GitHub Actions workflow (`.github/workflows/unraid-template-lint.yml`) that ensures all template variables are a recognized subset of the application's environment variables. This prevents template drift and maintains consistency between the template and the application code.
+
 <img src="https://github.com/user-attachments/assets/97e2c08b-5421-4f16-a798-acca2bb76a60" width="100"/>
 
 ## Development
