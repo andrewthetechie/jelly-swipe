@@ -241,7 +241,7 @@ def swipe():
     code = session.get('active_room')
     uid = session.get('my_user_id')
     data = request.json
-    mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
+    mid = str(data.get('movie_id'))
     user_id = data.get('user_id')
     user_id = _provider_user_id_from_request() or user_id
     if not user_id:
@@ -249,38 +249,61 @@ def swipe():
 
     if not code: return jsonify({'match': False})
 
+    # Log security warning if client sends title/thumb (potential XSS attempt or old client)
+    if data.get('title') is not None or data.get('thumb') is not None:
+        app.logger.warning(
+            "Security warning: Client sent title/thumb parameters in /room/swipe. "
+            f"IP={request.remote_addr}, movie_id={mid}, "
+            f"title={data.get('title')}, thumb={data.get('thumb')}"
+        )
+
+    # Resolve title and thumb server-side from Jellyfin (XSS fix per SSV-01, SSV-02)
+    title = None
+    thumb = None
+    try:
+        resolved = get_provider().resolve_item_for_tmdb(mid)
+        title = resolved.title
+        # Thumb URL follows established pattern from _item_to_card()
+        thumb = f"/proxy?path=jellyfin/{mid}/Primary"
+    except RuntimeError as exc:
+        # Per D-01, D-02: Allow swipe to complete but skip match creation
+        app.logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
+        # Fall through - swipe record will be created, but matches will be skipped
+
     with get_db() as conn:
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
                      (code, mid, uid, data.get('direction')))
 
         if data.get('direction') == 'right':
-            room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-            if room and room['solo_mode']:
-                conn.execute(
-                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                    (code, mid, title, thumb, user_id)
-                )
-                return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
-
-            other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
-                                     (code, mid, uid)).fetchone()
-
-            if other_swipe:
-                conn.execute(
-                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                    (code, mid, title, thumb, user_id)
-                )
-
-                if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
+            # Only create matches if we successfully resolved metadata server-side
+            if title is not None and thumb is not None:
+                room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+                if room and room['solo_mode']:
                     conn.execute(
                         'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, other_swipe['user_id'])
+                        (code, mid, title, thumb, user_id)
+                    )
+                    return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
+
+                other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+                                         (code, mid, uid)).fetchone()
+
+                if other_swipe:
+                    conn.execute(
+                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
+                        (code, mid, title, thumb, user_id)
                     )
 
-                match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
-                conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+                    if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
+                        conn.execute(
+                            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
+                            (code, mid, title, thumb, other_swipe['user_id'])
+                        )
 
-                return jsonify({'match': True, 'title': title, 'thumb': thumb})
+                    match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
+                    conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+
+                    return jsonify({'match': True, 'title': title, 'thumb': thumb})
 
     return jsonify({'match': False})
 
