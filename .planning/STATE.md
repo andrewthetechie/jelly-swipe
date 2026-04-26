@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Authorization Hardening
-status: Defining and sequencing implementation phases
-stopped_at: Phase 18 context gathered
-last_updated: "2026-04-26T03:41:16.522Z"
+milestone: v1.5
+milestone_name: XSS Security Fix
+status: Defining requirements
+stopped_at:
+last_updated: "2026-04-25T00:00:00.000Z"
 last_activity: 2026-04-25
 progress:
-  total_phases: 20
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,15 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** v1.4 authorization hardening and identity verification
+**Current focus:** v1.5 XSS security fix
 
 ## Current Position
 
-Milestone: v1.4 (Authorization Hardening) — STARTED
-Status: Defining and sequencing implementation phases
-Last activity: 2026-04-25
-
-Progress: [░░░░░░░░░░] 0%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-25 — Milestone v1.5 started
 
 ## Performance Metrics
 
@@ -42,9 +41,10 @@ Performance metrics will populate after phase execution starts.
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent milestone setup decisions:
 
-- v1.4 focuses exclusively on Issue #4 authorization model hardening.
-- Identity will be verified server-side only; client-supplied identity aliases are not trusted.
-- Security regression tests are mandatory before milestone closure.
+- v1.5 focuses exclusively on Issue #6 XSS vulnerability elimination.
+- Client-supplied title/thumb will not be trusted; must be resolved server-side from movie_id.
+- Strict CSP header enforcement required to prevent script injection.
+- XSS smoke tests are mandatory before milestone closure.
 
 Historical decisions affecting current work:
 
@@ -77,6 +77,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 18 context gathered
-Resume file: --resume-file
+Last session:
+Stopped at:
+Resume file:

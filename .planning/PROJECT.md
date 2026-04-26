@@ -14,16 +14,15 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.4 — Authorization Hardening
+## Current Milestone: v1.5 — XSS Security Fix
 
-**Goal:** Resolve Issue #4 by eliminating client-controlled identity trust and enforcing verified user identity across all user-scoped routes.
+**Goal:** Eliminate stored XSS vulnerability where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection.
 
 **Target features:**
-- Derive requester identity only from delegated server identity or validated Jellyfin token (`/Users/Me` resolution)
-- Reject spoofable identity sources (`X-Provider-User-Id`, `X-Jellyfin-User-Id`, `X-Emby-UserId`, request-body `user_id`)
-- Enforce 401 behavior when identity cannot be verified on protected endpoints
-- Guarantee reads/writes/deletes are scoped to the verified identity only
-- Add route-level tests proving spoofed headers are rejected and valid-token access still works
+- Server-side: Never accept title/thumb from client; resolve from movie_id via JellyfinLibraryProvider.resolve_item_for_tmdb()
+- Client-side: Replace innerHTML with textContent/DOM construction or strict escape helper for all user-controlled data
+- Security: Set strict Content-Security-Policy header (no unsafe-inline scripts, restrict img-src to 'self' + image.tmdb.org, restrict frame-src to https://www.youtube.com)
+- Testing: Add smoke test in tests/test_routes_xss.py proving XSS is blocked (script tags render as literal text)
 
 ## Requirements
 
@@ -54,11 +53,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active
 
-- [ ] **SEC-01** — Identity is resolved only from delegated server identity or validated Jellyfin token.
-- [ ] **SEC-02** — Client-supplied identity headers and request-body identity fields are ignored/rejected.
-- [ ] **SEC-03** — Protected endpoints return 401 when identity cannot be verified.
-- [ ] **SEC-04** — User-scoped operations (`/room/swipe`, `/matches`, `/matches/delete`, `/undo`, `/watchlist/add`) operate only on the verified identity.
-- [ ] **VER-01** — Automated tests prove header spoofing and body `user_id` injection cannot read/write/delete another user's data.
+<!-- Requirements for v1.5 XSS Security Fix will be defined in REQUIREMENTS.md -->
 
 ### Out of Scope
 
@@ -74,8 +69,8 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ## Current state
 
-- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
-- **In flight:** **v1.4 Authorization Hardening** planning to close Issue #4 (`https://github.com/andrewthetechie/jelly-swipe/issues/4`).
+- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), and **v1.4** (authorization hardening) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, `v1.3-*`, and `v1.4-*`.
+- **In flight:** **v1.5 XSS Security Fix** planning to close Issue #6 (`https://github.com/andrewthetechie/jelly-swipe/issues/6`).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -132,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after starting v1.4 milestone planning*
+*Last updated: 2026-04-25 after starting v1.5 milestone*
