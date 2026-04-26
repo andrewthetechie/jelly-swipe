@@ -62,7 +62,8 @@
   2. `javascript:` URLs are rejected with 400 error
   3. Script injection attempts are blocked (EPIC-03)
   4. All user-controlled content is sanitized before rendering
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 24-01-PLAN.md — Create tests/test_routes_xss.py with XSS security tests for stored XSS, proxy injection, and input validation
 
 ### Phase 25: Room Operation Tests
 **Goal**: Room lifecycle operations have comprehensive test coverage
