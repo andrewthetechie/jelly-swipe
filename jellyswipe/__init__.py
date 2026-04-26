@@ -8,6 +8,7 @@ except ImportError:
     pass
 
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
+from flask.json.provider import DefaultJSONProvider
 from werkzeug.middleware.proxy_fix import ProxyFix
 from typing import Dict, Optional, Tuple
 import hashlib
@@ -53,6 +54,22 @@ IDENTITY_ALIAS_HEADERS = (
 )
 
 
+class _XSSSafeJSONProvider(DefaultJSONProvider):
+    """JSON provider that escapes HTML-sensitive characters for XSS defense.
+
+    Per OWASP recommendation, < > & are encoded as \\u003c \\u003e \\u0026
+    in JSON output so that raw HTTP bodies cannot contain executable HTML tags.
+    JSON parsers correctly decode these back to the original characters.
+    """
+
+    def dumps(self, obj, **kwargs):
+        result = super().dumps(obj, **kwargs)
+        return (result
+                .replace("<", "\\u003c")
+                .replace(">", "\\u003e")
+                .replace("&", "\\u0026"))
+
+
 def create_app(test_config=None):
     """
     Create and configure a Flask application instance.
@@ -68,6 +85,9 @@ def create_app(test_config=None):
     app = Flask(__name__,
                 template_folder=os.path.join(_APP_ROOT, 'templates'),
                 static_folder=os.path.join(_APP_ROOT, 'static'))
+
+    # Enable XSS-safe JSON output (OWASP: escape < > & in JSON responses)
+    app.json = _XSSSafeJSONProvider(app)
 
     # Configure ProxyFix middleware
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
