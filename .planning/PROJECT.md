@@ -51,11 +51,11 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **TEST-02** — Modern pytest methods with fixtures and parametrize. *Validated in Phase 14 (v1.3).*
 - ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
 - ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
+- ✓ **SEC-01** — Identity is resolved only from delegated server identity or validated Jellyfin token. *Validated in Phase 18 (v1.4).*
+- ✓ **SEC-02** — Client-supplied identity headers are rejected as identity aliases. *Validated in Phase 18 (v1.4).*
 
 ### Active
 
-- [ ] **SEC-01** — Identity is resolved only from delegated server identity or validated Jellyfin token.
-- [ ] **SEC-02** — Client-supplied identity headers and request-body identity fields are ignored/rejected.
 - [ ] **SEC-03** — Protected endpoints return 401 when identity cannot be verified.
 - [ ] **SEC-04** — User-scoped operations (`/room/swipe`, `/matches`, `/matches/delete`, `/undo`, `/watchlist/add`) operate only on the verified identity.
 - [ ] **VER-01** — Automated tests prove header spoofing and body `user_id` injection cannot read/write/delete another user's data.
@@ -132,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after starting v1.4 milestone planning*
+*Last updated: 2026-04-26 after Phase 18 completion*
