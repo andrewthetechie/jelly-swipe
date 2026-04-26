@@ -151,7 +151,6 @@ services:
       - TMDB_API_KEY=your_copied_tmdb_key_here
     volumes:
       - ./data:/app/data
-      - ./static:/app/static
     restart: unless-stopped
 ```
 
@@ -165,7 +164,6 @@ docker run -d \
   -e FLASK_SECRET=SomeRandomString \
   -e TMDB_API_KEY=your_copied_tmdb_key_here \
   -v ./data:/app/data \
-  -v ./static:/app/static \
   --restart unless-stopped \
   andrewthetechie/jelly-swipe:latest
 ```
