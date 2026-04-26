@@ -91,6 +91,7 @@ def _jellyfin_user_token_from_request() -> str:
     token = None
     if auth_header:
         try:
+            # Preserve tolerant Token="..." parsing for compatibility; trust comes from server validation.
             token = get_provider().extract_media_browser_token(auth_header)
         except Exception:
             token = None
@@ -102,6 +103,15 @@ def _request_has_identity_alias_headers() -> bool:
         if request.headers.get(header):
             return True
     return False
+
+
+def _set_identity_rejection_reason(reason: str) -> None:
+    request.environ["jellyswipe.identity_rejected"] = reason
+
+
+def _identity_rejection_reason() -> Optional[str]:
+    value = request.environ.get("jellyswipe.identity_rejected")
+    return str(value) if value else None
 
 
 def _token_cache_key(token: str) -> str:
@@ -125,6 +135,7 @@ def _resolve_user_id_from_token_cached(token: str) -> Optional[str]:
 
     _token_user_id_cache[cache_key] = (
         user_id,
+        # Keep cache short-lived to limit stale identity risk.
         now + TOKEN_USER_ID_CACHE_TTL_SECONDS,
     )
     return user_id
@@ -139,13 +150,17 @@ def _provider_user_id_from_request():
             pass
     # Alias headers are client-controlled; never treat them as identity.
     if _request_has_identity_alias_headers():
-        request.environ["jellyswipe.identity_rejected"] = "spoofed_alias_header"
+        _set_identity_rejection_reason("spoofed_alias_header")
         return None
 
     token = _jellyfin_user_token_from_request()
     if not token:
         return None
-    return _resolve_user_id_from_token_cached(token)
+    user_id = _resolve_user_id_from_token_cached(token)
+    if user_id:
+        return user_id
+    _set_identity_rejection_reason("token_resolution_failed")
+    return None
 
 @app.route('/get-trailer/<movie_id>')
 def get_trailer(movie_id):
