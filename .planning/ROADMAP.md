@@ -1,225 +1,126 @@
-# Roadmap: Jelly Swipe
+# ROADMAP — Jelly Swipe v1.5
 
-## Overview
-
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.4** focuses on authorization hardening to prevent identity spoofing on user-scoped routes.
-
-## Milestones
-
-- ✅ **v1.0 Jellyfin Support** - Phases 1-5 (shipped 2026-04-24)
-- ✅ **v1.1 Jelly Swipe Rename** - Branding and identity (shipped 2026-04-24)
-- ✅ **v1.2 uv + Package Layout + Plex Removal** - Phases 10-13 (shipped 2026-04-25)
-- ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
-- ✅ **v1.4 Authorization Hardening** - Phases 18-20 (shipped 2026-04-26, archive: `.planning/milestones/v1.4-ROADMAP.md`)
-- 📋 **v2.0 Advanced Features** - Future work (ARC-02 closure, OPS-01/PRD-01, advanced test ergonomics)
+**Milestone:** Route Test Coverage
+**Granularity:** Standard
+**Requirements:** 7 total (FACTORY-01, TEST-ROUTE-01..05, COV-01)
 
 ## Phases
 
-<details>
-<summary>✅ v1.4 Authorization Hardening (Phases 18-20) - SHIPPED 2026-04-26</summary>
+- [ ] **Phase 21: App Factory Refactor** - Refactor Flask app into factory pattern for test isolation
+- [ ] **Phase 22: Test Infrastructure Setup** - Add app and client fixtures to conftest.py
+- [ ] **Phase 23: Auth Route Tests** - Add authentication route tests with header-spoof protection
+- [ ] **Phase 24: XSS Security Tests** - Add XSS blocking tests for input validation
+- [ ] **Phase 25: Room Operation Tests** - Add room lifecycle tests (create/join/swipe/match/quit)
+- [ ] **Phase 26: Proxy Route Tests** - Add proxy route tests for SSRF prevention
+- [ ] **Phase 27: SSE Streaming Tests** - Add SSE event streaming and shutdown tests
+- [ ] **Phase 28: Coverage Enforcement** - Add 70% coverage threshold enforcement to CI
 
-Archive: `.planning/milestones/v1.4-ROADMAP.md`
+## Phase Details
 
-- [x] Phase 18: Verified Identity Resolution (1/1 plans) — completed 2026-04-26
-- [x] Phase 19: Route Authorization Enforcement (1/1 plans) — completed 2026-04-26
-- [x] Phase 20: Security Regression Tests (1/1 plans) — completed 2026-04-26
+### Phase 21: App Factory Refactor
+**Goal**: Flask app uses factory pattern for test isolation
+**Depends on**: Nothing (first phase)
+**Requirements**: FACTORY-01
+**Success Criteria** (what must be TRUE):
+  1. Application creates via `create_app(test_config=None)` factory function
+  2. Global `app` instance exists for backwards compatibility
+  3. Factory accepts test_config parameter for test overrides
+  4. Application runs with existing configuration (no breaking changes)
+**Plans**: TBD
 
-</details>
+### Phase 22: Test Infrastructure Setup
+**Goal**: Route tests have app and client fixtures available
+**Depends on**: Phase 21
+**Requirements**: None (infrastructure phase)
+**Success Criteria** (what must be TRUE):
+  1. `app` fixture creates fresh Flask app instance for each test
+  2. `client` fixture provides Flask test client for HTTP requests
+  3. Fixtures use function-scoped isolation (no state leakage between tests)
+  4. Fixtures work with existing conftest.py patterns (db_connection, mock_env_vars)
+**Plans**: TBD
 
-<details>
-<summary>✅ v1.0 Jellyfin Support (Phases 1-9) - SHIPPED 2026-04-24</summary>
+### Phase 23: Auth Route Tests
+**Goal**: Authentication routes have comprehensive test coverage
+**Depends on**: Phase 22
+**Requirements**: TEST-ROUTE-01
+**Success Criteria** (what must be TRUE):
+  1. `/auth/provider` returns correct provider for MEDIA_PROVIDER env
+  2. `/auth/jellyfin-use-server-identity` handles valid and invalid tokens
+  3. `/auth/jellyfin-login` authenticates with valid credentials
+  4. Header-spoof tests verify EPIC-01 protection (client identity rejected)
+**Plans**: TBD
 
-### Phase 1: Project Setup
-**Goal**: Initialize project scaffolding and development environment
-**Plans**: 3 plans
+### Phase 24: XSS Security Tests
+**Goal**: XSS vulnerabilities are prevented and tested
+**Depends on**: Phase 22
+**Requirements**: TEST-ROUTE-02
+**Success Criteria** (what must be TRUE):
+  1. HTML tags in user input are escaped in responses
+  2. `javascript:` URLs are rejected with 400 error
+  3. Script injection attempts are blocked (EPIC-03)
+  4. All user-controlled content is sanitized before rendering
+**Plans**: TBD
 
-Plans:
-- [x] 01-01: Initialize Git repository and directory structure
-- [x] 01-02: Set up Flask application skeleton
-- [x] 01-03: Configure basic logging and error handling
+### Phase 25: Room Operation Tests
+**Goal**: Room lifecycle operations have comprehensive test coverage
+**Depends on**: Phase 22
+**Requirements**: TEST-ROUTE-03
+**Success Criteria** (what must be TRUE):
+  1. `/room/create` creates new room and returns room code
+  2. `/room/join` adds user to existing room
+  3. `/room/swipe` records swipe and updates match state
+  4. `/room/quit` removes user from room
+  5. `/room/status` returns current room state
+  6. `/room/go-solo` converts shared room to solo room
+**Plans**: TBD
 
-### Phase 2: Database Schema
-**Goal**: Design and implement SQLite database schema for rooms, swipes, and matches
-**Plans**: 2 plans
+### Phase 26: Proxy Route Tests
+**Goal**: Proxy route prevents SSRF attacks with allowlist validation
+**Depends on**: Phase 22
+**Requirements**: TEST-ROUTE-04
+**Success Criteria** (what must be TRUE):
+  1. `/proxy` serves valid Jellyfin image paths
+  2. Invalid paths are rejected with 403 error
+  3. Allowlist regex blocks non-whitelisted paths (EPIC-04)
+  4. Content-type verification returns correct image types
+**Plans**: TBD
 
-Plans:
-- [x] 02-01: Design database schema and create migrations
-- [x] 02-02: Implement database connection and query functions
+### Phase 27: SSE Streaming Tests
+**Goal**: SSE streaming works correctly and handles edge cases
+**Depends on**: Phase 22
+**Requirements**: TEST-ROUTE-05
+**Success Criteria** (what must be TRUE):
+  1. `/room/stream` sends SSE events for state changes
+  2. Invalid room code returns 404 error
+  3. GeneratorExit is handled gracefully on client disconnect
+  4. Stream includes correct event format (data, event, id)
+**Plans**: TBD
 
-### Phase 3: Media Provider Abstraction
-**Goal**: Create abstract base class for media provider with Plex implementation
-**Plans**: 2 plans
-
-Plans:
-- [x] 03-01: Define LibraryMediaProvider abstract interface
-- [x] 03-02: Implement PlexLibraryProvider with auth and library browsing
-
-### Phase 4: Jellyfin Integration
-**Goal**: Implement Jellyfin as alternative media backend
-**Plans**: 3 plans
-
-Plans:
-- [x] 04-01: Implement JellyfinLibraryProvider with server authentication
-- [x] 04-02: Build Jellyfin library browsing and deck fetching
-- [x] 04-03: Add genre filtering and "Recently Added" sorting
-
-### Phase 5: Verification & Validation
-**Goal**: Verify Jellyfin parity and validate implementation
-**Plans**: 3 plans
-
-Plans:
-- [x] 05-01: Verify Jellyfin authentication and token handling
-- [x] 05-02: Validate library browsing and card transformation
-- [x] 05-03: Test user-scoped features (matches, history, watchlist)
-
-### Phase 6: Infrastructure Validation
-**Goal**: Validate deployment infrastructure and Docker setup
-**Plans**: 2 plans
-
-Plans:
-- [x] 06-01: Validate Docker image builds and runs correctly
-- [x] 06-02: Test environment configuration and port binding
-
-### Phase 7: Data Layer Validation
-**Goal**: Validate database operations and data integrity
-**Plans**: 2 plans
-
-Plans:
-- [x] 07-01: Validate database schema and migrations
-- [x] 07-02: Test CRUD operations and data consistency
-
-### Phase 8: E2E Validation
-**Goal**: End-to-end validation of complete user workflows
-**Plans**: 3 plans
-
-Plans:
-- [x] 08-01: Test complete room creation and guest join flow
-- [x] 08-02: Verify swiping, matching, and notification behavior
-- [x] 08-03: Validate operator deployment and configuration
-
-### Phase 9: UI Enhancements
-**Goal**: Enhance UI for Jellyfin delegate auth and poster display
-**Plans**: 2 plans
-
-Plans:
-- [x] 09-01: Implement Jellyfin browser delegate auth
-- [x] 09-02: Fix poster containment with object-fit: contain
-
-</details>
-
-<details>
-<summary>✅ v1.1 Jelly Swipe Rename - SHIPPED 2026-04-24</summary>
-
-No numbered phases - branding updates completed as single milestone.
-
-</details>
-
-<details>
-<summary>✅ v1.2 uv + Package Layout + Plex Removal (Phases 10-13) - SHIPPED 2026-04-25</summary>
-
-### Phase 10: uv Dependency Management
-**Goal**: Migrate from requirements.txt to uv-based dependency management with Python 3.13
-**Plans**: 2 plans
-
-Plans:
-- [x] 10-01: Create pyproject.toml with Python 3.13 requirements
-- [x] 10-02: Generate uv.lock and update Docker/CI workflows
-
-### Phase 11: Package Layout
-**Goal**: Refactor code into jellyswipe/ package structure
-**Plans**: 2 plans
-
-Plans:
-- [x] 11-01: Create jellyswipe/ package with __init__.py, db.py, jellyfin_library.py
-- [x] 11-02: Update Gunicorn and local run commands to use jellyswipe:app
-
-### Phase 12: Docker Multi-Stage Build
-**Goal**: Implement multi-stage Docker build using uv for smaller, reproducible images
-**Plans**: 2 plans
-
-Plans:
-- [x] 12-01: Create multi-stage Dockerfile with uv sync
-- [x] 12-02: Update maintainer documentation for uv-based setup
-
-### Phase 13: Plex Removal
-**Goal**: Remove all Plex support to make application Jellyfin-only
-**Plans**: 3 plans
-
-Plans:
-- [x] 13-01: Remove Plex implementation code (plex_library.py, factory.py)
-- [x] 13-02: Remove plexapi dependency and update database schema
-- [x] 13-03: Verify application works with Jellyfin-only configuration
-
-</details>
-
-<details>
-<summary>✅ v1.3 Unit Tests (Phases 14-17) - SHIPPED 2026-04-25</summary>
-
-### Phase 14: Test Infrastructure Setup
-**Goal**: Configure pytest environment and establish shared fixtures for isolated testing
-**Plans**: 3 plans
-
-Plans:
-- [x] 14-01: Add pytest dependencies to pyproject.toml and regenerate uv.lock
-- [x] 14-02: Create tests/conftest.py with environment fixtures
-- [x] 14-03: Create smoke tests and verify pytest setup
-
-### Phase 15: Database Module Tests
-**Goal**: Test database operations with in-memory SQLite for complete isolation
-**Plans**: 1 plan
-
-Plans:
-- [x] 15-01: Create database fixtures and comprehensive tests for db.py module
-
-### Phase 16: Jellyfin Provider Tests
-**Goal**: Test Jellyfin library provider with mocked external API calls
-**Plans**: 4 plans
-
-Plans:
-- [x] 16-01: Authentication tests (API key, username/password, 401 retry, token caching, user ID resolution)
-- [x] 16-02: Library discovery tests (library ID resolution, genre listing, genre mapping, genre cache)
-- [x] 16-03: Deck fetching and transformation tests (deck retrieval, item-to-card, TMDB resolution, genre filtering)
-- [x] 16-04: Error and edge case tests (network failures, empty responses, missing fields, HTTP errors)
-
-### Phase 17: Coverage & CI Integration
-**Goal**: Configure coverage reporting and GitHub Actions workflow
-**Plans**: 1 plan
-
-Plans:
-- [x] 17-01: Add pytest-cov configuration and create GitHub Actions test workflow
-
-</details>
-
-### 📋 v2.0 Advanced Features (Planned)
-
-**Milestone Goal:** Close ARC-02 regression matrix, implement multi-library selection, and improve advanced testing ergonomics
-
-No phases defined yet - requirements remain deferred candidates.
+### Phase 28: Coverage Enforcement
+**Goal**: CI enforces 70% coverage threshold for jellyswipe/__init__.py
+**Depends on**: Phase 27
+**Requirements**: COV-01
+**Success Criteria** (what must be TRUE):
+  1. pytest configuration includes `--cov-fail-under=70` option
+  2. CI workflow fails if coverage drops below 70%
+  3. Terminal coverage report shows jellyswipe/__init__.py percentage
+  4. All route tests contribute to coverage threshold
+**Plans**: TBD
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 → 17 (complete), then 18 → 20 (planned)
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 21. App Factory Refactor | 0/0 | Not started | - |
+| 22. Test Infrastructure Setup | 0/0 | Not started | - |
+| 23. Auth Route Tests | 0/0 | Not started | - |
+| 24. XSS Security Tests | 0/0 | Not started | - |
+| 25. Room Operation Tests | 0/0 | Not started | - |
+| 26. Proxy Route Tests | 0/0 | Not started | - |
+| 27. SSE Streaming Tests | 0/0 | Not started | - |
+| 28. Coverage Enforcement | 0/0 | Not started | - |
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Project Setup | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 2. Database Schema | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 3. Media Provider Abstraction | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 4. Jellyfin Integration | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 5. Verification & Validation | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 6. Infrastructure Validation | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 7. Data Layer Validation | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 8. E2E Validation | v1.0 | 3/3 | Complete | 2026-04-24 |
-| 9. UI Enhancements | v1.0 | 2/2 | Complete | 2026-04-24 |
-| 10. uv Dependency Management | v1.2 | 2/2 | Complete | 2026-04-25 |
-| 11. Package Layout | v1.2 | 2/2 | Complete | 2026-04-25 |
-| 12. Docker Multi-Stage Build | v1.2 | 2/2 | Complete | 2026-04-25 |
-| 13. Plex Removal | v1.2 | 3/3 | Complete | 2026-04-25 |
-| 14. Test Infrastructure Setup | v1.3 | 3/3 | Complete | 2026-04-25 |
-| 15. Database Module Tests | v1.3 | 1/1 | Complete | 2026-04-25 |
-| 16. Jellyfin Provider Tests | v1.3 | 4/4 | Complete | 2026-04-25 |
-| 17. Coverage & CI Integration | v1.3 | 1/1 | Complete | 2026-04-25 |
-| 18. Verified Identity Resolution | v1.4 | 1/1 | Complete    | 2026-04-26 |
-| 19. Route Authorization Enforcement | v1.4 | 1/1 | Complete    | 2026-04-26 |
-| 20. Security Regression Tests | v1.4 | 1/1 | Complete    | 2026-04-26 |
+---
+
+*Roadmap created: 2026-04-26*
+*Next: `/gsd-plan-phase 21`*

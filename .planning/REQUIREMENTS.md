@@ -63,19 +63,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FACTORY-01 | Phase 1 | Pending |
-| TEST-ROUTE-01 | Phase 3 | Pending |
-| TEST-ROUTE-02 | Phase 4 | Pending |
-| TEST-ROUTE-03 | Phase 5 | Pending |
-| TEST-ROUTE-04 | Phase 6 | Pending |
-| TEST-ROUTE-05 | Phase 7 | Pending |
-| COV-01 | Phase 8 | Pending |
+| FACTORY-01 | Phase 21 | Pending |
+| TEST-ROUTE-01 | Phase 23 | Pending |
+| TEST-ROUTE-02 | Phase 24 | Pending |
+| TEST-ROUTE-03 | Phase 25 | Pending |
+| TEST-ROUTE-04 | Phase 26 | Pending |
+| TEST-ROUTE-05 | Phase 27 | Pending |
+| COV-01 | Phase 28 | Pending |
 
 **Coverage:**
 - v1.5 requirements: 7 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 7 ⚠️
+- Mapped to phases: 7/7 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-26*
-*Last updated: 2026-04-26 after initial definition*
+*Last updated: 2026-04-26 after v1.5 roadmap creation*
