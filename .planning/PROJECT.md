@@ -14,14 +14,14 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v2.0 — Planning Next Milestone
+## Current Milestone: v1.5 — Route Test Coverage
 
-**Goal:** Define the next post-hardening product milestone after shipping v1.4.
+**Goal:** Refactor Flask app to factory pattern and add comprehensive route tests to achieve 70% coverage for `jellyswipe/__init__.py`
 
 **Target features:**
-- Finalize next milestone scope from deferred candidates (`ARC-02`, `OPS-01/PRD-01`, `ADV-*`)
-- Capture fresh requirements in a new `.planning/REQUIREMENTS.md`
-- Build roadmap phases for v2.0 execution
+- Refactor `jellyswipe/__init__.py` into `create_app()` factory function
+- Add route test files: auth, xss, room, proxy, sse
+- Add pytest `--cov-fail-under=70` for CI enforcement
 
 ## Requirements
 
@@ -54,8 +54,13 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active
 
-- [ ] **NEXT-01** — Define and lock v2.0 milestone scope.
-- [ ] **NEXT-02** — Author new milestone requirements and roadmap phases.
+- [ ] **FACTORY-01** — Refactor `jellyswipe/__init__.py` into explicit `create_app(config=None)` factory function
+- [ ] **TEST-ROUTE-01** — Add `tests/test_routes_auth.py` with header-spoof tests for EPIC-01
+- [ ] **TEST-ROUTE-02** — Add `tests/test_routes_xss.py` with stored XSS blocking tests (EPIC-03)
+- [ ] **TEST-ROUTE-03** — Add `tests/test_routes_room.py` with happy path for create/join/swipe/match/quit
+- [ ] **TEST-ROUTE-04** — Add `tests/test_routes_proxy.py` with allowlist regex and rate limit tests (EPIC-04)
+- [ ] **TEST-ROUTE-05** — Add `tests/test_routes_sse.py` with SSE event streaming and shutdown tests
+- [ ] **TEST-COV-01** — Add pytest `--cov-fail-under=70` to ensure CI enforces coverage threshold
 
 ### Out of Scope
 
@@ -131,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v1.4 milestone completion*
+*Last updated: 2026-04-26 after v1.5 milestone start*

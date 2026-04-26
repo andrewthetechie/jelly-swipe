@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Next Milestone Planning
+milestone: v1.5
+milestone_name: Route Test Coverage
 status: planning
-stopped_at: Milestone v1.4 archived
-last_updated: "2026-04-26T04:57:05.891Z"
+stopped_at: Milestone v1.5 started
+last_updated: "2026-04-26T05:00:00.000Z"
 last_activity: 2026-04-26
 progress:
-  total_phases: 20
-  completed_phases: 20
+  total_phases: 0
+  completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 100
+  percent: 0
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** Milestone planning — define next roadmap
+**Current focus:** Route test coverage — factory refactor and comprehensive route tests
 
 ## Current Position
 
-Phase: N/A
-Plan: N/A
-Milestone: v2.0 (Next Milestone Planning) — STARTED
-Status: Ready to define
-Last activity: 2026-04-26
+Phase: Not started (defining requirements)
+Plan: —
+Milestone: v1.5 (Route Test Coverage) — STARTED
+Status: Defining requirements
+Last activity: 2026-04-26 — Milestone v1.5 started
 
-Progress: [██████████] 100% (v1.4 complete)
+Progress: [          ] 0% (v1.5 started)
 
 ## Performance Metrics
 
@@ -79,8 +79,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: milestone-close
-Stopped at: Milestone v1.4 archived
-Resume file: .planning/MILESTONES.md
+Last session: new-milestone
+Stopped at: Milestone v1.5 started
+Resume file: .planning/PROJECT.md
 
-**Next action:** `/gsd-new-milestone`
+**Next action:** Define requirements for route test coverage
