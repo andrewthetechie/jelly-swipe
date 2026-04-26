@@ -57,15 +57,17 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active
 
-- **CLN-01** — `/plex/server-info` route deleted from `jellyswipe/__init__.py` (dead code, nothing calls it).
-- **CLN-02** — `plex_id` references removed from `jellyswipe/db.py` comments.
-- **CLN-03** — All Plex CSS classes, JS functions, localStorage keys, API URLs, and UI copy removed from `jellyswipe/templates/index.html`.
-- **CLN-04** — Manifest descriptions updated to "Jellyfin only" in both `jellyswipe/static/manifest.json` and `data/manifest.json`.
-- **CLN-05** — Dead `data/index.html` deleted (never-fetched PWA shell).
-- **CLN-06** — Plex env block removed from `unraid_template/jelly-swipe.html`.
-- **CLN-07** — `requirements.txt` deleted or stripped of plexapi (deprecated file, Docker uses uv).
-- **CLN-08** — `base.py` docstring updated to reference Jellyfin API path instead of Plex `/library/metadata/`.
-- **CLN-09** — `rg -i 'plex'` against source returns only intentional historical references (README fork attribution).
+_No active requirements._
+
+- ✓ **CLN-01** — `/plex/server-info` route deleted from `jellyswipe/__init__.py`. *Validated in Phase 23 (v1.6).*
+- ✓ **CLN-02** — `plex_id` references removed from `jellyswipe/db.py`. *Validated in Phase 23 (v1.6).*
+- ✓ **CLN-03** — All Plex CSS/JS/localStorage/URLs/copy removed from `templates/index.html`. *Validated in Phase 24 (v1.6).*
+- ✓ **CLN-04** — Manifest descriptions updated to "Jellyfin only". *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-05** — Dead `data/index.html` deleted. *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-06** — Plex env block removed from Unraid template. *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-07** — `requirements.txt` deleted. *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-08** — `base.py` docstring references Jellyfin API path. *Validated in Phase 23 (v1.6).*
+- ✓ **CLN-09** — `rg -i 'plex'` returns zero matches in source (complete cleanup). *Validated in Phase 26 (v1.6).*
 
 ### Out of Scope
 
@@ -82,7 +84,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), and **v1.4** (authorization hardening) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, `v1.3-*`, and `v1.4-*`.
-- **In flight:** **v1.6 Plex Reference Cleanup** (EPIC-08, Issue #11) — remove all remaining Plex references from source code.
+- **Completed:** **v1.6 Plex Reference Cleanup** (EPIC-08, Issue #11) — all Plex references removed from source code; 81 tests pass; zero stale references.
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -139,4 +141,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v1.6 milestone kickoff*
+*Last updated: 2026-04-26 after v1.6 milestone completion*
