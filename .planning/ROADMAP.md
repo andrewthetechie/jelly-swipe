@@ -85,7 +85,10 @@ Plans:
 3. `unraid_template/jelly-swipe.html` contains no Plex environment variables
 4. `requirements.txt` is either deleted or contains no `plexapi` reference
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 25-01-PLAN.md — Update manifest descriptions and delete dead config files
 
 ---
 
@@ -115,7 +118,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26
 |-------|----------------|--------|-----------|
 | 23. Backend Source Cleanup | 0/1 | Not started | - |
 | 24. Frontend Plex Cleanup | 2/2 | Complete    | 2026-04-26 |
-| 25. Config & Deploy Cleanup | 0/? | Not started | - |
+| 25. Config & Deploy Cleanup | 0/1 | Not started | - |
 | 26. Acceptance Validation | 0/? | Not started | - |
 
 ---
