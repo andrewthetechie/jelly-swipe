@@ -14,24 +14,16 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.3 — Unit Tests ✅ COMPLETE
+## Current Milestone: v1.4 — Authorization Hardening
 
-**Goal:** Add unit tests that improve reliability when making changes to this software
+**Goal:** Resolve Issue #4 by eliminating client-controlled identity trust and enforcing verified user identity across all user-scoped routes.
 
-**Delivered:**
-- Unit test suite for existing codebase with 48 tests
-- Framework-agnostic tests (not tied to Flask directly)
-- Modern pytest methods with fixtures and parametrize
-- pytest-cov terminal coverage reporting
-- GitHub Actions workflow for automated testing
-
-**v1.3 shipped features:**
-
-- **pytest framework** — pytest 9.0.3, pytest-cov, pytest-mock, responses, pytest-timeout; configured test discovery and output; frozen uv.lock for reproducible installs.
-- **Test infrastructure** — conftest.py with environment fixtures and monkeypatching for framework-agnostic imports; function-scoped fixtures for complete test isolation.
-- **Database tests** — 17 tests for db.py with tmp_path fixture, 87% coverage, schema/migration/CRUD validation.
-- **Jellyfin provider tests** — 29 tests for jellyfin_library.py covering auth, token caching, user ID resolution, library discovery, genres, deck fetching, TMDB resolution.
-- **Coverage & CI** — pytest-cov terminal output with per-file percentages and missing line numbers; GitHub Actions workflow running 48 tests on every push/PR with Python 3.13.
+**Target features:**
+- Derive requester identity only from delegated server identity or validated Jellyfin token (`/Users/Me` resolution)
+- Reject spoofable identity sources (`X-Provider-User-Id`, `X-Jellyfin-User-Id`, `X-Emby-UserId`, request-body `user_id`)
+- Enforce 401 behavior when identity cannot be verified on protected endpoints
+- Guarantee reads/writes/deletes are scoped to the verified identity only
+- Add route-level tests proving spoofed headers are rejected and valid-token access still works
 
 ## Requirements
 
@@ -60,15 +52,13 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
 - ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
 
-### Active (future milestone candidates)
+### Active
 
-- [ ] **ARC-02 closure** — Formal Plex regression matrix in archived `v1.0-phases/02-media-provider-abstraction/02-VERIFICATION.md` still partial; hardening unless descoped.
-- [ ] **OPS-01 / PRD-01** — Neutral DB column naming and multi-library selection (see archived `v1.0-REQUIREMENTS.md` v2 section).
-- [ ] **ADV-01** — Coverage thresholds enforced in CI to prevent regression (v2 requirement).
-- [ ] **ADV-02** — Multiple coverage reports (HTML for local, XML for CI) (v2 requirement).
-- [ ] **ADV-03** — pytest-mock integration for cleaner mock API (v2 requirement).
-- [ ] **ADV-04** — Parametrized fixtures for comprehensive scenario coverage (v2 requirement).
-- [ ] **ADV-05** — Module-scoped fixtures for test performance optimization (v2 requirement).
+- [ ] **SEC-01** — Identity is resolved only from delegated server identity or validated Jellyfin token.
+- [ ] **SEC-02** — Client-supplied identity headers and request-body identity fields are ignored/rejected.
+- [ ] **SEC-03** — Protected endpoints return 401 when identity cannot be verified.
+- [ ] **SEC-04** — User-scoped operations (`/room/swipe`, `/matches`, `/matches/delete`, `/undo`, `/watchlist/add`) operate only on the verified identity.
+- [ ] **VER-01** — Automated tests prove header spoofing and body `user_id` injection cannot read/write/delete another user's data.
 
 ### Out of Scope
 
@@ -85,7 +75,7 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 ## Current state
 
 - **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), and **v1.3** (unit tests) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, and `v1.3-*`.
-- **In flight:** No active milestone — v1.3 is complete and shipped. Future candidates: ARC-02 closure, OPS-01/PRD-01, v2 advanced testing features (see Active candidates).
+- **In flight:** **v1.4 Authorization Hardening** planning to close Issue #4 (`https://github.com/andrewthetechie/jelly-swipe/issues/4`).
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
@@ -142,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after v1.3 milestone completion*
+*Last updated: 2026-04-25 after starting v1.4 milestone planning*

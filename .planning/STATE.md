@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Unit Tests
-status: complete
-stopped_at: Milestone v1.3 complete
-last_updated: "2026-04-25T23:30:00.000Z"
+milestone: v1.4
+milestone_name: Authorization Hardening
+status: in_progress
+stopped_at: Milestone initialized; ready for phase discussion
+last_updated: "2026-04-25T22:31:00.000Z"
 last_activity: 2026-04-25
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,55 +21,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** Planning next milestone (no active milestone)
+**Current focus:** v1.4 authorization hardening and identity verification
 
 ## Current Position
 
-Milestone: v1.3 (Unit Tests) — COMPLETE
-Status: Shipped and archived
+Milestone: v1.4 (Authorization Hardening) — STARTED
+Status: Defining and sequencing implementation phases
 Last activity: 2026-04-25
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**Velocity:**
-
-- Total plans completed: 9
-- Average duration: 3 min
-- Total execution time: 0.5 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 14 | 3 | 6 min | 2 min |
-| 15 | 1 | 2 min | 2 min |
-| 16 | 4 | 4 min | 1 min |
-| 17 | 1 | 2 min | 2 min |
-
-**Recent Trend:**
-
-- Last 5 plans: All complete, average 1.8 min/plan
-- Trend: Consistent execution velocity, no bottlenecks
+Performance metrics will populate after phase execution starts.
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions from v1.3:
+Recent milestone setup decisions:
 
-- Phase 14: pytest framework with framework-agnostic imports (monkeypatch load_dotenv and Flask)
-- Phase 14: Function-scoped fixtures for maximum test isolation
-- Phase 14: Use tmp_path for file-based SQLite databases (not :memory:) to allow debugging
-- Phase 16: Use mocker.patch('jellyswipe.jellyfin_library.requests.Session') to mock all HTTP calls
-- Phase 16: Use correct RunTimeTicks conversion: ticks / 10,000,000 = seconds
-- Phase 16: Use valid UUID format (32 hex chars) for image path tests to match regex pattern
-- Phase 17: Terminal-only coverage reporting (--cov-report=term-missing, no HTML/XML)
-- Phase 17: Independent test.yml workflow, Docker workflows unchanged
-- Phase 17: No coverage threshold in v1.3 (deferred to v2 per ADV-01)
-- Phase 17: Python 3.13 only in CI (matches production requirement)
+- v1.4 focuses exclusively on Issue #4 authorization model hardening.
+- Identity will be verified server-side only; client-supplied identity aliases are not trusted.
+- Security regression tests are mandatory before milestone closure.
 
 Historical decisions affecting current work:
 
@@ -102,29 +77,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-04-25T23:30:00.000Z
-Stopped at: Milestone v1.3 complete and archived
+Last session: 2026-04-25T22:31:00.000Z
+Stopped at: Milestone v1.4 initialized and roadmap drafted
 Resume file: None
-
-## v1.3 Milestone Summary
-
-**Shipped:** 2026-04-25
-**Phases:** 4 (14-17)
-**Plans:** 9 total
-**Tests:** 48 total (15 infrastructure + 17 database + 29 Jellyfin provider)
-**Files Modified:** 27
-**Lines Changed:** 4,096 insertions, 26 deletions
-**LOC:** 2,446 Python (jellyswipe + tests)
-**Timeline:** ~1 hour
-
-**Key Deliverables:**
-- pytest testing framework with pytest-cov, pytest-mock, responses, pytest-timeout
-- Framework-agnostic test infrastructure (conftest.py with monkeypatching)
-- 17 database tests with 87% coverage
-- 29 Jellyfin provider tests with 95%+ coverage
-- pytest-cov terminal output with per-file percentages
-- GitHub Actions workflow running tests on every push/PR
-
-**Archived:**
-- .planning/milestones/v1.3-ROADMAP.md
-- .planning/milestones/v1.3-REQUIREMENTS.md
