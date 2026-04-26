@@ -21,7 +21,8 @@ Requirements for route test coverage milestone. Each maps to roadmap phases.
 **: Add `tests/test_routes_room.py` with room operation tests (create, join, swipe, match, quit, status, go-solo) covering happy paths and edge cases
 - [x] **TEST-ROUTE-04
 **: Add `tests/test_routes_proxy.py` with proxy route tests (valid/invalid paths, allowlist regex validation, content-type verification) for EPIC-04 SSRF prevention
-- [ ] **TEST-ROUTE-05**: Add `tests/test_routes_sse.py` with SSE streaming tests (event streaming, invalid room handling, state change events, GeneratorExit handling)
+- [x] **TEST-ROUTE-05
+**: Add `tests/test_routes_sse.py` with SSE streaming tests (event streaming, invalid room handling, state change events, GeneratorExit handling)
 
 ### Coverage
 
