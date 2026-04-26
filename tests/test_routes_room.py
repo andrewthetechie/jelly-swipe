@@ -365,3 +365,178 @@ def test_room_status_room_deleted_from_db(client):
     response = client.get("/room/status")
     assert response.status_code == 200
     assert response.get_json() == {"ready": False}
+
+
+# ---------------------------------------------------------------------------
+# Section 6: /room/swipe tests
+# ---------------------------------------------------------------------------
+
+
+def test_swipe_left_records_no_match(client):
+    """POST /room/swipe with direction=left records swipe but returns no match."""
+    _set_session(client, active_room="TEST1", user_id="user-1", delegate=True)
+    _seed_room(None, "TEST1", ready=1, solo_mode=1)
+
+    response = client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Movie", "thumb": "t.jpg", "direction": "left"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"match": False}
+
+    # Verify swipe recorded in DB
+    conn = jellyswipe.db.get_db()
+    try:
+        row = conn.execute(
+            "SELECT direction FROM swipes WHERE room_code = 'TEST1' AND movie_id = 'm1'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row["direction"] == "left"
+
+
+def test_swipe_right_solo_match(client):
+    """POST /room/swipe with direction=right in solo room creates immediate match."""
+    _set_session(client, active_room="TEST1", user_id="user-1", delegate=True)
+    _seed_room(None, "TEST1", ready=1, solo_mode=1)
+
+    response = client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Solo Movie", "thumb": "solo.jpg", "direction": "right"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["match"] is True
+    assert data["solo"] is True
+    assert data["title"] == "Solo Movie"
+    assert data["thumb"] == "solo.jpg"
+
+    # Verify match exists in DB
+    conn = jellyswipe.db.get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM matches WHERE room_code = 'TEST1' AND movie_id = 'm1'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+
+
+def test_swipe_right_dual_match(client):
+    """POST /room/swipe with direction=right in shared room matches when another user swiped right."""
+    _seed_room(None, "TEST1", ready=1, solo_mode=0)
+    _set_session(client, active_room="TEST1", user_id="user-1", delegate=True)
+
+    # Seed another user's right swipe on the same movie
+    conn = jellyswipe.db.get_db()
+    try:
+        conn.execute(
+            "INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)",
+            ("TEST1", "m1", "user-2", "right"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Dual Movie", "thumb": "dual.jpg", "direction": "right"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["match"] is True
+    # Solo key should not be present (or false) in dual mode
+    assert data.get("solo") is not True
+
+    # Verify TWO matches in DB (one for each user_id)
+    conn = jellyswipe.db.get_db()
+    try:
+        rows = conn.execute(
+            "SELECT user_id FROM matches WHERE room_code = 'TEST1' AND movie_id = 'm1'"
+        ).fetchall()
+    finally:
+        conn.close()
+    match_user_ids = [row["user_id"] for row in rows]
+    assert len(match_user_ids) == 2
+    assert "verified-user" in match_user_ids  # provider user_id for user-1
+    assert "user-2" in match_user_ids  # the other session user
+
+
+def test_swipe_right_no_match_yet(client):
+    """POST /room/swipe with direction=right in shared room with no prior swipe returns no match."""
+    _set_session(client, active_room="TEST1", user_id="user-1", delegate=True)
+    _seed_room(None, "TEST1", ready=1, solo_mode=0)
+
+    response = client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Movie", "thumb": "t.jpg", "direction": "right"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"match": False}
+
+
+def test_swipe_no_active_room_returns_no_match(client):
+    """POST /room/swipe without active_room returns match=False (not an error)."""
+    _set_session(client, delegate=True)  # No active_room
+
+    response = client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Movie", "thumb": "t.jpg", "direction": "left"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"match": False}
+
+
+def test_swipe_unauthorized_returns_401(client):
+    """POST /room/swipe without identity (no delegate, no token) returns 401."""
+    _set_session(client, active_room="TEST1", delegate=False)
+
+    response = client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Movie", "thumb": "t.jpg", "direction": "left"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_swipe_right_updates_last_match_data(client):
+    """POST /room/swipe dual match updates last_match_data in rooms table."""
+    _seed_room(None, "TEST1", ready=1, solo_mode=0)
+    _set_session(client, active_room="TEST1", user_id="user-1", delegate=True)
+
+    # Seed another user's right swipe to trigger dual match
+    conn = jellyswipe.db.get_db()
+    try:
+        conn.execute(
+            "INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)",
+            ("TEST1", "m1", "user-2", "right"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client.post(
+        "/room/swipe",
+        json={"movie_id": "m1", "title": "Match Movie", "thumb": "match.jpg", "direction": "right"},
+    )
+
+    # Verify last_match_data updated in rooms table
+    conn = jellyswipe.db.get_db()
+    try:
+        row = conn.execute(
+            "SELECT last_match_data FROM rooms WHERE pairing_code = 'TEST1'"
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["last_match_data"] is not None
+    match_data = json.loads(row["last_match_data"])
+    assert match_data["title"] == "Match Movie"
+    assert match_data["thumb"] == "match.jpg"
+    assert "ts" in match_data
