@@ -100,7 +100,8 @@
   2. Invalid room code returns 404 error
   3. GeneratorExit is handled gracefully on client disconnect
   4. Stream includes correct event format (data, event, id)
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 27-01-PLAN.md — Create SSE streaming tests for /room/stream endpoint with state change events, room closure, GeneratorExit handling, and header verification
 
 ### Phase 28: Coverage Enforcement
 **Goal**: CI enforces 70% coverage threshold for jellyswipe/__init__.py
@@ -125,6 +126,16 @@
 | 26. Proxy Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 27. SSE Streaming Tests | 0/0 | Not started | - |
 | 28. Coverage Enforcement | 0/0 | Not started | - |
+
+### Phase 29: Some other changes to the site html is causing an error that wasn't adequately tested. Content-Security-Policy: The page's settings blocked an inline style (style-src-elem) from being applied because it violates the following directive: "default-src 'self'". Consider using a hash ('sha256-dd4J3UnQShsOmqcYi4vN5BT3mGZB/0fOwBA72rsguKc=', requires 'unsafe-hashes' for style attributes) or a nonce. Content-Security-Policy: The page's settings blocked an inline style (style-src-elem) from being applied because it violates the following directive: "default-src 'self'". Consider using a hash ('sha256-2cG7ALxgDA4FN2Rxo1w6FLiEw9x1lZbttS+dW4OiamU=', requires 'unsafe-hashes' for style attributes) or a nonce. and many other Content-Security-Policy errors that cause the page to not load properly
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 28
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 29 to break down)
 
 ---
 
