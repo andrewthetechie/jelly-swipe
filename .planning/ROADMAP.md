@@ -112,7 +112,9 @@
   2. CI workflow fails if coverage drops below 70%
   3. Terminal coverage report shows jellyswipe/__init__.py percentage
   4. All route tests contribute to coverage threshold
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 28-01-PLAN.md — Add --cov-fail-under=70 to pyproject.toml and verify test suite passes with threshold
 
 ## Progress
 
@@ -125,7 +127,7 @@
 | 25. Room Operation Tests | 1/1 | Complete    | 2026-04-26 |
 | 26. Proxy Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 27. SSE Streaming Tests | 1/1 | Complete    | 2026-04-26 |
-| 28. Coverage Enforcement | 0/0 | Not started | - |
+| 28. Coverage Enforcement | 0/1 | Planned | - |
 
 ### Phase 29: Some other changes to the site html is causing an error that wasn't adequately tested. Content-Security-Policy: The page's settings blocked an inline style (style-src-elem) from being applied because it violates the following directive: "default-src 'self'". Consider using a hash ('sha256-dd4J3UnQShsOmqcYi4vN5BT3mGZB/0fOwBA72rsguKc=', requires 'unsafe-hashes' for style attributes) or a nonce. Content-Security-Policy: The page's settings blocked an inline style (style-src-elem) from being applied because it violates the following directive: "default-src 'self'". Consider using a hash ('sha256-2cG7ALxgDA4FN2Rxo1w6FLiEw9x1lZbttS+dW4OiamU=', requires 'unsafe-hashes' for style attributes) or a nonce. and many other Content-Security-Policy errors that cause the page to not load properly
 
