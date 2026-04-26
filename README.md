@@ -1,6 +1,6 @@
 # Jelly-Swipe
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 <p align="center">
@@ -261,6 +261,7 @@ Thanks go to these wonderful people ([emoji key](https://allcontributors.org/doc
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Bergasha"><img src="https://avatars.githubusercontent.com/u/25044200?v=4?s=100" width="100px;" alt="Bergasha"/><br /><sub><b>Bergasha</b></sub></a><br /><a href="https://github.com/andrewthetechie/jelly-swipe/commits?author=Bergasha" title="Code">💻</a> <a href="#ideas-Bergasha" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/andrewthetechie"><img src="https://avatars.githubusercontent.com/u/1377314?v=4?s=100" width="100px;" alt="Andrew"/><br /><sub><b>Andrew</b></sub></a><br /><a href="https://github.com/andrewthetechie/jelly-swipe/commits?author=andrewthetechie" title="Code">💻</a> <a href="#ideas-andrewthetechie" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
   </tbody>
 </table>
