@@ -36,6 +36,10 @@ class FakeProvider:
     def add_to_user_favorites(self, user_token: str, movie_id: str) -> None:
         self.favorites_added.append((user_token, movie_id))
 
+    def resolve_item_for_tmdb(self, movie_id: str):
+        from types import SimpleNamespace
+        return SimpleNamespace(title=f"Movie-{movie_id}", year=2025)
+
 
 @pytest.fixture
 def app_module(db_connection, monkeypatch):

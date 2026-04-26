@@ -111,7 +111,8 @@ class TestLayer1ServerSideValidation:
             # Patch get_provider() to return our mock
             # Need to patch in the module where it's imported
             import jellyswipe
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
+                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_abc123'):
                 # Send malicious payload with script tags in title and thumb
                 response = client.post(
                     '/room/swipe',
@@ -182,7 +183,8 @@ class TestLayer1ServerSideValidation:
 
             # Patch get_provider() and capture logs
             import jellyswipe
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
+                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_xyz789'):
                 with caplog.at_level('WARNING'):
                     # Send request with title/thumb (old client or attack attempt)
                     response = client.post(
@@ -304,7 +306,8 @@ class TestEndToEndXSSBlocking:
             mock_item.year = 2010
             mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
+                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_e2e'):
                 # Send malicious payload
                 response = client.post(
                     '/room/swipe',
@@ -370,7 +373,8 @@ class TestEndToEndXSSBlocking:
             mock_provider = MagicMock()
             mock_provider.resolve_item_for_tmdb.side_effect = RuntimeError("Jellyfin item lookup failed")
 
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
+                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_fail'):
                 with caplog.at_level('WARNING'):
                     # Send swipe request
                     response = client.post(
