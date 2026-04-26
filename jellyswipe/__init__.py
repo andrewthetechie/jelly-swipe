@@ -463,13 +463,6 @@ def create_app(test_config=None):
             conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, user_id))
         return jsonify({'status': 'undone'})
 
-    @app.route('/plex/server-info')
-    def get_server_info():
-        try:
-            return jsonify(get_provider().server_info())
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-
     @app.route('/movies')
     def get_movies():
         code = session.get('active_room')

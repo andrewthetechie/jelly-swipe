@@ -32,13 +32,13 @@ def init_db():
         if 'status' not in columns:
             conn.execute('ALTER TABLE matches ADD COLUMN status TEXT DEFAULT "active"')
         if 'user_id' not in columns:
-            # For existing databases with plex_id column, add user_id column
+            # Add user_id column for older databases
             conn.execute('ALTER TABLE matches ADD COLUMN user_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(swipes)")
         sw_cols = [col[1] for col in cursor.fetchall()]
         if 'user_id' not in sw_cols:
-            # For existing databases with plex_id column, add user_id column
+            # Add user_id column for older databases
             conn.execute('ALTER TABLE swipes ADD COLUMN user_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(rooms)")
