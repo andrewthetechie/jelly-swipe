@@ -76,7 +76,8 @@
   4. `/room/quit` removes user from room
   5. `/room/status` returns current room state
   6. `/room/go-solo` converts shared room to solo room
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 25-01-PLAN.md — Create tests/test_routes_room.py with comprehensive room lifecycle tests for all 6 endpoints (create, join, swipe, quit, status, go-solo)
 
 ### Phase 26: Proxy Route Tests
 **Goal**: Proxy route prevents SSRF attacks with allowlist validation
@@ -119,7 +120,7 @@
 | 22. Test Infrastructure Setup | 0/0 | Not started | - |
 | 23. Auth Route Tests | 1/1 | Complete    | 2026-04-26 |
 | 24. XSS Security Tests | 1/1 | Complete    | 2026-04-26 |
-| 25. Room Operation Tests | 0/0 | Not started | - |
+| 25. Room Operation Tests | 0/1 | Not started | - |
 | 26. Proxy Route Tests | 0/0 | Not started | - |
 | 27. SSE Streaming Tests | 0/0 | Not started | - |
 | 28. Coverage Enforcement | 0/0 | Not started | - |
