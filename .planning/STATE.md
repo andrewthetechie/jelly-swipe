@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: — Clean up Unraid Template
-status: planning
-stopped_at: Milestone v1.3 complete and archived
-last_updated: "2026-04-26T04:34:27.266Z"
-last_activity: 2026-04-25 — Phase 18 context captured (API key only auth, blank placeholders, separate CI lint)
+milestone: v1.5
+milestone_name: — (undefined)
+status: idle
+stopped_at: Milestone v1.4 complete and archived
+last_updated: "2026-04-26T00:15:29.000Z"
+last_activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
 progress:
-  total_phases: 1
+  total_phases: 0
   completed_phases: 0
-  total_plans: 3
+  total_plans: 0
   completed_plans: 0
-  percent: 0
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-25)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** v1.4 (Clean up Unraid template)
+**Current focus:** v1.5 (undefined - next milestone to be planned)
 
 ## Current Position
 
-Phase: 18 (Unraid Template Cleanup)
+Phase: —
 Plan: —
-Status: Context gathered, ready for planning
-Last activity: 2026-04-25 — Phase 18 context captured (API key only auth, blank placeholders, separate CI lint)
+Status: Milestone v1.4 complete, awaiting v1.5 planning
+Last activity: 2026-04-26 — Milestone v1.4 shipped (Unraid template cleanup)
 
 ## Performance Metrics
 
@@ -101,9 +101,33 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-04-25T23:30:00.000Z
-Stopped at: Milestone v1.3 complete and archived
+Last session: 2026-04-26T00:15:29.000Z
+Stopped at: Milestone v1.4 complete and archived
 Resume file: None
+
+## v1.4 Milestone Summary
+
+**Shipped:** 2026-04-26
+**Phases:** 1 (18)
+**Plans:** 3 total
+**Files Modified:** 3
+**Lines Changed:** 482 insertions, 0 deletions
+**Timeline:** ~15 minutes
+
+**Key Deliverables:**
+
+- Unraid template updated with JELLYFIN_URL and JELLYFIN_API_KEY environment variables
+- All fake placeholder values removed from template
+- Python lint script for template validation
+- GitHub Actions workflow for CI validation
+- README.md documentation for Unraid deployment
+
+**Archived:**
+
+- .planning/milestones/v1.4-ROADMAP.md
+- .planning/milestones/v1.4-REQUIREMENTS.md
+
+**Planned Phase:** None — v1.5 to be planned
 
 ## v1.3 Milestone Summary
 
@@ -129,5 +153,3 @@ Resume file: None
 
 - .planning/milestones/v1.3-ROADMAP.md
 - .planning/milestones/v1.3-REQUIREMENTS.md
-
-**Planned Phase:** 18 (Unraid Template Cleanup) — 3 plans — 2026-04-26T04:34:27.263Z
