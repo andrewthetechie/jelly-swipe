@@ -26,6 +26,12 @@ def init_db():
             status TEXT DEFAULT "active", user_id TEXT,
             UNIQUE(room_code, movie_id, user_id)
         )''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS user_tokens (
+            session_id TEXT PRIMARY KEY,
+            jellyfin_token TEXT,
+            jellyfin_user_id TEXT,
+            created_at TEXT
+        )''')
 
         cursor = conn.execute("PRAGMA table_info(matches)")
         columns = [col[1] for col in cursor.fetchall()]
@@ -34,6 +40,18 @@ def init_db():
         if 'user_id' not in columns:
             # For existing databases with plex_id column, add user_id column
             conn.execute('ALTER TABLE matches ADD COLUMN user_id TEXT')
+
+        # Fresh PRAGMA query for new match metadata columns (previous cursor consumed)
+        cursor = conn.execute("PRAGMA table_info(matches)")
+        match_cols = [col[1] for col in cursor.fetchall()]
+        if 'deep_link' not in match_cols:
+            conn.execute('ALTER TABLE matches ADD COLUMN deep_link TEXT')
+        if 'rating' not in match_cols:
+            conn.execute('ALTER TABLE matches ADD COLUMN rating TEXT')
+        if 'duration' not in match_cols:
+            conn.execute('ALTER TABLE matches ADD COLUMN duration TEXT')
+        if 'year' not in match_cols:
+            conn.execute('ALTER TABLE matches ADD COLUMN year TEXT')
 
         cursor = conn.execute("PRAGMA table_info(swipes)")
         sw_cols = [col[1] for col in cursor.fetchall()]
@@ -47,6 +65,10 @@ def init_db():
             conn.execute('ALTER TABLE rooms ADD COLUMN solo_mode INTEGER DEFAULT 0')
         if 'last_match_data' not in room_cols:
             conn.execute('ALTER TABLE rooms ADD COLUMN last_match_data TEXT')
+        if 'deck_position' not in room_cols:
+            conn.execute('ALTER TABLE rooms ADD COLUMN deck_position TEXT')
+        if 'deck_order' not in room_cols:
+            conn.execute('ALTER TABLE rooms ADD COLUMN deck_order TEXT')
 
 
         conn.execute('DELETE FROM swipes WHERE room_code NOT IN (SELECT pairing_code FROM rooms)')
