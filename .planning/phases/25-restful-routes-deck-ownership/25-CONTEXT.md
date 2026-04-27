@@ -1,6 +1,6 @@
 # Phase 25: RESTful Routes + Deck Ownership - Context
 
-**Gathered:** 2026-04-26
+**Gathered:** 2026-04-27
 **Status:** Ready for planning
 
 <domain>
@@ -18,7 +18,7 @@ Restructure Flask routes to RESTful patterns with room code in URL path (e.g., `
 ## Implementation Decisions
 
 ### Route Migration Strategy
-- **D-01:** Big switch — all routes migrated at once. Old route patterns removed, new RESTful routes active. Client must update in Phase 27 to match new endpoints.
+- **D-01:** Big switch — all routes migrated at once. Old route patterns removed, new RESTful routes active. Client must update in Phase 27 to match new endpoints. Acceptable that app is broken between Phase 25 and Phase 27 — no active users during development.
 - **D-02:** New route patterns:
   - `POST /room` → create room (was `/room/create`)
   - `POST /room/{code}/join` → join room (was `/room/join` with body code)
@@ -42,10 +42,20 @@ Restructure Flask routes to RESTful patterns with room code in URL path (e.g., `
 - **D-07:** `POST /room/{code}/swipe` accepts `{movie_id, direction}` only. No title, thumb, or metadata parameters.
 - **D-08:** Room code comes from URL path, not session. Session still stores `active_room` for convenience but URL path is authoritative.
 
+### Deck Delivery
+- **D-09:** Deck endpoint returns paginated results — 20 cards per page from cursor position. Accepts optional `?page=N` query param for subsequent pages. Decks may grow large; pagination ensures the endpoint scales without payload bloat.
+- **D-10:** When user reaches end of deck, deck endpoint returns empty array `[]`. Client shows "no more cards" state. No auto-loop or auto-fetch.
+
+### SSE Stream Authentication
+- **D-11:** SSE stream route `GET /room/{code}/stream` does NOT require `@login_required`. Room code in URL path serves as access control. Per Phase 24 D-12, the generator remains context-free — no session or vault reads inside the polling loop. No repeated vault lookups on every 1.5s poll cycle.
+
+### Genre Change Endpoint
+- **D-12:** `POST /room/{code}/genre` accepts JSON body `{"genre": "Action"}`. Consistent with other POST endpoints that accept JSON payloads.
+
 ### the agent's Discretion
-- Exact genre change endpoint design (query param vs body)
-- Whether deck endpoint returns all cards or paginated
-- How to handle stale cursor (user at end of deck)
+- Exact pagination query param format (`?page=2` vs `?offset=20` vs `?cursor=movie_id`)
+- Response envelope shape for paginated deck (`{cards: [...], has_more: true}` vs bare array with Link header)
+- Whether to include total card count in deck response
 
 </decisions>
 
@@ -58,15 +68,17 @@ Restructure Flask routes to RESTful patterns with room code in URL path (e.g., `
 - `.planning/research/SUMMARY.md` §Expected Features — RESTful endpoint restructuring, server-owned deck
 - `.planning/research/ARCHITECTURE.md` §MODIFIED: Routes — Before/after route mapping
 
-### Existing codebase
-- `jellyswipe/__init__.py:274-308` — Current `/room/create`, `/room/join` routes
-- `jellyswipe/__init__.py:310-378` — Current `/room/swipe` route
-- `jellyswipe/__init__.py:436-447` — Current `/movies` route
-- `jellyswipe/__init__.py:467-521` — Current `/room/stream` SSE route
+### Existing codebase (post-Phase 24)
+- `jellyswipe/__init__.py:178-188` — Current `create_room()` route with `@login_required`
+- `jellyswipe/__init__.py:215-280` — Current `swipe()` route with `g.user_id`
+- `jellyswipe/__init__.py:332-343` — Current `/movies` route (will become `/room/{code}/deck`)
+- `jellyswipe/__init__.py:363-417` — Current `/room/stream` SSE route (context-free generator)
+- `jellyswipe/auth.py` — `create_session()`, `get_current_token()`, `login_required()`
+- `jellyswipe/db.py` — `deck_position` TEXT column on rooms table (added in Phase 23, unused)
 
 ### Prior phase decisions
 - `.planning/phases/23-database-schema-token-vault/23-CONTEXT.md` — deck_position column added
-- `.planning/phases/24-auth-module-server-identity/24-CONTEXT.md` — g.user_id available, @login_required on all mutations
+- `.planning/phases/24-auth-module-server-identity/24-CONTEXT.md` — g.user_id available, @login_required on all mutations, SSE generator must stay context-free (D-12)
 
 </canonical_refs>
 
@@ -74,18 +86,21 @@ Restructure Flask routes to RESTful patterns with room code in URL path (e.g., `
 ## Existing Code Insights
 
 ### Reusable Assets
-- `jellyswipe/__init__.py:274-284` — `create_room()` — room creation logic (code generation, deck fetch, DB insert)
-- `jellyswipe/__init__.py:310-378` — `swipe()` — match detection logic (will be further refactored in Phase 26)
-- Flask `<variable>` URL converters handle `/room/{code}/swipe` patterns natively
+- `jellyswipe/__init__.py:178-188` — `create_room()` — room creation logic (code generation, deck fetch, DB insert). Already uses `@login_required`.
+- `jellyswipe/__init__.py:215-280` — `swipe()` — uses `g.user_id` for swipe INSERT and match queries. Match detection logic will be further refactored in Phase 26.
+- Flask `<variable>` URL converters handle `/room/<code>/swipe` patterns natively.
+- `jellyswipe/db.py:69-70` — `deck_position` and `deck_order` columns exist on rooms table (TEXT), ready for use.
 
 ### Established Patterns
 - `with get_db() as conn:` context manager for all DB access
 - `session.get('active_room')` for room lookup — URL path replaces this as primary
 - `jsonify()` for all API responses
+- `g.user_id` and `g.jf_token` populated by `@login_required` (Phase 24)
 
 ### Integration Points
-- SSE stream reads `session.get('active_room')` — needs to accept room code from URL or session
-- Client JS in `templates/index.html` calls all these routes — must update in Phase 27
+- SSE stream currently reads `session.get('active_room')` — new route accepts room code from URL path parameter instead
+- Client JS in `templates/index.html` calls all current routes — will update in Phase 27
+- Cursor tracking writes to `rooms.deck_position` JSON on each swipe; deck endpoint reads from it
 
 </code_context>
 
@@ -94,6 +109,7 @@ Restructure Flask routes to RESTful patterns with room code in URL path (e.g., `
 
 - Route restructuring should maintain the same logical behavior — only URL patterns change
 - The `fetch_deck()` call in `create_room()` already does `random.shuffle()` server-side — this is correct and stays
+- Paginated deck endpoint should support `?page=N` for fetching cards beyond the initial 20
 
 </specifics>
 
@@ -107,4 +123,4 @@ None — discussion stayed within phase scope.
 ---
 
 *Phase: 25-restful-routes-deck-ownership*
-*Context gathered: 2026-04-26*
+*Context gathered: 2026-04-27*
