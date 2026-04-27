@@ -18,8 +18,8 @@ Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier re
 
 ### Deck Management
 
-- [ ] **DECK-01**: Server is sole source of deck composition and shuffle order; client never re-fetches or re-shuffles
-- [ ] **DECK-02**: Server tracks each user's cursor position in the deck for reconnect support
+- [x] **DECK-01**: Server is sole source of deck composition and shuffle order; client never re-fetches or re-shuffles
+- [x] **DECK-02**: Server tracks each user's cursor position in the deck for reconnect support
 
 ### Match & Notification
 
@@ -29,7 +29,7 @@ Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier re
 
 ### RESTful API
 
-- [ ] **API-01**: Swipe endpoint restructured as `POST /room/{code}/swipe` accepting `{movie_id, direction}` only
+- [x] **API-01**: Swipe endpoint restructured as `POST /room/{code}/swipe` accepting `{movie_id, direction}` only
 - [ ] **API-02**: Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — client never constructs media URLs
 - [ ] **API-03**: `GET /me` endpoint returns verified user id, display name, and server info from server-side session
 - [ ] **API-04**: Dedicated `POST /room/solo` endpoint creates a solo session without the two-player room lifecycle
@@ -69,12 +69,12 @@ Explicitly excluded from v2.0.
 | AUTH-01 | Phase 24 | Complete |
 | AUTH-02 | Phase 23 | Pending |
 | AUTH-03 | Phase 23 | Pending |
-| DECK-01 | Phase 25 | Pending |
-| DECK-02 | Phase 25 | Pending |
+| DECK-01 | Phase 25 | Complete |
+| DECK-02 | Phase 25 | Complete |
 | MTCH-01 | Phase 26 | Pending |
 | MTCH-02 | Phase 26 | Pending |
 | MTCH-03 | Phase 26 | Pending |
-| API-01 | Phase 25 | Pending |
+| API-01 | Phase 25 | Complete |
 | API-02 | Phase 26 | Pending |
 | API-03 | Phase 26 | Pending |
 | API-04 | Phase 26 | Pending |

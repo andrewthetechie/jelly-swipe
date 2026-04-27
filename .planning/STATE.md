@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Architecture Tier Fix
-status: executing
+status: ready_to_plan
 last_updated: "2026-04-27T17:54:42.356Z"
 last_activity: 2026-04-27 -- Phase --phase execution started
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
   completed_plans: 4
-  percent: 67
+  percent: 50
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Architecture Tier Fix
-**Phase:** 25
-**Status:** Executing Phase --phase
+**Phase:** 26
+**Status:** Ready to plan
 **Progress:** [██████████] 100%
 
 ---
@@ -37,9 +37,9 @@ Users can run a swipe session backed by Jellyfin, with library browsing and deck
 ## Current Position
 
 Phase: --phase (25) — EXECUTING
-Plan: 1 of --name
+Plan: Not started
 Status: Executing Phase --phase
-Last activity: 2026-04-27 -- Phase --phase execution started
+Last activity: 2026-04-27
 
 ---
 

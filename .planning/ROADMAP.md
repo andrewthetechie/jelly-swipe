@@ -38,7 +38,7 @@ This roadmap eliminates tier responsibility violations between server and client
 
 - [ ] **Phase 23: Database Schema + Token Vault** - Additive-only schema migration: user_tokens table, deck state columns, expired token cleanup
 - [x] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification (completed 2026-04-27)
-- [ ] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor
+- [x] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor (completed 2026-04-27)
 - [ ] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo
 - [ ] **Phase 27: Client Simplification + Cleanup** - Remove localStorage tokens, identity headers, client-side match detection, URL construction
 - [ ] **Phase 28: Deployment Validation** - Docker volume mounts, ProxyFix verification, end-to-end flow validation
@@ -105,11 +105,11 @@ Plans:
   3. Server tracks each user's cursor position in the deck; a user who reloads the page resumes where they left off in the same deck order
   4. Existing route patterns that depend on client-supplied identity or deck state are replaced by server-resolved equivalents
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 25-01-PLAN.md — Restructure all routes to RESTful URL patterns with room code in path
-- [ ] 25-02-PLAN.md — Implement server-owned deck composition, cursor tracking, and pagination
+- [x] 25-01-PLAN.md — Restructure all routes to RESTful URL patterns with room code in path
+- [x] 25-02-PLAN.md — Implement server-owned deck composition, cursor tracking, and pagination
 
 ---
 
@@ -192,7 +192,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 |-------|----------------|--------|-----------|
 | 23. Database Schema + Token Vault | 0/2 | Not started | - |
 | 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
-| 25. RESTful Routes + Deck Ownership | 0/2 | Planned | - |
+| 25. RESTful Routes + Deck Ownership | 2/2 | Complete    | 2026-04-27 |
 | 26. Match Notification + Deep Links + Metadata | 0/3 | Not started | - |
 | 27. Client Simplification + Cleanup | 0/2 | Not started | - |
 | 28. Deployment Validation | 0/2 | Not started | - |
