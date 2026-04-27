@@ -151,13 +151,11 @@ Plans:
   3. Client never constructs media URLs — all deep links come from server match responses
   4. Client sends no identity headers (no X-User-Id, X-Provider-Token, or similar); server resolves identity from session cookie alone
 
-**Plans:** TBD
-
-**UI hint**: yes
+**Plans:** 2 plans
 
 Plans:
-- [ ] 27-01: Remove localStorage token reads and identity header sends
-- [ ] 27-02: Remove client-side match detection; wire popup to SSE events only
+- [ ] 27-01-PLAN.md — Dead code removal + auth rewire + route migration + logout endpoint
+- [ ] 27-02-PLAN.md — Integration verification tests for CLNT-01 and CLNT-02 compliance
 
 ---
 
@@ -193,7 +191,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 | 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
 | 25. RESTful Routes + Deck Ownership | 2/2 | Complete    | 2026-04-27 |
 | 26. Match Notification + Deep Links + Metadata | 2/2 | Complete    | 2026-04-27 |
-| 27. Client Simplification + Cleanup | 0/2 | Not started | - |
+| 27. Client Simplification + Cleanup | 0/2 | Planned    | - |
 | 28. Deployment Validation | 0/2 | Not started | - |
 | **Total** | **6/13** | **In Progress** | - |
 
