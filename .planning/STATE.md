@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Architecture Tier Fix
-status: defining_requirements
-last_updated: "2026-04-26T17:00:00.000Z"
+status: ready_to_plan
+last_updated: "2026-04-26T18:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 13
   completed_plans: 0
   percent: 0
 ---
@@ -15,8 +15,8 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Architecture Tier Fix
-**Phase:** Not started (defining requirements)
-**Status:** Defining requirements
+**Phase:** 23 - Database Schema + Token Vault (Ready to plan)
+**Status:** Roadmap created, ready for Phase 23 planning
 **Progress:** [░░░░░░░░░░] 0%
 
 ---
@@ -29,16 +29,16 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 **Core Value:**
 Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-**Current Focus:** Defining requirements for v2.0 Architecture Tier Fix
+**Current Focus:** Phase 23 — Database Schema + Token Vault (additive-only foundation)
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-26 — Milestone v2.0 started
+Phase: 23 of 28 (Database Schema + Token Vault)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-04-26 — Roadmap created for v2.0
 
 ---
 
@@ -48,26 +48,34 @@ Last activity: 2026-04-26 — Milestone v2.0 started
 
 **v2.0 Architecture Strategy (Current Milestone):**
 
-- Server owns identity (session → Jellyfin token → user_id)
-- Server owns deck composition and order
-- Server owns match decision and notification (SSE only)
-- Server generates deep links from JELLYFIN_URL
-- Client owns animation and optimistic UI only
-- Token storage moves to server-side session with HttpOnly cookie
-- ADR will document tier responsibilities
+- Server owns identity (session → Jellyfin token → user_id) — AUTH-01
+- Token vault is custom SQLite `user_tokens` table (not Flask-Session) — AUTH-02
+- Expired tokens auto-cleaned after 24 hours — AUTH-03
+- Server owns deck composition and order — DECK-01
+- Server tracks per-user deck cursor for reconnect — DECK-02
+- Match notification via SSE only (no HTTP response payload) — MTCH-01
+- Match metadata enriched server-side (rating, duration, year) — MTCH-02
+- Swipe+match wrapped in BEGIN IMMEDIATE transaction — MTCH-03
+- RESTful swipe endpoint: POST /room/{code}/swipe — API-01
+- Server generates Jellyfin deep links — API-02
+- GET /me returns verified identity from session — API-03
+- POST /room/solo for dedicated solo sessions — API-04
+- Client removes localStorage tokens and identity headers — CLNT-01
+- Client removes match detection from swipe response — CLNT-02
+- Flask-Session rejected in favor of custom SQLite token vault (simpler, consistent)
+- ADR as shipped artifact deferred — decisions documented in PROJECT.md and code
 
-**Previous Milestone Decisions:**
-
-- v1.5: Three-layer XSS defense (server validation + safe DOM + CSP)
-- v1.4: Authorization hardening
-- v1.3: pytest with framework-agnostic imports, terminal-only coverage
-- v1.2: uv dependency management, jellyswipe/ package layout, Plex removal
-- v1.1: Jelly Swipe rename, AndrewTheTechie branding
-- v1.0: Jellyfin as alternative backend, provider abstraction
+**Phase Ordering Rationale:**
+1. Schema first (additive-only, zero breakage risk)
+2. Auth module second (populates schema, unblocks all downstream)
+3. Routes + deck third (identity-dependent route restructuring)
+4. Match + metadata fourth (depends on new routes and identity)
+5. Client cleanup fifth (subtractive, must come after server is stable)
+6. Deployment validation last (end-to-end Docker verification)
 
 ### Active Todos
 
-None yet — requirements being defined.
+None yet.
 
 ### Known Blockers
 
@@ -75,47 +83,43 @@ None.
 
 ### Risks and Concerns
 
-- Significant refactor touching routes and client JS simultaneously
-- Must maintain existing functionality while restructuring
-- Session/cookie changes affect all authenticated flows
-- Need to ensure SSE channel is the sole match notification path
+- **SSE generator session context loss** — Flask warns against reading `session` inside streaming generators; all values must be captured by closure in view functions
+- **Dual identity migration** — Current code uses `host_`/`guest_` synthetic IDs; switching to Jellyfin-only IDs could orphan existing swipes
+- **Session cookie last-write-wins** — Flask signed-cookie is a single blob; concurrent requests can silently overwrite changes
+- **Delegate mode disambiguation** — Two browsers with same Jellyfin account need reliable session_id-based disambiguation
 
 ---
 
 ## Session Continuity
 
 **Last Session:**
-2026-04-26T17:00:00.000Z
+2026-04-26T18:00:00.000Z
 
-- v2.0 milestone initiated from Issue #8
-- PROJECT.md updated with v2.0 goals
-- STATE.md reset for new milestone
-- Next step: Research decision, then define requirements
+- v2.0 roadmap created with 6 phases (23-28)
+- 14/14 requirements mapped to phases
+- Phase ordering follows research recommendations
+- Next step: `/gsd-plan-phase 23`
 
 ---
 
 ## Quick Reference
 
 **Key Files:**
-
 - Project context: `.planning/PROJECT.md`
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
 - Milestones: `.planning/MILESTONES.md`
 - State: `.planning/STATE.md` (this file)
+- Research: `.planning/research/SUMMARY.md`
 
 **Important Commands:**
-
-- `/gsd-plan-phase N` — Begin planning phase N
+- `/gsd-plan-phase 23` — Begin planning Phase 23
 - `/gsd-transition` — Mark phase complete and move to next
-- `/gsd-complete-milestone` — Close current milestone
 - `/gsd-progress` — View current progress
 
 **Issue Reference:**
-
 - Architecture tier violations: https://github.com/andrewthetechie/jelly-swipe/issues/8
 
 ---
-
 *State created: 2026-04-26*
-*Last updated: 2026-04-26 (v2.0 milestone started)*
+*Last updated: 2026-04-26 (roadmap created)*

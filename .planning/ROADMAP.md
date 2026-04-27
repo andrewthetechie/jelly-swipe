@@ -1,151 +1,221 @@
 # Roadmap — Jelly Swipe
 
-**Milestone:** v1.5 XSS Security Fix — ✅ **SHIPPED**
+**Milestone:** v2.0 Architecture Tier Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 22 - xss-testing (Complete)
+**Current Phase:** 23 - Database Schema + Token Vault
 **Last Updated:** 2026-04-26
+
+---
+
+## Milestones
+
+- ✅ **v1.0 MVP** - Phases 1-9 (shipped 2026-04-24)
+- ✅ **v1.1 Rename** - Phases 10 (shipped 2026-04-24)
+- ✅ **v1.2 uv + Package** - Phases 11-13 (shipped 2026-04-25)
+- ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
+- ✅ **v1.4 Auth Hardening** - Phases 18 (shipped)
+- ✅ **v1.5 XSS Fix** - Phases 19-22 (shipped 2026-04-26)
+- 🚧 **v2.0 Architecture Tier Fix** - Phases 23-28 (in progress)
 
 ---
 
 ## Overview
 
-This roadmap eliminates the stored XSS vulnerability (Issue #6) where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection. The fix operates on three layers: server-side validation, safe DOM rendering, and Content Security Policy enforcement, with comprehensive testing to verify the vulnerability is closed.
+This roadmap eliminates tier responsibility violations between server and client. The server takes ownership of identity resolution, token storage, deck composition, match decision logic, and deep link generation. The client is simplified to animation and optimistic UI only. The migration is sequenced so additive schema changes come first, auth logic builds on the new schema, routes and deck ownership come next, match/notification logic follows, client cleanup is purely subtractive, and deployment validation confirms everything works end-to-end.
 
-**Status:** ✅ **COMPLETE** — All 4 phases shipped 2026-04-26
-**Phases:** 4
-**Requirements:** 13
-**Starting Phase:** 19 (continuing from v1.4)
-
-**Archives:**
-- [v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) — full phase roadmap snapshot
-- [v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md) — requirements at close (13/13 complete)
-- [v1.5-phases/](milestones/v1.5-phases/) — phase execution directories (Phases 19–22)
+**Status:** 🚧 **In Progress**
+**Phases:** 6 (Phases 23-28)
+**Requirements:** 14
+**Starting Phase:** 23 (continuing from v1.5 Phase 22)
 
 ---
 
 ## Phases
 
-- [x] **Phase 19: Server-Side Validation** — Remove client-supplied title/thumb parameters and resolve metadata server-side from movie_id (Complete 2026-04-26)
-- [x] **Phase 20: Safe DOM Rendering** — Replace innerHTML with textContent/DOM construction for all user-controlled content (Complete 2026-04-26)
-- [x] **Phase 21: CSP Header** — Add strict Content-Security-Policy header via Flask after_request hook (Complete 2026-04-26)
-- [x] **Phase 22: XSS Testing** — Add smoke tests proving XSS is blocked and CSP is enforced (Complete 2026-04-26)
+**Phase Numbering:**
+- Integer phases (23, 24, 25...): Planned milestone work
+- Decimal phases (23.1, 24.1...): Urgent insertions (marked with INSERTED)
+
+- [ ] **Phase 23: Database Schema + Token Vault** - Additive-only schema migration: user_tokens table, deck state columns, expired token cleanup
+- [ ] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification
+- [ ] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor
+- [ ] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo
+- [ ] **Phase 27: Client Simplification + Cleanup** - Remove localStorage tokens, identity headers, client-side match detection, URL construction
+- [ ] **Phase 28: Deployment Validation** - Docker volume mounts, ProxyFix verification, end-to-end flow validation
 
 ---
 
 ## Phase Details
 
-### Phase 19: Server-Side Validation
+### Phase 23: Database Schema + Token Vault
 
-**Goal:** Client cannot inject malicious content via title/thumb parameters; all movie metadata is resolved server-side from trusted Jellyfin source.
+**Goal:** Foundation exists for server-side token storage — database has the tables and columns needed by all subsequent phases.
 
-**Depends on:** Nothing (first phase of v1.5)
+**Depends on:** Nothing (first phase of v2.0, additive-only)
 
-**Requirements:** SSV-01, SSV-02, SSV-03
+**Requirements:** AUTH-02, AUTH-03
 
 **Success Criteria** (what must be TRUE):
-1. `/room/swipe` endpoint ignores any `title` or `thumb` parameters sent by client
-2. When a user swipes on a movie, the server resolves title and thumb from Jellyfin using only the movie_id
-3. If Jellyfin metadata resolution fails, the server returns an error instead of storing incomplete/invalid data
-4. Match records in database contain only server-resolved title and thumb values (no client-provided data)
+  1. `user_tokens` table exists in SQLite with columns: session_id (PK), jellyfin_token, jellyfin_user_id, created_at
+  2. Existing rooms and matches tables have new columns alongside existing ones — no data loss from additive-only migration
+  3. Rows in `user_tokens` older than 24 hours are automatically cleaned up when `cleanup_expired_tokens()` is called
+  4. Existing tests continue passing after schema migration (backward compatibility preserved)
 
-**Plans:** 1 plan
+**Plans:** TBD
 
-- [x] 19-01-PLAN.md — Modify /room/swipe endpoint to resolve metadata server-side
+Plans:
+- [ ] 23-01: Add user_tokens table and deck/match schema columns
+- [ ] 23-02: Implement expired token cleanup function
 
 ---
 
-### Phase 20: Safe DOM Rendering
+### Phase 24: Auth Module + Server-Owned Identity
 
-**Goal:** All user-controlled content in the frontend is rendered using safe DOM APIs that prevent script injection.
+**Goal:** Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity.
 
-**Depends on:** Phase 19 (server no longer accepts client-supplied metadata)
+**Depends on:** Phase 23 (user_tokens table exists)
 
-**Requirements:** DOM-01, DOM-02, DOM-03
+**Requirements:** AUTH-01
 
 **Success Criteria** (what must be TRUE):
-1. Movie titles, summaries, actor names, and character names are rendered using textContent (not innerHTML)
-2. Image sources and movie IDs are set using setAttribute() or DOM property assignment (not innerHTML)
-3. All innerHTML usages for user-controlled content have been removed or refactored to safe DOM construction
-4. Malicious script tags in movie data render as literal text in the browser (not executed)
+  1. User authenticates via Jellyfin credentials, and the server stores the Jellyfin token in `user_tokens` keyed by session_id — client never sees the token
+  2. All authenticated endpoints resolve user_id from session cookie + token vault lookup — no client-supplied user_id or identity headers are read
+  3. Client receives an HttpOnly session cookie containing only session_id; browser DevTools show no token in localStorage or JavaScript-accessible cookies
+  4. `@login_required` decorator populates `g.user_id` and `g.jf_token` for every authenticated request; unauthenticated requests get a clear error
 
-**Plans:** 2 plans
+**Plans:** TBD
 
-- [ ] 20-01-PLAN.md — Refactor jellyswipe/templates/index.html for safe DOM construction
-- [ ] 20-02-PLAN.md — Refactor data/index.html for safe DOM construction
+Plans:
+- [ ] 24-01: Create auth.py with token vault CRUD and @login_required decorator
+- [ ] 24-02: Refactor login and delegate routes to use token vault + session cookie
+
+---
+
+### Phase 25: RESTful Routes + Deck Ownership
+
+**Goal:** Routes follow RESTful patterns with room code in URL path, and the server is the sole source of deck composition, order, and cursor position.
+
+**Depends on:** Phase 24 (stable server-owned identity via g.user_id)
+
+**Requirements:** API-01, DECK-01, DECK-02
+
+**Success Criteria** (what must be TRUE):
+  1. Swipe endpoint accepts `POST /room/{code}/swipe` with body `{movie_id, direction}` only — no title, thumb, or metadata parameters accepted
+  2. Deck composition and shuffle order are generated server-side; client receives cards from server without re-fetching or re-shuffling
+  3. Server tracks each user's cursor position in the deck; a user who reloads the page resumes where they left off in the same deck order
+  4. Existing route patterns that depend on client-supplied identity or deck state are replaced by server-resolved equivalents
+
+**Plans:** TBD
+
+Plans:
+- [ ] 25-01: Restructure swipe endpoint to POST /room/{code}/swipe
+- [ ] 25-02: Implement server-owned deck composition, shuffle, and cursor tracking
+
+---
+
+### Phase 26: Match Notification + Deep Links + Metadata
+
+**Goal:** Match logic is fully server-owned with enriched match data, correct Jellyfin deep links, and new identity/solo endpoints.
+
+**Depends on:** Phase 25 (RESTful routes and server-owned identity in place)
+
+**Requirements:** MTCH-01, MTCH-02, MTCH-03, API-02, API-03, API-04
+
+**Success Criteria** (what must be TRUE):
+  1. Swipe HTTP response returns `{accepted: true}` only; match notifications appear exclusively via SSE stream event, never in the swipe response payload
+  2. Match SSE events include rating, duration, year, and deep_link — client receives complete match data without additional API calls
+  3. Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — no Plex URL construction patterns remain
+  4. `GET /me` returns verified user id, display name, and server info from server-side session
+  5. `POST /room/solo` creates a solo swipe session without the two-player room lifecycle
+  6. Match check-and-insert is wrapped in SQLite `BEGIN IMMEDIATE` transaction — concurrent right-swipes on the same movie produce exactly one match
+
+**Plans:** TBD
+
+Plans:
+- [ ] 26-01: SSE-only match delivery with enriched metadata
+- [ ] 26-02: Jellyfin deep link generation, /me endpoint, /room/solo endpoint
+- [ ] 26-03: BEGIN IMMEDIATE transaction for swipe+match atomicity
+
+---
+
+### Phase 27: Client Simplification + Cleanup
+
+**Goal:** Client JavaScript is stripped of all server-responsibility code — token storage, identity headers, match detection, and URL construction are removed.
+
+**Depends on:** Phase 26 (all server-side endpoints stable and producing correct responses)
+
+**Requirements:** CLNT-01, CLNT-02
+
+**Success Criteria** (what must be TRUE):
+  1. No JavaScript code reads `provider_token` or `plex_token` from localStorage — all auth flows use session cookies exclusively
+  2. Client-side match detection logic is removed; match popup renders only when an SSE event arrives, never from the swipe HTTP response
+  3. Client never constructs media URLs — all deep links come from server match responses
+  4. Client sends no identity headers (no X-User-Id, X-Provider-Token, or similar); server resolves identity from session cookie alone
+
+**Plans:** TBD
 
 **UI hint**: yes
 
+Plans:
+- [ ] 27-01: Remove localStorage token reads and identity header sends
+- [ ] 27-02: Remove client-side match detection; wire popup to SSE events only
+
 ---
 
-### Phase 21: CSP Header
+### Phase 28: Deployment Validation
 
-**Goal:** Content Security Policy header blocks inline scripts and restricts external resource loading to trusted domains.
+**Goal:** The refactored application works correctly in Docker deployment with proper cookie security and proxy headers.
 
-**Depends on:** Phase 20 (safe DOM rendering in place as defense-in-depth)
+**Depends on:** Phase 27 (all code changes complete)
 
-**Requirements:** CSP-01, CSP-02, CSP-03
+**Requirements:** (validation phase — no new requirements; validates all 14 v2.0 requirements end-to-end)
 
 **Success Criteria** (what must be TRUE):
-1. All HTTP responses from the Flask app include a Content-Security-Policy header
-2. CSP policy allows scripts only from 'self' (no 'unsafe-inline' or 'unsafe-eval')
-3. CSP policy restricts image sources to 'self' and https://image.tmdb.org
-4. CSP policy restricts frame sources to https://www.youtube.com (for trailers)
+  1. Docker container starts and the application serves requests correctly with gunicorn + gevent workers
+  2. Session cookies are properly configured for reverse proxy deployment — ProxyFix sets correct X-Forwarded headers and cookies respect HTTPS behind a proxy
+  3. Full end-to-end flow works in Docker: authenticate → create/join room → swipe → receive match via SSE → open Jellyfin deep link
 
-**Plans:** 1 plan
+**Plans:** TBD
 
-- [x] 21-01-PLAN.md — Add @app.after_request hook for CSP header
-
----
-
-### Phase 22: XSS Testing
-
-**Goal:** Comprehensive tests verify that XSS is blocked on all three security layers and the vulnerability is closed.
-
-**Depends on:** Phase 21 (all security defenses in place)
-
-**Requirements:** XSS-01, XSS-02, XSS-03, XSS-04
-
-**Success Criteria** (what must be TRUE):
-1. Test file `tests/test_routes_xss.py` exists and passes all XSS smoke tests
-2. Test proves that a swipe with malicious script in title renders as literal text (not executed)
-3. Test verifies that CSP header is present on all HTTP responses with correct directives
-4. Test verifies that server rejects client-supplied title/thumb parameters with appropriate error
-
-**Plans:** 1 plan
-
-- [x] 22-01-PLAN.md — Create comprehensive XSS smoke tests for all three security layers
+Plans:
+- [ ] 28-01: Docker build verification and ProxyFix configuration
+- [ ] 28-02: End-to-end flow validation in Docker environment
 
 ---
 
-## Progress Table
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 19. Server-Side Validation | 1/1 | Complete ✅ | 2026-04-26 |
-| 20. Safe DOM Rendering | 2/2 | Complete ✅ | 2026-04-26 |
-| 21. CSP Header | 1/1 | Complete ✅ | 2026-04-26 |
-| 22. XSS Testing | 1/1 | Complete ✅ | 2026-04-26 |
-| **Total** | **5/5** | **Complete ✅** | **2026-04-26** |
+| 23. Database Schema + Token Vault | 0/2 | Not started | - |
+| 24. Auth Module + Server-Owned Identity | 0/2 | Not started | - |
+| 25. RESTful Routes + Deck Ownership | 0/2 | Not started | - |
+| 26. Match Notification + Deep Links + Metadata | 0/3 | Not started | - |
+| 27. Client Simplification + Cleanup | 0/2 | Not started | - |
+| 28. Deployment Validation | 0/2 | Not started | - |
+| **Total** | **0/13** | **In Progress** | - |
 
 ---
 
 ## Milestone Context
 
-**Previous Milestone:** v1.4 (Authorization Hardening) — Phases 1-18 completed
-**Current Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 completed ✅
-**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/6
-**Status:** **SHIPPED** — All 4 phases, 5 plans, and 13 requirements complete and validated
+**Previous Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 completed
+**Current Milestone:** v2.0 (Architecture Tier Fix) — Phases 23-28
+**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/8
+**Status:** 🚧 In Progress
 
-**Vulnerability Description:**
-The `/room/swipe` endpoint currently accepts `title` and `thumb` parameters from the client request body and stores them directly in the database. When matches are rendered, this unsanitized content is inserted into the DOM using `innerHTML`, allowing attackers to inject JavaScript that executes when other users view the match.
+**Architecture Goal:**
+Eliminate tier responsibility violations — server owns identity, deck, match logic, and deep links; client owns animation and optimistic UI only.
 
-**Fix Strategy:**
-Three-layer defense:
-1. **Server-side:** Never trust client data; resolve all metadata server-side from trusted Jellyfin API
-2. **Client-side:** Use safe DOM APIs (textContent, createElement, setAttribute) instead of innerHTML
-3. **Headers:** Enforce strict CSP to block inline scripts even if bugs slip through
+**Research Flags (phases needing deeper investigation during planning):**
+- **Phase 24:** Delegate mode identity disambiguation — two browsers with same Jellyfin account need session_id-based disambiguator
+- **Phase 25:** Deck cursor resume-on-reconnect behavior — user reloads mid-session must resume from server-tracked position
+- **Phase 26:** `BEGIN IMMEDIATE` pattern with gevent cooperative I/O — verify compatibility with existing `get_db()` connection-per-request
 
 ---
 
-*Roadmap created: 2026-04-25*
+*Roadmap created: 2026-04-26*
 *Last updated: 2026-04-26*

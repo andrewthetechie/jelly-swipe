@@ -64,26 +64,26 @@ Explicitly excluded from v2.0.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| DECK-01 | — | Pending |
-| DECK-02 | — | Pending |
-| MTCH-01 | — | Pending |
-| MTCH-02 | — | Pending |
-| MTCH-03 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| API-04 | — | Pending |
-| CLNT-01 | — | Pending |
-| CLNT-02 | — | Pending |
+| AUTH-01 | Phase 24 | Pending |
+| AUTH-02 | Phase 23 | Pending |
+| AUTH-03 | Phase 23 | Pending |
+| DECK-01 | Phase 25 | Pending |
+| DECK-02 | Phase 25 | Pending |
+| MTCH-01 | Phase 26 | Pending |
+| MTCH-02 | Phase 26 | Pending |
+| MTCH-03 | Phase 26 | Pending |
+| API-01 | Phase 25 | Pending |
+| API-02 | Phase 26 | Pending |
+| API-03 | Phase 26 | Pending |
+| API-04 | Phase 26 | Pending |
+| CLNT-01 | Phase 27 | Pending |
+| CLNT-02 | Phase 27 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14 ⚠️
+- Mapped to phases: 14 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-26*
-*Last updated: 2026-04-26 after v2.0 requirements definition*
+*Last updated: 2026-04-26 after roadmap creation (traceability mapped to Phases 23-28)*
