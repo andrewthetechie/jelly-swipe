@@ -1,6 +1,6 @@
 # Phase 24: Auth Module + Server-Owned Identity - Context
 
-**Gathered:** 2026-04-26
+**Gathered:** 2026-04-27
 **Status:** Ready for planning
 
 <domain>
@@ -18,7 +18,7 @@ Create `jellyswipe/auth.py` module with token vault CRUD, `@login_required` deco
 ## Implementation Decisions
 
 ### Login Endpoint Response
-- **D-01:** Login endpoint returns minimal `{userId, displayName}` only. Jellyfin token is stored in `user_tokens` vault and never returned to client JavaScript.
+- **D-01:** Login endpoint returns `{userId}` only. Jellyfin token is stored in `user_tokens` vault and never returned to client JavaScript.
 - **D-02:** Both `/auth/jellyfin-login` and `/auth/jellyfin-use-server-identity` follow the same pattern: authenticate → store token in vault → return minimal user info.
 
 ### Delegate Mode
@@ -40,6 +40,15 @@ Create `jellyswipe/auth.py` module with token vault CRUD, `@login_required` deco
 
 ### SSE Compatibility
 - **D-12:** SSE generator (`/room/stream`) remains context-free — session values captured in view function, passed as closure arguments. No session reads inside the generator loop. This preserves the Flask + gevent pattern documented in research.
+
+### Session Cookie Security
+- **D-13:** Configure `SESSION_COOKIE_SECURE=True` and `SESSION_COOKIE_SAMESITE='Lax'` now in Phase 24. `SESSION_COOKIE_HTTPONLY=True` is already Flask's default. This ensures cookies work correctly behind reverse proxies and prevents CSRF on state-changing endpoints.
+
+### Token Validity
+- **D-14:** `@login_required` trusts the vault entry — no Jellyfin validation on every request. Stale/revoked tokens surface as failures at the point of use (e.g., watchlist add returns 401 from Jellyfin). This matches the existing `_resolve_user_id_from_token_cached()` pattern with 5-minute TTL.
+
+### Session ID Lifecycle
+- **D-15:** `session_id` is created only on login (when user authenticates). Anonymous visitors have no vault entry. This keeps the vault clean and avoids empty rows.
 
 ### the agent's Discretion
 - Exact `@login_required` implementation (before_request vs per-route decorator)
@@ -107,4 +116,4 @@ None — discussion stayed within phase scope.
 ---
 
 *Phase: 24-auth-module-server-identity*
-*Context gathered: 2026-04-26*
+*Context gathered: 2026-04-27*
