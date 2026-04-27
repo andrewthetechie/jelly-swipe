@@ -1,47 +1,41 @@
 # Requirements: Jelly Swipe
 
-**Defined:** 2026-04-25
-**Milestone:** v1.5 XSS Security Fix
+**Defined:** 2026-04-26
+**Milestone:** v2.0 Architecture Tier Fix
 **Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-## v1.5 Requirements
+## v2.0 Requirements
 
-Requirements for this milestone are scoped to Issue #6 (`EPIC-03`) XSS vulnerability elimination.
+Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier responsibility violations between server and client.
 
-### Server-Side Validation
+### Identity & Auth
 
-- [x] **SSV-01**: `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body.
-- [x] **SSV-02**: `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`.
-- [x] **SSV-03**: Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data).
+- [ ] **AUTH-01**: Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity
+- [ ] **AUTH-02**: Jellyfin API token stored in server-side `user_tokens` SQLite table, keyed by session_id; never exposed to client JavaScript
+- [ ] **AUTH-03**: Expired `user_tokens` rows are cleaned up automatically (rows older than 24 hours deleted)
 
-### Safe DOM Rendering
+### Deck Management
 
-- [x] **DOM-01
-**: Template `jellyswipe/templates/index.html` replaces `innerHTML` with `textContent` for all user-controlled text content (title, summary, actor names).
-- [x] **DOM-02
-**: Template uses safe DOM construction methods (`document.createElement()`, `setAttribute()`) for structured HTML containing user data.
-- [x] **DOM-03
-**: Template removes or refactors unsafe innerHTML usages for `m.title`, `m.summary`, `m.thumb`, `m.movie_id`, `actor.name`, `actor.character`.
+- [ ] **DECK-01**: Server is sole source of deck composition and shuffle order; client never re-fetches or re-shuffles
+- [ ] **DECK-02**: Server tracks each user's cursor position in the deck for reconnect support
 
-### Content Security Policy
+### Match & Notification
 
-- [x] **CSP-01
-**: Flask app sets `Content-Security-Policy` header on all responses via `@app.after_request` hook.
-- [x] **CSP-02
-**: CSP policy includes `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`.
-- [x] **CSP-03
-**: CSP policy does not include `'unsafe-inline'` or `'unsafe-eval'` directives.
+- [ ] **MTCH-01**: Match notification delivered exclusively via SSE stream — swipe HTTP response returns `{accepted: true}` only, no match payload
+- [ ] **MTCH-02**: Match responses enriched with rating, duration, and year via server-side join through movies table
+- [ ] **MTCH-03**: Match check-and-insert wrapped in SQLite `BEGIN IMMEDIATE` transaction to prevent TOCTOU race
 
-### XSS Testing
+### RESTful API
 
-- [x] **XSS-01
-**: Test file `tests/test_routes_xss.py` exists with smoke test proving XSS is blocked.
-- [x] **XSS-02
-**: Test verifies that swipe with `title: "<script>...</script>"` renders as literal text, not executed.
-- [x] **XSS-03
-**: Test verifies that CSP header is present on all HTTP responses.
-- [x] **XSS-04
-**: Test verifies that server rejects client-supplied `title`/`thumb` parameters.
+- [ ] **API-01**: Swipe endpoint restructured as `POST /room/{code}/swipe` accepting `{movie_id, direction}` only
+- [ ] **API-02**: Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — client never constructs media URLs
+- [ ] **API-03**: `GET /me` endpoint returns verified user id, display name, and server info from server-side session
+- [ ] **API-04**: Dedicated `POST /room/solo` endpoint creates a solo session without the two-player room lifecycle
+
+### Client Cleanup
+
+- [ ] **CLNT-01**: Front-end never reads `provider_token` or `plex_token` from localStorage — all auth is session-cookie based
+- [ ] **CLNT-02**: Client-side match detection logic removed — match popup triggered only by SSE events, never by swipe HTTP response
 
 ## v2 Requirements
 
@@ -53,42 +47,43 @@ Deferred to future milestones.
 - **OPS-01 / PRD-01**: Neutral DB column naming and multi-library selection.
 - **ADV-01**: Coverage thresholds enforced in CI to prevent regression.
 - **ADV-02**: Multiple coverage reports (HTML for local, XML for CI).
-- **SEC-01–05**: Authorization hardening requirements (v1.4) — deferred pending v1.5 completion.
 
 ## Out of Scope
 
-Explicitly excluded from v1.5.
+Explicitly excluded from v2.0.
 
 | Feature | Reason |
 |---------|--------|
-| Nonce-based CSP | Higher complexity; basic CSP sufficient for v1.5, can upgrade in v1.5.1 |
-| CSP violation reporting | Security monitoring enhancement, not required to close XSS vulnerability |
-| Comprehensive escape helper utility | Direct textContent/DOM API usage is simpler for this scope |
-| Trusted Types API | Browser support and complexity; defer to future security enhancements |
+| Dual-read migration bridge | Accept breaking change during upgrade; no backward-compatible localStorage path |
+| Flask-Session extension | Custom SQLite token vault is simpler and consistent with existing patterns |
+| Delegate mode disambiguation | Same-account multi-user is not a supported use case in v2.0 |
+| Redis or external session store | Single-server Docker deployment; filesystem/SQLite sufficient |
+| ADR as a shipped artifact | Decision documented in PROJECT.md and code; formal ADR is documentation overhead for this scale |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SSV-01 | Phase 19 | Validated |
-| SSV-02 | Phase 19 | Validated |
-| SSV-03 | Phase 19 | Validated |
-| DOM-01 | Phase 20 | Pending |
-| DOM-02 | Phase 20 | Pending |
-| DOM-03 | Phase 20 | Pending |
-| CSP-01 | Phase 21 | Pending |
-| CSP-02 | Phase 21 | Pending |
-| CSP-03 | Phase 21 | Pending |
-| XSS-01 | Phase 22 | Pending |
-| XSS-02 | Phase 22 | Pending |
-| XSS-03 | Phase 22 | Pending |
-| XSS-04 | Phase 22 | Pending |
+| AUTH-01 | — | Pending |
+| AUTH-02 | — | Pending |
+| AUTH-03 | — | Pending |
+| DECK-01 | — | Pending |
+| DECK-02 | — | Pending |
+| MTCH-01 | — | Pending |
+| MTCH-02 | — | Pending |
+| MTCH-03 | — | Pending |
+| API-01 | — | Pending |
+| API-02 | — | Pending |
+| API-03 | — | Pending |
+| API-04 | — | Pending |
+| CLNT-01 | — | Pending |
+| CLNT-02 | — | Pending |
 
 **Coverage:**
-- v1.5 requirements: 13 total
-- Mapped to phases: 13/13 ✓
-- Unmapped: 0
+- v2.0 requirements: 14 total
+- Mapped to phases: 0
+- Unmapped: 14 ⚠️
 
 ---
-*Requirements defined: 2026-04-25*
-*Last updated: 2026-04-26 after Phase 19 completion*
+*Requirements defined: 2026-04-26*
+*Last updated: 2026-04-26 after v2.0 requirements definition*
