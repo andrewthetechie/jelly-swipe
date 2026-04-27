@@ -175,7 +175,7 @@ def jellyfin_login():
     except Exception:
         return jsonify({"error": "Jellyfin login failed"}), 401
 
-@app.route('/room/create', methods=['POST'])
+@app.route('/room', methods=['POST'])
 @login_required
 def create_room():
     pairing_code = str(random.randint(1000, 9999))
@@ -187,22 +187,20 @@ def create_room():
     session['solo_mode'] = False
     return jsonify({'pairing_code': pairing_code})
 
-@app.route('/room/go-solo', methods=['POST'])
+@app.route('/room/<code>/go-solo', methods=['POST'])
 @login_required
-def go_solo():
-
-    code = session.get('active_room')
-    if not code:
-        return jsonify({'error': 'No active room'}), 400
+def go_solo(code):
     with get_db() as conn:
+        room = conn.execute('SELECT pairing_code FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+        if not room:
+            return jsonify({'error': 'Room not found'}), 404
         conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
     session['solo_mode'] = True
     return jsonify({'status': 'solo'})
 
-@app.route('/room/join', methods=['POST'])
+@app.route('/room/<code>/join', methods=['POST'])
 @login_required
-def join_room():
-    code = request.json.get('code')
+def join_room(code):
     with get_db() as conn:
         room = conn.execute('SELECT * FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
         if room:
@@ -212,22 +210,11 @@ def join_room():
             return jsonify({'status': 'success'})
     return jsonify({'error': 'Invalid Code'}), 404
 
-@app.route('/room/swipe', methods=['POST'])
+@app.route('/room/<code>/swipe', methods=['POST'])
 @login_required
-def swipe():
-    code = session.get('active_room')
+def swipe(code):
     data = request.json
     mid = str(data.get('movie_id'))
-
-    if not code: return jsonify({'match': False})
-
-    # Log security warning if client sends title/thumb (potential XSS attempt or old client)
-    if data.get('title') is not None or data.get('thumb') is not None:
-        app.logger.warning(
-            "Security warning: Client sent title/thumb parameters in /room/swipe. "
-            f"IP={request.remote_addr}, movie_id={mid}, "
-            f"title={data.get('title')}, thumb={data.get('thumb')}"
-        )
 
     # Resolve title and thumb server-side from Jellyfin (XSS fix per SSV-01, SSV-02)
     title = None
@@ -292,17 +279,15 @@ def get_matches():
             rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, g.user_id)).fetchall()
         return jsonify([dict(row) for row in rows])
 
-@app.route('/room/quit', methods=['POST'])
+@app.route('/room/<code>/quit', methods=['POST'])
 @login_required
-def quit_room():
-    code = session.get('active_room')
-    if code:
-        with get_db() as conn:
-            conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
-            conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
-            conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
-        session.pop('active_room', None)
-        session.pop('solo_mode', None)
+def quit_room(code):
+    with get_db() as conn:
+        conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
+        conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
+        conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
+    session.pop('active_room', None)
+    session.pop('solo_mode', None)
     return jsonify({'status': 'session_ended'})
 
 @app.route('/matches/delete', methods=['POST'])
@@ -313,10 +298,9 @@ def delete_match():
         conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, g.user_id))
     return jsonify({'status': 'deleted'})
 
-@app.route('/undo', methods=['POST'])
+@app.route('/room/<code>/undo', methods=['POST'])
 @login_required
-def undo_swipe():
-    code = session.get('active_room')
+def undo_swipe(code):
     mid = str(request.json.get('movie_id'))
     with get_db() as conn:
         conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, g.user_id))
@@ -329,18 +313,22 @@ def get_server_info():
         return jsonify(get_provider().server_info())
     except Exception as e: return jsonify({'error': str(e)}), 500
 
-@app.route('/movies')
-def get_movies():
-    code = session.get('active_room')
-    genre = request.args.get('genre')
-    if not code: return jsonify([])
+@app.route('/room/<code>/deck')
+def get_deck(code):
     with get_db() as conn:
-        if genre:
-            new_list = get_provider().fetch_deck(genre)
-            conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
-            return jsonify(new_list)
         room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
         return Response(room['movie_data'], mimetype='application/json') if room else jsonify([])
+
+@app.route('/room/<code>/genre', methods=['POST'])
+@login_required
+def set_genre(code):
+    genre = request.json.get('genre')
+    if not genre:
+        return jsonify({'error': 'Genre required'}), 400
+    new_list = get_provider().fetch_deck(genre)
+    with get_db() as conn:
+        conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
+    return jsonify(new_list)
 
 @app.route('/genres')
 def get_genres():
@@ -349,10 +337,8 @@ def get_genres():
     except Exception:
         return jsonify([])
 
-@app.route('/room/status')
-def room_status():
-    code = session.get('active_room')
-    if not code: return jsonify({'ready': False})
+@app.route('/room/<code>/status')
+def room_status(code):
     with get_db() as conn:
         room = conn.execute('SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
         if room:
@@ -360,12 +346,8 @@ def room_status():
             return jsonify({'ready': bool(room['ready']), 'genre': room['current_genre'], 'solo': bool(room['solo_mode']), 'last_match': last_match})
         return jsonify({'ready': False})
 
-@app.route('/room/stream')
-def room_stream():
-    code = session.get('active_room')
-    if not code:
-        return Response("data: {}\n\n", mimetype='text/event-stream')
-
+@app.route('/room/<code>/stream')
+def room_stream(code):
     def generate():
         last_genre = None
         last_ready = None
