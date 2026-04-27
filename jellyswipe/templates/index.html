@@ -202,13 +202,19 @@
     </style>
 </head>
 <body>
+    <div id="session-expired-banner" class="hidden" style="position:fixed;top:0;left:0;width:100%;background:#d32f2f;color:white;text-align:center;padding:12px;z-index:99999;display:flex;align-items:center;justify-content:center;gap:15px;">
+        <span>Session expired</span>
+        <button onclick="document.getElementById('session-expired-banner').classList.add('hidden'); location.reload();" style="background:white;color:#d32f2f;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:bold;">Re-login</button>
+        <button onclick="document.getElementById('session-expired-banner').classList.add('hidden');" style="background:transparent;color:white;border:1px solid white;padding:6px 12px;border-radius:4px;cursor:pointer;">Dismiss</button>
+    </div>
+
     <button id="matches-pill" class="pill-btn hidden">Shortlist</button>
     <button id="quit-pill" class="pill-btn hidden" onclick="confirmQuit()">End Session</button>
     <button id="undo-btn" class="hidden">Undo</button>
 
     <div id="login-section">
         <h1 class="main-title">Jelly-Swipe</h1>
-        <button id="login-btn" class="menu-btn" onclick="loginWithPlex()">Login</button>
+        <button id="login-btn" class="menu-btn">Login</button>
         <p style="position:relative; z-index:2; margin: 12px 0 0 0; font-size: 0.75rem; color: #888; font-style: italic;">Then</p>
         <div style="position:relative; z-index:2; margin: 8px auto 0 auto; text-align: center; width: 220px; line-height: 2;">
             <p class="plex-yellow" style="margin: 0; font-size: 0.85rem;">1. Host a session &amp; share code</p>
@@ -249,7 +255,7 @@
                     Match History 
                 </button>
                 <br>
-                <button class="logout-btn" onclick="localStorage.clear(); location.reload();">Logout</button>
+                <button class="logout-btn" onclick="doLogout()">Logout</button>
             </div>
         </div>
         <div id="game-area" class="hidden">
@@ -278,6 +284,8 @@
             <p id="match-solo-label" class="hidden">Added to your shortlist</p>
             <img id="match-popup-poster" class="match-poster-preview" src="">
             <h2 id="matched-movie-title" style="margin: 0 0 20px; font-size: 1.3rem; padding:0 10px;"></h2>
+            <div id="match-metadata" style="display:flex; gap:8px; justify-content:center; margin:10px 0;"></div>
+            <a id="match-deep-link" class="menu-btn hidden" style="display:inline-block; text-decoration:none; padding:10px 20px; margin:0 0 15px; width:auto;" target="_blank" rel="noopener noreferrer">OPEN IN JELLYFIN</a>
             <button class="menu-btn" style="width: 100%; margin: 0;" onclick="document.getElementById('match-overlay').classList.add('hidden')">Keep Swiping</button>
         </div>
     </div>
@@ -315,42 +323,23 @@
         let movieStack = [];
         let swipeHistory = [];
         let globalCurrentX = 0;
-        let plexServerId = null;
         let currentGenre = "All";
         let isHistoryView = false;
         let isSoloMode = false;
-        let lastSeenMatchTs = null;
+        let currentRoomCode = null;
 
-        const mediaProvider = "{{ media_provider }}";
-
-        function providerToken() {
-            return localStorage.getItem('provider_token') || localStorage.getItem('plex_token');
-        }
-
-        function providerUserId() {
-            return localStorage.getItem('provider_user_id') || localStorage.getItem('plex_id');
-        }
-
-        function jellyfinAuthorizationHeader(token) {
-            return `MediaBrowser Client="JellySwipe", Device="Browser", DeviceId="jelly-swipe-web-v1", Version="1.0.0", Token="${token}"`;
-        }
-
-        function providerIdentityHeaders(extra = {}) {
-            const uid = providerUserId();
-            const headers = { ...extra };
-            if (uid) {
-                headers['X-Plex-User-ID'] = uid;
-                headers['X-Provider-User-Id'] = uid;
+        // apiFetch: wraps fetch with credentials and 401 handling
+        async function apiFetch(url, options = {}) {
+            options.credentials = 'same-origin';
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                document.getElementById('session-expired-banner').classList.remove('hidden');
             }
-            const tok = providerToken();
-            if (mediaProvider === 'jellyfin' && tok) {
-                headers['Authorization'] = jellyfinAuthorizationHeader(tok);
-            }
-            return headers;
+            return res;
         }
 
         async function bootstrapJellyfinDelegate() {
-            const provRes = await fetch("/auth/provider");
+            const provRes = await fetch("/auth/provider", { credentials: "same-origin" });
             const provData = await provRes.json();
             if (provData.jellyfin_browser_auth !== "delegate") {
                 return false;
@@ -369,80 +358,57 @@
                 );
                 return false;
             }
-            localStorage.removeItem("provider_token");
-            localStorage.removeItem("plex_token");
-            localStorage.setItem("provider_user_id", data.userId);
-            localStorage.setItem("plex_id", data.userId);
             document.getElementById("login-section").classList.add("hidden");
             document.getElementById("main-menu").classList.remove("hidden");
             loadGenres();
-            if (localStorage.getItem("active_room")) loadMovies();
+            checkActiveRoom();
             return true;
         }
 
-        async function fetchAndStoreProviderId() {
-            const token = providerToken();
-            if (!token) return;
-            if (mediaProvider === 'plex') {
-                try {
-                    const res = await fetch(`https://plex.tv/api/v2/user?X-Plex-Token=${token}`, { headers: { 'Accept': 'application/json' } });
-                    const data = await res.json();
-                    if (data.id) {
-                        localStorage.setItem('plex_id', data.id);
-                        localStorage.setItem('provider_user_id', data.id);
-                    }
-                } catch (e) { console.error("Could not fetch Plex ID"); }
+        async function login() {
+            const provRes = await fetch("/auth/provider", { credentials: "same-origin" });
+            const provData = await provRes.json();
+            if (provData.jellyfin_browser_auth === "delegate") {
+                await bootstrapJellyfinDelegate();
                 return;
             }
-            const uid = localStorage.getItem('provider_user_id');
-            if (uid) localStorage.setItem('plex_id', uid);
-        }
-
-        async function fetchPlexServerId() {
-            if (plexServerId) return plexServerId;
-            const response = await fetch('/plex/server-info');
-            if (response.ok) {
-                const data = await response.json();
-                plexServerId = data.machineIdentifier;
-                return plexServerId;
-            }
-            return null;
-        }
-
-        async function loginWithPlex() {
-            if (mediaProvider === 'jellyfin') {
-                const provRes = await fetch("/auth/provider");
-                const provData = await provRes.json();
-                if (provData.jellyfin_browser_auth === "delegate") {
-                    await bootstrapJellyfinDelegate();
-                    return;
-                }
-                const username = prompt("Jellyfin account name", "");
-                if (!username) return;
-                const password = prompt("Jellyfin account password", "");
-                if (!password) return;
-                const resp = await fetch("/auth/jellyfin-login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await resp.json();
-                if (!resp.ok || !data.authToken) {
-                    alert(data.error || "Jellyfin login failed");
-                    return;
-                }
-                localStorage.setItem("provider_token", data.authToken);
-                localStorage.setItem("provider_user_id", data.userId);
-                localStorage.setItem("plex_token", data.authToken);
-                localStorage.setItem("plex_id", data.userId);
-                document.getElementById("login-section").classList.add("hidden");
-                document.getElementById("main-menu").classList.remove("hidden");
-                loadGenres();
-                return;
-            }
-            const resp = await fetch("/auth/plex-url");
+            const username = prompt("Jellyfin account name", "");
+            if (!username) return;
+            const password = prompt("Jellyfin account password", "");
+            if (!password) return;
+            const resp = await fetch("/auth/jellyfin-login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password }),
+                credentials: "same-origin",
+            });
             const data = await resp.json();
-            window.location.href = data.auth_url;
+            if (!resp.ok || !data.userId) {
+                alert(data.error || "Jellyfin login failed");
+                return;
+            }
+            document.getElementById("login-section").classList.add("hidden");
+            document.getElementById("main-menu").classList.remove("hidden");
+            loadGenres();
+            checkActiveRoom();
+        }
+
+        async function checkActiveRoom() {
+            try {
+                const res = await fetch('/me', { credentials: 'same-origin' });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.activeRoom) {
+                    currentRoomCode = data.activeRoom;
+                    loadMovies();
+                }
+            } catch(e) { console.error('Room check failed', e); }
+        }
+
+        async function doLogout() {
+            await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+            currentRoomCode = null;
+            location.reload();
         }
 
         function confirmQuit() {
@@ -450,8 +416,8 @@
         }
 
         async function doQuit() {
-            await fetch('/room/quit', { method: 'POST' });
-            localStorage.removeItem('active_room');
+            await apiFetch(`/room/${currentRoomCode}/quit`, { method: 'POST' });
+            currentRoomCode = null;
             isSoloMode = false;
             if (sseSource) { sseSource.close(); sseSource = null; }
             location.reload();
@@ -465,8 +431,11 @@
                 else el.classList.remove('active');
             });
             toggleGenreModal();
-            const url = genre === 'All' ? '/movies?genre=All' : `/movies?genre=${encodeURIComponent(genre)}`;
-            const res = await fetch(url);
+            const res = await apiFetch(`/room/${currentRoomCode}/genre`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ genre })
+            });
             movieStack = await res.json();
             currentGenre = genre;
             document.getElementById('genre-pill').innerText = genre === 'All' ? 'Genres ▾' : genre + ' ▾';
@@ -481,11 +450,9 @@
             btn.innerText = "ADDING...";
             btn.disabled = true;
             try {
-                const res = await fetch("/watchlist/add", {
+                const res = await apiFetch("/watchlist/add", {
                     method: "POST",
-                    headers: mediaProvider === 'jellyfin'
-                        ? providerIdentityHeaders({ "Content-Type": "application/json" })
-                        : { "Content-Type": "application/json", "X-Plex-Token": providerToken() },
+                    headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({ movie_id: id })
                 });
                 if (res.ok) {
@@ -499,8 +466,10 @@
         }
 
         async function activateSoloMode() {
-            const res = await fetch('/room/go-solo', { method: 'POST' });
+            const res = await fetch('/room/solo', { method: 'POST', credentials: 'same-origin' });
             if (res.ok) {
+                const data = await res.json();
+                currentRoomCode = data.pairing_code;
                 isSoloMode = true;
                 loadMovies(true);
             }
@@ -523,8 +492,7 @@
 
         const loadMovies = async (solo = false) => {
             isSoloMode = solo;
-            lastSeenMatchTs = Date.now() / 1000;
-            const res = await fetch('/movies');
+            const res = await apiFetch(`/room/${currentRoomCode}/deck`);
             movieStack = await res.json();
             document.getElementById('branding').classList.add('hidden');
             document.getElementById('controls-area').classList.add('hidden');
@@ -545,14 +513,42 @@
             startPolling();
         };
 
+        function showMatchMetadata(match) {
+            const container = document.getElementById('match-metadata');
+            container.innerHTML = '';
+            if (match.rating) {
+                const badge = document.createElement('span');
+                badge.className = 'stat-badge';
+                badge.textContent = 'IMDb ' + match.rating;
+                container.appendChild(badge);
+            }
+            if (match.duration) {
+                const badge = document.createElement('span');
+                badge.className = 'stat-badge';
+                badge.textContent = match.duration;
+                container.appendChild(badge);
+            }
+            if (match.year) {
+                const badge = document.createElement('span');
+                badge.className = 'stat-badge';
+                badge.textContent = match.year;
+                container.appendChild(badge);
+            }
+            const link = document.getElementById('match-deep-link');
+            if (match.deep_link) {
+                link.href = match.deep_link;
+                link.classList.remove('hidden');
+            } else {
+                link.classList.add('hidden');
+            }
+        }
+
         async function openMatches(asHistory) {
             isHistoryView = asHistory;
-            const serverId = await fetchPlexServerId();
-            if (!serverId) return;
             const label = isSoloMode && !asHistory ? "Your Shortlist" : asHistory ? "Match History" : "Your Matches";
             document.getElementById('modal-title').innerText = label;
             const url = asHistory ? '/matches?view=history' : '/matches';
-            const res = await fetch(url, { headers: providerIdentityHeaders() });
+            const res = await apiFetch(url);
             const data = await res.json();
             const list = document.getElementById('matches-list');
             const emptyLabel = asHistory ? 'history' : isSoloMode ? 'shortlist' : 'matches';
@@ -625,16 +621,14 @@
                 }
                 miniBack.appendChild(statsRow);
 
-                // Open in Plex/Jellyfin button
-                const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
-                const openLabel = mediaProvider === 'jellyfin' ? 'OPEN IN JELLYFIN' : 'OPEN IN PLEX';
-                const plexBtn = document.createElement('a');
-                plexBtn.href = plexLink;
-                plexBtn.className = 'plex-open-btn';
-                plexBtn.target = '_blank';
-                plexBtn.rel = 'noopener noreferrer';
-                plexBtn.textContent = openLabel;
-                miniBack.appendChild(plexBtn);
+                // Open in Jellyfin button (using server deep_link)
+                const openBtn = document.createElement('a');
+                openBtn.href = m.deep_link || '#';
+                openBtn.className = 'plex-open-btn';
+                openBtn.target = '_blank';
+                openBtn.rel = 'noopener noreferrer';
+                openBtn.textContent = 'OPEN IN JELLYFIN';
+                miniBack.appendChild(openBtn);
 
                 // Watchlist button
                 const watchlistBtn = document.createElement('button');
@@ -692,10 +686,10 @@
             document.getElementById('delete-modal-overlay').classList.remove('hidden');
             document.getElementById('delete-modal').classList.remove('hidden');
             document.getElementById('delete-confirm-btn').onclick = async () => {
-                await fetch("/matches/delete", { 
-                    method: "POST", 
-                    headers: providerIdentityHeaders({"Content-Type": "application/json"}), 
-                    body: JSON.stringify({ movie_id: pendingDeleteId }) 
+                await apiFetch("/matches/delete", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ movie_id: pendingDeleteId })
                 });
                 closeDeleteModal();
                 openMatches(isHistoryView);
@@ -707,10 +701,10 @@
             if (undoBtn) undoBtn.onclick = async () => {
                 if (swipeHistory.length === 0) return;
                 const lastMovie = swipeHistory.pop();
-                await fetch('/undo', { 
-                    method: 'POST', 
-                    headers: providerIdentityHeaders({'Content-Type': 'application/json'}), 
-                    body: JSON.stringify({ movie_id: lastMovie.id }) 
+                await apiFetch(`/room/${currentRoomCode}/undo`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ movie_id: lastMovie.id })
                 });
                 movieStack.unshift(lastMovie);
                 renderInitialDeck();
@@ -923,30 +917,12 @@
                     card.style.transform = `translate(${globalCurrentX > 0 ? 1000 : -1000}px, 0px) rotate(${globalCurrentX / 5}deg)`;
                     card.style.opacity = '0';
                     const movieData = movieStack[0]; swipeHistory.push(movieData);
-                    fetch('/room/swipe', { 
-                        method: 'POST', 
-                        headers: providerIdentityHeaders({'Content-Type': 'application/json'}), 
-                        body: JSON.stringify({ 
-                            movie_id: card.dataset.id, title: card.dataset.title, thumb: card.dataset.thumb, direction: dir,
-                            plex_id: providerUserId()
-                        }) 
-                    })
-                    .then(r => r.json()).then(data => { 
-                        if (data.match) { 
-                            document.getElementById('matched-movie-title').innerText = data.title;
-                            document.getElementById('match-popup-poster').src = data.thumb || '';
-                            const heading = document.getElementById('match-heading');
-                            const soloLabel = document.getElementById('match-solo-label');
-                            if (data.solo) {
-                                heading.innerText = 'NICE ONE!';
-                                soloLabel.classList.remove('hidden');
-                            } else {
-                                heading.innerText = "IT'S A MATCH!";
-                                soloLabel.classList.add('hidden');
-                            }
-                            document.getElementById('match-overlay').classList.remove('hidden');
-                        } 
+                    apiFetch(`/room/${currentRoomCode}/swipe`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ movie_id: card.dataset.id, direction: dir })
                     });
+                    // Match popup comes from SSE only — no match detection in HTTP response
                     setTimeout(() => { card.remove(); movieStack.shift(); if (movieStack[4]) document.getElementById('swipe-deck').prepend(createCard(movieStack[4])); initDrag(document.getElementById('swipe-deck').lastElementChild); globalCurrentX = 0; }, 300);
                 } else { card.style.transform = ''; setTimeout(() => globalCurrentX = 0, 50); }
             };
@@ -959,9 +935,9 @@
         }
 
         document.getElementById('host-btn').onclick = async () => {
-            const res = await fetch('/room/create', { method: 'POST' });
+            const res = await apiFetch('/room', { method: 'POST' });
             const data = await res.json();
-            localStorage.setItem('active_room', 'hosting'); 
+            currentRoomCode = data.pairing_code;
             document.getElementById('session-display').innerText = data.pairing_code;
             document.getElementById('host-btn').classList.add('hidden');
             document.getElementById('session-info').classList.remove('hidden');
@@ -970,8 +946,8 @@
 
         async function joinRoom() {
             const code = document.getElementById('join-code').value;
-            const res = await fetch('/room/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code }) });
-            if (res.ok) { localStorage.setItem('active_room', 'joined'); loadMovies(false); } else alert("Invalid Code");
+            const res = await fetch(`/room/${code}/join`, { method: 'POST', credentials: 'same-origin' });
+            if (res.ok) { currentRoomCode = code; loadMovies(false); } else alert("Invalid Code");
         }
 
         async function loadGenres() {
@@ -994,78 +970,84 @@
 
         const startPolling = () => {
             if (sseSource) { sseSource.close(); sseSource = null; }
-            sseSource = new EventSource('/room/stream');
+            sseSource = new EventSource(`/room/${currentRoomCode}/stream`);
             sseSource.onmessage = async (event) => {
                 const d = JSON.parse(event.data);
                 if (d.closed) {
                     sseSource.close();
-                    localStorage.removeItem('active_room');
+                    currentRoomCode = null;
                     location.reload();
                     return;
                 }
                 if (d.genre && d.genre !== currentGenre) {
                     currentGenre = d.genre;
                     document.getElementById('genre-pill').innerText = currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
-                    const movieRes = await fetch('/movies');
+                    const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
                     movieStack = await movieRes.json(); swipeHistory = []; renderInitialDeck();
                 }
                 if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
                     loadMovies(d.solo || false);
                 }
                 if (d.last_match && !isSoloMode) {
-                    const matchTs = d.last_match.ts;
-                    if (matchTs > lastSeenMatchTs) {
-                        lastSeenMatchTs = matchTs;
-                        document.getElementById('matched-movie-title').innerText = d.last_match.title;
-                        document.getElementById('match-popup-poster').src = d.last_match.thumb || '';
-                        document.getElementById('match-heading').innerText = "IT'S A MATCH!";
-                        document.getElementById('match-solo-label').classList.add('hidden');
-                        document.getElementById('match-overlay').classList.remove('hidden');
-                    }
+                    document.getElementById('matched-movie-title').innerText = d.last_match.title;
+                    document.getElementById('match-popup-poster').src = d.last_match.thumb || '';
+                    const heading = document.getElementById('match-heading');
+                    heading.innerText = "IT'S A MATCH!";
+                    document.getElementById('match-solo-label').classList.add('hidden');
+                    showMatchMetadata(d.last_match);
+                    document.getElementById('match-overlay').classList.remove('hidden');
                 }
+            };
+            sseSource.onerror = () => {
+                sseSource.close();
+                sseSource = null;
+                setTimeout(() => { if (currentRoomCode) startPolling(); }, 3000);
             };
         };
 
         window.onload = async () => {
             _bindStaticHandlers();
-            const params = new URLSearchParams(window.location.search);
-            const pinId = params.get('pin_id');
-            if (mediaProvider === 'plex') {
-                const pinUrl = pinId ? `/auth/check-returned-pin?pin_id=${pinId}` : '/auth/check-returned-pin';
-                const pendingPin = await fetch(pinUrl);
-                const result = await pendingPin.json();
-                if (result.authToken) {
-                    localStorage.setItem("plex_token", result.authToken);
-                    localStorage.setItem("provider_token", result.authToken);
-                    window.history.replaceState({}, '', '/');
-                }
-            }
-            if (mediaProvider === 'jellyfin') {
-                try {
-                    const provRes = await fetch('/auth/provider');
-                    const provData = await provRes.json();
-                    if (provData.jellyfin_browser_auth === 'delegate') {
-                        document.getElementById('login-btn').innerText = 'Continue';
-                        document.getElementById('login-btn').onclick = () => bootstrapJellyfinDelegate();
-                        const booted = await bootstrapJellyfinDelegate();
-                        if (booted) {
-                            await fetchAndStoreProviderId();
+            try {
+                const res = await fetch('/me', { credentials: 'same-origin' });
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('main-menu').classList.remove('hidden');
+                    loadGenres();
+                    if (data.activeRoom) {
+                        currentRoomCode = data.activeRoom;
+                        loadMovies();
+                    }
+                } else {
+                    // Not authenticated — set up login flow
+                    try {
+                        const provRes = await fetch('/auth/provider', { credentials: 'same-origin' });
+                        const provData = await provRes.json();
+                        if (provData.jellyfin_browser_auth === 'delegate') {
+                            document.getElementById('login-btn').innerText = 'Continue';
+                            document.getElementById('login-btn').onclick = () => bootstrapJellyfinDelegate();
+                            const booted = await bootstrapJellyfinDelegate();
+                            if (booted) {
+                                // After delegate bootstrap, check for active room
+                                try {
+                                    const meRes = await fetch('/me', { credentials: 'same-origin' });
+                                    if (meRes.ok) {
+                                        const meData = await meRes.json();
+                                        if (meData.activeRoom) {
+                                            currentRoomCode = meData.activeRoom;
+                                            loadMovies();
+                                        }
+                                    }
+                                } catch(e) {}
+                            }
                             return;
                         }
-                    }
-                } catch (e) {
-                    console.error('Jellyfin provider probe failed', e);
+                    } catch(e) { console.error('Provider probe failed', e); }
+                    // Show login form
+                    document.getElementById('login-btn').innerText = 'Login with Jellyfin';
+                    document.getElementById('login-btn').onclick = login;
                 }
-            }
-            document.getElementById('login-btn').innerText = mediaProvider === 'jellyfin' ? 'Login with Jellyfin' : 'Login with Plex';
-            document.getElementById('login-btn').onclick = loginWithPlex;
-            if (providerToken()) {
-                await fetchAndStoreProviderId();
-                document.getElementById('login-section').classList.add('hidden');
-                document.getElementById('main-menu').classList.remove('hidden');
-                loadGenres();
-                if (localStorage.getItem('active_room')) loadMovies();
-            }
+            } catch(e) { console.error('Auth check failed', e); }
         };
     </script>
 </body>
