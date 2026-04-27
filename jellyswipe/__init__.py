@@ -139,6 +139,7 @@ def create_app(test_config=None):
         csp_policy = (
             "default-src 'self'; "
             "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
             "object-src 'none'; "
             "img-src 'self' https://image.tmdb.org; "
             "frame-src https://www.youtube.com"
@@ -705,7 +706,7 @@ def create_app(test_config=None):
 
     @app.route('/sw.js')
     def serve_sw():
-        return send_from_directory('data', 'sw.js', mimetype='application/javascript')
+        return send_from_directory(os.path.join(_APP_ROOT, 'static'), 'sw.js', mimetype='application/javascript')
 
     @app.route('/static/<path:path>')
     def serve_static(path):
