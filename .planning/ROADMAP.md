@@ -37,7 +37,7 @@ This roadmap eliminates tier responsibility violations between server and client
 - Decimal phases (23.1, 24.1...): Urgent insertions (marked with INSERTED)
 
 - [ ] **Phase 23: Database Schema + Token Vault** - Additive-only schema migration: user_tokens table, deck state columns, expired token cleanup
-- [ ] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification
+- [x] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification (completed 2026-04-27)
 - [ ] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor
 - [ ] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo
 - [ ] **Phase 27: Client Simplification + Cleanup** - Remove localStorage tokens, identity headers, client-side match detection, URL construction
@@ -83,11 +83,11 @@ Plans:
   3. Client receives an HttpOnly session cookie containing only session_id; browser DevTools show no token in localStorage or JavaScript-accessible cookies
   4. `@login_required` decorator populates `g.user_id` and `g.jf_token` for every authenticated request; unauthenticated requests get a clear error
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 24-01-PLAN.md — Create auth.py with token vault CRUD and @login_required decorator
-- [ ] 24-02-PLAN.md — Refactor login/delegate routes + apply @login_required to mutation endpoints
+- [x] 24-01-PLAN.md — Create auth.py with token vault CRUD and @login_required decorator
+- [x] 24-02-PLAN.md — Refactor login/delegate routes + apply @login_required to mutation endpoints
 
 ---
 
@@ -191,7 +191,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 23. Database Schema + Token Vault | 0/2 | Not started | - |
-| 24. Auth Module + Server-Owned Identity | 0/2 | Not started | - |
+| 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
 | 25. RESTful Routes + Deck Ownership | 0/2 | Not started | - |
 | 26. Match Notification + Deep Links + Metadata | 0/3 | Not started | - |
 | 27. Client Simplification + Cleanup | 0/2 | Not started | - |

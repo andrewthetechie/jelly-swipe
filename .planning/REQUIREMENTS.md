@@ -10,7 +10,7 @@ Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier re
 
 ### Identity & Auth
 
-- [ ] **AUTH-01**: Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity
+- [x] **AUTH-01**: Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity
 - [x] **AUTH-02
 **: Jellyfin API token stored in server-side `user_tokens` SQLite table, keyed by session_id; never exposed to client JavaScript
 - [x] **AUTH-03
@@ -66,7 +66,7 @@ Explicitly excluded from v2.0.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 24 | Pending |
+| AUTH-01 | Phase 24 | Complete |
 | AUTH-02 | Phase 23 | Pending |
 | AUTH-03 | Phase 23 | Pending |
 | DECK-01 | Phase 25 | Pending |
