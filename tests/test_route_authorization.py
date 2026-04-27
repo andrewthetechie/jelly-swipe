@@ -54,6 +54,9 @@ class FakeProvider:
             for i in range(25)
         ]
 
+    def server_info(self) -> dict:
+        return {"machineIdentifier": "test-server-id", "name": "TestServer"}
+
 
 @pytest.fixture
 def app_module(db_connection, monkeypatch):
@@ -452,3 +455,183 @@ class TestDeckCursorTracking:
         # Now deck should be empty
         resp = client.get(f'/room/{code}/deck')
         assert resp.get_json() == []
+
+
+# --- SSE Match Delivery Tests ---
+
+
+def _seed_room_with_movies(conn, room_code="ROOM1", solo_mode=0):
+    """Seed a room with movie data containing enriched metadata."""
+    movies = [
+        {"id": "movie-1", "title": "Test Movie", "summary": "A test movie",
+         "thumb": "/proxy?path=jellyfin/movie-1/Primary",
+         "rating": 8.5, "duration": "2h 15m", "year": 2024},
+        {"id": "movie-2", "title": "Other Movie", "summary": "Another test",
+         "thumb": "/proxy?path=jellyfin/movie-2/Primary",
+         "rating": 6.0, "duration": "1h 45m", "year": 2023},
+    ]
+    conn.execute(
+        "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)",
+        (room_code, json.dumps(movies), 1, "All", solo_mode),
+    )
+    conn.execute(
+        "UPDATE rooms SET deck_position = ? WHERE pairing_code = ?",
+        (json.dumps({"verified-user": 0}), room_code),
+    )
+    conn.commit()
+
+
+class TestSSEMatchDelivery:
+    """Tests for SSE-only match delivery, enriched metadata, deep links, and transaction safety."""
+
+    def test_swipe_returns_accepted_only(self, db_connection, client):
+        """POST /room/{code}/swipe returns {accepted: true} only — no match payload."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection)
+
+        resp = client.post('/room/ROOM1/swipe',
+                           json={'movie_id': 'movie-1', 'direction': 'right'})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data == {'accepted': True}
+        assert 'match' not in data
+        assert 'title' not in data
+        assert 'thumb' not in data
+
+    def test_swipe_no_match_returns_accepted(self, db_connection, client):
+        """Left-swipe also returns {accepted: true}."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection)
+
+        resp = client.post('/room/ROOM1/swipe',
+                           json={'movie_id': 'movie-1', 'direction': 'left'})
+        assert resp.status_code == 200
+        assert resp.get_json() == {'accepted': True}
+
+    def test_match_created_with_deep_link(self, db_connection, client):
+        """Two users right-swiping the same movie creates match with deep link."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection)
+
+        # First user swipes right
+        client.post('/room/ROOM1/swipe',
+                    json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        # Set up second user session
+        _setup_deck_session(client, db_connection, user_id="user-B", token="token-B")
+        with client.session_transaction() as sess:
+            sess["active_room"] = "ROOM1"
+
+        # Second user swipes right
+        client.post('/room/ROOM1/swipe',
+                    json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        # Verify match has deep link
+        row = db_connection.execute(
+            "SELECT deep_link FROM matches WHERE room_code = ? AND movie_id = ?",
+            ("ROOM1", "movie-1"),
+        ).fetchone()
+        assert row is not None
+        assert row["deep_link"] is not None
+        assert "/web/#/details?id=movie-1" in row["deep_link"]
+
+    def test_match_created_with_enriched_metadata(self, db_connection, client):
+        """Solo match stores rating, duration, year from movie_data."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection, solo_mode=1)
+
+        resp = client.post('/room/ROOM1/swipe',
+                           json={'movie_id': 'movie-1', 'direction': 'right'})
+        assert resp.status_code == 200
+
+        row = db_connection.execute(
+            "SELECT rating, duration, year FROM matches WHERE room_code = ? AND movie_id = ?",
+            ("ROOM1", "movie-1"),
+        ).fetchone()
+        assert row is not None
+        assert row["rating"] == "8.5"
+        assert row["duration"] == "2h 15m"
+        assert row["year"] == "2024"
+
+    def test_get_matches_returns_enriched_fields(self, db_connection, client):
+        """GET /matches includes deep_link, rating, duration, year."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection, solo_mode=1)
+
+        client.post('/room/ROOM1/swipe',
+                    json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        resp = client.get('/matches')
+        assert resp.status_code == 200
+        matches = resp.get_json()
+        assert len(matches) == 1
+        m = matches[0]
+        assert "deep_link" in m
+        assert m["deep_link"] is not None
+        assert "rating" in m
+        assert m["rating"] == "8.5"
+        assert "duration" in m
+        assert m["duration"] == "2h 15m"
+        assert "year" in m
+        assert m["year"] == "2024"
+
+    def test_last_match_data_includes_enriched_payload(self, db_connection, client):
+        """After a match, rooms.last_match_data contains full enriched JSON."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection, solo_mode=1)
+
+        client.post('/room/ROOM1/swipe',
+                    json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        row = db_connection.execute(
+            "SELECT last_match_data FROM rooms WHERE pairing_code = ?",
+            ("ROOM1",),
+        ).fetchone()
+        assert row["last_match_data"] is not None
+        data = json.loads(row["last_match_data"])
+        assert data["type"] == "match"
+        assert data["title"] == "Movie-movie-1"
+        assert data["movie_id"] == "movie-1"
+        assert data["rating"] == "8.5"
+        assert data["duration"] == "2h 15m"
+        assert data["year"] == "2024"
+        assert "/web/#/details?id=movie-1" in data["deep_link"]
+        assert "ts" in data
+
+    def test_concurrent_right_swipes_one_match_per_user(self, db_connection, client):
+        """Two users right-swiping same movie produces exactly 1 match row per user."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection)
+
+        # First user swipes right
+        client.post('/room/ROOM1/swipe',
+                    json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        # Second user
+        _setup_deck_session(client, db_connection, user_id="user-B", token="token-B")
+        with client.session_transaction() as sess:
+            sess["active_room"] = "ROOM1"
+
+        # Second user swipes right
+        client.post('/room/ROOM1/swipe',
+                    json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        # Exactly 2 match rows: one per user (INSERT OR IGNORE prevents duplicates)
+        count = db_connection.execute(
+            "SELECT COUNT(*) FROM matches WHERE room_code = ? AND movie_id = ?",
+            ("ROOM1", "movie-1"),
+        ).fetchone()[0]
+        assert count == 2
+
+        # Each user has exactly one match
+        user_a = db_connection.execute(
+            "SELECT COUNT(*) FROM matches WHERE room_code = ? AND movie_id = ? AND user_id = ?",
+            ("ROOM1", "movie-1", "verified-user"),
+        ).fetchone()[0]
+        assert user_a == 1
+
+        user_b = db_connection.execute(
+            "SELECT COUNT(*) FROM matches WHERE room_code = ? AND movie_id = ? AND user_id = ?",
+            ("ROOM1", "movie-1", "user-B"),
+        ).fetchone()[0]
+        assert user_b == 1
