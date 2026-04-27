@@ -366,6 +366,9 @@ class TestCleanupExpiredTokens:
             ("fresh-session", "fresh-token", "user-2", fresh_time)
         )
 
+        # Commit inserts so cleanup_expired_tokens() can see them via its own connection
+        db_connection.commit()
+
         # Run cleanup
         jellyswipe.db.cleanup_expired_tokens()
 
@@ -399,6 +402,9 @@ class TestCleanupExpiredTokens:
             "VALUES (?, ?, ?, ?)",
             ("boundary-session", "boundary-token", "user-3", boundary_time)
         )
+
+        # Commit insert so cleanup_expired_tokens() can see it via its own connection
+        db_connection.commit()
 
         # Run cleanup
         jellyswipe.db.cleanup_expired_tokens()

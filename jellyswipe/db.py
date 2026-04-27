@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 # Database path - must be set before calling get_db() or init_db()
 # This will be set by jellyswipe/__init__.py during package import
@@ -72,3 +73,21 @@ def init_db():
 
 
         conn.execute('DELETE FROM swipes WHERE room_code NOT IN (SELECT pairing_code FROM rooms)')
+
+    cleanup_expired_tokens()
+
+
+def cleanup_expired_tokens():
+    """Delete rows from user_tokens older than 24 hours.
+
+    Called automatically on app startup (via init_db) and should also be
+    called on every new session creation in Phase 24 (per D-03).
+
+    Uses ISO 8601 string comparison for created_at timestamps.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    with get_db() as conn:
+        conn.execute(
+            'DELETE FROM user_tokens WHERE created_at < ?',
+            (cutoff,)
+        )
