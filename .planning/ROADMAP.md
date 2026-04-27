@@ -83,11 +83,11 @@ Plans:
   3. Client receives an HttpOnly session cookie containing only session_id; browser DevTools show no token in localStorage or JavaScript-accessible cookies
   4. `@login_required` decorator populates `g.user_id` and `g.jf_token` for every authenticated request; unauthenticated requests get a clear error
 
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 24-01: Create auth.py with token vault CRUD and @login_required decorator
-- [ ] 24-02: Refactor login and delegate routes to use token vault + session cookie
+- [ ] 24-01-PLAN.md — Create auth.py with token vault CRUD and @login_required decorator
+- [ ] 24-02-PLAN.md — Refactor login/delegate routes + apply @login_required to mutation endpoints
 
 ---
 
