@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import secrets
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
@@ -33,6 +35,9 @@ class FakeProvider:
             return self._user_id
         return None
 
+    def authenticate_user_session(self, username: str, password: str) -> dict:
+        return {"token": self._token, "user_id": self._user_id}
+
     def add_to_user_favorites(self, user_token: str, movie_id: str) -> None:
         self.favorites_added.append((user_token, movie_id))
 
@@ -47,7 +52,6 @@ def app_module(db_connection, monkeypatch):
 
     fake_provider = FakeProvider()
     monkeypatch.setattr(app_module_obj, "_provider_singleton", fake_provider, raising=False)
-    app_module_obj._token_user_id_cache.clear()
     return app_module_obj
 
 
@@ -56,14 +60,22 @@ def client(app_module):
     return app_module.app.test_client()
 
 
-def _set_session(client, *, active_room: str = "ROOM1", session_user_id: str = "session-user", delegate: bool = False):
-    with client.session_transaction() as sess:
-        sess["active_room"] = active_room
-        sess["my_user_id"] = session_user_id
-        if delegate:
-            sess["jf_delegate_server_identity"] = True
-        else:
-            sess.pop("jf_delegate_server_identity", None)
+def _set_session(client, db_connection, *, active_room: str = "ROOM1", authenticated: bool = True):
+    """Set up session with vault entry for authenticated testing."""
+    if authenticated:
+        import jellyswipe.db
+        session_id = "test-session-" + secrets.token_hex(8)
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
+        )
+        db_connection.commit()
+        with client.session_transaction() as sess:
+            sess["session_id"] = session_id
+            sess["active_room"] = active_room
+    else:
+        with client.session_transaction() as sess:
+            sess["active_room"] = active_room
 
 
 def _seed_room(conn, room_code: str = "ROOM1"):
@@ -114,97 +126,87 @@ ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
 )
 
 
-@pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
-@pytest.mark.parametrize("spoof_header", SPOOF_HEADERS)
-def test_spoofed_alias_headers_rejected_with_401(db_connection, client, method, path, payload, spoof_header):
-    _set_session(client, active_room="ROOM1", session_user_id="session-user")
-    _seed_room(db_connection, "ROOM1")
-
-    response = _send_request(client, method, path, payload, {spoof_header: "attacker-id"})
-
-    assert response.status_code == 401
-    assert response.get_json() == {"error": "Unauthorized"}
+# --- Login/Delegate Route Tests ---
 
 
-def test_room_swipe_body_user_id_injection_unauthorized_and_no_side_effects(db_connection, client):
-    _set_session(client, active_room="ROOM1", session_user_id="session-user")
-    _seed_room(db_connection, "ROOM1")
-
-    before_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
-    before_matches = db_connection.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
-
-    response = client.post(
-        "/room/swipe",
-        json={
-            "movie_id": "movie-1",
-            "title": "Movie",
-            "thumb": "thumb.jpg",
-            "direction": "right",
-            "user_id": "injected-user",
-        },
-    )
-
-    after_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
-    after_matches = db_connection.execute("SELECT COUNT(*) FROM matches").fetchone()[0]
-
-    assert response.status_code == 401
-    assert response.get_json() == {"error": "Unauthorized"}
-    assert after_swipes == before_swipes
-    assert after_matches == before_matches
-
-
-def test_room_swipe_ignores_body_user_id_when_token_is_valid(db_connection, client):
-    _set_session(client, active_room="ROOM1", session_user_id="session-user")
-    _seed_room(db_connection, "ROOM1")
-
-    response = client.post(
-        "/room/swipe",
-        json={
-            "movie_id": "movie-1",
-            "title": "Movie",
-            "thumb": "thumb.jpg",
-            "direction": "right",
-            "user_id": "injected-user",
-        },
-        headers={"Authorization": 'Token="valid-token"'},
-    )
-
-    injected_matches = db_connection.execute(
-        "SELECT COUNT(*) FROM matches WHERE user_id = ?",
-        ("injected-user",),
-    ).fetchone()[0]
-
+def test_login_returns_userId_no_authToken(db_connection, client):
+    """Login endpoint stores token in vault and returns only userId."""
+    response = client.post("/auth/jellyfin-login", json={
+        "username": "testuser",
+        "password": "testpass",
+    })
     assert response.status_code == 200
-    assert injected_matches == 0
+    data = response.get_json()
+    assert "userId" in data
+    assert "authToken" not in data
 
 
-@pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
-def test_delegate_flow_valid_identity_succeeds(db_connection, client, method, path, payload):
-    _set_session(client, active_room="ROOM1", session_user_id="session-user", delegate=True)
-    _prepare_route_state(
-        db_connection,
-        path,
-        room_code="ROOM1",
-        verified_user="verified-user",
-        session_user="session-user",
-    )
+def test_login_creates_vault_entry(db_connection, client):
+    """Login creates a user_tokens row and sets session_id cookie."""
+    response = client.post("/auth/jellyfin-login", json={
+        "username": "testuser",
+        "password": "testpass",
+    })
+    assert response.status_code == 200
+    # Verify vault entry was created
+    count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+    assert count == 1
+    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM user_tokens").fetchone()
+    assert row["jellyfin_token"] == "valid-token"
+    assert row["jellyfin_user_id"] == "verified-user"
 
-    response = _send_request(client, method, path, payload, {})
 
-    assert response.status_code != 401
+def test_login_sets_session_cookie(db_connection, client):
+    """Login sets session_id in the session cookie."""
+    with client.session_transaction() as sess:
+        assert "session_id" not in sess
+    response = client.post("/auth/jellyfin-login", json={
+        "username": "testuser",
+        "password": "testpass",
+    })
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert "session_id" in sess
+        assert len(sess["session_id"]) > 0
 
 
-@pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
-def test_token_flow_valid_identity_succeeds(db_connection, client, method, path, payload):
-    _set_session(client, active_room="ROOM1", session_user_id="session-user", delegate=False)
-    _prepare_route_state(
-        db_connection,
-        path,
-        room_code="ROOM1",
-        verified_user="verified-user",
-        session_user="session-user",
-    )
+def test_login_missing_credentials_returns_400(db_connection, client):
+    response = client.post("/auth/jellyfin-login", json={})
+    assert response.status_code == 400
 
-    response = _send_request(client, method, path, payload, {"Authorization": 'Token="valid-token"'})
 
-    assert response.status_code != 401
+def test_delegate_returns_userId(db_connection, client):
+    """Delegate endpoint stores server token in vault and returns only userId."""
+    response = client.post("/auth/jellyfin-use-server-identity")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "userId" in data
+    assert data["userId"] == "verified-user"
+
+
+def test_delegate_creates_vault_entry(db_connection, client):
+    """Delegate creates a user_tokens row with server credentials."""
+    response = client.post("/auth/jellyfin-use-server-identity")
+    assert response.status_code == 200
+    count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+    assert count == 1
+    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM user_tokens").fetchone()
+    assert row["jellyfin_token"] == "valid-token"
+    assert row["jellyfin_user_id"] == "verified-user"
+
+
+def test_delegate_no_session_flag(db_connection, client):
+    """Delegate no longer sets jf_delegate_server_identity session flag."""
+    response = client.post("/auth/jellyfin-use-server-identity")
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert "jf_delegate_server_identity" not in sess
+
+
+def test_delegate_sets_session_cookie(db_connection, client):
+    """Delegate sets session_id in the session cookie."""
+    response = client.post("/auth/jellyfin-use-server-identity")
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert "session_id" in sess
+        assert len(sess["session_id"]) > 0

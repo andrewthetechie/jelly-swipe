@@ -7,10 +7,9 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort
+from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort, g
 from werkzeug.middleware.proxy_fix import ProxyFix
 from typing import Dict, Optional, Tuple
-import hashlib
 import sqlite3, os, random, re, requests, json, secrets, time
 
 # Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
@@ -45,6 +44,8 @@ app = Flask(__name__,
             static_folder=os.path.join(_APP_ROOT, 'static'))
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 app.secret_key = os.environ["FLASK_SECRET"]
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 @app.after_request
 def add_csp_header(response):
@@ -65,7 +66,7 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 # Direct Jellyfin provider instantiation (no factory pattern)
 from .jellyfin_library import JellyfinLibraryProvider
 
-_provider_singleton: Optional[JellyfinLibraryProvider] = None
+_provider_singleton = None
 TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
 _token_user_id_cache: Dict[str, Tuple[str, float]] = {}
 IDENTITY_ALIAS_HEADERS = (
@@ -83,6 +84,7 @@ def get_provider() -> JellyfinLibraryProvider:
 
 # Import database functions
 from .db import get_db, init_db
+from jellyswipe.auth import create_session, login_required
 
 # Set DB_PATH in db module
 import jellyswipe.db
@@ -250,11 +252,11 @@ def auth_provider():
 def jellyfin_use_server_identity():
     prov = get_provider()
     try:
-        prov.server_access_token_for_delegate()
+        token = prov.server_access_token_for_delegate()
         uid = prov.server_primary_user_id_for_delegate()
     except RuntimeError:
         return jsonify({"error": "Jellyfin delegate unavailable"}), 401
-    session["jf_delegate_server_identity"] = True
+    create_session(token, uid)
     return jsonify({"userId": uid})
 
 
@@ -267,7 +269,8 @@ def jellyfin_login():
         return jsonify({"error": "Username and password are required"}), 400
     try:
         out = get_provider().authenticate_user_session(username, password)
-        return jsonify({"authToken": out["token"], "userId": out["user_id"]})
+        create_session(out["token"], out["user_id"])
+        return jsonify({"userId": out["user_id"]})
     except Exception:
         return jsonify({"error": "Jellyfin login failed"}), 401
 
