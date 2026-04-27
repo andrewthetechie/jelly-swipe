@@ -20,10 +20,10 @@ from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
 from jellyswipe.ssrf_validator import validate_jellyfin_url
 
 _RATE_LIMITS = {
-    'get-trailer': 20,
-    'cast': 20,
-    'watchlist/add': 30,
-    'proxy': 10,
+    'get-trailer': 200,
+    'cast': 200,
+    'watchlist/add': 300,
+    'proxy': 200,
 }
 
 _logger = logging.getLogger(__name__)
