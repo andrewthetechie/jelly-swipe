@@ -718,3 +718,91 @@ class TestSoloRoom:
         resp = client.post('/room/solo')
         assert resp.status_code == 401
         assert resp.get_json() == {'error': 'Authentication required'}
+
+
+# --- Logout Endpoint Tests ---
+
+
+class TestLogout:
+    """Tests for POST /auth/logout endpoint (CLNT-01)."""
+
+    def test_logout_clears_vault(self, db_connection, client):
+        """POST /auth/logout removes session_id from user_tokens vault."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        # Verify vault entry exists before logout
+        count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+        assert count >= 1
+
+        resp = client.post('/auth/logout')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['status'] == 'logged_out'
+
+        # Verify vault entry was removed
+        count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+        assert count == 0
+
+    def test_logout_clears_session_cookie(self, db_connection, client):
+        """POST /auth/logout clears session_id from session cookie."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        # Verify session is set
+        with client.session_transaction() as sess:
+            assert sess.get('session_id') is not None
+
+        resp = client.post('/auth/logout')
+        assert resp.status_code == 200
+
+        # Verify session_id is cleared
+        with client.session_transaction() as sess:
+            assert sess.get('session_id') is None
+
+    def test_logout_requires_auth(self, db_connection, client):
+        """POST /auth/logout without authentication returns 401."""
+        resp = client.post('/auth/logout')
+        assert resp.status_code == 401
+        assert resp.get_json() == {'error': 'Authentication required'}
+
+
+# --- GET /me activeRoom Tests ---
+
+
+class TestGetMeActiveRoom:
+    """Tests for GET /me activeRoom field."""
+
+    def test_me_includes_active_room_null(self, db_connection, client):
+        """GET /me returns activeRoom as null when no room active."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        # Remove active_room from session
+        with client.session_transaction() as sess:
+            sess.pop('active_room', None)
+
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert 'activeRoom' in data
+        assert data['activeRoom'] is None
+
+    def test_me_includes_active_room_code(self, db_connection, client):
+        """GET /me returns activeRoom with room code when room active."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert 'activeRoom' in data
+        assert data['activeRoom'] == 'ROOM1'
+
+
+# --- Go-Solo Route Removal Test ---
+
+
+class TestGoSoloRemoved:
+    """Tests that /room/<code>/go-solo route has been removed."""
+
+    def test_go_solo_returns_404(self, db_connection, client):
+        """POST /room/<code>/go-solo returns 404 (route removed)."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room(db_connection, "ROOM1")
+
+        resp = client.post('/room/ROOM1/go-solo')
+        assert resp.status_code == 404
