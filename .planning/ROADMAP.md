@@ -39,7 +39,7 @@ This roadmap eliminates tier responsibility violations between server and client
 - [ ] **Phase 23: Database Schema + Token Vault** - Additive-only schema migration: user_tokens table, deck state columns, expired token cleanup
 - [x] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification (completed 2026-04-27)
 - [x] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor (completed 2026-04-27)
-- [ ] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo
+- [x] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo (completed 2026-04-27)
 - [ ] **Phase 27: Client Simplification + Cleanup** - Remove localStorage tokens, identity headers, client-side match detection, URL construction
 - [ ] **Phase 28: Deployment Validation** - Docker volume mounts, ProxyFix verification, end-to-end flow validation
 
@@ -132,8 +132,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 26-01-PLAN.md — SSE-only match delivery with enriched metadata, deep links, and BEGIN IMMEDIATE transaction safety
-- [ ] 26-02-PLAN.md — GET /me endpoint and POST /room/solo endpoint
+- [x] 26-01-PLAN.md — SSE-only match delivery with enriched metadata, deep links, and BEGIN IMMEDIATE transaction safety
+- [x] 26-02-PLAN.md — GET /me endpoint and POST /room/solo endpoint
 
 ---
 
@@ -192,10 +192,10 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 | 23. Database Schema + Token Vault | 0/2 | Not started | - |
 | 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
 | 25. RESTful Routes + Deck Ownership | 2/2 | Complete    | 2026-04-27 |
-| 26. Match Notification + Deep Links + Metadata | 0/2 | Not started | - |
+| 26. Match Notification + Deep Links + Metadata | 2/2 | Complete    | 2026-04-27 |
 | 27. Client Simplification + Cleanup | 0/2 | Not started | - |
 | 28. Deployment Validation | 0/2 | Not started | - |
-| **Total** | **4/13** | **In Progress** | - |
+| **Total** | **6/13** | **In Progress** | - |
 
 ---
 

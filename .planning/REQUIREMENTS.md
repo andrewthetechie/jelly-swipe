@@ -23,16 +23,22 @@ Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier re
 
 ### Match & Notification
 
-- [ ] **MTCH-01**: Match notification delivered exclusively via SSE stream — swipe HTTP response returns `{accepted: true}` only, no match payload
-- [ ] **MTCH-02**: Match responses enriched with rating, duration, and year via server-side join through movies table
-- [ ] **MTCH-03**: Match check-and-insert wrapped in SQLite `BEGIN IMMEDIATE` transaction to prevent TOCTOU race
+- [x] **MTCH-01
+**: Match notification delivered exclusively via SSE stream — swipe HTTP response returns `{accepted: true}` only, no match payload
+- [x] **MTCH-02
+**: Match responses enriched with rating, duration, and year via server-side join through movies table
+- [x] **MTCH-03
+**: Match check-and-insert wrapped in SQLite `BEGIN IMMEDIATE` transaction to prevent TOCTOU race
 
 ### RESTful API
 
 - [x] **API-01**: Swipe endpoint restructured as `POST /room/{code}/swipe` accepting `{movie_id, direction}` only
-- [ ] **API-02**: Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — client never constructs media URLs
-- [ ] **API-03**: `GET /me` endpoint returns verified user id, display name, and server info from server-side session
-- [ ] **API-04**: Dedicated `POST /room/solo` endpoint creates a solo session without the two-player room lifecycle
+- [x] **API-02
+**: Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — client never constructs media URLs
+- [x] **API-03
+**: `GET /me` endpoint returns verified user id, display name, and server info from server-side session
+- [x] **API-04
+**: Dedicated `POST /room/solo` endpoint creates a solo session without the two-player room lifecycle
 
 ### Client Cleanup
 
@@ -71,13 +77,13 @@ Explicitly excluded from v2.0.
 | AUTH-03 | Phase 23 | Pending |
 | DECK-01 | Phase 25 | Complete |
 | DECK-02 | Phase 25 | Complete |
-| MTCH-01 | Phase 26 | Pending |
-| MTCH-02 | Phase 26 | Pending |
-| MTCH-03 | Phase 26 | Pending |
+| MTCH-01 | Phase 26 | Complete |
+| MTCH-02 | Phase 26 | Complete |
+| MTCH-03 | Phase 26 | Complete |
 | API-01 | Phase 25 | Complete |
-| API-02 | Phase 26 | Pending |
-| API-03 | Phase 26 | Pending |
-| API-04 | Phase 26 | Pending |
+| API-02 | Phase 26 | Complete |
+| API-03 | Phase 26 | Complete |
+| API-04 | Phase 26 | Complete |
 | CLNT-01 | Phase 27 | Pending |
 | CLNT-02 | Phase 27 | Pending |
 

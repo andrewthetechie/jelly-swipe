@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Architecture Tier Fix
-status: ready_to_plan
-last_updated: "2026-04-27T17:54:42.356Z"
-last_activity: 2026-04-27 -- Phase --phase execution started
+status: executing
+last_updated: "2026-04-27T19:24:30Z"
+last_activity: 2026-04-27
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 4
-  percent: 50
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 8
+  percent: 67
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Architecture Tier Fix
-**Phase:** 26
-**Status:** Ready to plan
-**Progress:** [██████████] 100%
+**Phase:** 26 (Complete) → 27
+**Status:** Phase 26 complete
+**Progress:** [███████---] 67%
 
 ---
 
@@ -30,15 +30,15 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 **Core Value:**
 Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-**Current Focus:** Phase --phase — 25
+**Current Focus:** Phase 27 (Client Simplification + Cleanup)
 
 ---
 
 ## Current Position
 
-Phase: --phase (25) — EXECUTING
-Plan: Not started
-Status: Executing Phase --phase
+Phase: 26 — COMPLETE
+Plan: Both plans complete (26-01, 26-02)
+Status: Ready for Phase 27
 Last activity: 2026-04-27
 
 ---
@@ -76,6 +76,9 @@ Last activity: 2026-04-27
 6. Deployment validation last (end-to-end Docker verification)
 - Used ISO 8601 string comparison for TTL-based token cleanup — avoids SQLite date functions
 - Proactively added all v2.0 columns in one migration pass (per D-04) — reduces migration churn
+- Rich metadata resolved from stored movie_data JSON (not Jellyfin API call) at match time
+- Deep link format: {JELLYFIN_URL}/web/#/details?id={itemId} (verified from jellyfin-web source)
+- Solo room as dedicated endpoint (not room flag hack) — ready=1, solo_mode=1 at creation
 
 ### Active Todos
 
@@ -88,7 +91,6 @@ None.
 ### Risks and Concerns
 
 - **SSE generator session context loss** — Flask warns against reading `session` inside streaming generators; all values must be captured by closure in view functions
-- **Dual identity migration** — Current code uses `host_`/`guest_` synthetic IDs; switching to Jellyfin-only IDs could orphan existing swipes
 - **Session cookie last-write-wins** — Flask signed-cookie is a single blob; concurrent requests can silently overwrite changes
 - **Delegate mode disambiguation** — Two browsers with same Jellyfin account need reliable session_id-based disambiguation
 
@@ -97,12 +99,11 @@ None.
 ## Session Continuity
 
 **Last Session:**
---stopped-at
-
-- v2.0 roadmap created with 6 phases (23-28)
-- 14/14 requirements mapped to phases
-- Phase ordering follows research recommendations
-- Next step: `/gsd-plan-phase 23`
+- Phase 26 (Match Notification + Deep Links + Metadata) completed
+- Both plans executed: 26-01 (SSE match delivery) and 26-02 (/me + /room/solo)
+- 13 new tests added (7 SSE match + 6 /me + /room/solo)
+- 130 total tests passing
+- Next step: Phase 27 (Client Simplification + Cleanup)
 
 ---
 
@@ -119,7 +120,7 @@ None.
 
 **Important Commands:**
 
-- `/gsd-plan-phase 23` — Begin planning Phase 23
+- `/gsd-plan-phase 27` — Begin planning Phase 27
 - `/gsd-transition` — Mark phase complete and move to next
 - `/gsd-progress` — View current progress
 
@@ -129,6 +130,6 @@ None.
 
 ---
 *State created: 2026-04-26*
-*Last updated: 2026-04-26 (roadmap created)*
+*Last updated: 2026-04-27 (Phase 26 complete)*
 
-**Planned Phase:** 25 (RESTful Routes + Deck Ownership) — 2 plans — 2026-04-27T17:44:00.413Z
+**Planned Phase:** 26 (Match Notification + Deep Links + Metadata) — 2 plans — 2026-04-27T19:18:48Z
