@@ -341,3 +341,100 @@ class TestIsolation:
 
         cursor = db_connection.execute("SELECT COUNT(*) FROM user_tokens")
         assert cursor.fetchone()[0] == 0, "User tokens table should be empty"
+
+
+class TestCleanupExpiredTokens:
+    """Tests for cleanup_expired_tokens() function."""
+
+    def test_expired_tokens_are_deleted(self, db_connection):
+        """Test that rows older than 24 hours are deleted."""
+        from datetime import datetime, timedelta, timezone
+
+        # Insert a token that's 25 hours old (expired)
+        expired_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("expired-session", "expired-token", "user-1", expired_time)
+        )
+
+        # Insert a fresh token (should be preserved)
+        fresh_time = datetime.now(timezone.utc).isoformat()
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("fresh-session", "fresh-token", "user-2", fresh_time)
+        )
+
+        # Run cleanup
+        jellyswipe.db.cleanup_expired_tokens()
+
+        # Re-open connection to see committed changes (cleanup_expired_tokens uses its own connection)
+        conn = jellyswipe.db.get_db()
+        try:
+            rows = conn.execute("SELECT session_id FROM user_tokens").fetchall()
+            session_ids = [row["session_id"] for row in rows]
+            assert "expired-session" not in session_ids
+            assert "fresh-session" in session_ids
+        finally:
+            conn.close()
+
+    def test_cleanup_on_empty_table(self, db_connection):
+        """Test that cleanup works on empty user_tokens table without error."""
+        # Should not raise any exceptions
+        jellyswipe.db.cleanup_expired_tokens()
+
+        # Verify table is still empty
+        cursor = db_connection.execute("SELECT COUNT(*) FROM user_tokens")
+        assert cursor.fetchone()[0] == 0
+
+    def test_boundary_token_at_exactly_24_hours_is_deleted(self, db_connection):
+        """Test that a token exactly at the 24-hour boundary is deleted (< comparison)."""
+        from datetime import datetime, timedelta, timezone
+
+        # Insert a token that's exactly 24 hours old
+        boundary_time = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("boundary-session", "boundary-token", "user-3", boundary_time)
+        )
+
+        # Run cleanup
+        jellyswipe.db.cleanup_expired_tokens()
+
+        # Boundary token should be deleted (strictly less than cutoff)
+        conn = jellyswipe.db.get_db()
+        try:
+            rows = conn.execute("SELECT session_id FROM user_tokens").fetchall()
+            session_ids = [row["session_id"] for row in rows]
+            assert "boundary-session" not in session_ids
+        finally:
+            conn.close()
+
+    def test_cleanup_called_during_init_db(self, db_path, monkeypatch):
+        """Test that cleanup_expired_tokens is called during init_db (D-03)."""
+        import jellyswipe.db
+        from datetime import datetime, timedelta, timezone
+
+        # Set up a fresh database
+        monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
+        jellyswipe.db.init_db()
+
+        # Insert an expired token directly
+        expired_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        with jellyswipe.db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                ("pre-existing-expired", "old-token", "old-user", expired_time)
+            )
+
+        # Call init_db again — this triggers cleanup_expired_tokens
+        jellyswipe.db.init_db()
+
+        # The expired token should be gone
+        with jellyswipe.db.get_db() as conn:
+            rows = conn.execute("SELECT session_id FROM user_tokens").fetchall()
+            session_ids = [row["session_id"] for row in rows]
+            assert "pre-existing-expired" not in session_ids
