@@ -1,461 +1,542 @@
-# Architecture Research
+# Architecture Research: Outbound HTTP Hardening (v1.6)
 
-**Domain:** Unit testing for Flask application with SQLite and external API integration
-**Researched:** 2026-04-25
+**Domain:** Centralized outbound HTTP, rate limiting, SSRF validation, error redaction for an existing Flask+gevent app
+**Researched:** 2026-04-26
 **Confidence:** HIGH
 
-## Standard Architecture
+## Executive Summary
 
-### System Overview
+The current codebase has **six raw `requests.get()` calls** in Flask routes (TMDB trailer/cast lookups in `__init__.py`) and a `requests.Session` in `JellyfinLibraryProvider` with scattered timeout values (15s, 30s, 60s, 90s). The hardening work introduces five new capabilities that must integrate without breaking the existing provider abstraction (`LibraryMediaProvider` in `base.py`) or the gunicorn+gevent deployment model.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Test Suite (pytest)                      │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │  Unit Tests  │  │Integration   │  │   Shared     │     │
-│  │              │  │   Tests      │  │   Fixtures   │     │
-│  │  test_db.py  │  │test_routes.py│  │ conftest.py  │     │
-│  │test_jellyfin │  │              │  │              │     │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
-│         │                 │                  │              │
-├─────────┴─────────────────┴──────────────────┴──────────────┤
-│                  Test Dependencies Layer                     │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ pytest-mock  │  │   tmp_path   │  │   monkeypatch│     │
-│  │  (mocking)   │  │  (temp DB)   │  │  (env vars)  │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-├─────────────────────────────────────────────────────────────┤
-│                    Production Code Layer                     │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ jellyswipe/  │  │ jellyswipe/  │  │ jellyswipe/  │     │
-│  │   db.py      │  │jellyfin_lib  │  │  base.py     │     │
-│  │              │  │     .py      │  │              │     │
-│  │  get_db()    │  │   Provider   │  │  Abstract    │     │
-│  │  init_db()   │  │  (requests)  │  │  Base Class  │     │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
-│         │                 │                  │              │
-├─────────┴─────────────────┴──────────────────┴──────────────┤
-│                  External Dependencies                       │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │   SQLite     │  │   Jellyfin   │  │   Flask      │     │
-│  │   Database   │  │     API      │  │   Framework  │     │
-│  │  (in-memory) │  │  (mocked)    │  │              │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-```
+The recommended architecture creates **one new module** (`jellyswipe/http_client.py`) as the single point of control for all outbound HTTP, plus a **rate limiter class** that lives in the same module. The provider's existing `requests.Session` is replaced by the centralized client. TMDB calls in routes are rewritten to go through the centralized client with Bearer auth. Error redaction is a Flask `@app.errorhandler` + request ID middleware. SSRF validation is a pure function called at boot.
 
-### Component Responsibilities
+**Gevent compatibility is straightforward**: cooperative scheduling means plain `dict` + `time.time()` for the rate limiter is safe without `threading.Lock`. The `requests` library already works under gevent's monkey-patching.
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| **conftest.py** | Shared fixtures for database, mocks, and test configuration | pytest fixtures with appropriate scopes |
-| **test_db.py** | Test database schema, migrations, and CRUD operations | In-memory SQLite with tmp_path fixture |
-| **test_jellyfin_library.py** | Test Jellyfin API client logic, error handling, caching | Mock requests library, test provider methods |
-| **test_base.py** | Test abstract base class contract | Concrete test subclass or mock |
-| **test_routes.py** (optional) | Test Flask route handlers end-to-end | Flask test client, integration-level tests |
-| **pytest-mock** | Provide mocker fixture for patching dependencies | Monkeypatch external services and APIs |
-| **tmp_path** | Provide isolated temporary directories for each test | In-memory SQLite databases, temporary files |
+## Current State (Pre-Hardening)
 
-## Recommended Project Structure
+### Outbound HTTP Call Inventory
+
+**`jellyswipe/__init__.py` — 6 raw `requests.get()` calls, zero timeouts:**
+
+| Location | Line | Call | Current Auth | Timeout |
+|----------|------|------|-------------|---------|
+| `get_trailer()` | 187 | TMDB `/search/movie` | `?api_key=KEY` in URL | **None** |
+| `get_trailer()` | 191 | TMDB `/movie/{id}/videos` | `?api_key=KEY` in URL | **None** |
+| `get_cast()` | 206 | TMDB `/search/movie` | `?api_key=KEY` in URL | **None** |
+| `get_cast()` | 210 | TMDB `/movie/{id}/credits` | `?api_key=KEY` in URL | **None** |
+
+**`jellyswipe/jellyfin_library.py` — `requests.Session` with inconsistent timeouts:**
+
+| Method | Line | Timeout | Notes |
+|--------|------|---------|-------|
+| `_api()` (central) | 144 | 90s | All generic Jellyfin calls |
+| `_login_from_env()` | 91 | 30s | Auth |
+| `_verify_items()` | 119 | 30s | Post-login probe |
+| `_user_id()` fallback | 180 | 30s | `/Users` list |
+| `server_info()` fallback | 354 | 15s | Raw `requests.get()` (not through session!) |
+| `fetch_library_image()` | 369 | 60s | Binary image |
+| `authenticate_user_session()` | 418 | 30s | User login |
+| `resolve_user_id_from_token()` | 442 | 30s | Token → user ID |
+| `resolve_user_id_from_token()` fallback | 450 | 30s | `/Users` list |
+| `add_to_user_favorites()` | 476 | 30s | Favorite add |
+
+### Existing Error Handling Pattern
+
+Every route uses `try/except Exception as e` returning `jsonify({'error': str(e)})` with status 500. This **leaks upstream exception text** (e.g., Jellyfin error messages, connection refused details) directly to the client.
+
+## Recommended Architecture
+
+### New Components
 
 ```
-tests/
-├── conftest.py                    # Shared fixtures (session, module, function scope)
-├── unit/
-│   ├── __init__.py
-│   ├── test_db.py                 # Database functions: get_db(), init_db()
-│   ├── test_jellyfin_library.py   # JellyfinLibraryProvider methods
-│   └── test_base.py               # LibraryMediaProvider abstraction
-└── integration/
-    ├── __init__.py
-    └── test_routes.py             # Flask routes (optional, for v1.3+)
+jellyswipe/
+├── __init__.py              # MODIFIED — use http_client, add rate limiter, redact errors
+├── http_client.py           # NEW — centralized HTTP, rate limiter, SSRF validation
+├── jellyfin_library.py      # MODIFIED — use http_client instead of raw requests.Session
+├── base.py                  # UNCHANGED
+└── db.py                    # UNCHANGED
 ```
 
-### Structure Rationale
-
-- **conftest.py:** Centralizes shared fixtures (database initialization, provider mocks, environment setup). Pytest automatically discovers fixtures in conftest.py, making them available to all tests without explicit imports.
-- **unit/**: Isolates business logic from Flask framework. Tests functions and classes directly without HTTP layer. Matches the requirement for "framework-agnostic tests."
-- **integration/**: Tests that verify component interactions (e.g., Flask routes calling provider methods). Can be deferred beyond v1.3 if unit coverage is sufficient.
-- **Separation of concerns:** Database tests, provider tests, and route tests are isolated, making it clear what each test validates and enabling parallel test execution.
-
-## Architectural Patterns
-
-### Pattern 1: In-Memory SQLite with tmp_path
-
-**What:** Use pytest's `tmp_path` fixture to create isolated SQLite databases for each test. This prevents tests from sharing state and ensures clean test runs.
-
-**When to use:** All database-related tests (schema, migrations, CRUD operations).
-
-**Trade-offs:**
-- **Pros:** Complete isolation, no cleanup required, fast execution, matches production SQLite behavior.
-- **Cons:** In-memory database differs from disk-based in some edge cases (file locking, persistence not tested).
-
-**Example:**
-```python
-# content of tests/conftest.py
-import pytest
-import sqlite3
-from pathlib import Path
-
-@pytest.fixture
-def db_path(tmp_path: Path):
-    """Provide an isolated database path for each test."""
-    db_file = tmp_path / "test.db"
-    yield str(db_file)
-    # No cleanup needed - tmp_path is automatic
-
-@pytest.fixture
-def db_connection(db_path: str):
-    """Provide a database connection with schema initialized."""
-    import jellyswipe.db
-    original_db_path = jellyswipe.db.DB_PATH
-    jellyswipe.db.DB_PATH = db_path
-    jellyswipe.db.init_db()
-
-    conn = jellyswipe.db.get_db()
-    yield conn
-    conn.close()
-
-    # Restore original DB_PATH
-    jellyswipe.db.DB_PATH = original_db_path
-```
-
-### Pattern 2: Mock External API Calls with pytest-mock
-
-**What:** Use pytest-mock's `mocker` fixture to patch the `requests` library, preventing real HTTP calls to Jellyfin during tests.
-
-**When to use:** All JellyfinLibraryProvider tests that make HTTP requests.
-
-**Trade-offs:**
-- **Pros:** No external dependencies, fast tests, can simulate error conditions, deterministic.
-- **Cons:** Mocks may drift from real API behavior if not updated; doesn't validate integration with real Jellyfin server.
-
-**Example:**
-```python
-# content of tests/unit/test_jellyfin_library.py
-import pytest
-from unittest.mock import Mock
-from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-
-def test_fetch_deck_with_mocked_api(mocker):
-    """Test fetch_deck uses correct API parameters."""
-    # Mock the Session class to intercept HTTP requests
-    mock_session = mocker.patch('jellyswipe.jellyfin_library.requests.Session')
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = {
-        "Items": [
-            {
-                "Id": "movie-123",
-                "Name": "Test Movie",
-                "Overview": "A test movie",
-                "RunTimeTicks": 7200000000,  # 2 hours
-                "ProductionYear": 2024,
-                "CommunityRating": 8.5
-            }
-        ]
-    }
-    mock_session.return_value.request.return_value = mock_response
-
-    provider = JellyfinLibraryProvider("http://test.local")
-    provider._access_token = "test-token"
-    provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
-
-    deck = provider.fetch_deck()
-
-    assert len(deck) == 1
-    assert deck[0]["id"] == "movie-123"
-    assert deck[0]["title"] == "Test Movie"
-
-    # Verify the correct API call was made
-    mock_session.return_value.request.assert_called_once()
-    call_args = mock_session.return_value.request.call_args
-    assert call_args[0][0] == "GET"  # method
-    assert "/Items" in call_args[0][1]  # path
-    assert call_args[1]["params"]["ParentId"] == "lib-123"
-```
-
-### Pattern 3: Environment Variable Monkeypatching
-
-**What:** Use pytest's `monkeypatch` fixture to temporarily set environment variables for tests, then restore original values.
-
-**When to use:** Tests that depend on environment configuration (e.g., JELLYFIN_URL, TMDB_API_KEY).
-
-**Trade-offs:**
-- **Pros:** Isolates test configuration from system environment, allows testing different configurations.
-- **Cons:** Requires careful restoration (handled by monkeypatch automatically).
-
-**Example:**
-```python
-# content of tests/conftest.py
-import pytest
-import os
-
-@pytest.fixture
-def mock_env_vars(monkeypatch):
-    """Set required environment variables for tests."""
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-    monkeypatch.setenv("TMDB_API_KEY", "test-tmdb-key")
-    monkeypatch.setenv("FLASK_SECRET", "test-secret")
-    yield
-```
-
-### Pattern 4: Parametrized Fixtures for Test Variations
-
-**What:** Use pytest's `@pytest.fixture(params=[...])` to run the same test with different inputs or configurations.
-
-**When to use:** Testing multiple genre filters, error conditions, or API response variants.
-
-**Trade-offs:**
-- **Pros:** DRY, comprehensive coverage of variants, clear test organization.
-- **Cons:** Can obscure which parameter caused a failure if not careful with test names.
-
-**Example:**
-```python
-# content of tests/unit/test_jellyfin_library.py
-@pytest.fixture(params=[
-    "All",
-    "Sci-Fi",
-    "Recently Added",
-    "Action"
-])
-def genre_param(request):
-    """Parametrize genre filter tests."""
-    return request.param
-
-def test_fetch_deck_genre_filter(mocker, genre_param):
-    """Test fetch_deck with different genre filters."""
-    mock_session = mocker.patch('jellyswipe.jellyfin_library.requests.Session')
-    mock_response = Mock()
-    mock_response.ok = True
-    mock_response.json.return_value = {"Items": []}
-    mock_session.return_value.request.return_value = mock_response
-
-    provider = JellyfinLibraryProvider("http://test.local")
-    provider._access_token = "test-token"
-    provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
-
-    deck = provider.fetch_deck(genre_param)
-
-    # Verify correct genre parameter was passed
-    call_args = mock_session.return_value.request.call_args
-    params = call_args[1]["params"]
-    if genre_param == "Recently Added":
-        assert params["SortBy"] == "DateCreated"
-    elif genre_param in ("All", "Sci-Fi"):
-        assert params["SortBy"] in ("Random", "SortName")
-```
-
-## Data Flow
-
-### Test Execution Flow
+### System Diagram (Post-Hardening)
 
 ```
-[Test Function]
-    ↓ (request fixture)
-[conftest.py] → [db_connection fixture] → [create temp DB]
-    ↓                                      ↓
-[monkeypatch fixture] → [set env vars]   [run schema migrations]
-    ↓                                      ↓
-[mocker fixture] → [patch requests]       [get_db() returns connection]
-    ↓                                      ↓
-[Call code under test]                    [assert database state]
-    ↓                                      ↓
-[Assertions] ←── [Check return values] ←── [Verify side effects]
-    ↓
-[Test cleanup] ← [mocker undo patches] ← [tmp_path deleted]
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Flask Routes (__init__.py)                    │
+│                                                                      │
+│  /get-trailer ─┐                                                    │
+│  /cast ────────┤  rate_limited()     tmdb_get()    redact_errors()  │
+│  /proxy ───────┤  ───────────►  ───────────────►  ────────────────  │
+│  /watchlist/add┘     ↓                 ↓                ↓           │
+│                   TokenBucket    http_client.py    error_handler    │
+└──────────────────────┬───────────────┬──────────────────────────────┘
+                       │               │
+                       ▼               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     http_client.py (NEW)                              │
+│                                                                      │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────────┐ │
+│  │  HttpClient       │  │  tmdb_get()      │  │  TokenBucketRate   │ │
+│  │  .get(url, opts)  │  │  (path, params)  │  │  Limiter           │ │
+│  │  .post(url, opts) │  │  Bearer header   │  │  per-IP buckets    │ │
+│  │  timeout enforce  │  │  no key in URL   │  │  gevent-safe       │ │
+│  │  User-Agent       │  │  timeout enforce │  │                    │ │
+│  │  structured log   │  └──────────────────┘  └────────────────────┘ │
+│  └──────────────────┘                                                │
+│  ┌──────────────────┐                                                │
+│  │  validate_url()  │  ← SSRF guard, called at boot on JELLYFIN_URL │
+│  │  reject 169.254  │                                                │
+│  │  allow loopback   │                                                │
+│  │  allow RFC 1918   │                                                │
+│  └──────────────────┘                                                │
+└──────────────────────────┬───────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│              JellyfinLibraryProvider (MODIFIED)                       │
+│                                                                      │
+│  Replaces self._session = requests.Session()                         │
+│  with HttpClient instance for all Jellyfin calls                     │
+│  (keeps existing retry/reset logic intact)                           │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Mock Data Flow
+### Component Boundaries
+
+| Component | Responsibility | New or Modified | Communicates With |
+|-----------|---------------|-----------------|-------------------|
+| `http_client.HttpClient` | All outbound HTTP with enforced timeouts, User-Agent, structured logging | **NEW** | `requests` library (wraps it) |
+| `http_client.tmdb_get()` | TMDB API calls with Bearer auth, no key in URL | **NEW** (helper on module) | `HttpClient` |
+| `http_client.TokenBucketRateLimiter` | Per-IP token-bucket rate limiting | **NEW** | Flask routes (decorator) |
+| `http_client.validate_jellyfin_url()` | SSRF URL validation at boot | **NEW** (pure function) | `__init__.py` at module load |
+| `__init__.py` routes | Use `tmdb_get()` instead of raw `requests.get()` | **MODIFIED** | `http_client` |
+| `__init__.py` error handler | `@app.errorhandler(500)` with request ID, redacted body | **MODIFIED** | Flask, `http_client` |
+| `jellyfin_library.py` | Replace `requests.Session` with `HttpClient` | **MODIFIED** | `http_client` |
+| `base.py` | Abstract provider contract | **UNCHANGED** | — |
+| `db.py` | SQLite operations | **UNCHANGED** | — |
+
+### Data Flow
+
+#### TMDB Call (Post-Hardening)
 
 ```
-[Test calls provider.fetch_deck()]
-    ↓
-[Provider calls self._api()]
-    ↓
-[Provider calls self._session.request()]
-    ↓
-[mocker.patch intercepts call] → [Returns mock_response]
-    ↓
-[Provider processes mock_response] → [Returns deck]
-    ↓
-[Test asserts deck structure]
+Route handler (get_trailer)
+  → @rate_limited()          # TokenBucket check on client IP
+  → @redact_errors()         # Catch-all → generic 500 + request_id
+  → tmdb_get("/search/movie", params={query, year})
+      → HttpClient.get()
+          → Enforces timeout=(3.05, 10)
+          → Adds Authorization: Bearer <token> header
+          → Adds User-Agent: JellySwipe/1.0
+          → Logs request start/error at DEBUG level
+      → Returns parsed JSON
+  → Returns jsonify result or raises
 ```
 
-### Database State Flow
+#### Jellyfin Call (Post-Hardening)
 
 ```
-[Test starts]
-    ↓
-[db_connection fixture creates temp DB]
-    ↓
-[init_db() runs migrations]
-    ↓
-[Test performs database operations]
-    ↓
-[Test queries and asserts state]
-    ↓
-[Test ends]
-    ↓
-[db_connection fixture closes connection]
-    ↓
-[tmp_path deletes temp directory]
+JellyfinLibraryProvider._api()
+  → self._client.request("GET", path, ...)
+      → HttpClient.request()
+          → Enforces timeout=(3.05, 30) (or caller-specified)
+          → Adds User-Agent: JellySwipe/1.0
+          → Logs at DEBUG level
+      → Returns response
+  → Provider handles 401 retry/reset as before
 ```
 
-## Scaling Considerations
+#### SSRF Validation (At Boot)
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 0-100 tests | Monolithic conftest.py, function-scoped fixtures, in-memory SQLite |
-| 100-1000 tests | Split conftest.py by package (unit/conftest.py, integration/conftest.py), module-scoped DB fixture where safe, consider pytest-xdist for parallel execution |
-| 1000+ tests | Session-scoped expensive resources (e.g., mock Jellyfin responses), test categorization with markers, separate CI stages (unit → integration) |
+```
+__init__.py module load
+  → validate_jellyfin_url(JELLYFIN_URL)
+      → Parse URL with urllib.parse
+      → Resolve hostname to IP via socket.getaddrinfo
+      → Reject: 169.254.0.0/16 (metadata)
+      → Reject: 0.0.0.0/8, 224.0.0.0/4 (special)
+      → Allow: 127.0.0.0/8 (loopback)
+      → Allow: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (RFC 1918)
+      → Allow: public IPs (normal Jellyfin servers)
+      → Raises RuntimeError on reject → app won't start
+```
 
-### Scaling Priorities
+## Detailed Design Decisions
 
-1. **First bottleneck:** Test execution time. Mitigate with: parallel execution (pytest-xdist), smarter fixture scoping (use module/session where safe), mock expensive operations.
-2. **Second bottleneck:** Test flakiness from shared state. Mitigate with: fixture isolation, unique temporary resources, explicit teardown.
+### Decision 1: Single `http_client.py` Module (Not a Package)
 
-## Anti-Patterns
+**Use one module** rather than splitting into `jellyswipe/http/` with `__init__.py`, `client.py`, `rate_limiter.py`, `ssrf.py`.
 
-### Anti-Pattern 1: Tightly Coupled Tests to Flask Context
+**Why:** The total new code is ~150-200 lines. A package adds import complexity (`from jellyswipe.http.client import HttpClient`) for zero benefit at this scale. One module keeps all HTTP concerns co-located and discoverable.
 
-**What people do:** Using Flask's test client for all tests, including unit tests of business logic.
+**When to split:** If the module exceeds ~400 lines or a second external service (beyond TMDB/Jellyfin) is added, promote to a package.
 
-**Why it's wrong:** Tests become slow, brittle, and test the framework instead of business logic. Difficult to isolate failures.
+### Decision 2: `HttpClient` Wraps `requests` (Not a Replacement)
 
-**Do this instead:** Test functions and classes directly. Use Flask test client only for integration tests of route handlers.
+**Wrap `requests`** with a thin class that enforces timeouts, adds User-Agent, and logs — don't reach for `httpx` or `aiohttp`.
+
+**Why:**
+- `requests` is already a dependency and already works with gevent's monkey-patching
+- The provider's retry/reset/auth logic is tightly coupled to `requests.Response` objects
+- Swapping HTTP libraries is a high-risk, low-reward change in a security-focused milestone
+- `httpx` would add a new dependency and its gevent compatibility requires careful configuration
+
+**HttpClient shape:**
 
 ```python
-# BAD - Testing business logic through Flask
-def test_fetch_deck_via_flask(client):
-    response = client.get("/deck?genre=Sci-Fi")
-    assert response.status_code == 200
-    # This tests Flask routing, not the provider logic
+class HttpClient:
+    """Centralized HTTP client with enforced timeouts and structured logging."""
 
-# GOOD - Testing provider logic directly
-def test_fetch_deck_provider_logic(mocker):
-    provider = JellyfinLibraryProvider("http://test.local")
-    # Mock and test directly
-    deck = provider.fetch_deck("Sci-Fi")
-    assert deck is not None
+    DEFAULT_TIMEOUT = (3.05, 10)  # (connect, read) in seconds
+    USER_AGENT = "JellySwipe/1.0"
+
+    def __init__(self, *, timeout=None, headers=None):
+        self._session = requests.Session()
+        self._timeout = timeout or self.DEFAULT_TIMEOUT
+        if headers:
+            self._session.headers.update(headers)
+        self._session.headers["User-Agent"] = self.USER_AGENT
+
+    def get(self, url, **kwargs):
+        kwargs.setdefault("timeout", self._timeout)
+        return self._session.get(url, **kwargs)
+
+    def post(self, url, **kwargs):
+        kwargs.setdefault("timeout", self._timeout)
+        return self._session.post(url, **kwargs)
+
+    def request(self, method, url, **kwargs):
+        kwargs.setdefault("timeout", self._timeout)
+        return self._session.request(method, url, **kwargs)
 ```
 
-### Anti-Pattern 2: Not Mocking External Dependencies
+**Key behavior:** If a caller passes `timeout=`, the explicit value wins (allows provider's `fetch_library_image` to keep its 60s timeout for large images). The default is always applied when omitted.
 
-**What people do:** Tests make real HTTP calls to Jellyfin or TMDB during test runs.
+### Decision 3: TMDB Bearer Auth via Module-Level Helper
 
-**Why it's wrong:** Tests are slow, flaky, depend on external services, may hit rate limits, don't test error conditions deterministically.
+TMDB's "API Read Access Token" (already stored as `TMDB_API_KEY`) doubles as a Bearer token. Per TMDB docs (HIGH confidence, verified via Context7 and official docs):
 
-**Do this instead:** Mock all external API calls with pytest-mock. Use real integration tests only in a separate suite with proper isolation.
+> "The default method to authenticate is with your access token... This token is expected to be sent along as an Authorization header... Using the Bearer token has the added benefit of being a single authentication process that you can use across both the v3 and v4 methods."
+
+**This means the env var `TMDB_API_KEY` already IS the Bearer token.** No new env var needed. Just change the call pattern:
 
 ```python
-# BAD - Real HTTP call
-def test_fetch_deck():
-    provider = JellyfinLibraryProvider(os.getenv("JELLYFIN_URL"))
-    deck = provider.fetch_deck()  # Makes real HTTP call
+# BEFORE (leaks key in URLs, no timeout)
+r = requests.get(f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query=...").json()
 
-# GOOD - Mocked HTTP call
-def test_fetch_deck(mocker):
-    mocker.patch('jellyswipe.jellyfin_library.requests.Session')
-    provider = JellyfinLibraryProvider("http://test.local")
-    deck = provider.fetch_deck()  # Uses mock
+# AFTER (Bearer header, timeout enforced, no key in URL)
+def tmdb_get(path: str, *, params: dict = None) -> dict:
+    """TMDB API call with Bearer auth. Never puts key in URL."""
+    url = f"https://api.themoviedb.org/3{path}"
+    headers = {"Authorization": f"Bearer {TMDB_API_KEY}"}
+    r = _shared_client.get(url, params=params, headers=headers, timeout=(3.05, 10))
+    r.raise_for_status()
+    return r.json()
 ```
 
-### Anti-Pattern 3: Shared Database State Across Tests
+**No env var rename needed.** The existing `TMDB_API_KEY` contains the "API Read Access Token" — same string, different delivery mechanism.
 
-**What people do:** Using a single database file for multiple tests without proper isolation.
+### Decision 4: Token-Bucket Rate Limiter (In-Memory, Gevent-Safe)
 
-**Why it's wrong:** Tests interfere with each other, flaky failures, hard to debug, order-dependent behavior.
+**Use a simple dict-based token bucket** per client IP, no external store, no threading locks.
 
-**Do this instead:** Use tmp_path fixture for per-test databases or in-memory SQLite (:memory:).
+**Gevent safety reasoning:** Gevent uses cooperative scheduling. Between `time.sleep()` calls (which yield to the event loop), a single greenlet executes atomically. The rate limiter's read-check-update on a dict is a single code path with no yields, making it inherently atomic under gevent. No `threading.Lock` needed.
 
 ```python
-# BAD - Shared database
-DB_PATH = "/tmp/test.db"  # Shared across all tests
+class TokenBucketRateLimiter:
+    """Per-IP token bucket rate limiter. Gevent-safe (cooperative scheduling)."""
 
-# GOOD - Isolated database
-@pytest.fixture
-def db_path(tmp_path):
-    yield tmp_path / "test.db"  # Unique per test
+    def __init__(self, rate: float = 10, capacity: int = 20):
+        self._rate = rate          # Tokens per second
+        self._capacity = capacity  # Max burst
+        self._buckets: dict[str, tuple[float, float]] = {}  # ip → (tokens, last_refill)
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        tokens, last = self._buckets.get(key, (self._capacity, now))
+        elapsed = now - last
+        tokens = min(self._capacity, tokens + elapsed * self._rate)
+        if tokens >= 1.0:
+            self._buckets[key] = (tokens - 1.0, now)
+            return True
+        self._buckets[key] = (tokens, now)
+        return False
 ```
 
-### Anti-Pattern 4: Testing Implementation Details
+**Rate/capacity tuning:** 10 tokens/sec with capacity 20 means a single IP can burst 20 requests then sustain 10/sec. This is generous for a home-network movie swiping app but prevents abuse of the TMDB proxy endpoints.
 
-**What people do:** Testing private methods or internal state instead of public behavior.
+**Cleanup:** Add a periodic sweep of stale entries (IPs with no activity in >5 minutes) to prevent unbounded memory growth in long-running gunicorn workers.
 
-**Why it's wrong:** Tests break when implementation changes without behavior change, tests become maintenance burden.
-
-**Do this instead:** Test public interfaces and observable behavior. Use black-box testing principles.
+**Applied via decorator:**
 
 ```python
-# BAD - Testing private method
-def test_private_method(mocker):
-    provider = JellyfinLibraryProvider("http://test.local")
-    result = provider._auth_headers()  # Private method
+_rate_limiter = TokenBucketRateLimiter(rate=10, capacity=20)
 
-# GOOD - Testing public behavior
-def test_api_call_uses_auth_headers(mocker):
-    provider = JellyfinLibraryProvider("http://test.local")
-    # Verify that public method makes authenticated call
-    deck = provider.fetch_deck()
-    mocker.assert_called_with(headers={"Authorization": ...})
+def rate_limited(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        ip = request.remote_addr or "unknown"
+        if not _rate_limiter.allow(ip):
+            return jsonify({"error": "Rate limit exceeded", "request_id": g.request_id}), 429
+        return f(*args, **kwargs)
+    return decorated
 ```
 
-## Integration Points
+### Decision 5: Error Redaction via Flask Error Handler + Request ID
 
-### External Services
+**Replace all `jsonify({'error': str(e)})` with a Flask error handler** that produces generic messages plus a request ID for log correlation.
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| **Jellyfin API** | Mock requests.Session with pytest-mock | Test error conditions (401, 403, 404, 500), timeout scenarios, malformed responses |
-| **TMDB API** | Mock requests library | Same as Jellyfin - this app calls TMDB from routes, not provider |
-| **SQLite** | In-memory database with tmp_path fixture | Test schema migrations, constraints, row_factory behavior |
+```python
+@app.before_request
+def assign_request_id():
+    g.request_id = secrets.token_hex(8)
 
-### Internal Boundaries
+@app.errorhandler(Exception)
+def handle_unhandled(exc):
+    request_id = g.get("request_id", "unknown")
+    app.logger.error("Unhandled exception request_id=%s: %s", request_id, exc)
+    return jsonify({
+        "error": "Internal server error",
+        "request_id": request_id,
+    }), 500
+```
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| **db.py ↔ jellyfin_library.py** | No direct communication | Database stores room/swipe/match data; provider supplies movie metadata. Tests are independent. |
-| **jellyfin_library.py ↔ base.py** | Inheritance | JellyfinLibraryProvider implements LibraryMediaProvider abstract base. Test both concrete implementation and contract compliance. |
-| **Flask routes ↔ jellyswipe modules** | Direct imports | Routes import and call functions from db.py and jellyfin_library.py. Unit tests skip routes; integration tests use Flask test client. |
-| **Environment → jellyswipe/** | os.getenv() calls | Use monkeypatch fixture to set/override environment variables per test. |
+**Route-level error handling changes:**
+- Remove `except Exception as e: return jsonify({'error': str(e)}), 500` from routes
+- Let exceptions propagate to the global handler
+- Keep **specific** exception handlers (e.g., `RuntimeError` for "item lookup failed" → 404) where the route explicitly wants to map a known error to a specific status code
+- The global handler catches everything that falls through
 
-### New Components vs. Modified Code
+**This means:**
+- `get_trailer()` / `get_cast()`: Remove the broad `except Exception` → let the global handler redact
+- Keep `except RuntimeError` for known 404 cases ("item lookup failed")
+- `add_to_watchlist()`: Remove `except Exception as e` → let propagate
+- `get_server_info()`: Same pattern
 
-**New Components (to be created):**
-- `tests/conftest.py` - Shared fixtures
-- `tests/unit/test_db.py` - Database tests
-- `tests/unit/test_jellyfin_library.py` - Provider tests
-- `tests/unit/test_base.py` - Abstract base tests
-- `tests/integration/test_routes.py` - Route tests (optional)
+### Decision 6: SSRF Validation — Pure Function at Boot
 
-**Modified Code (existing, not requiring changes):**
-- `jellyswipe/db.py` - Testable as-is with fixture support
-- `jellyswipe/jellyfin_library.py` - Testable as-is with mocking
-- `jellyswipe/base.py` - Testable via concrete implementation
-- `jellyswipe/__init__.py` - Not tested directly in v1.3 (Flask routes deferred)
+**Validate `JELLYFIN_URL` once at module load**, fail fast with `RuntimeError` if it resolves to a metadata IP.
 
-**Build Order (suggested):**
-1. **Phase 1:** Set up test infrastructure (pytest, pytest-mock, conftest.py with basic fixtures)
-2. **Phase 2:** Test database module (test_db.py) - lowest level, no dependencies
-3. **Phase 3:** Test base abstraction (test_base.py) - defines contract
-4. **Phase 4:** Test Jellyfin provider (test_jellyfin_library.py) - depends on base, mocks requests
-5. **Phase 5 (deferred):** Integration tests for Flask routes - depends on all above, requires Flask test client
+```python
+import ipaddress
+import socket
+from urllib.parse import urlparse
+
+def validate_jellyfin_url(url: str) -> None:
+    """Raise RuntimeError if URL resolves to a metadata or special-use IP."""
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise RuntimeError(f"JELLYFIN_URL has no hostname: {url}")
+
+    # Allow if hostname is already an allowed IP literal
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if _is_blocked_ip(ip):
+            raise RuntimeError(f"JELLYFIN_URL resolves to blocked address: {ip}")
+        return  # Non-blocked IP literal is fine
+    except ValueError:
+        pass  # Not an IP literal, resolve via DNS
+
+    # Resolve hostname
+    try:
+        addrs = socket.getaddrinfo(hostname, parsed.port)
+    except socket.gaierror as exc:
+        raise RuntimeError(f"JELLYFIN_URL hostname unresolvable: {hostname}") from exc
+
+    for family, type_, proto, canon, sockaddr in addrs:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if _is_blocked_ip(ip):
+            raise RuntimeError(f"JELLYFIN_URL resolves to blocked address: {ip}")
+
+def _is_blocked_ip(ip) -> bool:
+    """Block metadata, link-local, and other special-use addresses."""
+    blocked = [
+        ipaddress.ip_network("169.254.0.0/16"),   # AWS/GCP metadata
+        ipaddress.ip_network("0.0.0.0/8"),         # "this network"
+        ipaddress.ip_network("224.0.0.0/4"),       # Multicast
+        ipaddress.ip_network("::/128"),             # Unspecified IPv6
+        ipaddress.ip_network("ff00::/8"),           # IPv6 multicast
+    ]
+    return any(ip in net for net in blocked)
+```
+
+**Explicitly ALLOWED:**
+- `127.0.0.0/8` (loopback — Docker host networking)
+- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (RFC 1918 — home networks)
+- Public IPs (normal remote Jellyfin servers)
+
+**Placement:** Call in `__init__.py` right after reading `JELLYFIN_URL` from env, before creating the provider singleton.
+
+### Decision 7: Provider Integration — Minimal Interface Change
+
+**Replace `requests.Session` inside `JellyfinLibraryProvider` with `HttpClient`**, keeping the existing `_api()`, `_auth_headers()`, retry/reset logic completely intact.
+
+```python
+# In jellyfin_library.py constructor:
+def __init__(self, base_url: str) -> None:
+    self._base = base_url.rstrip("/")
+    self._client = HttpClient(timeout=(3.05, 30))  # Jellyfin default 30s
+    self._access_token: Optional[str] = None
+    # ... rest unchanged
+```
+
+**The provider calls `self._client.request()` instead of `self._session.request()`** — a find-and-replace that preserves all existing behavior. Individual methods that need different timeouts pass `timeout=` explicitly:
+
+```python
+# fetch_library_image keeps its longer timeout:
+r = self._client.get(url, params={"maxHeight": 720}, headers=self._auth_headers(), timeout=(5, 60))
+```
+
+**No changes to `base.py`** — the `LibraryMediaProvider` ABC is unaffected.
+
+## File-by-File Change Map
+
+### `jellyswipe/http_client.py` — NEW (~120 lines)
+
+```python
+"""Centralized HTTP client with timeout enforcement, TMDB Bearer auth,
+rate limiting, and SSRF URL validation."""
+```
+
+Exports:
+- `HttpClient` — Wrapper class for all outbound HTTP
+- `tmdb_get(path, *, params)` — TMDB-specific helper with Bearer auth
+- `TokenBucketRateLimiter` — Per-IP rate limiter
+- `rate_limited` — Decorator for Flask routes
+- `validate_jellyfin_url(url)` — Boot-time SSRF guard
+- `rate_limiter` — Module-level singleton instance
+
+### `jellyswipe/__init__.py` — MODIFIED
+
+| Change | Lines Affected | Description |
+|--------|---------------|-------------|
+| Import `http_client` | ~66 | `from .http_client import tmdb_get, rate_limited, validate_jellyfin_url, rate_limiter` |
+| SSRF validation | After ~62 | `validate_jellyfin_url(JELLYFIN_URL)` — fails fast at boot |
+| Request ID middleware | After ~60 | `@app.before_request` assigning `g.request_id` |
+| Error handler | After middleware | `@app.errorhandler(Exception)` with redaction |
+| `get_trailer()` rewrite | 182-199 | Replace 2x `requests.get()` with `tmdb_get()`, add `@rate_limited` |
+| `get_cast()` rewrite | 201-225 | Replace 2x `requests.get()` with `tmdb_get()`, add `@rate_limited` |
+| `/proxy` rate limit | 523-536 | Add `@rate_limited` decorator |
+| `add_to_watchlist()` | 227-240 | Add `@rate_limited`, remove `str(e)` leak |
+| `get_server_info()` | 430-434 | Remove `str(e)` leak |
+| Remove `import requests` | ~14 | No longer needed at route level |
+
+### `jellyswipe/jellyfin_library.py` — MODIFIED
+
+| Change | Lines Affected | Description |
+|--------|---------------|-------------|
+| Import | ~11 | `from .http_client import HttpClient` |
+| Constructor | 42-49 | `self._client = HttpClient(timeout=(3.05, 30))` replaces `self._session` |
+| `reset()` | 51-57 | `self._client = HttpClient(...)` replaces session rebuild |
+| `_api()` | 133-163 | `self._client.request()` replaces `self._session.request()` |
+| `_login_from_env()` | 91-96 | `self._client.post()` replaces `self._session.post()` |
+| `_verify_items()` | 119-124 | `self._client.get()` replaces `self._session.get()` |
+| `_user_id()` fallback | 180 | `self._client.get()` replaces `self._session.get()` |
+| `server_info()` fallback | 354 | `HttpClient` instance call replaces raw `requests.get()` |
+| `fetch_library_image()` | 369-383 | `self._client.get()` with `timeout=(5, 60)` |
+| `authenticate_user_session()` | 418-423 | `self._client.post()` |
+| `resolve_user_id_from_token()` | 442, 450 | `self._client.get()` |
+| `add_to_user_favorites()` | 476 | `self._client.post()` |
+
+## Build Order
+
+Dependencies determine the order. Each step produces testable, deployable code.
+
+```
+Step 1: SSRF Validation (validate_jellyfin_url)
+  ↓   No dependencies on other new code
+  ↓   Pure function, unit-testable in isolation
+  ↓
+Step 2: HttpClient class
+  ↓   No dependencies on other new code
+  ↓   Wraps requests, unit-testable with mocked session
+  ↓
+Step 3: Integrate HttpClient into JellyfinLibraryProvider
+  ↓   Depends on Step 2
+  ↓   Find-and-replace self._session → self._client
+  ↓   Existing provider tests validate no regression
+  ↓
+Step 4: TMDB Bearer auth (tmdb_get helper)
+  ↓   Depends on Step 2
+  ↓   Rewrite 4 route-level requests.get calls
+  ↓   Parallel with Step 3 (different files)
+  ↓
+Step 5: Error redaction (request ID + global handler)
+  ↓   No code dependency on Steps 2-4
+  ↓   Can be done in parallel
+  ↓   Remove str(e) leaks from routes
+  ↓
+Step 6: Rate limiter + decorator
+  ↓   Depends on request ID middleware (Step 5)
+  ↓   Apply @rate_limited to 4 routes
+  ↓
+Step 7: Security tests
+      Depends on all above
+      SSRF rejection, timeout enforcement, error redaction, rate limiting
+```
+
+**Parallelization:** Steps 3, 4, 5 can run in parallel after Step 2 completes.
+
+## Gevent Compatibility Notes
+
+| Concern | Resolution | Confidence |
+|---------|-----------|------------|
+| `requests` under gevent | Works via gevent monkey-patching of `socket` (already in production) | HIGH |
+| Rate limiter dict access | Safe: gevent greenlets are cooperatively scheduled, dict read-modify-write between yields is atomic | HIGH |
+| `socket.getaddrinfo` in SSRF validation | Blocking call at boot, runs once before any greenlets — no issue | HIGH |
+| `time.time()` monotonicity | `time.time()` is fine for rate limiting; gevent doesn't affect it | HIGH |
+| `secrets.token_hex` for request IDs | Stdlib, no gevent interaction | HIGH |
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Global `requests.Session` Shared Across Routes and Provider
+
+**What:** Creating one `requests.Session()` and sharing it between `__init__.py` routes and the `JellyfinLibraryProvider`.
+
+**Why bad:** The provider sets `Authorization` headers and `Content-Type` on its session. Sharing it would leak Jellyfin auth headers into TMDB calls or vice versa.
+
+**Instead:** Each `HttpClient` instance wraps its own `requests.Session`. The provider has its own client instance; TMDB calls use a separate shared client or the `tmdb_get()` helper.
+
+### Anti-Pattern 2: Rate Limiter with `threading.Lock`
+
+**What:** Adding `threading.Lock()` around rate limiter state under gevent.
+
+**Why bad:** Under gevent's cooperative scheduling, locks are unnecessary for single-yield code paths. Adding locks introduces deadlock risk and complexity for zero benefit.
+
+**Instead:** Plain dict + `time.time()`. Cooperative scheduling makes this safe.
+
+### Anti-Pattern 3: Over-Abstracting Error Redaction
+
+**What:** Creating a custom exception hierarchy with `RedactedError`, `PublicError`, etc.
+
+**Why bad:** For a 4-route Flask app with ~6 error paths, a custom exception hierarchy adds complexity without value. The global `@app.errorhandler(Exception)` + keeping specific `RuntimeError` catches for known 404s is sufficient.
+
+**Instead:** Global error handler redacts all unhandled exceptions. Routes that want specific status codes catch their known exceptions explicitly and return the appropriate response — without `str(e)` in the body.
+
+### Anti-Pattern 4: Validating Every Outbound URL for SSRF
+
+**What:** Running `validate_jellyfin_url()` on every request or validating TMDB URLs.
+
+**Why bad:** TMDB URLs are hardcoded (`https://api.themoviedb.org/3/...`), not user-controlled. SSRF validation only matters for `JELLYFIN_URL` which comes from environment config. Over-validating wastes CPU and adds false-positive risk.
+
+**Instead:** Validate `JELLYFIN_URL` once at boot. TMDB URLs are constant strings. The only user-controlled URL input is the `/proxy?path=` parameter, which already has regex validation.
+
+## Scalability Considerations
+
+| Concern | Current (1-5 users) | Moderate (50 concurrent) | Notes |
+|---------|---------------------|--------------------------|-------|
+| Rate limiter memory | ~0 KB | ~50 KB (50 IP entries) | Cleanup stale entries periodically |
+| Request ID overhead | Negligible | Negligible | `secrets.token_hex(8)` is fast |
+| HttpClient session pooling | 1 connection per host | Requests Session pools automatically | No change needed |
+| SSRF DNS resolution | Once at boot | Once at boot | Not per-request |
 
 ## Sources
 
-- **pytest documentation:** https://docs.pytest.org/en/stable/ (HIGH confidence - official docs)
-- **Flask testing guide:** https://flask.palletsprojects.com/en/stable/testing/ (HIGH confidence - official docs)
-- **pytest-mock documentation:** https://pytest-mock.readthedocs.io/ (HIGH confidence - official docs)
-- **Context7 research:** pytest fixtures, parametrization, mocking patterns (HIGH confidence - curated docs)
+- **TMDB Authentication docs** — https://developer.themoviedb.org/docs/authentication-application (HIGH confidence — official docs, verified via Context7 + direct fetch)
+- **Requests timeout docs** — https://requests.readthedocs.io/en/latest/user/advanced/ (HIGH confidence — official docs, verified via Context7)
+- **Gevent cooperative scheduling** — Training data (HIGH confidence — well-established gevent behavior, confirmed by production use in this app since v1.2)
+- **Existing codebase** — `jellyswipe/__init__.py`, `jellyswipe/jellyfin_library.py`, `jellyswipe/base.py` (HIGH confidence — direct code reading)
 
 ---
-*Architecture research for: Unit testing architecture for Jelly Swipe Flask application*
-*Researched: 2026-04-25*
+*Architecture research for: v1.6 Outbound HTTP Hardening*
+*Researched: 2026-04-26*

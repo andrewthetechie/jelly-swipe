@@ -4,6 +4,37 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 ---
 
+## v1.6 — Harden Outbound HTTP (Planned)
+
+**Status:** Planning
+**Theme:** Harden outbound HTTP: TMDB calls, image proxy, and SSRF surface
+**Epic:** EPIC-04
+**Severity:** High
+
+**Problems:**
+- No timeout on requests.get(...) for TMDB calls
+- TMDB API key in URL query string (logged by proxies)
+- Raw exception-message leak to clients
+- /proxy allowlist unrate-limited and unauthenticated
+- No URL validation (SSRF vulnerability)
+- server_info() fallback with limited error handling
+
+**Fix Outline:**
+- Centralize outbound HTTP through one helper with timeouts
+- Replace TMDB v3 URL-key with v4 bearer token
+- Replace str(e) exposure with RequestId + structured log
+- Add rate limiting to sensitive endpoints
+- Add JELLYFIN_URL validator at boot
+
+**Requirements:** 20 (16 high, 4 medium)
+**Acceptance:**
+- All requests.* calls have timeouts
+- TMDB key never appears in URL strings
+- 5xx responses contain request id, not upstream exception
+- Unit test asserts metadata-IP base URLs are rejected
+
+---
+
 ## v1.5 — XSS Security Fix
 
 **Shipped:** 2026-04-26

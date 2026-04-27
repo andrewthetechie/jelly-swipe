@@ -16,8 +16,38 @@ import logging
 import traceback
 import sqlite3, os, random, re, json, secrets, time
 from jellyswipe.http_client import make_http_request
-from jellyswipe.rate_limiter import rate_limiter
+from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
 from jellyswipe.ssrf_validator import validate_jellyfin_url
+
+_RATE_LIMITS = {
+    'get-trailer': 20,
+    'cast': 20,
+    'watchlist/add': 30,
+    'proxy': 10,
+}
+
+_logger = logging.getLogger(__name__)
+
+
+def generate_request_id() -> str:
+    return f"req_{int(time.time())}_{secrets.token_hex(4)}"
+
+
+def _check_rate_limit(endpoint: str) -> Optional[Tuple[Response, int]]:
+    allowed, retry_after = _rate_limiter.check(endpoint, request.remote_addr, _RATE_LIMITS[endpoint])
+    if not allowed:
+        _logger.warning("rate_limit_exceeded", extra={
+            'endpoint': endpoint,
+            'ip': request.remote_addr,
+            'retry_after': retry_after,
+        })
+        body = jsonify({'error': 'Rate limit exceeded', 'request_id': request.environ.get('jellyswipe.request_id', 'unknown')})
+        resp = body, 429
+        # Flask wraps tuples (response, status) — we need to return properly
+        response = Response(response=body.response, status=429, content_type='application/json')
+        response.headers['Retry-After'] = str(int(retry_after) + 1)
+        return response
+    return None
 
 # Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -123,9 +153,6 @@ def create_app(test_config=None):
     def add_request_id_header(response):
         response.headers['X-Request-Id'] = get_request_id()
         return response
-
-    def generate_request_id() -> str:
-        return f"req_{int(time.time())}_{secrets.token_hex(4)}"
 
     def get_request_id() -> str:
         return request.environ.get('jellyswipe.request_id', 'unknown')
@@ -270,8 +297,10 @@ def create_app(test_config=None):
         return None
 
     @app.route('/get-trailer/<movie_id>')
-    @rate_limiter.limit('get-trailer')
     def get_trailer(movie_id):
+        rl = _check_rate_limit('get-trailer')
+        if rl:
+            return rl
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
             search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
@@ -306,8 +335,10 @@ def create_app(test_config=None):
             return make_error_response('Internal server error', 500)
 
     @app.route('/cast/<movie_id>')
-    @rate_limiter.limit('cast')
     def get_cast(movie_id):
+        rl = _check_rate_limit('cast')
+        if rl:
+            return rl
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
             search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
@@ -347,8 +378,10 @@ def create_app(test_config=None):
             return make_error_response('Internal server error', 500, extra_fields={'cast': []})
 
     @app.route('/watchlist/add', methods=['POST'])
-    @rate_limiter.limit('watchlist/add')
     def add_to_watchlist():
+        rl = _check_rate_limit('watchlist/add')
+        if rl:
+            return rl
         try:
             data = request.json
             movie_id = data.get('movie_id')
@@ -643,8 +676,10 @@ def create_app(test_config=None):
                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
     @app.route('/proxy')
-    @rate_limiter.limit('proxy')
     def proxy():
+        rl = _check_rate_limit('proxy')
+        if rl:
+            return rl
         path = request.args.get('path')
         if not path:
             abort(403)

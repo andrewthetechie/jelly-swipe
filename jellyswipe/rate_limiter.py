@@ -107,6 +107,11 @@ class RateLimiter:
             else:
                 return (False, bucket.retry_after())
 
+    def reset(self):
+        """Clear all buckets. Useful for test isolation."""
+        with self._lock:
+            self._buckets.clear()
+
     def _evict_stale(self):
         """Remove buckets not accessed in stale_seconds. Called under lock."""
         now = time.monotonic()

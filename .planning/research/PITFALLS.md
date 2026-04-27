@@ -1,223 +1,213 @@
 # Pitfalls Research
 
-**Domain:** Python Flask web application (unit testing)
-**Researched:** 2026-04-25
+**Domain:** Flask + gevent outbound HTTP hardening (centralized client, SSRF validation, rate limiting, error redaction)
+**Researched:** 2026-04-26
 **Confidence:** HIGH
 
 ## Critical Pitfalls
 
-### Pitfall 1: Over-mocking External Dependencies
+### Pitfall 1: In-Memory Rate Limiter State Is Per-Worker, Not Global
 
 **What goes wrong:**
-Tests mock out too much of the Jellyfin API, TMDB API, database, or Flask request context, creating tests that pass even when the actual integration fails. Mocks return unrealistic data that doesn't match real API responses, hiding integration bugs.
+A token-bucket rate limiter stored in a Python module-level dict or class attribute lives inside **one gunicorn worker process**. With multiple gunicorn workers (`--workers N`), each worker gets its own independent limiter. A client that hits the rate limit on worker 1 can immediately succeed on worker 2, effectively multiplying the allowed rate by the worker count.
 
 **Why it happens:**
-When adding tests to existing code, it's tempting to mock all external dependencies to avoid network calls and setup complexity. The JellyfinLibraryProvider makes real HTTP requests, so developers mock `requests.Session` or `requests.get()` to avoid testing against a real server. This creates a false sense of security.
+Gunicorn uses a pre-fork model. The gevent worker class monkey-patches inside each forked worker — not in the master. Each worker process has its own Python interpreter, its own copy of module globals, and its own in-memory data structures. Developers coming from threaded servers (gthread) or single-worker setups assume "in-memory" means "shared across all concurrent requests," but with gunicorn+gevent it only means "shared across concurrent greenlets within one OS process."
 
 **How to avoid:**
-- Use **integration tests** for API boundary layers (JellyfinLibraryProvider), not unit tests
-- Keep mocks **minimal and realistic** - use autospec to match real method signatures
-- Use **monkeypatch** for specific function replacement, not wholesale mocking of modules
-- Test with **real fixtures** for simple dependencies (SQLite in-memory databases)
-- Prefer **test doubles** over mocks where possible - use fake implementations that behave like the real thing
+- **Default deployment is 1 worker** (current Dockerfile has no `--workers` flag, so gunicorn defaults to 1). In-memory limiter works correctly for this.
+- Document that adding `--workers N > 1` breaks the rate-limit guarantee unless the limiter uses shared storage (Redis, file-based).
+- Add a startup warning if `--workers > 1` and in-memory limiter is in use: "Rate limiting is per-worker; effective limit = N × configured limit."
+- Structure the limiter behind an interface so swapping to Redis later is a config change, not a rewrite.
 
 **Warning signs:**
-- Tests never fail when production code changes
-- Mock assertions check implementation details (`mock.assert_called_with("GET", ...)`)
-- Mock return values are hardcoded to simple values like `{"key": "value"}`
-- Tests pass but production fails due to API contract changes
+- `gunicorn.conf.py` or Dockerfile CMD adds `--workers 2+`
+- Rate-limit tests pass in unit tests (single process) but a load test shows 2× the allowed request rate
+- Users report rate limit is "not working" under load
 
 **Phase to address:**
-Phase 1 (Test infrastructure setup) - establish clear boundaries between unit and integration tests, create realistic fixtures for Jellyfin/TMDB responses.
+Phase where rate limiter is built — add the worker-isolation documentation and startup warning alongside the limiter implementation.
 
 ---
 
-### Pitfall 2: Test Coupling to Implementation Details
+### Pitfall 2: SSRF Validation at Boot Is Defeated by DNS Rebinding
 
 **What goes wrong:**
-Tests break when refactoring code that doesn't change behavior. For example, testing that `db.py` calls `conn.execute('SELECT * FROM rooms WHERE pairing_code = ?')` means the test breaks if you switch to an ORM or change the query structure.
+Validating `JELLYFIN_URL` at boot time (reject `169.254.x.x`, allow loopback + RFC 1918) only checks the hostname **at startup**. If the URL uses a hostname (not IP), DNS rebinding can resolve it to a metadata endpoint later. An attacker who controls the DNS for `evil.example.com` could:
+1. Have it resolve to `192.168.1.100` at boot (passes validation)
+2. Rebind it to `169.254.169.254` at request time (SSRF to cloud metadata)
 
 **Why it happens:**
-When adding tests to existing code, the path of least resistance is to test what the code *does* (implementation) rather than what it *accomplishes* (behavior). The Flask routes in `__init__.py` have complex logic mixed with database queries, making it tempting to test each step rather than the overall outcome.
+Developers implement boot-time validation because it's simpler than per-request validation. The assumption is "JELLYFIN_URL is set once and doesn't change." But DNS TTLs and external resolvers mean the IP behind a hostname can change at any time.
 
 **How to avoid:**
-- Test **behavior, not implementation** - verify outcomes, not how they're achieved
-- Use **black-box testing** for routes - given input X, expect output Y
-- For database code, test **state changes** (after calling function, database contains Z)
-- Avoid mocking private methods - test through the public interface
-- Use **parameterized tests** to test multiple scenarios without duplicating implementation assumptions
+- **Boot validation is still correct for this project** because `JELLYFIN_URL` is operator-configured (not user-controlled) and typically points to `http://jellyfin:8096` (Docker network) or `http://192.168.x.x:8096` (LAN IP). The threat model is operator misconfiguration, not adversarial DNS rebinding.
+- For defense-in-depth: resolve the hostname to IP at boot and also revalidate the IP on each request (or cache the resolved IP and use that instead of the hostname).
+- Log a warning at boot if `JELLYFIN_URL` is a hostname (not an IP), explaining the DNS rebinding risk.
+- Document that operators should use IP addresses or Docker DNS names (which are not rebinding-eligible) in `JELLYFIN_URL`.
 
 **Warning signs:**
-- Tests import implementation modules directly (`from jellyswipe import db`) rather than using the API
-- Assertions check that specific methods were called with specific arguments
-- Tests require intimate knowledge of internal function names
-- Refactoring causes cascading test failures
+- `JELLYFIN_URL=http://some-public-domain.com:8096` (external hostname)
+- SSRF validation only checks `socket.getaddrinfo()` once at import time
+- No revalidation on subsequent HTTP calls
 
 **Phase to address:**
-Phase 2 (Core module tests) - establish test design patterns that focus on behavior over implementation before writing extensive tests.
+Boot validation phase — implement boot-time check AND document the DNS rebinding limitation. Add IP resolution + caching if time allows.
 
 ---
 
-### Pitfall 3: Flaky Tests from State Leakage
+### Pitfall 3: Error Redaction Breaks Existing Error Contracts
 
 **What goes wrong:**
-Tests pass when run individually but fail when run together. One test creates a room in the database, and the next test fails because the room still exists. Session state (`session['active_room']`) persists between tests.
+The existing code returns `jsonify({'error': str(e)}), 500` in **8 route handlers** (`__init__.py` lines 198, 199, 223, 225, 240, 434, etc.). These handlers currently expose upstream error text (e.g., `"Jellyfin request failed (HTTP 401)"` from `JellyfinLibraryProvider._api`). If error redaction is implemented naively — replacing all `str(e)` with a generic message — the frontend JavaScript that checks `response.error` for specific strings will break silently.
 
 **Why it happens:**
-The existing Flask app uses:
-- **Global singleton**: `get_provider()` returns a cached `JellyfinLibraryProvider` instance with internal state (`_access_token`, `_cached_user_id`)
-- **Flask sessions**: `session['active_room']` and `session['my_user_id']` persist unless explicitly cleared
-- **SQLite databases**: File-based databases retain data between test runs
-
-When adding tests, developers don't account for this state because the production code assumes fresh requests.
+The frontend in `templates/index.html` likely checks for error strings like `'Not found'`, `'Unauthorized'`, etc. When adding centralized error handling, developers replace `str(e)` everywhere with `f"Internal error (ref={request_id})"`, assuming the frontend doesn't parse error messages. But the SPA shows these messages to users and may branch on them.
 
 **How to avoid:**
-- Use **pytest fixtures with `yield`** for setup/teardown - ensure each test gets a clean slate
-- Reset singletons in fixtures: `provider.reset()` or recreate the provider instance
-- Use **in-memory SQLite databases** (`":memory:"`) for tests
-- Clear Flask session state in fixtures or use `client.session_transaction()`
-- Use **autouse fixtures** to prevent state from leaking between tests
-- Run tests with **`pytest-randomly`** to expose hidden dependencies
+- **Audit the frontend JavaScript** in `templates/index.html` for `error` field usage before changing error shapes.
+- Preserve **known 4xx error messages** that are user-facing and expected (e.g., `'Not found'`, `'Unauthorized'`, `'Invalid Code'`).
+- Only redact **5xx error messages** — replace `str(e)` with a generic message + request ID.
+- Use a consistent error response shape: `{"error": "user_message", "request_id": "abc123"}` for 5xx, `{"error": "user_message"}` for 4xx.
+- Implement via a Flask `@app.errorhandler(500)` or `@app.errorhandler(Exception)` to avoid changing every route handler.
 
 **Warning signs:**
-- Tests pass when run in isolation: `pytest tests/test_db.py::test_create_room` works but `pytest tests/test_db.py` fails
-- Test order affects results
-- Flaky tests that "sometimes fail" without code changes
-- Tests create data but never clean it up
+- Frontend shows "Internal error (ref=abc123)" for all errors, including expected ones like "Movie not found"
+- Tests that assert on specific error messages break
+- `try/except` blocks that catch specific error strings stop matching
 
 **Phase to address:**
-Phase 1 (Test infrastructure) - establish fixture patterns for proper isolation before writing any tests. This is foundational.
+Error redaction phase — first audit frontend error handling, then implement 5xx-only redaction.
 
 ---
 
-### Pitfall 4: Testing Libraries Instead of Application Logic
+### Pitfall 4: Centralized HTTP Helper Misses Stray `requests.*` Calls
 
 **What goes wrong:**
-Tests verify that Flask's `test_client.get()` works, or that `sqlite3.connect()` creates a connection, rather than testing the application's business logic. This provides no value because libraries already have their own tests.
+The codebase has two categories of HTTP calls:
+1. **`JellyfinLibraryProvider._session`** (a `requests.Session`) — used for all Jellyfin API calls with timeouts
+2. **Bare `requests.get()`** — used for 4 TMDB calls in `__init__.py` (lines 187, 191, 206, 210) with NO timeouts, and 1 fallback call in `jellyfin_library.py` line 354
+
+When building a centralized HTTP helper, developers focus on the TMDB calls (the ones without timeouts) but miss the stray `requests.get()` in `jellyfin_library.py:354` (the `server_info` fallback that hits `/System/Info/Public`). This call goes through a different code path and won't get timeouts, User-Agent, or logging.
 
 **Why it happens:**
-When adding tests to existing code, it's unclear what to test. The Flask routes have database queries, API calls, and response formatting all mixed together. Testing the entire route end-to-end feels like "testing Flask" so developers instead try to test individual lines, which often means testing library calls.
+The stray `requests.get()` in `server_info()` is outside the `_api()` method — it's a direct call using the module-level `requests` module, not `self._session`. It's easy to miss when grep-based auditing only catches calls in `__init__.py`.
 
 **How to avoid:**
-- Test **your code, not libraries** - verify the logic you wrote, not what Flask/SQLite/requests do
-- For routes: test the **integration** of all pieces (route handler → database → response)
-- For utility functions: test the **transformation logic** (e.g., `_format_runtime()` converting seconds to "1h 30m")
-- Use **framework-agnostic tests** for pure Python modules (`db.py`, `jellyfin_library.py`)
-- For Flask routes, use the **test client** to test the full HTTP contract, not internal routing
+- **Grep for ALL `requests.` calls** before and after implementing the helper:
+  ```bash
+  rg 'requests\.(get|post|put|delete|patch|head|request)\s*\(' jellyswipe/
+  ```
+- The centralized helper should replace:
+  - 4 TMDB calls in `__init__.py` (lines 187, 191, 206, 210)
+  - 1 stray `requests.get()` in `jellyfin_library.py` (line 354)
+- Use a **no-bare-requests lint rule** (or pre-commit hook) to prevent new `requests.*` calls outside the helper.
+- Consider having the centralized helper wrap `requests.Session` so even `jellyfin_library.py._session` calls go through it for consistent logging/timeouts.
 
 **Warning signs:**
-- Tests for Flask's `test_client` behavior (e.g., "test that client.get returns a response")
-- Tests for SQLite's `execute()` method
-- Tests that don't fail even when you delete all your application code
-- Low test coverage despite many tests
+- `rg 'requests\.' jellyswipe/ | grep -v '_session\.'` returns results after migration
+- TMDB calls have timeouts but a new call added during the milestone doesn't
+- Production monitoring shows a hung request with no timeout after 30+ minutes
 
 **Phase to address:**
-Phase 2 (Core module tests) - identify and document which modules need tests vs. which use well-tested libraries.
+Centralized HTTP helper phase — begin with a comprehensive audit of all HTTP calls, implement helper, then verify zero stray calls remain.
 
 ---
 
-### Pitfall 5: Hard-to-Maintain Test Setups
+### Pitfall 5: `requests.Session` Thread-Safety with Gevent Greenlets
 
 **What goes wrong:**
-Test fixtures become complex hierarchies that are impossible to understand. A test needs a `client` that needs an `app` that needs a `provider` that needs a `database` that needs a `tmdb_api_key`. When one fixture changes, 20 tests break.
+`requests.Session` uses `urllib3` connection pools that are thread-safe via locks. With gevent monkey-patching, those locks become cooperative locks (greenlet-safe). However, `requests.Session` also stores cookies and auth state that are **not** protected by any lock — they're shared mutable state. In Jelly Swipe, `JellyfinLibraryProvider._session` is a singleton shared across all greenlets. If one greenlet triggers `self._session.headers["Authorization"] = ...` while another is mid-request, the second greenlet could send the wrong auth header.
 
 **Why it happens:**
-The existing app has many implicit dependencies:
-- Routes need `get_provider()` which needs `JELLYFIN_URL` env var
-- Database operations need `init_db()` which needs `DB_PATH` env var
-- TMDB routes need `TMDB_API_KEY` env var
-
-When writing tests, developers create fixtures to set all of this up, leading to fixture chains like `db → provider → app → client`.
+The current code sets `self._session.headers["Content-Type"]` in `__init__` and passes auth via per-request `headers=self._auth_headers()` (which creates a new dict each time), so per-request headers override session headers. This pattern is safe. But if the centralized HTTP helper starts setting auth on the session object itself (rather than per-request), or if cookie handling gets enabled, state leaks between greenlets.
 
 **How to avoid:**
-- Keep fixtures **simple and focused** - each fixture does one thing
-- Use **conftest.py** for shared fixtures, but keep them minimal
-- Prefer **function-scoped fixtures** (default) over session/class-scoped to avoid state sharing
-- Use **monkeypatch** for env var injection instead of complex fixture setup
-- Document fixture dependencies clearly
-- Extract complex setup into **helper functions** rather than fixtures
+- **Keep the current pattern**: pass auth via per-request `headers=` kwarg, not via session-level headers.
+- The centralized HTTP helper should accept auth as a parameter and pass it per-request.
+- Do NOT enable `session.cookies` or `session.auth` — keep the session as a connection pool only.
+- If adding TMDB Bearer auth, pass it as `headers={"Authorization": f"Bearer {token}"}` per-request, not on the session.
+- Document this constraint clearly: "Session is shared across greenlets; never mutate session state."
 
 **Warning signs:**
-- Fixtures call other fixtures that call other fixtures (3+ levels deep)
-- Test functions have 5+ fixture arguments
-- Fixtures have conditional logic (`if fixture_a: setup_b()`)
-- Changing one fixture causes failures in unrelated tests
+- `session.headers["Authorization"] = ...` or `session.auth = ...` in the helper
+- `session.cookies` being read from in one request with values set by another
+- Intermittent 401 errors under concurrent load (auth state corruption)
 
 **Phase to address:**
-Phase 1 (Test infrastructure) - establish fixture design patterns before writing tests. Simple fixtures prevent debt accumulation.
+Centralized HTTP helper phase — design the helper API to enforce per-request auth from the start.
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable when adding tests but create long-term problems.
+Shortcuts that seem reasonable when adding HTTP hardening but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Mocking everything to avoid setup | Tests write quickly, no external dependencies | Tests don't catch real integration bugs, become fragile | Never - this defeats the purpose of testing |
-| Testing routes by calling handler functions directly | Avoids Flask test client setup | Tests don't verify HTTP contract, miss middleware/before_request logic | Only for pure functions extracted from routes |
-| Using production database for tests | No test DB setup needed | Tests can corrupt production data, slow, state leakage | Never |
-| Skipping tests for "simple" functions | Faster progress initially | Bugs slip through in "trivial" code, no safety net for refactoring | Only for generated code or truly one-liners |
-| Hardcoding env vars in test setup | Tests run without configuration management | Tests fail in CI/CD, can't test multiple configurations | Only for temporary debugging, never commit |
-| Asserting implementation details (`mock.assert_called_with`) | Easy to write tests by copying code | Tests break on refactoring, discourage code improvements | Only when testing specific side effects that are part of the contract |
-| Skipping cleanup in fixtures | Tests pass initially | Flaky tests, state leakage, hard-to-debug failures | Never |
+| In-memory rate limiter (no Redis) | No new dependency, simpler code | Per-worker limits with multi-worker gunicorn; state lost on restart | Acceptable now — default is 1 worker; document limitation |
+| Boot-only SSRF validation | Simple, one-time check | DNS rebinding not caught; doesn't protect if URL changes mid-run | Acceptable — `JELLYFIN_URL` is operator-controlled, not user input |
+| `jsonify({'error': 'Internal error'})` for all 5xx | Quick redaction, no per-route changes | Frontend may parse error messages; loss of debuggability | Never for 5xx — must include request_id; redact only upstream text |
+| Centralized helper wraps only TMDB calls | Smaller diff, less risk of regression | Jellyfin calls don't get consistent logging/User-Agent | Not acceptable — all outbound calls should go through the helper |
+| `except Exception as e: return jsonify({'error': str(e)}), 500` | Keeps existing pattern working | Leaks upstream errors, no request ID, no structured logging | Acceptable temporarily during migration; must be replaced in error-redaction phase |
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external services in tests.
+Common mistakes when integrating HTTP hardening features with Flask + gevent.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| **Jellyfin API** | Mock `requests.get()` to return fake data; tests don't catch API contract changes | Use integration tests with a real test Jellyfin server or recorded responses (`vcr.py`); unit test only the data transformation logic (`_item_to_card()`, `_format_runtime()`) |
-| **TMDB API** | Mock TMDB responses with minimal data; miss edge cases like missing images | Use parameterized tests with realistic TMDB response fixtures (missing fields, null values, unicode characters) |
-| **SQLite Database** | Use production database file; tests corrupt data | Use in-memory database (`":memory:"`) or temporary files (`tmp_path`) |
-| **Flask Sessions** | Don't clear session between tests; state leaks | Use `client.session_transaction()` fixture or clear session in test teardown |
-| **Environment Variables** | Set env vars in global `conftest.py` using `os.environ`; affects all tests | Use `monkeypatch.setenv()` in fixtures to ensure isolation |
-| **Singleton Provider** | Use global `get_provider()` in tests; state persists across tests | Create fresh provider instance in fixtures or call `provider.reset()` in teardown |
+| **Flask `@app.errorhandler`** | Register handler for all exceptions, breaking the SSE `/room/stream` generator that catches `GeneratorExit` | Only handle `Exception` (not `BaseException`); let `GeneratorExit` propagate naturally |
+| **Flask `after_request`** | Add request-ID header in `after_request` but it doesn't fire on unhandled exceptions | Generate request ID at the start of request processing (via `before_request` or middleware), store in `g.request_id`, read in error handler |
+| **`requests.Session` + gevent** | Create a new `requests.Session()` per request — defeats connection pooling, high overhead | Share a session across greenlets; pass auth per-request via `headers=` kwarg |
+| **Token-bucket + gevent** | Use `threading.Lock` for bucket synchronization — becomes a cooperative lock under gevent (works, but `gevent.lock.Semaphore` is more explicit) | `threading.Lock` works after monkey-patching; either is fine. Just ensure the lock exists. |
+| **TMDB Bearer auth** | Keep `TMDB_API_KEY` env var name but use it as Bearer token — conflates v3 API key with v4 access token | Rename to `TMDB_ACCESS_TOKEN` or `TMDB_READ_ACCESS_TOKEN`; keep backward compatibility with a clear deprecation warning |
+| **Error redaction + CSP header** | `@app.after_request` CSP header runs after error handler; ensure error JSON responses also get CSP | CSP is already set in `add_csp_header()` which runs on all responses including errors — no change needed |
+| **Rate limiter + SSE stream** | Rate-limit `/room/stream` — long-lived SSE connections would consume all tokens | Exclude `/room/stream` from rate limiting; only limit request-response endpoints |
 
 ---
 
 ## Performance Traps
 
-Patterns that work for a few tests but fail as the test suite grows.
+Patterns that work at small scale but fail as usage grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| **Network calls in tests** | Each test makes real HTTP requests to Jellyfin/TMDB; suite takes minutes to run | Use mocks/vcr for external APIs; run integration tests separately | At 20+ tests with API calls (~5-10 seconds per test) |
-| **File-based databases** | SQLite writes to disk; I/O overhead grows with test count | Use in-memory databases or tmp_path with proper cleanup | At 50+ database tests (~2-3 seconds per test) |
-| **Sequential test execution** | Tests run one at a time; unused CPU cores | Use `pytest-xdist` for parallel execution; ensure test isolation | At 100+ tests (>10 seconds total) |
-| **Global state initialization** | Provider authenticates with Jellyfin in every test; auth latency accumulates | Cache authenticated provider in session-scoped fixture with proper reset | At 30+ tests needing authenticated provider |
-| **Fixture recomputation** | Expensive fixtures (app creation, DB init) run for every test | Use appropriate fixture scope (module/session) for expensive setup | At 50+ tests using same fixtures |
+| **Token bucket no cleanup** | In-memory dict grows unbounded as new IP/key entries are added and never evicted | Add TTL-based cleanup: evict buckets older than the refill window on each check, or use a periodic cleanup greenlet | At 10K+ unique IPs (unlikely for LAN app, but possible if exposed publicly) |
+| **SSRF regex on every request** | Resolving and validating `JELLYFIN_URL` IP on every outbound call adds DNS latency | Cache resolved IP at boot; only re-resolve on failure | At 100+ concurrent requests to Jellyfin (unlikely for 2-4 user sessions) |
+| **Rate limiter lock contention** | `threading.Lock` (cooperative under gevent) serializes all rate-limit checks | For this scale (LAN movie swiping, ~4 users), a single lock is fine. Only optimize if >100 req/sec sustained | At >100 req/sec per worker |
+| **Error logging on every 5xx** | Structured JSON logging with full stack traces on every error fills disk | Log stack traces at DEBUG level; log error summary (with request_id) at WARNING level | At sustained error rates (>10/sec) |
+| **Request ID generation overhead** | UUID4 generation on every request adds ~1μs — negligible | Use `uuid.uuid4()` or `os.urandom(8).hex()` — both are fast enough | Never breaks for this scale |
 
 ---
 
 ## Security Mistakes
 
-Domain-specific security issues beyond general web security.
+Domain-specific security issues for HTTP hardening on Flask + gevent.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| **Leaking API keys in test output** | Test failures print request headers containing `JELLYFIN_API_KEY` or `TMDB_API_KEY` | Use `pytest-capturelog` to filter sensitive data; mock responses that include keys |
-| **Testing with production credentials** | Accidental operations on production Jellyfin server | Require test-specific env vars; fail fast if `TESTING=True` not set |
-| **Exposing tokens in assertion messages** | `assert response.json['token'] == expected` prints token on failure | Use custom assertion helpers that redact sensitive fields |
-| **Not testing auth failures** | Tests assume valid tokens; unauthenticated paths untested | Parameterize tests with valid/invalid tokens; test 401/403 paths explicitly |
-| **Hardcoded secrets in test fixtures** | API keys committed to repository | Use environment variables or pytest config (`pytest.ini`) for test credentials |
+| **TMDB API key in URL query strings** (current state) | Key appears in access logs, browser history, referrer headers, and proxy logs | Move to `Authorization: Bearer <token>` header; TMDB supports this for both v3 and v4 APIs (confirmed: developer.themoviedb.org docs) |
+| **Stray `requests.get()` without timeout** (current: `__init__.py` lines 187, 191, 206, 210) | A single hung TMDB call blocks the gevent greenlet indefinitely, consuming a worker slot forever | Enforce timeouts in the centralized helper; make `timeout` a required parameter |
+| **`str(e)` in 500 responses** (current state) | Leaks internal Jellyfin server URLs, API paths, error details to clients | Replace with generic message + request_id; log the full error server-side |
+| **SSRF via `JELLYFIN_URL` pointing to cloud metadata** | If `JELLYFIN_URL` is set to `http://169.254.169.254/`, the server fetches AWS/GCP metadata | Boot-time IP validation rejecting `169.254.0.0/16`, `[fd00:ec2::]/32` |
+| **Rate limiter bypass via header spoofing** | `X-Forwarded-For` header spoofing bypasses IP-based rate limiting behind reverse proxy | Use `ProxyFix` (already in place: `__init__.py` line 46) — it trusts only one proxy layer. Document that rate limiter uses `request.remote_addr` after ProxyFix processing |
+| **No User-Agent on outbound requests** | TMDB or Jellyfin may rate-limit or block requests with default `python-requests/X.X.X` User-Agent | Set a custom User-Agent in the centralized helper: `JellySwipe/1.6 (github.com/andrewthetechie/jelly-swipe)` |
 
 ---
 
 ## UX Pitfalls
 
-Common user experience mistakes in this domain.
+Common user-experience mistakes when adding HTTP hardening.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| **Tests don't tell you what's broken** | Test output shows "assert 1 == 2" with no context | Use descriptive test names (`test_create_room_returns_4_digit_code`) and custom assertion messages |
-| **Flaky tests waste developer time** | Developers re-run tests multiple times, lose trust in test suite | Fix flaky tests immediately; use `pytest-rerunfailures` only as temporary band-aid |
-| **Slow feedback loop** | Developers wait 30+ seconds for tests to run before committing | Keep unit test suite under 10 seconds; run fast tests locally, slow tests in CI |
-| **Tests hard to run locally** | Complex setup requires Docker, test servers, multiple env vars | Make tests runnable with just `pytest`; document simple setup in README |
-| **Test output is noisy** | Hundreds of passing tests obscure the one failure | Use `-v` for verbose output only on failures; pytest shows summary by default |
+| **Generic "Internal error" for all failures** | Users can't tell if it's a temporary network issue or a permanent problem | Distinguish: "Service temporarily unavailable" (5xx) vs "Not found" (404) vs "Too many requests, try again in a moment" (429) |
+| **Rate limit response has no retry guidance** | Users spam retry, making the problem worse | Return `429` with `Retry-After` header and a user-friendly JSON message |
+| **Silent timeout with no feedback** | TMDB trailer or cast fetch hangs, UI shows loading spinner forever | Frontend should have its own client-side timeout; server should return `504 Gateway Timeout` with a message, not hang |
+| **Breaking change in error response shape** | Frontend JavaScript expects `{'error': 'specific message'}` but gets `{'error': 'Internal error', 'request_id': 'abc'}` | Keep `error` field for user messages; add `request_id` as an additional field. Don't change the existing field semantics |
 
 ---
 
@@ -225,12 +215,13 @@ Common user experience mistakes in this domain.
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Test coverage metrics are high, but critical paths are untested:** Verify high-impact paths (authentication, database writes, error handling) have explicit tests, don't rely on coverage from incidental tests
-- [ ] **Tests pass locally but fail in CI:** Verify test isolation, environment variable handling, and file paths work in CI environment
-- [ ] **All tests mock the same thing:** Verify integration tests exist for mocked components (e.g., at least one test calls real Jellyfin API)
-- [ ] **Error handling only tested with mocks:** Verify exception paths are tested with real error conditions (network timeouts, 500 responses, malformed data)
-- [ ] **Database tests only test happy paths:** Verify tests for constraint violations, concurrent updates, and edge cases (empty results, null values)
-- [ ] **Flask routes only tested with valid input:** Verify tests for missing/invalid headers, malformed JSON, missing required fields
+- [ ] **All HTTP calls have timeouts:** Verify by grepping for `requests.` — must find ZERO bare calls without `timeout=`. Check both `__init__.py` AND `jellyfin_library.py`
+- [ ] **TMDB key removed from URLs:** Verify by grepping for `api_key=` in the codebase. Also check that no `api_key` appears in any constructed URL string
+- [ ] **Error redaction covers ALL routes:** Verify that every `except Exception as e: return jsonify({'error': str(e)}), 500` has been converted to the redacted form. The `server_info` route (line 434) and `add_to_watchlist` (line 240) are easy to miss
+- [ ] **Rate limiter applies to all 4 target routes:** Verify `/proxy`, `/get-trailer`, `/cast`, `/watchlist/add` all return 429 when over limit. `/room/stream` must NOT be rate-limited
+- [ ] **SSRF validation rejects metadata IPs:** Test with `JELLYFIN_URL=http://169.254.169.254` — must fail at boot. Test with `http://192.168.1.100` — must pass. Test with `http://localhost:8096` — must pass
+- [ ] **Bearer token auth works with TMDB v3 API:** TMDB docs confirm Bearer token works for v3 endpoints (search/movie, movie/videos, movie/credits). Verify with a live test or confirmed mock
+- [ ] **Existing tests still pass:** The 48 existing tests mock `requests.Session` — verify they still work after introducing the centralized helper
 
 ---
 
@@ -240,12 +231,11 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| **Over-mocked tests** | HIGH | 1. Identify which mocks hide integration bugs by temporarily removing them<br>2. Add integration tests for those boundaries<br>3. Rewrite unit tests to test behavior, not implementation<br>4. Document what should be mocked vs. what should be integration tested |
-| **Flaky tests** | MEDIUM | 1. Isolate the failing test (run in isolation until it fails)<br>2. Add logging to identify state leakage<br>3. Add `pytest-randomly` to expose hidden dependencies<br>4. Fix fixture isolation or add explicit cleanup<br>5. Verify fix by running tests in random order 100+ times |
-| **Test coupling to implementation** | HIGH | 1. Identify tests that break on refactoring<br>2. Determine the intended behavior being tested<br>3. Rewrite tests to verify behavior through public API<br>4. Consider extracting private methods if they need testing |
-| **Slow test suite** | MEDIUM | 1. Profile test execution time (`--durations=10`)<br>2. Identify slow tests and slow fixtures<br>3. Move slow tests to separate `tests/integration/` directory<br>4. Add `pytest-xdist` for parallel execution<br>5. Optimize expensive fixtures (use appropriate scope) |
-| **Missing test isolation** | MEDIUM | 1. Identify tests that fail when run together<br>2. Add autouse fixtures to reset global state<br>3. Use in-memory databases for tests<br>4. Ensure all fixtures use function scope by default<br>5. Run with `pytest-randomly` to verify isolation |
-| **Tests break in CI but pass locally** | LOW-MEDIUM | 1. Compare local vs. CI environment (Python version, dependencies, env vars)<br>2. Reproduce CI failure locally (Docker, same Python version)<br>3. Check for hardcoded paths or missing `.gitignore` files<br>4. Ensure test dependencies are in `dev-dependencies` of `pyproject.toml`<br>5. Add CI-specific test configuration if needed |
+| **Stray `requests.get()` without timeout found in production** | LOW | 1. Add the missing call to the centralized helper<br>2. Add a grep check in CI to prevent regressions: `rg 'requests\.(get|post|put|delete|patch)\s*\(' jellyswipe/ --glob '!*http_helper*'` |
+| **Rate limiter ineffective with multi-worker deployment** | LOW | 1. Add Redis-backed storage to Flask-Limiter or custom limiter<br>2. Or enforce `--workers 1` in the Dockerfile and document the limitation<br>3. Add startup warning when workers > 1 |
+| **Error redaction broke frontend error handling** | MEDIUM | 1. Audit frontend for `error` field usage<br>2. Restore specific 4xx error messages that the frontend depends on<br>3. Only redact 5xx responses; keep 4xx messages user-friendly |
+| **Session auth state leak between greenlets** | MEDIUM | 1. Find where session headers/auth are being mutated<br>2. Move to per-request `headers=` parameter<br>3. Add a test that verifies concurrent requests get correct auth |
+| **DNS rebinding bypasses SSRF validation** | LOW (unlikely threat model) | 1. Add per-request IP validation (resolve hostname, check IP before each request)<br>2. Or pin the resolved IP at boot and use IP instead of hostname for all subsequent requests |
 
 ---
 
@@ -255,25 +245,27 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| **Flaky tests from state leakage** | Phase 1 - Establish fixture patterns with proper isolation (yield fixtures, in-memory DB, provider reset) | Run tests with `pytest-randomly` multiple times; verify tests pass in all orders |
-| **Hard-to-maintain test setups** | Phase 1 - Design simple, focused fixtures before writing tests; document fixture dependencies | Review fixtures for complexity (>3 levels deep, >5 fixture args per test) |
-| **Testing libraries instead of application logic** | Phase 2 - Create test plan identifying which modules need tests vs. library code | Verify test coverage of application code (not stdlib/Flask/requests) |
-| **Over-mocking external dependencies** | Phase 1 - Establish boundaries: unit tests for logic, integration tests for APIs | Count mocks vs. real calls; ensure at least one integration test per external service |
-| **Test coupling to implementation** | Phase 2 - Establish test design patterns focusing on behavior before writing tests | Refactor production code; verify tests still pass without changes |
-| **Performance traps** | Phase 3 - Optimize test suite after coverage is achieved (pytest-xdist, fixture scopes) | Measure test suite runtime; target <10 seconds for unit tests |
-| **Security mistakes** | Phase 2 - Add security-focused test cases for auth failures and sensitive data | Run tests with audit for leaked secrets in logs/assertions |
+| **Stray `requests.get()` calls** | Centralized HTTP helper — start with comprehensive audit | `rg 'requests\.(get|post)\s*\(' jellyswipe/` returns zero results (outside helper) |
+| **No timeouts on TMDB calls** | Centralized HTTP helper — make `timeout` a required parameter | Every `http_helper.*()` call has `timeout=`; test that missing timeout raises ValueError |
+| **Error redaction breaks frontend** | Error redaction phase — audit frontend first, redact only 5xx | Frontend still shows specific error messages for 4xx; 5xx shows generic message + request_id |
+| **Rate limiter per-worker isolation** | Rate limiter phase — document limitation, add startup warning | Startup log shows warning when `--workers > 1`; README documents in-memory limitation |
+| **SSRF DNS rebinding** | Boot validation phase — implement boot check + document DNS risk | Boot rejects `169.254.x.x` IPs; README documents operator guidance for using IPs not hostnames |
+| **Session state leak between greenlets** | Centralized HTTP helper phase — enforce per-request auth pattern | Code review confirms no `session.headers[...] = ...` or `session.auth = ...` mutations |
+| **Missing rate limit on target routes** | Rate limiter phase — test all 4 routes | Integration test hits each route rapidly and verifies 429 response |
+| **TMDB Bearer auth migration** | TMDB auth phase — rename env var, update all 4 call sites | `rg 'api_key=' jellyswipe/` returns zero; `TMDB_API_KEY` renamed with backward compat |
 
 ---
 
 ## Sources
 
-- **Pytest Documentation**: Official pytest docs on fixtures, monkeypatching, flaky tests, and import modes - HIGH confidence (official source)
-- **Flask Testing Documentation**: Official Flask testing guide for fixtures, test client, and testing patterns - HIGH confidence (official source)
-- **Google Testing Blog - "Just Say No to More End-to-End Tests"**: Industry best practices on testing pyramid and test strategy - MEDIUM confidence (industry-standard approach)
-- **Python unittest.mock Documentation**: Official Python docs on mocking best practices, autospec, and where to patch - HIGH confidence (official source)
-- **Existing codebase analysis**: Reviewed `jellyswipe/__init__.py`, `jellyswipe/db.py`, and `jellyswipe/jellyfin_library.py` to identify specific testing challenges - HIGH confidence (direct analysis)
+- **requests documentation** (Context7): Timeout patterns, Session objects, connection pooling — HIGH confidence
+- **gevent documentation** (Context7): Monkey patching behavior, DNS patching, greenlet-local storage — HIGH confidence
+- **Flask documentation** (Context7): `errorhandler`, `after_request`, `before_request` patterns — HIGH confidence
+- **Flask-Limiter documentation** (Context7): In-memory storage backend, gevent compatibility, storage strategies — HIGH confidence
+- **gunicorn documentation** (Context7): gevent worker class, monkey patching performed in worker process — HIGH confidence
+- **TMDB API documentation** (developer.themoviedb.org): Bearer token auth works for v3 API, rate limits (~40 req/sec) — HIGH confidence
+- **Codebase analysis**: Direct analysis of `jellyswipe/__init__.py` (563 lines), `jellyswipe/jellyfin_library.py` (482 lines), `Dockerfile`, `pyproject.toml`, `tests/conftest.py` — HIGH confidence
 
 ---
-
-*Pitfalls research for: Python Flask web application unit testing*
-*Researched: 2026-04-25*
+*Pitfalls research for: Flask + gevent outbound HTTP hardening (Jelly Swipe v1.6)*
+*Researched: 2026-04-26*

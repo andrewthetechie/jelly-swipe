@@ -212,6 +212,10 @@ def app(tmp_path, monkeypatch):
     )
     jellyswipe_module._token_user_id_cache.clear()
 
+    # Reset rate limiter buckets so tests don't accumulate state
+    from jellyswipe.rate_limiter import rate_limiter as _rl
+    _rl.reset()
+
     yield flask_app
 
 
