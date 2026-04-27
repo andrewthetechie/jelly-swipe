@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Architecture Tier Fix
 status: planning
-last_updated: "2026-04-27T17:35:23.428Z"
+last_updated: "2026-04-27T17:44:00.416Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 4
+  total_plans: 6
   completed_plans: 4
-  percent: 100
+  percent: 67
 ---
 
 # State — Jelly Swipe
@@ -131,4 +131,4 @@ None.
 *State created: 2026-04-26*
 *Last updated: 2026-04-26 (roadmap created)*
 
-**Planned Phase:** 24 (Auth Module + Server-Owned Identity) — 2 plans — 2026-04-27T16:41:13.423Z
+**Planned Phase:** 25 (RESTful Routes + Deck Ownership) — 2 plans — 2026-04-27T17:44:00.413Z

@@ -2,8 +2,8 @@
 
 **Milestone:** v2.0 Architecture Tier Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 23 - Database Schema + Token Vault
-**Last Updated:** 2026-04-26
+**Current Phase:** 25 - RESTful Routes + Deck Ownership
+**Last Updated:** 2026-04-27
 
 ---
 
@@ -105,11 +105,11 @@ Plans:
   3. Server tracks each user's cursor position in the deck; a user who reloads the page resumes where they left off in the same deck order
   4. Existing route patterns that depend on client-supplied identity or deck state are replaced by server-resolved equivalents
 
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 25-01: Restructure swipe endpoint to POST /room/{code}/swipe
-- [ ] 25-02: Implement server-owned deck composition, shuffle, and cursor tracking
+- [ ] 25-01-PLAN.md — Restructure all routes to RESTful URL patterns with room code in path
+- [ ] 25-02-PLAN.md — Implement server-owned deck composition, cursor tracking, and pagination
 
 ---
 
@@ -192,7 +192,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 |-------|----------------|--------|-----------|
 | 23. Database Schema + Token Vault | 0/2 | Not started | - |
 | 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
-| 25. RESTful Routes + Deck Ownership | 0/2 | Not started | - |
+| 25. RESTful Routes + Deck Ownership | 0/2 | Planned | - |
 | 26. Match Notification + Deep Links + Metadata | 0/3 | Not started | - |
 | 27. Client Simplification + Cleanup | 0/2 | Not started | - |
 | 28. Deployment Validation | 0/2 | Not started | - |
