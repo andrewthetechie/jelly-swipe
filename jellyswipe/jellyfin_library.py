@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import random
 import re
+import time
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 from .base import LibraryMediaProvider
 from .http_client import make_http_request
@@ -372,21 +376,46 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         iid = m.group(1)
         self.ensure_authenticated()
         url = f"{self._base}/Items/{iid}/Images/Primary"
-        r = self._session.get(
-            url,
-            params={"maxHeight": 720},
-            headers=self._auth_headers(),
-            timeout=60,
-        )
+
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                r = self._session.get(
+                    url,
+                    params={"maxHeight": 720},
+                    headers=self._auth_headers(),
+                    timeout=60,
+                )
+                break
+            except requests.exceptions.RequestException as exc:
+                if attempt == max_attempts:
+                    raise
+                logger.warning(
+                    "fetch_library_image: transient error on attempt %d/%d for %s: %s",
+                    attempt, max_attempts, iid, exc,
+                )
+                time.sleep(0.5 * attempt)
+
         if r.status_code == 401:
             self.reset()
             self.ensure_authenticated()
-            r = self._session.get(
-                url,
-                params={"maxHeight": 720},
-                headers=self._auth_headers(),
-                timeout=60,
-            )
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    r = self._session.get(
+                        url,
+                        params={"maxHeight": 720},
+                        headers=self._auth_headers(),
+                        timeout=60,
+                    )
+                    break
+                except requests.exceptions.RequestException as exc:
+                    if attempt == max_attempts:
+                        raise
+                    logger.warning(
+                        "fetch_library_image: transient error on retry attempt %d/%d for %s: %s",
+                        attempt, max_attempts, iid, exc,
+                    )
+                    time.sleep(0.5 * attempt)
         if r.status_code == 403:
             raise PermissionError("Jellyfin image forbidden")
         if r.status_code == 404:

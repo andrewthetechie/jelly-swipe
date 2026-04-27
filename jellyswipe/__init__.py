@@ -15,6 +15,7 @@ import hashlib
 import logging
 import traceback
 import sqlite3, os, random, re, json, secrets, time
+import requests
 from jellyswipe.http_client import make_http_request
 from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
 from jellyswipe.ssrf_validator import validate_jellyfin_url
@@ -691,6 +692,11 @@ def create_app(test_config=None):
             body, content_type = get_provider().fetch_library_image(path)
         except PermissionError:
             abort(403)
+        except FileNotFoundError:
+            abort(404)
+        except requests.exceptions.RequestException as exc:
+            app.logger.warning("proxy: upstream error fetching %s: %s", path, exc)
+            return jsonify({"error": "Upstream server error"}), 502
         return Response(body, content_type=content_type)
 
     @app.route('/manifest.json')
