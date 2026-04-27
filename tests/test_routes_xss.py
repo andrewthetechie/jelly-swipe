@@ -130,7 +130,7 @@ class TestLayer1ServerSideValidation:
             with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
                 # Send malicious payload with script tags in title and thumb
                 response = client.post(
-                    '/room/swipe',
+                    '/room/TEST123/swipe',
                     json={
                         'movie_id': 'movie123',
                         'direction': 'right',
@@ -164,12 +164,12 @@ class TestLayer1ServerSideValidation:
                     assert match['thumb'] == "/proxy?path=jellyfin/movie123/Primary"
                     assert match['thumb'] != '<img src=x onerror=alert("XSS")>'
 
-    def test_swipe_logs_security_warning_for_client_params(self, flask_app, caplog):
+    def test_swipe_ignores_client_params_silently(self, flask_app):
         """
-        Test that /room/swipe logs a security warning when client sends title/thumb parameters.
+        Test that /room/{code}/swipe silently ignores client-supplied title and thumb parameters.
 
-        Verifies that the server detects and logs potential XSS attempts when a client
-        sends title/thumb parameters (which should not be sent).
+        Per D-07: the endpoint accepts {movie_id, direction} only and silently ignores
+        any extra fields like title/thumb. Server resolves metadata from Jellyfin.
 
         Requirement: XSS-04
         """
@@ -195,36 +195,39 @@ class TestLayer1ServerSideValidation:
             mock_item.year = 2020
             mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-            # Patch get_provider() and capture logs
             import jellyswipe
             with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
-                with caplog.at_level('WARNING'):
-                    # Send request with title/thumb (old client or attack attempt)
-                    response = client.post(
-                        '/room/swipe',
-                        json={
-                            'movie_id': 'movie456',
-                            'direction': 'right',
-                            'title': '<script>alert("XSS")</script>',
-                            'thumb': 'malicious.jpg',
-                            'user_id': 'jellyfin_user_2'
-                        }
+                # Send request with title/thumb (old client or attack attempt)
+                response = client.post(
+                    '/room/TEST456/swipe',
+                    json={
+                        'movie_id': 'movie456',
+                        'direction': 'right',
+                        'title': '<script>alert("XSS")</script>',
+                        'thumb': 'malicious.jpg',
+                        'user_id': 'jellyfin_user_2'
+                    }
+                )
+
+                assert response.status_code == 200
+
+                # Verify server-resolved data is used, not client-supplied
+                response_data = json.loads(response.data)
+                assert response_data['title'] == "Safe Movie"
+                assert response_data['title'] != '<script>alert("XSS")</script>'
+                assert response_data['thumb'] == "/proxy?path=jellyfin/movie456/Primary"
+                assert response_data['thumb'] != 'malicious.jpg'
+
+                # Verify database contains only server-resolved data
+                with jellyswipe.db.get_db() as conn:
+                    cursor = conn.execute(
+                        "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
+                        ("TEST456", "movie456")
                     )
-
-                    assert response.status_code == 200
-
-                    # Verify that a security warning was logged
-                    warning_logs = [
-                        record for record in caplog.records
-                        if record.levelname == 'WARNING' and 'Security warning' in record.message
-                    ]
-                    assert len(warning_logs) > 0, "Security warning was not logged"
-
-                    # Verify the log message contains expected details
-                    warning_message = warning_logs[0].message
-                    assert 'Client sent title/thumb parameters' in warning_message
-                    assert 'movie_id=movie456' in warning_message
-                    assert '<script>alert("XSS")</script>' in warning_message
+                    match = cursor.fetchone()
+                    assert match is not None
+                    assert match['title'] == "Safe Movie"
+                    assert match['thumb'] == "/proxy?path=jellyfin/movie456/Primary"
 
 
 class TestLayer3CSPHeader:
@@ -321,7 +324,7 @@ class TestEndToEndXSSBlocking:
             with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
                 # Send malicious payload
                 response = client.post(
-                    '/room/swipe',
+                    '/room/E2E123/swipe',
                     json={
                         'movie_id': 'movie_e2e',
                         'direction': 'right',
@@ -387,7 +390,7 @@ class TestEndToEndXSSBlocking:
                 with caplog.at_level('WARNING'):
                     # Send swipe request
                     response = client.post(
-                        '/room/swipe',
+                        '/room/FAIL789/swipe',
                         json={
                             'movie_id': 'movie_fail',
                             'direction': 'right',

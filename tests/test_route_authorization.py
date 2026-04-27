@@ -98,7 +98,7 @@ def _prepare_route_state(conn, route: str, *, room_code: str, verified_user: str
             'INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
             (room_code, movie_id, "Movie", "thumb.jpg", verified_user),
         )
-    elif route == "/undo":
+    elif "/undo" in route:
         conn.execute(
             "INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)",
             (room_code, movie_id, session_user, "right"),
@@ -118,10 +118,10 @@ def _send_request(client, method: str, path: str, payload: Optional[Dict[str, An
 
 SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
 ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
-    ("POST", "/room/swipe", {"movie_id": "movie-1", "title": "Movie", "thumb": "thumb.jpg", "direction": "right"}),
+    ("POST", "/room/ROOM1/swipe", {"movie_id": "movie-1", "direction": "right"}),
     ("GET", "/matches", None),
     ("POST", "/matches/delete", {"movie_id": "movie-1"}),
-    ("POST", "/undo", {"movie_id": "movie-1"}),
+    ("POST", "/room/ROOM1/undo", {"movie_id": "movie-1"}),
     ("POST", "/watchlist/add", {"movie_id": "movie-1"}),
 )
 
@@ -232,7 +232,7 @@ def test_unauthenticated_swipe_no_side_effects(db_connection, client):
         sess["active_room"] = "ROOM1"
     _seed_room(db_connection, "ROOM1")
     before_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
-    response = client.post("/room/swipe", json={"movie_id": "movie-1", "direction": "right"})
+    response = client.post("/room/ROOM1/swipe", json={"movie_id": "movie-1", "direction": "right"})
     after_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
     assert response.status_code == 401
     assert after_swipes == before_swipes
