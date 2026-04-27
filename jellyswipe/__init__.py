@@ -83,6 +83,24 @@ import jellyswipe.db
 jellyswipe.db.DB_PATH = DB_PATH
 
 
+def _get_cursor(conn, code, user_id):
+    """Get user's deck cursor position. Returns 0 if no position stored."""
+    room = conn.execute('SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+    if room and room['deck_position']:
+        positions = json.loads(room['deck_position'])
+        return positions.get(user_id, 0)
+    return 0
+
+
+def _set_cursor(conn, code, user_id, position):
+    """Set user's deck cursor position."""
+    room = conn.execute('SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+    positions = json.loads(room['deck_position']) if room and room['deck_position'] else {}
+    positions[user_id] = position
+    conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+                 (json.dumps(positions), code))
+
+
 @app.route('/')
 def index(): return render_template('index.html', media_provider="jellyfin")
 
@@ -183,6 +201,8 @@ def create_room():
     with get_db() as conn:
         conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
                      (pairing_code, json.dumps(movie_list), 0, 'All', 0))
+        conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+                     (json.dumps({g.user_id: 0}), pairing_code))
     session['active_room'] = pairing_code
     session['solo_mode'] = False
     return jsonify({'pairing_code': pairing_code})
@@ -195,6 +215,9 @@ def go_solo(code):
         if not room:
             return jsonify({'error': 'Room not found'}), 404
         conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
+        cursor_pos = _get_cursor(conn, code, g.user_id)
+        if cursor_pos == 0:
+            _set_cursor(conn, code, g.user_id, 0)
     session['solo_mode'] = True
     return jsonify({'status': 'solo'})
 
@@ -205,6 +228,12 @@ def join_room(code):
         room = conn.execute('SELECT * FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
         if room:
             conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
+            # Read existing deck_position, add this user with cursor 0
+            room2 = conn.execute('SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+            positions = json.loads(room2['deck_position']) if room2 and room2['deck_position'] else {}
+            positions[g.user_id] = 0
+            conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+                         (json.dumps(positions), code))
             session['active_room'] = code
             session['solo_mode'] = False
             return jsonify({'status': 'success'})
@@ -232,6 +261,10 @@ def swipe(code):
     with get_db() as conn:
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
                      (code, mid, g.user_id, data.get('direction')))
+
+        # Advance cursor (per D-06: cursor advances on swipe, not on view)
+        current_pos = _get_cursor(conn, code, g.user_id)
+        _set_cursor(conn, code, g.user_id, current_pos + 1)
 
         if data.get('direction') == 'right':
             # Only create matches if we successfully resolved metadata server-side
@@ -314,10 +347,20 @@ def get_server_info():
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/room/<code>/deck')
+@login_required
 def get_deck(code):
+    page = request.args.get('page', 1, type=int)
+    page_size = 20  # per D-09
     with get_db() as conn:
+        cursor_pos = _get_cursor(conn, code, g.user_id)
         room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        return Response(room['movie_data'], mimetype='application/json') if room else jsonify([])
+        if not room:
+            return jsonify([])
+        movies = json.loads(room['movie_data'])
+        start = cursor_pos + (page - 1) * page_size
+        end = start + page_size
+        page_items = movies[start:end]
+        return jsonify(page_items)
 
 @app.route('/room/<code>/genre', methods=['POST'])
 @login_required
@@ -327,7 +370,8 @@ def set_genre(code):
         return jsonify({'error': 'Genre required'}), 400
     new_list = get_provider().fetch_deck(genre)
     with get_db() as conn:
-        conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
+        conn.execute('UPDATE rooms SET movie_data = ?, deck_position = ?, current_genre = ? WHERE pairing_code = ?',
+                     (json.dumps(new_list), json.dumps({}), genre, code))
     return jsonify(new_list)
 
 @app.route('/genres')
