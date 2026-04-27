@@ -1,53 +1,152 @@
 # Technology Stack
 
-**Project:** Jelly Swipe (v1.3 — Unit Tests)
-**Researched:** 2026-04-25
+**Project:** Jelly Swipe (v2.0 — Architecture Tier Fix)
+**Researched:** 2026-04-26
 **Confidence:** HIGH
 
 ## Recommended Stack
 
-### Core Testing Framework
+### New Runtime Dependencies
+
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| **pytest** | ^9.0.0 | Testing framework with fixtures and parametrize | Python 3.13 compatible, de facto standard, supports modern pytest.mark.parametrize and fixture-based tests, auto-discovery, rich assertion introspection |
-| **pytest-cov** | ^6.0.0 | Coverage measurement | Integrates coverage.py with pytest, provides multiple report formats (term, HTML, XML for CI), append mode for combining unit/integration test coverage |
-| **pytest-mock** | ^3.14.0 | Mocking utilities | Thin wrapper around unittest.mock with cleaner API via `mocker` fixture, automatic cleanup, type annotations support, spy/stub utilities |
-| **responses** | ^0.25.0 | HTTP request mocking | Mocks requests library calls to external APIs (Jellyfin, TMDB), decorator/context manager patterns, call tracking, dynamic response generation |
+| **Flask-Session** | >=0.8.0 | Server-side session storage | Stores Jellyfin tokens and session identity server-side; client receives only an HttpOnly session cookie with a session ID (never the token). Filesystem backend via cachelib is zero-config for a single-server Docker deployment. Brings `cachelib>=0.13.0` and `msgspec>=0.18.6` as transitive deps — no additional installs needed. |
 
-### Supporting Libraries
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **pytest-timeout** | ^2.3.0 | Timeout for potentially hanging tests | SSE/generator tests that might hang, ensures CI doesn't stall |
-| **pytest-xdist** | ^3.6.0 | Parallel test execution | When test suite grows large, speeds up CI runs (optional for v1.3) |
+### Existing Runtime Dependencies (NO changes needed)
 
-### Development Tools
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| **pytest** | Test runner | Run with `pytest tests/` for basic, `pytest --cov=jellyswipe tests/` for coverage |
-| **coverage.py** (via pytest-cov) | Coverage reporting | Use `--cov-report=html:htmlcov` for detailed reports, `--cov-report=xml:coverage.xml` for CI badges |
-| **conftest.py** | Shared fixtures | Define database fixtures, mock fixtures, and test configuration in `tests/conftest.py` |
+| Technology | Version | Purpose | Why it stays |
+|------------|---------|---------|-------------|
+| **Flask** | >=3.1.3 | Web framework | Already provides `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE`, `SESSION_COOKIE_SECURE` config. No upgrade needed. |
+| **gevent** | >=24.10 | Async I/O for SSE streaming | Works with Flask-Session's filesystem backend — filesystem I/O is cooperative under gevent workers. No conflicts. |
+| **gunicorn** | >=25.3.0 | WSGI server with gevent workers | `-k gevent` worker class is compatible with Flask-Session. SSE streams work because session lookup happens at request start, before the long-lived response begins. |
+| **werkzeug** | >=3.1.8 | WSGI utilities | Provides the underlying cookie signing and `SecureCookie` that Flask-Session replaces at the session interface level. Still used for routing, debugging, proxy fix. |
+| **requests** | >=2.33.1 | HTTP client for Jellyfin/TMDB APIs | No change. Used by `JellyfinLibraryProvider` for server-to-Jellyfin API calls. |
+| **python-dotenv** | >=1.2.2 | .env file loading | No change. |
+
+### Development Dependencies (NO changes needed)
+
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| **pytest** | >=9.0.0 | Test framework | Session tests use Flask test client with `with session_transaction()` |
+| **pytest-cov** | >=6.0.0 | Coverage reporting | No change |
+| **pytest-mock** | >=3.14.0 | Mocking utilities | Mock `get_provider()` and session store for unit tests |
+| **responses** | >=0.25.0 | HTTP request mocking | Mock Jellyfin auth endpoints in session tests |
+| **pytest-timeout** | >=2.3.0 | Test timeout prevention | No change |
+
+## Flask-Session Configuration
+
+### Recommended setup for Jelly Swipe
+
+```python
+from flask_session import Session
+from cachelib.file import FileSystemCache
+
+# Server-side session storage — tokens never leave the server
+app.config.update(
+    SESSION_TYPE='cachelib',
+    SESSION_CACHELIB=FileSystemCache(
+        threshold=500,
+        cache_dir=os.path.join(os.path.dirname(DB_PATH), 'sessions'),
+    ),
+    SESSION_PERMANENT=False,               # Ephemeral — cleared when browser closes
+    SESSION_USE_SIGNER=True,               # Sign session ID cookie with Flask secret_key
+    SESSION_KEY_PREFIX='jswipe:',          # Namespace for session keys in store
+    SESSION_COOKIE_HTTPONLY=True,           # Already Flask default — JS cannot read
+    SESSION_COOKIE_SAMESITE='Lax',          # Already Flask default — CSRF mitigation
+    SESSION_COOKIE_SECURE=False,            # LAN users often on HTTP; set True if behind HTTPS proxy
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),  # Max session age for cleanup
+)
+Session(app)
+```
+
+### What changes in the session flow
+
+**Before (current):** Client stores Jellyfin token in `localStorage` → sends it via `Authorization` header on every request → server extracts token → resolves user ID.
+
+**After (v2.0):** Client authenticates once → server stores token in server-side session → client gets opaque HttpOnly cookie → on subsequent requests, server reads token from session store (no client-supplied identity).
+
+### Session data shape (server-side)
+
+After login, the session dict will contain:
+
+```python
+session = {
+    "jf_token": "<jellyfin_access_token>",   # Stored server-side only
+    "jf_user_id": "<jellyfin_user_uuid>",    # Resolved once at login
+    "active_room": "<pairing_code>",          # Room participation
+    "my_user_id": "host_<hex>"|"guest_<hex>", # In-room identity
+    "solo_mode": False,                       # Solo mode flag
+}
+```
+
+The client never sees `jf_token` or `jf_user_id` — they live in the filesystem session store.
+
+## SSE + Session Compatibility
+
+**Key insight:** EventSource (SSE) automatically sends cookies with each request. With Flask-Session:
+
+1. Client opens `EventSource('/room/stream')` → browser sends session cookie
+2. Flask-Session middleware loads session data from filesystem at request start
+3. SSE generator runs with full session access (room code, user identity)
+4. Long-lived SSE stream holds the response open — session was already loaded
+
+**No conflict with gevent workers:**
+- Session filesystem I/O happens at request start (cooperative, fast)
+- SSE polling loop (`time.sleep(1.5)`) already works under gevent monkey patching
+- Multiple concurrent SSE connections each get their own session lookup
+
+## RESTful Endpoint Restructuring
+
+No new libraries required. This is Flask URL pattern changes using built-in `<variable>` converters:
+
+| Current Pattern | RESTful Pattern | HTTP Method | Notes |
+|----------------|-----------------|-------------|-------|
+| `/room/create` | `/rooms` | POST | Collection pattern |
+| `/room/join` | `/rooms/{code}/join` | POST | Action on specific room |
+| `/room/go-solo` | `/rooms/{code}/solo` | POST | Action on specific room |
+| `/room/swipe` | `/rooms/{code}/swipes` | POST | Sub-collection pattern |
+| `/room/status` | `/rooms/{code}` | GET | Resource read |
+| `/room/stream` | `/rooms/{code}/stream` | GET | SSE stream |
+| `/room/quit` | `/rooms/{code}` | DELETE | Resource deletion |
+| `/matches` | `/rooms/{code}/matches` | GET | Sub-resource |
+| `/matches/delete` | `/rooms/{code}/matches/{movie_id}` | DELETE | Specific match |
+| `/undo` | `/rooms/{code}/swipes/{movie_id}` | DELETE | Undo last swipe |
+| `/movies` | `/rooms/{code}/movies` | GET | Room's deck |
+| `/genres` | `/genres` | GET | Static — no room context |
+
+**Implementation:** Flask's built-in `<string:code>` URL converter. No additional library needed.
+
+```python
+@app.route('/rooms/<string:code>/swipes', methods=['POST'])
+def create_swipe(code):
+    # code comes from URL, not session
+    # session provides user identity
+    ...
+```
+
+**Identity from session, room from URL:** The room code moves out of session and into the URL path. The session cookie carries only identity (token + user_id). This eliminates the need for `session["active_room"]` in most routes.
 
 ## Installation
 
 ```bash
-# Core testing dependencies (add to [project.optional-dependencies] in pyproject.toml)
-uv add --dev pytest pytest-cov pytest-mock responses pytest-timeout
+# Add Flask-Session to runtime dependencies
+uv add flask-session>=0.8.0
 
-# Optional: for parallel test execution when test suite grows
-uv add --dev pytest-xdist
+# That's it — cachelib and msgspec come as transitive dependencies
+# No other new packages needed
 ```
 
-### Recommended pyproject.toml additions:
+### pyproject.toml change
 
 ```toml
-[project.optional-dependencies]
-dev = [
-    "pytest>=9.0.0",
-    "pytest-cov>=6.0.0",
-    "pytest-mock>=3.14.0",
-    "responses>=0.25.0",
-    "pytest-timeout>=2.3.0",
-    "pytest-xdist>=3.6.0",  # optional, for parallel execution
+dependencies = [
+    "flask>=3.1.3",
+    "flask-session>=0.8.0",     # NEW: server-side session storage
+    "gevent>=24.10",
+    "gunicorn>=25.3.0",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.1",
+    "werkzeug>=3.1.8",
 ]
 ```
 
@@ -55,137 +154,70 @@ dev = [
 
 | Recommended | Alternative | Why Not |
 |-------------|-------------|---------|
-| **pytest** | unittest (stdlib) | pytest has better fixtures, parametrize, auto-discovery, and community ecosystem |
-| **responses** | httpx-mock | App uses `requests` library, not `httpx`; responses is the standard for mocking requests |
-| **pytest-mock** | unittest.mock (stdlib) | pytest-mock provides `mocker` fixture with automatic cleanup and cleaner API |
-| **in-memory SQLite** | pytest-sqlalchemy | App uses raw sqlite3, not SQLAlchemy ORM; pytest-sqlalchemy adds unnecessary abstraction |
+| **Flask-Session (cachelib/filesystem)** | Flask default cookie session | Cookie session stores data client-side (base64-readable even if signed). Jellyfin tokens would be exposed in the cookie payload. Server-side storage keeps tokens on the server. |
+| **Flask-Session (cachelib/filesystem)** | Flask-Session with Redis backend | Redis is overkill for a single-server self-hosted Docker app. Adds an external service dependency that operators must manage. Filesystem backend is zero-config. |
+| **Flask-Session (cachelib/filesystem)** | Flask-Session with SQLAlchemy backend | Would require adding Flask-SQLAlchemy as a dependency. The existing codebase uses raw `sqlite3` — adding an ORM layer for session storage alone is unnecessary complexity. |
+| **Flask-Session (cachelib/filesystem)** | Custom SQLite session table | Would work but requires implementing serialization, expiry, cleanup, and cookie management from scratch. Flask-Session is a ~100-line config that handles all of this. |
+| **Flask-Session** | Flask-Login | Flask-Login manages user authentication flows (login/logout/remember-me) with a User model. Jelly Swipe doesn't have a User model — identity comes from Jellyfin. The app just needs session storage, not a full auth framework. |
+| **Flask-Session** | itsdangerous URL-safe serializer | Could sign tokens and store them in cookies, but this still sends token data to the client. Server-side storage is the goal. |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| **flask-testing** | Requirement is "framework-agnostic" tests; flask-testing ties tests to Flask request/response cycle | Test db.py and jellyfin_library.py directly with pytest |
-| **pytest-flask** | Same as above — framework-agnostic requirement means testing business logic, not Flask integration | Test core modules in isolation, use Flask only for integration tests (out of scope for v1.3) |
-| **pytest-asyncio** | App uses gevent for concurrency, not asyncio; pytest-asyncio is for async/await patterns | Standard pytest sync tests; for SSE tests use pytest-timeout to prevent hanging |
-| **factory_boy** | Overkill for this codebase — simple test data can be created directly in fixtures or test functions | Create test data in pytest fixtures or inline in tests |
+| **Flask-SQLAlchemy** | Adds ORM dependency for a codebase that uses raw sqlite3. Only needed if Flask-Session's SQLAlchemy backend is chosen. | Raw sqlite3 (existing) + Flask-Session cachelib/filesystem backend |
+| **Redis** | External service that Docker operators must manage. Not justified for a self-hosted single-server app with ~2 concurrent users. | Filesystem session storage via cachelib |
+| **Flask-SocketIO** | Would replace SSE with WebSocket. SSE already works with gevent workers. Switching adds a dependency and breaks the existing SSE architecture for no functional benefit. | Keep existing SSE with EventSource |
+| **Flask-Login** | Requires a User model and login/logout flow. Jelly Swipe identity comes from Jellyfin — there's no local user table to manage. | Store Jellyfin identity directly in Flask-Session |
+| **JWT tokens** | Moving tokens from localStorage to JWT cookies adds complexity (signing, expiry, refresh). Flask-Session's server-side storage is simpler and more secure — tokens never leave the server. | Flask-Session server-side storage |
+| **Flask-Session `filesystem` backend** | Deprecated since Flask-Session 0.7.0, will be removed in 1.0.0. | `SESSION_TYPE='cachelib'` with `FileSystemCache` — identical behavior, supported future |
 
 ## Stack Patterns by Variant
 
-**If testing db.py (database functions):**
-- Use in-memory SQLite databases (`:memory:` connection)
-- Create a fixture that sets up DB_PATH, calls init_db(), and yields connection
-- Roll back or truncate tables after each test for isolation
-- Example:
-  ```python
-  @pytest.fixture
-  def test_db():
-      import tempfile
-      import os
-      fd, path = tempfile.mkstemp(suffix=".db")
-      os.close(fd)
-      import jellyswipe.db
-      jellyswipe.db.DB_PATH = path
-      jellyswipe.db.init_db()
-      yield path
-      os.unlink(path)
-  ```
+**If running behind an HTTPS reverse proxy (Traefik, Caddy, nginx):**
+- Set `SESSION_COOKIE_SECURE=True` via env var
+- Add `proxy_set_header X-Forwarded-Proto $scheme` in nginx config
+- Flask's `ProxyFix` already handles `X-Forwarded-Proto`
 
-**If testing jellyfin_library.py (Jellyfin API client):**
-- Use `responses` library to mock HTTP requests to Jellyfin
-- Mock authentication endpoint, `/Items`, `/Users/Me`, etc.
-- Use `@responses.activate` decorator or context manager
-- Test error handling by returning non-200 status codes
-- Example:
-  ```python
-  @responses.activate
-  def test_login_from_env_with_api_key(mocker):
-      mocker.patch.dict(os.environ, {"JELLYFIN_API_KEY": "test-key"})
-      responses.add(responses.GET, "http://test.com/Items", json={}, status=200)
-      provider = JellyfinLibraryProvider("http://test.com")
-      provider.ensure_authenticated()
-      assert provider._access_token == "test-key"
-  ```
+**If running on HTTP (LAN, Unraid default):**
+- Keep `SESSION_COOKIE_SECURE=False` (default) — otherwise cookies won't be sent
+- The signed session cookie still provides tamper protection
+- Tokens are server-side only, so HTTP exposure is limited to the session ID
 
-**If testing TMDB integration:**
-- Use `responses` to mock TMDB API calls (search, videos, credits)
-- Test error handling (404, invalid responses)
-- Don't call real TMDB API in tests
-
-**If testing with gevent (future SSE tests):**
-- Use `pytest-timeout` to prevent hanging tests
-- Consider monkey-patching `time.sleep` in generator tests to speed up polling loops
-- Note: v1.3 focuses on unit tests (db.py, jellyfin_library.py), not SSE route testing
+**If scaling to multiple gunicorn workers:**
+- Filesystem sessions break across workers if each worker has its own filesystem view
+- For Docker single-worker (`--workers 1`), this is not an issue
+- If multi-worker needed, switch to `SESSION_TYPE='sqlalchemy'` with the existing SQLite DB
 
 ## Version Compatibility
 
 | Package | Compatible With | Notes |
-|-----------|-----------------|-------|
-| pytest >= 9.0.0 | Python 3.13+ | pytest 9.x actively maintained, supports Python 3.13 and 3.14 |
-| pytest-cov >= 6.0.0 | pytest >= 7.0 | Coverage plugin version aligned with pytest 7+ |
-| pytest-mock >= 3.14.0 | pytest >= 7.0 | Current stable, full Python 3.13 support |
-| responses >= 0.25.0 | Python 3.8+ | Actively maintained, full Python 3.13 support |
-| gevent >= 24.10 | Python 3.13+ | Already in runtime dependencies, confirmed Python 3.13 support in CHANGES.rst |
+|---------|-----------------|-------|
+| Flask-Session 0.8.0 | Flask >=2.2, Python 3.13 | Verified via pip dry-run. Uses msgspec for serialization (fast, no pickle). |
+| cachelib 0.13.0 | Flask-Session >=0.7.0 | Transitive dependency of Flask-Session 0.8.0. Provides `FileSystemCache`. |
+| msgspec >=0.18.6 | Python 3.13 | Transitive dependency of Flask-Session 0.8.0. Fast JSON/msgpack serialization for session data. |
+| gevent >=24.10 | Flask-Session filesystem backend | Filesystem I/O is cooperative under gevent monkey patching. No conflicts. |
+| gunicorn gevent worker | Flask-Session | Session lookup at request start, before SSE streaming begins. No thread-local conflicts. |
 
-## Integration Points
+## Docker Considerations
 
-### Database Testing
-- **Target modules:** `jellyswipe/db.py`
-- **Strategy:** Use `:memory:` SQLite or temp file, call `init_db()`, test CRUD operations
-- **Isolation:** Each test gets fresh database or rolls back transactions
+**Session storage location:** `/app/data/sessions/` — alongside the existing SQLite database at `/app/data/jellyswipe.db`. Both should be volume-mounted for persistence:
 
-### External API Testing
-- **Target modules:** `jellyswipe/jellyfin_library.py`
-- **Strategy:** Use `@responses.activate` to mock all HTTP requests
-- **Coverage:** Test success paths, error handling (401, 404, network errors), retry logic
-- **TMDB integration:** Mock TMDB search, videos, and credits endpoints
-
-### Framework-Agnostic Testing
-- **Avoid:** Flask request/response testing, SSE streaming, session management
-- **Focus:** Pure Python functions in `db.py` and `jellyfin_library.py`
-- **Future:** Integration tests can use Flask's test client (out of scope for v1.3)
-
-## CI Integration
-
-### GitHub Actions (pytest job)
 ```yaml
-- name: Run tests
-  run: |
-    uv sync --frozen --extra dev
-    uv run pytest --cov=jellyswipe --cov-report=xml --cov-report=term-missing tests/
-
-- name: Upload coverage
-  uses: codecov/codecov-action@v3
-  with:
-    file: ./coverage.xml
+volumes:
+  - ./data:/app/data  # Contains jellyswipe.db AND sessions/
 ```
 
-### Test Commands
-```bash
-# Run all tests
-uv run pytest tests/
-
-# Run with coverage
-uv run pytest --cov=jellyswipe --cov-report=html:htmlcov tests/
-
-# Run specific test file
-uv run pytest tests/test_db.py
-
-# Run with verbose output
-uv run pytest -v tests/
-
-# Run with parallel execution (if using pytest-xdist)
-uv run pytest -n auto tests/
-```
+**Session cleanup:** Flask-Session supports `SESSION_CLEANUP_N_REQUESTS` for non-TTL backends. For filesystem sessions with `SESSION_PERMANENT=False`, expired sessions are cleaned up on each request when the threshold is reached. Alternatively, run `flask session_cleanup` periodically.
 
 ## Sources
 
-- **pytest-dev/pytest** — Python 3.13 compatibility, fixtures, parametrize (HIGH confidence)
-- **pytest-dev/pytest-cov** — Coverage measurement and reporting formats (HIGH confidence)
-- **pytest-dev/pytest-mock** — Mocking API, mocker fixture, type annotations (HIGH confidence)
-- **getsentry/responses** — HTTP request mocking for requests library, decorator patterns (HIGH confidence)
-- **gevent/gevent** — Python 3.13 support confirmed in CHANGES.rst (HIGH confidence)
-- **Official pytest docs** (docs.pytest.org) — Fixture parametrization, pytest.mark.parametrize usage (HIGH confidence)
+- **Flask-Session 0.8.0** (/pallets-eco/flask-session via Context7) — cachelib backend configuration, filesystem session setup, SESSION_USE_SIGNER, cleanup options (HIGH confidence)
+- **Flask** (/pallets/palletsprojects.com via Context7) — SESSION_COOKIE_HTTPONLY defaults to True, SESSION_COOKIE_SAMESITE defaults to 'Lax', cookie security configuration (HIGH confidence)
+- **Flask-Session pip dry-run** — Verified cachelib 0.13.0 and msgspec are transitive dependencies of flask-session 0.8.0 (HIGH confidence)
+- **Gevent** (/gevent/gevent via Context7) — monkey patching, cooperative I/O, filesystem compatibility (HIGH confidence)
+- **Flask-Session config reference** (github.com/pallets-eco/flask-session) — `filesystem` backend deprecated since 0.7.0, use `cachelib` backend with `FileSystemCache` instead (HIGH confidence)
 
 ---
-*Stack research for: Jelly Swipe v1.3 — Unit Tests*
-*Researched: 2026-04-25*
+*Stack research for: Jelly Swipe v2.0 — Architecture Tier Fix (server-side identity, session tokens, RESTful endpoints)*
+*Researched: 2026-04-26*

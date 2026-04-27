@@ -1,203 +1,331 @@
-# Feature Landscape: XSS Security Fixes for Jelly Swipe
+# Feature Research: Architecture Tier Separation (v2.0)
 
-**Domain:** Flask Web Application Security
-**Researched:** 2026-04-25
-**Overall confidence:** HIGH
+**Domain:** Client/server responsibility boundaries in a collaborative swipe-matching app
+**Researched:** 2026-04-26
+**Confidence:** HIGH
 
 ## Executive Summary
 
-Jelly Swipe v1.5 requires XSS security fixes to address a stored XSS vulnerability where client-supplied `title` and `thumb` parameters are rendered unsafely using `innerHTML` in the template. Research indicates three primary defensive layers are needed: **Content Security Policy (CSP) headers**, **safe HTML escaping patterns** (textContent/DOM construction), and **server-side input validation**. The vulnerability manifests in `jellyswipe/templates/index.html` at lines 644-661 and 565-585 where user-controlled data is injected directly into the DOM without sanitization.
+Jelly Swipe v2.0 addresses 7 specific tier responsibility violations where client code performs work that belongs to the server, or where server and client duplicate the same logic. In properly-tiered swipe-matching apps, the server is the single source of truth for identity, deck composition/order, match detection, and deep link generation. The client owns only animation, optimistic UI updates, and rendering.
 
-**Recommended approach:** Implement CSP as a defense-in-depth layer while fixing the root cause by replacing `innerHTML` with safe DOM APIs and removing client-controlled title/thumb from the API contract.
+Research confirms that Jellyfin Web uses **hash-based routing** (`createHashRouter`) with item detail pages at the `details` path, accepting `?id={itemId}` as a query parameter. The correct deep link format is `{JELLYFIN_URL}/web/#/details?id={itemId}` — the server already has `JELLYFIN_URL` as an env var, so it must generate these links rather than delegating URL construction to the client.
 
-## Table Stakes
+Flask's built-in `session` (signed cookies backed by `app.secret_key`) is sufficient for server-owned identity. No additional library is needed — `Flask-Login` would add unnecessary abstraction for a system with two identity modes (delegate server identity vs. user-supplied credentials).
 
-Features users expect in a secure web application. Missing these = product feels insecure and vulnerable.
+## Table Stakes (Users Expect These)
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Content Security Policy (CSP) Header** | Security-conscious users expect CSP headers on all modern web apps; absence indicates poor security posture | LOW | Set via Flask `@app.after_request` hook; recommended policy: `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com` |
-| **HTML Entity Escaping for User Data** | Basic XSS prevention requirement; without it, any user input can execute JavaScript | LOW | Replace `innerHTML` with `textContent` for text content; use `document.createElement()` for structured HTML; or implement strict escape helper |
-| **Server-Side Input Validation** | Never trust client data; validate and sanitize all inputs before storage or processing | MEDIUM | Reject title/thumb from client; resolve from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`; validate JSON structure |
-| **XSS Smoke Tests** | Automated verification that XSS is blocked; required for security regression testing | LOW | Add test file `tests/test_routes_xss.py` with tests proving script tags render as literal text, not executed |
+Features users assume exist. Missing these = product feels broken or insecure.
 
-## Differentiators
+| # | Feature | Why Expected | Complexity | Current Violation | Notes |
+|---|---------|--------------|------------|-------------------|-------|
+| 1 | **Server-owned user identity** | Users expect a single consistent identity across sessions, not parallel IDs | MEDIUM | Violation #1: Server generates `host_xxx`/`guest_xxx` IDs in session while client sends Jellyfin user_id via headers — two parallel identity systems | Store `user_id` in Flask session after auth; remove client-supplied identity headers from all API calls. Server resolves identity once at login, persists in `session['user_id']`. |
+| 2 | **Server-side token storage (HttpOnly)** | Modern apps don't expose auth tokens to client JavaScript | MEDIUM | Violation #3: Client computes `Authorization: MediaBrowser ...` headers and persists tokens in `localStorage` | After `/auth/jellyfin-login` or delegate bootstrap, store the Jellyfin token server-side in `session['jf_token']` (Flask signed cookie). Client never sees the token. Return `session` cookie (already HttpOnly by default with `app.secret_key`). |
+| 3 | **Server-owned deck composition + order** | Deck content must be deterministic; all participants see the same cards | LOW | Violation #5: Server returns shuffled deck but client can re-fetch `/movies` and get a different shuffle | Server stores deck JSON blob in `rooms.movie_data` (already does this). Client must not re-fetch or re-shuffle. Genre changes trigger server-side deck regeneration only. |
+| 4 | **Single-channel match notification** | Match events should arrive from exactly one source | MEDIUM | Violation #4: Client decides match UX from `/room/swipe` response AND SSE pushes `last_match` — duplicate notification paths | `/room/swipe` should return `{matched: true/false}` without triggering a popup. The match popup should only fire from SSE `last_match` events. This eliminates race conditions and ensures both host and guest see matches. |
+| 5 | **Correct Jellyfin deep links** | "Open in Jellyfin" must actually open the movie | LOW | Violation #2: Client computes Plex deep links (`https://app.plex.tv/desktop/#!/server/...`) — completely wrong for Jellyfin | Server generates `{JELLYFIN_URL}/web/#/details?id={movie_id}` and includes it in match/deck responses. Client just uses `href` from server data. |
+| 6 | **Match cards with full metadata** | Users expect to see rating, duration, and year on matched movies | LOW | Violation #7: `get_matches()` returns `title, thumb, movie_id` only, but UI tries to render `rating`, `duration`, `year` badges (rendering empty) | Server-side join: `get_matches()` should return all card fields by re-querying Jellyfin or storing them in the `matches` table. |
+| 7 | **RESTful swipe endpoint** | Standard REST semantics for swipe actions | LOW | Violation (general): `/room/swipe` is a generic endpoint without room context in URL | Refactor to `POST /room/{code}/swipe` with body `{movie_id, direction}` only. Session provides identity; URL provides room context. |
+| 8 | **Solo mode as user property** | Solo mode is about how one person swipes, not a room property | MEDIUM | Violation #6: `go-solo` sets `rooms.solo_mode=1` which means both users in the room are forced into solo mode | Solo mode should be a session/user-level flag, not a room-level flag. `session['solo_mode'] = True` for the requesting user only. Match logic checks the swiping user's solo flag, not the room's. |
 
-Features that set the security posture apart. Not expected, but valued.
+## Differentiators (Beyond Basic Expectations)
+
+Features that set the app apart from a naive implementation. Not required, but valuable.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Nonce-Based Strict CSP** | Provides strongest XSS protection by only allowing scripts with server-generated nonces; exceeds standard CSP implementations | HIGH | Generate cryptographically random nonce per response (128+ bits, Base64); inject into CSP header and all `<script nonce="...">` tags; requires template refactoring |
-| **Comprehensive Escape Helper** | Reusable utility for safe HTML rendering; reduces developer error surface area | MEDIUM | Implement JavaScript escape function using textContent or manual HTML entity encoding (`&` → `&amp;`, `<` → `&lt;`, etc.); document safe sinks vs unsafe sinks |
-| **CSP Violation Reporting** | Detects attempted XSS attacks in production; provides security monitoring | MEDIUM | Add `Content-Security-Policy-Report-Only` header during development; integrate reporting endpoint for production monitoring |
+| **ADR documenting tier responsibilities** | Prevents future violations by codifying which tier owns what | LOW | Single markdown file: "Server owns: identity, deck, matches, deep links, tokens. Client owns: animation, DOM, optimistic UI." Future developers reference this. |
+| **Server-side deck cursor** | Prevents clients from seeing cards out of order or skipping ahead | MEDIUM | Store per-user position in deck (which card index each user is on). Server returns only the next card(s) rather than the full deck. Prevents client-side deck manipulation. |
+| **Idempotent swipe processing** | Prevents duplicate swipes from network retries | LOW | Add `UNIQUE(room_code, movie_id, user_id)` constraint on `swipes` table (already exists on `matches`). Use `INSERT OR IGNORE` pattern. |
 
-## Anti-Features
+## Anti-Features (Commonly Requested, Often Problematic)
 
 Features to explicitly NOT build.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| **`'unsafe-inline'` in CSP** | Defeats the purpose of CSP by allowing inline scripts; common anti-pattern that creates false sense of security | Use nonce-based CSP or refactor to external scripts |
-| **`eval()` or `setTimeout(string)`** | Dangerous JavaScript patterns that execute arbitrary strings; blocked by strict CSP | Use `JSON.parse()` for JSON, pass functions to `setTimeout` |
-| **Client-Side Title/Thumb Parameters** | Original vulnerability source; allows attacker to inject malicious content | Resolve all metadata server-side from `movie_id` using `JellyfinLibraryProvider.resolve_item_for_tmdb()` |
-| **`dangerouslySetInnerHTML` Pattern** | Explicitly marks content as unsafe; exactly what we're trying to prevent | Use textContent, createElement, or DOMPurify if HTML is absolutely required |
+| Anti-Feature | Why Requested | Why Problematic | What to Do Instead |
+|--------------|---------------|-----------------|-------------------|
+| **Client-side deck shuffling** | Feels faster to shuffle locally without waiting for server | Creates divergent decks between users; defeats collaborative matching | Server owns deck order. Client requests cards from server. |
+| **localStorage token persistence** | Survives page refresh; seems convenient | Tokens accessible to XSS (even with CSP); violates defense-in-depth; `session` cookie already handles persistence | Use Flask `session` (signed, HttpOnly by default). Set `session.permanent = True` for persistence across browser close. |
+| **Client-computed deep links** | Avoids a server round-trip | Ties client to specific media server URL formats (Plex vs Jellyfin); client doesn't know server base URL | Server generates `{JELLYFIN_URL}/web/#/details?id={itemId}`. Client just navigates to the `href`. |
+| **Dual notification path (SSE + HTTP response)** | Instant feedback on own swipe + partner notification | Race conditions; duplicate popups; divergent state between users | Single channel: SSE for ALL match notifications. HTTP response returns only `{matched: bool}` for the swiping user's optimistic UI. |
+| **Room-level solo mode flag** | Simplest implementation | Forces all participants into solo mode when only one user wanted it; couples a user preference to room state | Session-level solo flag: `session['solo_mode'] = True`. Match logic checks the individual user's flag. |
 
 ## Feature Dependencies
 
 ```
-[Server-Side Validation]
-    └──requires──> [Remove Client Title/Thumb from API]
-                       └──requires──> [Refactor /room/swipe Endpoint]
+[Server-Owned Identity (Feature 1)]
+    └──requires──> [Server-Side Token Storage (Feature 2)]
+    └──enables──> [RESTful Swipe Endpoint (Feature 7)]
+                       └──requires──> [Session user_id, not client headers]
 
-[Safe DOM Rendering]
-    └──requires──> [Replace innerHTML with textContent]
-                       └──requires──> [Template Refactoring]
+[Solo Mode as User Property (Feature 8)]
+    └──requires──> [Server-Owned Identity (Feature 1)]
+    └──requires──> [Session-level solo flag]
 
-[CSP Header]
-    └──enhances──> [All Other Features]
+[Single-Channel Match Notification (Feature 4)]
+    └──requires──> [SSE-only match display logic]
+    └──requires──> [Swipe response returns matched:bool only]
 
-[XSS Smoke Tests]
-    └──requires──> [All Security Fixes Implemented]
+[Correct Jellyfin Deep Links (Feature 5)]
+    └──requires──> [Server knows JELLYFIN_URL (already has env var)]
+    └──enables──> [Match cards with full metadata (Feature 6)]
+
+[Match Cards with Full Metadata (Feature 6)]
+    └──requires──> [Correct Jellyfin Deep Links (Feature 5)] — deep link is part of metadata
+    └──requires──> [Store rating/duration/year in matches table or server-side join]
+
+[Server-Owned Deck (Feature 3)]
+    └──conflicts──> [Client-side re-fetch of /movies]
+    └──requires──> [Remove client shuffle logic]
 ```
 
 ### Dependency Notes
 
-- **Server-Side Validation requires Remove Client Title/Thumb from API:** The `/room/swipe` endpoint currently accepts `title` and `thumb` from the client (line 244 of `jellyswipe/__init__.py`). These must be removed and resolved server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb(movie_id)` to prevent malicious data from entering the system.
+- **Feature 1 requires Feature 2:** Identity resolution depends on the server holding the Jellyfin token. If the token is in `localStorage`, the client must send it on every request — which means the client controls identity. Moving the token server-side into `session` is a prerequisite for server-owned identity.
 
-- **Safe DOM Rendering requires Replace innerHTML with textContent:** Lines 644-661 and 565-585 of `index.html` use `innerHTML` with template literals containing user data (`${m.title}`, `${m.thumb}`). These must be refactored to use `textContent` or DOM construction methods to prevent script execution.
+- **Feature 7 requires Feature 1:** The RESTful swipe endpoint (`POST /room/{code}/swipe`) needs the user identity from session, not from client headers. This can't work until identity is session-based.
 
-- **CSP Header enhances All Other Features:** CSP provides defense-in-depth but is not a substitute for proper escaping and validation. It should be implemented alongside, not instead of, the other security features.
+- **Feature 8 requires Feature 1:** Solo mode must be per-user, which requires per-user session identity. With room-level solo mode, you can't have one user in solo and another in collaborative mode.
 
-- **XSS Smoke Tests requires All Security Fixes Implemented:** Tests should verify the complete fix chain: server rejects bad input, client renders safely, CSP blocks any remaining injection attempts.
+- **Feature 4 is independent of others but affects client behavior:** The SSE-only notification pattern is a client-side refactoring that removes the match popup trigger from the swipe response handler. It doesn't require identity or deck changes, but it's cleaner to do after the swipe endpoint is simplified.
+
+- **Feature 5 is independent:** Deep link generation only needs `JELLYFIN_URL` (already available) and `movie_id`. No dependency on identity or deck changes.
+
+- **Feature 6 depends on Feature 5:** Match metadata should include the deep link URL. If we're already augmenting the matches response, include all fields at once.
 
 ## MVP Definition
 
-### Launch With (v1.5)
+### Launch With (v2.0)
 
-Minimum viable security fixes — what's needed to close the XSS vulnerability.
+Minimum tier separation fixes — what's needed to eliminate all 7 violations.
 
-- [x] **Server-Side Input Validation** — Remove title/thumb from client API; resolve from movie_id via JellyfinLibraryProvider
-- [x] **Safe DOM Rendering** — Replace all `innerHTML` with `textContent` or DOM construction for user-controlled data
-- [x] **Basic CSP Header** — Set `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`
-- [x] **XSS Smoke Tests** — Add `tests/test_routes_xss.py` proving XSS is blocked
+- [ ] **Feature 2: Server-side token storage** — After auth (delegate or login), store Jellyfin token in `session['jf_token']`; clear `localStorage` tokens; set `session.permanent = True`
+- [ ] **Feature 1: Server-owned identity** — On auth, resolve `user_id` from token and store in `session['user_id']`; remove all client identity headers from API calls; remove `X-Provider-User-Id` / `X-Jellyfin-User-Id` header support
+- [ ] **Feature 7: RESTful swipe endpoint** — Refactor to `POST /room/{code}/swipe` with `{movie_id, direction}` body only; identity from session
+- [ ] **Feature 3: Server-owned deck** — Remove client-side re-fetch/shuffle; client uses deck from server only; genre changes go through server
+- [ ] **Feature 4: Single-channel match notification** — Remove match popup trigger from swipe response; match display comes only from SSE events
+- [ ] **Feature 5: Correct Jellyfin deep links** — Server generates `{JELLYFIN_URL}/web/#/details?id={itemId}` in match/deck responses; remove Plex URL construction from client
+- [ ] **Feature 6: Full match metadata** — Augment `get_matches()` to return `rating`, `duration`, `year`, and `deep_link` for each match
+- [ ] **Feature 8: Solo mode as user property** — Move `solo_mode` from `rooms` table to `session` scope; match logic checks `session['solo_mode']`
+- [ ] **ADR documenting tier responsibilities** — Codify which tier owns what
 
-### Add After Validation (v1.5.1)
+### Add After Validation (v2.1)
 
-Features to add once core security is verified.
+Features to add once core tier separation is verified.
 
-- [ ] **Nonce-Based Strict CSP** — Upgrade to nonce-based CSP for stronger protection
-- [ ] **CSP Violation Reporting** — Add reporting endpoint for security monitoring
-- [ ] **Comprehensive Escape Helper** — Reusable utility function for safe HTML rendering
+- [ ] **Server-side deck cursor** — Per-user card position; prevents deck manipulation
+- [ ] **Idempotent swipe processing** — `UNIQUE` constraint on `swipes` table; `INSERT OR IGNORE`
+- [ ] **Rate limiting on swipe endpoint** — Prevent rapid-fire automated swipes
 
-### Future Consideration (v2+)
+### Future Consideration (v3+)
 
-Features to defer until security posture is stable.
+Features to defer until architecture is stable.
 
-- [ ] **Trusted Types API** — Browser-native API for preventing DOM-based XSS (requires modern browser support)
-- [ ] **HTML Sanitization (DOMPurify)** — If user-generated HTML is ever needed, integrate DOMPurify library
-- [ ] **Subresource Integrity (SRI)** — Add integrity hashes for external scripts
+- [ ] **WebSocket upgrade** — Replace SSE polling with WebSocket for lower latency
+- [ ] **Multi-device session support** — Same user from multiple browsers
+- [ ] **Playback status integration** — Track which matched movies have been watched
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Server-Side Input Validation | CRITICAL (closes vulnerability) | MEDIUM | P1 |
-| Safe DOM Rendering | CRITICAL (closes vulnerability) | MEDIUM | P1 |
-| Basic CSP Header | HIGH (defense-in-depth) | LOW | P1 |
-| XSS Smoke Tests | HIGH (regression prevention) | LOW | P1 |
-| Nonce-Based Strict CSP | MEDIUM (enhanced protection) | HIGH | P2 |
-| CSP Violation Reporting | MEDIUM (security monitoring) | MEDIUM | P2 |
-| Comprehensive Escape Helper | LOW (developer convenience) | MEDIUM | P3 |
-| Trusted Types API | LOW (future-proofing) | HIGH | P3 |
+| Feature | User Value | Implementation Cost | Priority | Addresses Violation |
+|---------|------------|---------------------|----------|---------------------|
+| Server-side token storage | HIGH (security) | MEDIUM | P1 | #3 |
+| Server-owned identity | HIGH (correctness) | MEDIUM | P1 | #1 |
+| RESTful swipe endpoint | MEDIUM (clean API) | LOW | P1 | General |
+| Server-owned deck | MEDIUM (consistency) | LOW | P1 | #5 |
+| Single-channel match notification | HIGH (UX reliability) | MEDIUM | P1 | #4 |
+| Correct Jellyfin deep links | HIGH (core functionality) | LOW | P1 | #2 |
+| Full match metadata | MEDIUM (UX completeness) | LOW | P1 | #7 |
+| Solo mode as user property | MEDIUM (multi-user correctness) | MEDIUM | P1 | #6 |
+| ADR document | LOW (maintainability) | LOW | P1 | All |
+| Server-side deck cursor | LOW (anti-cheat) | MEDIUM | P2 | — |
+| Idempotent swipes | MEDIUM (reliability) | LOW | P2 | — |
 
 **Priority key:**
-- P1: Must have for v1.5 (closes XSS vulnerability)
-- P2: Should have, add in v1.5.1 (enhanced protection)
-- P3: Nice to have, future consideration (v2+)
+- P1: Must have for v2.0 (eliminates all 7 violations)
+- P2: Should have, add when possible (hardening)
+
+## Responsibility Area Deep Dives
+
+### Area 1: Identity (Violations #1, #3)
+
+**Current state:** Two parallel identity systems operate simultaneously:
+- Server: `session['my_user_id'] = 'host_' + secrets.token_hex(8)` — random, not tied to Jellyfin
+- Client: `localStorage['provider_user_id']` — Jellyfin user_id, sent via `X-Provider-User-Id` header
+
+**Correct behavior:** After authentication (either delegate or login), the server resolves the Jellyfin `user_id` from the token and stores it in `session['user_id']`. All subsequent endpoints read identity from `session['user_id']`. The token is stored in `session['jf_token']` (server-side, signed cookie). Client never sees or sends the token.
+
+**Implementation pattern (Flask session, verified via Context7):**
+```python
+@app.route('/auth/jellyfin-login', methods=['POST'])
+def jellyfin_login():
+    # ... validate credentials ...
+    out = get_provider().authenticate_user_session(username, password)
+    session['user_id'] = out['user_id']
+    session['jf_token'] = out['token']
+    session.permanent = True
+    return jsonify({'status': 'ok'})  # No token in response
+
+@app.route('/auth/jellyfin-use-server-identity', methods=['POST'])
+def jellyfin_use_server_identity():
+    # ... resolve server identity ...
+    session['user_id'] = uid
+    session['jf_token'] = get_provider().server_access_token_for_delegate()
+    session['jf_delegate_server_identity'] = True
+    session.permanent = True
+    return jsonify({'status': 'ok'})
+```
+
+**Client changes:** Remove `providerIdentityHeaders()`, `providerToken()`, `providerUserId()`, `jellyfinAuthorizationHeader()`. All API calls become simple `fetch('/endpoint')` with `credentials: 'same-origin'` (session cookie). Remove `localStorage` token storage entirely.
+
+### Area 2: Deep Links (Violation #2)
+
+**Current state:** Client constructs Plex URLs:
+```javascript
+// index.html line 629
+const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
+```
+This produces URLs like `https://app.plex.tv/desktop/#!/server/abc123/details?key=/library/metadata/xyz789` — completely non-functional for Jellyfin.
+
+**Correct behavior (verified from jellyfin-web source):**
+- Jellyfin Web uses `createHashRouter` from react-router-dom (confirmed in `src/RootAppRouter.tsx`)
+- Item detail pages use the route path `details` (confirmed in both `src/apps/stable/routes/legacyRoutes/user.ts` and `src/apps/experimental/routes/legacyRoutes/user.ts`)
+- The item ID is passed as `?id={itemId}` query parameter
+- The `BangRedirect` component handles deprecated `!/details?id=` URLs with a warning
+
+**Correct URL format:**
+```
+{JELLYFIN_URL}/web/#/details?id={itemId}
+```
+Example: `http://192.168.1.100:8096/web/#/details?id=a1b2c3d4e5f6...`
+
+**Server-side generation:**
+```python
+def _jellyfin_deep_link(movie_id: str) -> str:
+    return f"{JELLYFIN_URL}/web/#/details?id={movie_id}"
+```
+
+The server already has `JELLYFIN_URL` as a module-level constant. Include `deep_link` in deck items and match responses.
+
+### Area 3: Match Notification (Violation #4)
+
+**Current state:** Two paths trigger match popups:
+1. **HTTP response path:** `/room/swipe` returns `{match: true, title: "...", thumb: "..."}` → client immediately shows match overlay (index.html lines 934-949)
+2. **SSE path:** `/room/stream` emits `last_match` event → client also shows match overlay (index.html lines 1015-1025)
+
+This creates race conditions and duplicate popups. The swiping user sees the match from the HTTP response, then again from SSE. The partner only sees it from SSE.
+
+**Correct behavior:**
+- `/room/swipe` returns `{matched: true/false}` — a simple boolean for optimistic UI (e.g., green glow on swipe)
+- Match popup/overlay is triggered **only** from SSE `last_match` events
+- This ensures both users see the match at the same time (via SSE) and avoids duplicate notifications
+
+**Implementation:** Remove match overlay logic from the swipe `fetch().then()` handler. Keep only the SSE handler for match display. The swipe response still returns `matched: bool` for the animation layer (green/red glow feedback).
+
+### Area 4: Deck Management (Violation #5)
+
+**Current state:** Server stores shuffled deck in `rooms.movie_data`. Client fetches `/movies` and gets the server deck. But:
+- Client can re-fetch `/movies` at any time, getting the same stored deck
+- Genre change triggers `GET /movies?genre=X` which regenerates the deck server-side but also re-shuffles
+- Client's `selectGenre()` function re-fetches and overwrites local `movieStack`
+
+**Correct behavior:**
+- Server stores deck in `rooms.movie_data` on create (already does this)
+- Client fetches deck once when game starts
+- Genre changes go through server: `POST /room/{code}/genre` → server regenerates deck → SSE notifies with `genre` change → both clients fetch the new deck
+- Client never triggers deck regeneration independently
+
+**Key change:** Remove `selectGenre()` client-side re-fetch logic. Genre selection should be a server-side operation that updates `rooms.movie_data` and notifies via SSE.
+
+### Area 5: Solo Mode (Violation #6)
+
+**Current state:** `go-solo` sets `rooms.solo_mode = 1` in the database. This is a room-level flag, so when the host goes solo, the guest is also forced into solo mode. The match logic checks `room['solo_mode']` to decide if right-swipes create immediate matches.
+
+**Correct behavior:** Solo mode is a per-user preference stored in session:
+```python
+@app.route('/room/go-solo', methods=['POST'])
+def go_solo():
+    session['solo_mode'] = True
+    return jsonify({'status': 'solo'})
+```
+
+Match logic checks the swiping user's session, not the room:
+```python
+is_solo = session.get('solo_mode', False)
+if is_solo and direction == 'right':
+    # Create match for this user only
+```
+
+This allows one user to be in solo mode while another swipes collaboratively (or both in solo mode independently).
+
+### Area 6: Match Metadata (Violation #7)
+
+**Current state:** `get_matches()` SQL:
+```sql
+SELECT title, thumb, movie_id FROM matches WHERE ...
+```
+
+Client UI tries to render `m.rating`, `m.duration`, `m.year` (index.html lines 608-625) — these are `undefined`, producing empty badge spans.
+
+**Correct behavior:** Two approaches:
+1. **Store metadata in matches table:** Add `rating`, `duration`, `year` columns to `matches` and populate them when creating matches (preferred — avoids re-querying Jellyfin for every match list fetch)
+2. **Server-side join at query time:** Re-resolve items from Jellyfin when fetching matches (expensive, slow)
+
+**Recommended approach:** Store all card fields when creating the match. The `resolve_item_for_tmdb()` method already exists. Extend the match creation to store `rating`, `duration`, `year`, `deep_link` alongside `title` and `thumb`.
+
+## Tier Responsibility Matrix
+
+Clear ownership for each responsibility area.
+
+| Responsibility | Server Owns | Client Owns |
+|---------------|-------------|-------------|
+| **User identity** | Resolves Jellyfin user_id from token; stores in session | Sends credentials once at login; receives session cookie |
+| **Auth tokens** | Stores Jellyfin token in session (HttpOnly) | Never sees token |
+| **Deck composition** | Fetches from Jellyfin, shuffles, stores in DB | Receives deck via API; renders cards |
+| **Deck order** | Determines and persists order | Respects server order; no re-shuffle |
+| **Match detection** | Queries swipes table for mutual right-swipes | Receives match notification via SSE |
+| **Match notification** | Pushes via SSE `last_match` event | Displays overlay when SSE event arrives |
+| **Deep link generation** | Constructs `{JELLYFIN_URL}/web/#/details?id={id}` | Navigates to `href` from server data |
+| **Swipe recording** | Validates identity from session; inserts into DB | Sends `{movie_id, direction}` only |
+| **Solo mode** | Stores per-user in session; checks per-user for match logic | Toggles UI; sends request to server |
+| **Match metadata** | Stores/enriches with rating, duration, year, deep_link | Renders badges from server data |
+| **Animation/UX** | — | Card drag, flip, glow effects, swipe animations |
+| **Optimistic UI** | Returns `{matched: bool}` | Shows green/red glow based on response |
 
 ## Competitor Feature Analysis
 
-| Feature | Standard Flask Apps | OWASP Recommendations | Our Approach |
-|---------|---------------------|----------------------|--------------|
-| CSP Header | Often missing or too permissive | Strict nonce-based CSP recommended | Start with basic CSP, upgrade to nonce-based in v1.5.1 |
-| HTML Escaping | Depends on template engine (Jinja2 autoescapes by default) | Output encoding for all contexts | Replace innerHTML with textContent (client-side) + Jinja2 autoescaping (server-side) |
-| Input Validation | Varies; often client-side only | Validate on server, whitelist approach | Server-side resolution from trusted source (Jellyfin/TMDB) |
-| XSS Testing | Rarely comprehensive | Unit tests + security testing | Add dedicated XSS smoke test suite |
-
-## Complexity Notes
-
-### Server-Side Validation (MEDIUM)
-- Requires refactoring `/room/swipe` endpoint to ignore client `title`/`thumb`
-- Must handle case where `JellyfinLibraryProvider.resolve_item_for_tmdb()` fails (graceful degradation)
-- Existing code already has `resolve_item_for_tmdb()` method for TMDB integration (lines 117-130)
-- **Dependency:** Requires understanding of movie_id to Jellyfin item mapping
-
-### Safe DOM Rendering (MEDIUM)
-- Template has 11+ `innerHTML` usages (found via grep)
-- Must identify which contain user data vs static HTML
-- Static HTML can remain with `innerHTML` if no user data (e.g., trailer iframe at line 709)
-- **Pattern:** Replace `c.innerHTML = \`${m.title}\`` with `c.textContent = m.title` or use DOM creation API
-- **Safe sinks:** `textContent`, `insertAdjacentText`, `setAttribute`, `value`, `className` (per OWASP)
-- **Unsafe sinks:** `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` (must avoid)
-
-### Basic CSP Header (LOW)
-- Single `@app.after_request` hook in `jellyswipe/__init__.py`
-- Policy format validated by MDN and web.dev sources
-- Must allow `https://image.tmdb.org` for images (TMDB integration requirement)
-- Must allow `https://www.youtube.com` for trailer embeds (existing feature)
-- **Implementation:**
-```python
-@app.after_request
-def add_security_headers(response):
-    csp = "default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com"
-    response.headers['Content-Security-Policy'] = csp
-    return response
-```
-
-### XSS Smoke Tests (LOW)
-- Create `tests/test_routes_xss.py`
-- Test 1: Send malicious payload in swipe endpoint, verify it's not rendered as executable script
-- Test 2: Verify CSP header is present on all responses
-- Test 3: Verify server rejects title/thumb from client
-- **Framework:** Use existing pytest setup with mock responses (follows pattern of `test_db.py`)
-
-### Nonce-Based Strict CSP (HIGH)
-- Requires generating random nonce per response: `secrets.token_urlsafe(16)` or `os.urandom(16).base64()`
-- Must inject nonce into all `<script>` tags via template variable
-- Template currently has inline scripts; must be refactored to accept nonce parameter
-- **Implementation complexity:** HIGH because all scripts need nonce attribute, including any dynamically created scripts
-- **Browser support:** Chrome 52+, Edge 79+, Firefox 52+, Safari 15.4+ (per web.dev sources)
+| Feature | Tinder (reference app) | Typical Swipe Apps | Jelly Swipe Approach |
+|---------|----------------------|--------------------|---------------------|
+| Identity | Server-owned (OAuth/Facebook) | Server-owned session | Server-owned session via Jellyfin token |
+| Deck | Server-shuffled, paginated | Server-owned cursor | Server-owned, stored in SQLite |
+| Match detection | Server-side background job | Server-side on swipe | Server-side on swipe (immediate) |
+| Match notification | Push notification or in-app | WebSocket or SSE | SSE (polling-based generator) |
+| Deep link | N/A (in-app) | N/A (in-app) | Server-generated Jellyfin URL |
 
 ## Sources
 
-**Context7 Documentation (HIGH confidence):**
-- Flask web security: CSP header configuration, after_request pattern
-- Jinja2 autoescaping: Automatic HTML escaping enabled by default
-- Flask input handling: `request.json`, `get_json()`, HTML escaping with `markupsafe.escape`
+**Jellyfin Web Source Code (HIGH confidence):**
+- `src/RootAppRouter.tsx`: Confirms `createHashRouter` — hash-based routing (`/web/#/path`)
+- `src/apps/stable/routes/legacyRoutes/user.ts`: `path: 'details'` for item detail pages
+- `src/apps/experimental/routes/legacyRoutes/user.ts`: Same `path: 'details'` in experimental layout
+- `src/components/router/BangRedirect.tsx`: Handles deprecated `!/details` URLs, confirms hash-based routing
 
-**MDN Web Docs (HIGH confidence):**
-- Content Security Policy guide: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP
-- CSP header reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+**Flask Documentation (HIGH confidence via Context7):**
+- `session` object: Cryptographically signed cookies, `session.permanent = True` for persistence
+- `app.secret_key`: Required for session signing (already configured in Jelly Swipe)
+- Session is dict-like: `session['user_id'] = value` / `session.pop('key', None)`
 
-**web.dev Articles (HIGH confidence):**
-- Strict CSP guide: https://web.dev/articles/strict-csp
-- Nonce-based CSP implementation patterns and browser support
+**Jellyfin API (HIGH confidence via Context7):**
+- `AuthenticationResult` schema: Returns `AccessToken` and `User.Id` — confirms token+user_id pattern
+- `/Users/AuthenticateByName`: Standard auth endpoint for user login
+- `/Users/Me`: Returns current user info from token — used for token-to-user-id resolution
 
-**OWASP Cheat Sheet Series (HIGH confidence):**
-- XSS Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
-- Safe sinks (textContent, insertAdjacentText) vs unsafe sinks (innerHTML)
-- Output encoding rules for HTML, JavaScript, CSS, URL contexts
-
-**Code Analysis (HIGH confidence):**
-- Vulnerable locations: `jellyswipe/templates/index.html` lines 644-661, 565-585
-- Server endpoint: `jellyswipe/__init__.py` line 244 (`/room/swipe` accepts title/thumb from client)
-- Existing method: `JellyfinLibraryProvider.resolve_item_for_tmdb()` can be leveraged for server-side resolution
-
-**Confidence Level Rationale:**
-- **HIGH confidence** for all sources: All information from official documentation (Flask, MDN, OWASP) or direct code analysis
-- **Verified through multiple sources:** CSP patterns cross-referenced between Context7, MDN, and web.dev
-- **No LOW confidence findings:** All claims backed by authoritative sources or direct code inspection
+**Direct Code Analysis (HIGH confidence):**
+- `jellyswipe/__init__.py`: Current route handlers, identity resolution, session usage
+- `jellyswipe/templates/index.html`: Client-side identity headers, Plex deep link construction, match popup triggers
+- `jellyswipe/jellyfin_library.py`: Provider with auth, deck fetch, item resolution
+- `jellyswipe/db.py`: Schema with `rooms`, `swipes`, `matches` tables
+- `jellyswipe/base.py`: Abstract `LibraryMediaProvider` contract
 
 ---
-*Feature research for: XSS Security Fixes in Jelly Swipe Flask App*
-*Researched: 2026-04-25*
+*Feature research for: Architecture Tier Separation in Jelly Swipe v2.0*
+*Researched: 2026-04-26*

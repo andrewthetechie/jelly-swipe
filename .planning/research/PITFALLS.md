@@ -1,279 +1,297 @@
-# Pitfalls Research
+# Domain Pitfalls — v2.0 Architecture Tier Fix
 
-**Domain:** Python Flask web application (unit testing)
-**Researched:** 2026-04-25
-**Confidence:** HIGH
+**Domain:** Flask + SQLite + SSE (gevent) monolith, refactoring tier responsibilities between server and client
+**Researched:** 2026-04-26
+**Codebase analyzed:** `jellyswipe/__init__.py` (563 lines), `jellyswipe/templates/index.html` (1072 lines), `jellyswipe/db.py` (52 lines), `jellyswipe/jellyfin_library.py` (482 lines)
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Over-mocking External Dependencies
+Mistakes that cause silent data loss, broken sessions, or undetectable regressions.
 
-**What goes wrong:**
-Tests mock out too much of the Jellyfin API, TMDB API, database, or Flask request context, creating tests that pass even when the actual integration fails. Mocks return unrealistic data that doesn't match real API responses, hiding integration bugs.
+### Pitfall 1: SSE Generator Session Stale-Read / Context Loss
 
-**Why it happens:**
-When adding tests to existing code, it's tempting to mock all external dependencies to avoid network calls and setup complexity. The JellyfinLibraryProvider makes real HTTP requests, so developers mock `requests.Session` or `requests.get()` to avoid testing against a real server. This creates a false sense of security.
+**What goes wrong:** The `/room/stream` SSE generator captures `code = session.get('active_room')` once in the view function (line 469), then runs for up to 3600 seconds polling the database. If the refactoring introduces session reads *inside* the generator (e.g., checking auth state on each poll cycle), two failures occur:
+1. Without `stream_with_context()`, the generator has no Flask request context — accessing `session` or `request` raises `RuntimeError: Working outside of request context`.
+2. Even with `stream_with_context()`, Flask docs explicitly warn: **"Do not modify the session in the generator, as the Set-Cookie header will already be sent."**
 
-**How to avoid:**
-- Use **integration tests** for API boundary layers (JellyfinLibraryProvider), not unit tests
-- Keep mocks **minimal and realistic** - use autospec to match real method signatures
-- Use **monkeypatch** for specific function replacement, not wholesale mocking of modules
-- Test with **real fixtures** for simple dependencies (SQLite in-memory databases)
-- Prefer **test doubles** over mocks where possible - use fake implementations that behave like the real thing
+**Why it happens:** The current generator is context-free by design — it only uses the `code` local variable captured by closure. Refactoring to check auth state per-cycle is a natural impulse when moving identity server-side.
 
-**Warning signs:**
-- Tests never fail when production code changes
-- Mock assertions check implementation details (`mock.assert_called_with("GET", ...)`)
-- Mock return values are hardcoded to simple values like `{"key": "value"}`
-- Tests pass but production fails due to API contract changes
+**Consequences:** Silent 500 errors in the SSE stream (caught by the generic `except Exception` on line 517), causing the client to stop receiving match notifications with no visible error.
 
-**Phase to address:**
-Phase 1 (Test infrastructure setup) - establish clear boundaries between unit and integration tests, create realistic fixtures for Jellyfin/TMDB responses.
+**Prevention:**
+- Keep the SSE generator context-free. Pass all needed data (room code, user id) as arguments from the view function.
+- If the generator must check mutable state, read from the database (already the pattern), not from `session`.
+- Never call `session.modify()` inside the generator.
+
+**Detection:** SSE stream stops sending events but doesn't close (client sees no `closed: true` event). Match overlays stop appearing for one user but not the other.
+
+**Where in code:** `__init__.py` lines 467–521 (`room_stream` route and `generate()` closure).
 
 ---
 
-### Pitfall 2: Test Coupling to Implementation Details
+### Pitfall 2: Match Detection TOCTOU Race in SQLite
 
-**What goes wrong:**
-Tests break when refactoring code that doesn't change behavior. For example, testing that `db.py` calls `conn.execute('SELECT * FROM rooms WHERE pairing_code = ?')` means the test breaks if you switch to an ORM or change the query structure.
+**What goes wrong:** The swipe endpoint (lines 343–378) performs a non-atomic check-then-insert sequence:
+1. `INSERT INTO swipes` (line 344)
+2. `SELECT user_id FROM swipes WHERE ... AND user_id != ?` (line 358)
+3. `INSERT INTO matches` (lines 362–371)
 
-**Why it happens:**
-When adding tests to existing code, the path of least resistance is to test what the code *does* (implementation) rather than what it *accomplishes* (behavior). The Flask routes in `__init__.py` have complex logic mixed with database queries, making it tempting to test each step rather than the overall outcome.
+When two users swipe right on the same movie simultaneously:
+- User A: INSERT swipe → SELECT (no other right swipe yet) → no match
+- User B: INSERT swipe → SELECT (finds A's right swipe) → creates match
+- Result: Match is only created for User B's perspective. User A's swipe is orphaned — they never see the match.
 
-**How to avoid:**
-- Test **behavior, not implementation** - verify outcomes, not how they're achieved
-- Use **black-box testing** for routes - given input X, expect output Y
-- For database code, test **state changes** (after calling function, database contains Z)
-- Avoid mocking private methods - test through the public interface
-- Use **parameterized tests** to test multiple scenarios without duplicating implementation assumptions
+**Why it happens:** SQLite default journal mode allows concurrent reads during writes, but the check-then-insert is not wrapped in a transaction with `BEGIN IMMEDIATE`. The `with get_db() as conn:` context manager uses autocommit, not an explicit transaction.
 
-**Warning signs:**
-- Tests import implementation modules directly (`from jellyswipe import db`) rather than using the API
-- Assertions check that specific methods were called with specific arguments
-- Tests require intimate knowledge of internal function names
-- Refactoring causes cascading test failures
+**Consequences:** Silent match loss. Two users both swiped right, but only one sees the match notification. No error is raised.
 
-**Phase to address:**
-Phase 2 (Core module tests) - establish test design patterns that focus on behavior over implementation before writing extensive tests.
+**Prevention:**
+- Wrap the swipe+match logic in `BEGIN IMMEDIATE` transaction to serialize concurrent swipes on the same movie.
+- Or use `INSERT ... SELECT` pattern to atomically detect and create matches.
+- Alternative: After both users swipe, have the *second* swipe always create matches for *both* user_ids (which is partially the current pattern on lines 366–371, but the first user's match insert is skipped because the SELECT found nothing).
 
----
+**Detection:** Two users report swiping right on the same movie but only one sees a match. Intermittent — only occurs under timing coincidence.
 
-### Pitfall 3: Flaky Tests from State Leakage
-
-**What goes wrong:**
-Tests pass when run individually but fail when run together. One test creates a room in the database, and the next test fails because the room still exists. Session state (`session['active_room']`) persists between tests.
-
-**Why it happens:**
-The existing Flask app uses:
-- **Global singleton**: `get_provider()` returns a cached `JellyfinLibraryProvider` instance with internal state (`_access_token`, `_cached_user_id`)
-- **Flask sessions**: `session['active_room']` and `session['my_user_id']` persist unless explicitly cleared
-- **SQLite databases**: File-based databases retain data between test runs
-
-When adding tests, developers don't account for this state because the production code assumes fresh requests.
-
-**How to avoid:**
-- Use **pytest fixtures with `yield`** for setup/teardown - ensure each test gets a clean slate
-- Reset singletons in fixtures: `provider.reset()` or recreate the provider instance
-- Use **in-memory SQLite databases** (`":memory:"`) for tests
-- Clear Flask session state in fixtures or use `client.session_transaction()`
-- Use **autouse fixtures** to prevent state from leaking between tests
-- Run tests with **`pytest-randomly`** to expose hidden dependencies
-
-**Warning signs:**
-- Tests pass when run in isolation: `pytest tests/test_db.py::test_create_room` works but `pytest tests/test_db.py` fails
-- Test order affects results
-- Flaky tests that "sometimes fail" without code changes
-- Tests create data but never clean it up
-
-**Phase to address:**
-Phase 1 (Test infrastructure) - establish fixture patterns for proper isolation before writing any tests. This is foundational.
+**Where in code:** `__init__.py` lines 343–378 (swipe endpoint).
 
 ---
 
-### Pitfall 4: Testing Libraries Instead of Application Logic
+### Pitfall 3: Dual Identity Migration Orphans Existing Swipes
 
-**What goes wrong:**
-Tests verify that Flask's `test_client.get()` works, or that `sqlite3.connect()` creates a connection, rather than testing the application's business logic. This provides no value because libraries already have their own tests.
+**What goes wrong:** The current system has **two distinct identity keys** used in different contexts:
+- `uid = session.get('my_user_id')` — format `host_<hex>` or `guest_<hex>`, used as `user_id` in the `swipes` table (line 345)
+- `user_id = _provider_user_id_from_request()` — Jellyfin UUID, used as `user_id` in the `matches` table (lines 352, 354, 364)
 
-**Why it happens:**
-When adding tests to existing code, it's unclear what to test. The Flask routes have database queries, API calls, and response formatting all mixed together. Testing the entire route end-to-end feels like "testing Flask" so developers instead try to test individual lines, which often means testing library calls.
+The match detection query (line 358) uses `uid` to find "other user's swipes", but match records are stored with `user_id` (Jellyfin ID). If the refactoring consolidates to a single identity (e.g., always use Jellyfin user_id for swipes), existing `swipes` rows with `host_*`/`guest_*` values become unreachable. Conversely, if the refactoring changes the `matches.user_id` column semantics, existing match history breaks.
 
-**How to avoid:**
-- Test **your code, not libraries** - verify the logic you wrote, not what Flask/SQLite/requests do
-- For routes: test the **integration** of all pieces (route handler → database → response)
-- For utility functions: test the **transformation logic** (e.g., `_format_runtime()` converting seconds to "1h 30m")
-- Use **framework-agnostic tests** for pure Python modules (`db.py`, `jellyfin_library.py`)
-- For Flask routes, use the **test client** to test the full HTTP contract, not internal routing
+**Why it happens:** The dual-ID system evolved incrementally. Swipes use session-derived anonymous IDs; matches use provider-verified IDs. There's no foreign key or migration path between them.
 
-**Warning signs:**
-- Tests for Flask's `test_client` behavior (e.g., "test that client.get returns a response")
-- Tests for SQLite's `execute()` method
-- Tests that don't fail even when you delete all your application code
-- Low test coverage despite many tests
+**Consequences:**
+- Active rooms during migration: swipes recorded under old IDs, matches looked up under new IDs → matches silently stop working mid-session.
+- Historical matches: `/matches?view=history` queries by Jellyfin `user_id` but rows contain different identity formats → empty history after migration.
 
-**Phase to address:**
-Phase 2 (Core module tests) - identify and document which modules need tests vs. which use well-tested libraries.
+**Prevention:**
+- Write a one-time migration that backfills `swipes.user_id` with the Jellyfin user_id where possible (requires mapping `host_`/`guest_` IDs back to Jellyfin IDs — which may not exist).
+- Alternatively: keep both identity columns and add a migration that copies the session-ID to a new column while adding the Jellyfin ID alongside.
+- **Safest approach:** Add a `jellyfin_user_id` column to both tables; populate it going forward; keep the old `user_id` column for backward compatibility during a transition period.
 
----
+**Detection:** After migration, match history appears empty for existing users. New matches work but old ones are invisible.
 
-### Pitfall 5: Hard-to-Maintain Test Setups
-
-**What goes wrong:**
-Test fixtures become complex hierarchies that are impossible to understand. A test needs a `client` that needs an `app` that needs a `provider` that needs a `database` that needs a `tmdb_api_key`. When one fixture changes, 20 tests break.
-
-**Why it happens:**
-The existing app has many implicit dependencies:
-- Routes need `get_provider()` which needs `JELLYFIN_URL` env var
-- Database operations need `init_db()` which needs `DB_PATH` env var
-- TMDB routes need `TMDB_API_KEY` env var
-
-When writing tests, developers create fixtures to set all of this up, leading to fixture chains like `db → provider → app → client`.
-
-**How to avoid:**
-- Keep fixtures **simple and focused** - each fixture does one thing
-- Use **conftest.py** for shared fixtures, but keep them minimal
-- Prefer **function-scoped fixtures** (default) over session/class-scoped to avoid state sharing
-- Use **monkeypatch** for env var injection instead of complex fixture setup
-- Document fixture dependencies clearly
-- Extract complex setup into **helper functions** rather than fixtures
-
-**Warning signs:**
-- Fixtures call other fixtures that call other fixtures (3+ levels deep)
-- Test functions have 5+ fixture arguments
-- Fixtures have conditional logic (`if fixture_a: setup_b()`)
-- Changing one fixture causes failures in unrelated tests
-
-**Phase to address:**
-Phase 1 (Test infrastructure) - establish fixture design patterns before writing tests. Simple fixtures prevent debt accumulation.
+**Where in code:** `__init__.py` lines 313–378 (swipe + match logic); `db.py` schema (lines 22–28).
 
 ---
 
-## Technical Debt Patterns
+### Pitfall 4: EventSource Cannot Send Authorization Headers
 
-Shortcuts that seem reasonable when adding tests but create long-term problems.
+**What goes wrong:** The browser `EventSource` API (used on line 997: `new EventSource('/room/stream')`) does **not** support custom headers. It only sends cookies. If the refactoring changes the SSE endpoint to require `Authorization` header verification (instead of relying on the session cookie), the SSE connection will fail with 401 on every request.
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Mocking everything to avoid setup | Tests write quickly, no external dependencies | Tests don't catch real integration bugs, become fragile | Never - this defeats the purpose of testing |
-| Testing routes by calling handler functions directly | Avoids Flask test client setup | Tests don't verify HTTP contract, miss middleware/before_request logic | Only for pure functions extracted from routes |
-| Using production database for tests | No test DB setup needed | Tests can corrupt production data, slow, state leakage | Never |
-| Skipping tests for "simple" functions | Faster progress initially | Bugs slip through in "trivial" code, no safety net for refactoring | Only for generated code or truly one-liners |
-| Hardcoding env vars in test setup | Tests run without configuration management | Tests fail in CI/CD, can't test multiple configurations | Only for temporary debugging, never commit |
-| Asserting implementation details (`mock.assert_called_with`) | Easy to write tests by copying code | Tests break on refactoring, discourage code improvements | Only when testing specific side effects that are part of the contract |
-| Skipping cleanup in fixtures | Tests pass initially | Flaky tests, state leakage, hard-to-debug failures | Never |
+**Why it happens:** A natural refactoring instinct is "all authenticated endpoints should verify the token in the Authorization header." But `EventSource` doesn't support `withCredentials` in the same way as `XMLHttpRequest` — it always sends cookies for same-origin requests, but never sends custom headers.
 
----
+**Consequences:** SSE stream returns 401 or empty response. Client never receives room-ready notifications, match notifications, or genre changes. The room appears stuck in "waiting for partner" state.
 
-## Integration Gotchas
+**Prevention:**
+- SSE endpoint must authenticate via session cookie only, not `Authorization` header.
+- The current pattern is correct: `room_stream()` reads `session.get('active_room')` (line 469).
+- If HttpOnly session cookies are adopted, SSE will work automatically since `EventSource` sends cookies same-origin.
+- Do **not** add `_provider_user_id_from_request()` to the SSE endpoint — it reads `Authorization` headers which `EventSource` cannot send.
 
-Common mistakes when connecting to external services in tests.
+**Detection:** Browser console shows `EventSource` error events. Network tab shows 401 on `/room/stream`. Room never transitions from "waiting" to active.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| **Jellyfin API** | Mock `requests.get()` to return fake data; tests don't catch API contract changes | Use integration tests with a real test Jellyfin server or recorded responses (`vcr.py`); unit test only the data transformation logic (`_item_to_card()`, `_format_runtime()`) |
-| **TMDB API** | Mock TMDB responses with minimal data; miss edge cases like missing images | Use parameterized tests with realistic TMDB response fixtures (missing fields, null values, unicode characters) |
-| **SQLite Database** | Use production database file; tests corrupt data | Use in-memory database (`":memory:"`) or temporary files (`tmp_path`) |
-| **Flask Sessions** | Don't clear session between tests; state leaks | Use `client.session_transaction()` fixture or clear session in test teardown |
-| **Environment Variables** | Set env vars in global `conftest.py` using `os.environ`; affects all tests | Use `monkeypatch.setenv()` in fixtures to ensure isolation |
-| **Singleton Provider** | Use global `get_provider()` in tests; state persists across tests | Create fresh provider instance in fixtures or call `provider.reset()` in teardown |
+**Where in code:** `__init__.py` line 467–521 (SSE route); `index.html` line 997 (`new EventSource('/room/stream')`).
 
 ---
 
-## Performance Traps
+### Pitfall 5: Session Cookie Last-Write-Wins Under gevent Concurrency
 
-Patterns that work for a few tests but fail as the test suite grows.
+**What goes wrong:** Flask's default `SecureCookieSessionInterface` stores the entire session as a single signed cookie. Flask docs warn: **"Multiple requests with the same session may be sent and handled concurrently. There is no guarantee on the order in which the session for each request is opened or saved."**
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| **Network calls in tests** | Each test makes real HTTP requests to Jellyfin/TMDB; suite takes minutes to run | Use mocks/vcr for external APIs; run integration tests separately | At 20+ tests with API calls (~5-10 seconds per test) |
-| **File-based databases** | SQLite writes to disk; I/O overhead grows with test count | Use in-memory databases or tmp_path with proper cleanup | At 50+ database tests (~2-3 seconds per test) |
-| **Sequential test execution** | Tests run one at a time; unused CPU cores | Use `pytest-xdist` for parallel execution; ensure test isolation | At 100+ tests (>10 seconds total) |
-| **Global state initialization** | Provider authenticates with Jellyfin in every test; auth latency accumulates | Cache authenticated provider in session-scoped fixture with proper reset | At 30+ tests needing authenticated provider |
-| **Fixture recomputation** | Expensive fixtures (app creation, DB init) run for every test | Use appropriate fixture scope (module/session) for expensive setup | At 50+ tests using same fixtures |
+Under gevent, each SSE connection holds a greenlet open for up to 3600 seconds. During that time, the same browser may make concurrent requests that modify the session (e.g., `/room/swipe` while the SSE generator is running). The last response to save the session cookie wins — the other's changes are silently lost.
 
----
+**Why it happens:** gevent's cooperative scheduling means requests interleave at I/O boundaries. Two requests from the same browser share the same session cookie. Flask signs the entire session dict into one cookie — there's no per-key merging.
 
-## Security Mistakes
+**Consequences:** `session['active_room']` or `session['my_user_id']` gets overwritten with stale data. User appears to leave the room randomly, or their identity flips to an empty value.
 
-Domain-specific security issues beyond general web security.
+**Prevention:**
+- Minimize session writes. Set identity and room data once (on create/join) and never modify them during the SSE lifecycle.
+- If session writes during SSE are unavoidable, consider server-side sessions (Flask-Session with SQLAlchemy or filesystem backend) which support per-key updates.
+- Read session data before returning the response, not in background tasks.
+- The current code is mostly safe because session writes happen on create/join only, but the refactoring may introduce new session writes (e.g., storing the Jellyfin token in session).
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| **Leaking API keys in test output** | Test failures print request headers containing `JELLYFIN_API_KEY` or `TMDB_API_KEY` | Use `pytest-capturelog` to filter sensitive data; mock responses that include keys |
-| **Testing with production credentials** | Accidental operations on production Jellyfin server | Require test-specific env vars; fail fast if `TESTING=True` not set |
-| **Exposing tokens in assertion messages** | `assert response.json['token'] == expected` prints token on failure | Use custom assertion helpers that redact sensitive fields |
-| **Not testing auth failures** | Tests assume valid tokens; unauthenticated paths untested | Parameterize tests with valid/invalid tokens; test 401/403 paths explicitly |
-| **Hardcoded secrets in test fixtures** | API keys committed to repository | Use environment variables or pytest config (`pytest.ini`) for test credentials |
+**Detection:** User is in a room, swiping works, then suddenly their session reverts to the pre-join state. Intermittent, only under concurrent request patterns.
+
+**Where in code:** Any route that writes to `session` — `create_room` (line 282), `join_room` (line 304), `go_solo` (line 294), `jellyfin_use_server_identity` (line 257).
 
 ---
 
-## UX Pitfalls
+## Moderate Pitfalls
 
-Common user experience mistakes in this domain.
+### Pitfall 6: HttpOnly Cookie Migration — No Backward Bridge
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| **Tests don't tell you what's broken** | Test output shows "assert 1 == 2" with no context | Use descriptive test names (`test_create_room_returns_4_digit_code`) and custom assertion messages |
-| **Flaky tests waste developer time** | Developers re-run tests multiple times, lose trust in test suite | Fix flaky tests immediately; use `pytest-rerunfailures` only as temporary band-aid |
-| **Slow feedback loop** | Developers wait 30+ seconds for tests to run before committing | Keep unit test suite under 10 seconds; run fast tests locally, slow tests in CI |
-| **Tests hard to run locally** | Complex setup requires Docker, test servers, multiple env vars | Make tests runnable with just `pytest`; document simple setup in README |
-| **Test output is noisy** | Hundreds of passing tests obscure the one failure | Use `-v` for verbose output only on failures; pytest shows summary by default |
+**What goes wrong:** Current flow: `/auth/jellyfin-login` returns `{"authToken": "...", "userId": "..."}` as JSON (line 270). Client stores in `localStorage` and sends as `Authorization` header on every request. If the refactoring changes this to set an HttpOnly session cookie instead, existing deployed clients will:
+1. Still have tokens in `localStorage` from their last session
+2. Still send `Authorization` headers
+3. But the server now expects the session cookie, not the header
+4. If the server stops reading `Authorization` headers, every existing user's session breaks immediately
 
----
+**Prevention:**
+- Build a **dual-read migration period**: server checks both session cookie and `Authorization` header during transition.
+- Add a `/auth/migrate-session` endpoint that the client calls once to move the `localStorage` token into the session cookie.
+- Client-side: on `window.onload`, if `localStorage` has tokens but session doesn't, call the migration endpoint.
+- After migration, clear `localStorage` tokens and use only session cookie.
 
-## "Looks Done But Isn't" Checklist
-
-Things that appear complete but are missing critical pieces.
-
-- [ ] **Test coverage metrics are high, but critical paths are untested:** Verify high-impact paths (authentication, database writes, error handling) have explicit tests, don't rely on coverage from incidental tests
-- [ ] **Tests pass locally but fail in CI:** Verify test isolation, environment variable handling, and file paths work in CI environment
-- [ ] **All tests mock the same thing:** Verify integration tests exist for mocked components (e.g., at least one test calls real Jellyfin API)
-- [ ] **Error handling only tested with mocks:** Verify exception paths are tested with real error conditions (network timeouts, 500 responses, malformed data)
-- [ ] **Database tests only test happy paths:** Verify tests for constraint violations, concurrent updates, and edge cases (empty results, null values)
-- [ ] **Flask routes only tested with valid input:** Verify tests for missing/invalid headers, malformed JSON, missing required fields
+**Where in code:** `__init__.py` lines 96–111 (`_jellyfin_user_token_from_request`); `index.html` lines 326–349 (client auth functions).
 
 ---
 
-## Recovery Strategies
+### Pitfall 7: SameSite Cookie + Reverse Proxy HTTPS Termination
 
-When pitfalls occur despite prevention, how to recover.
+**What goes wrong:** Docker deployments typically use a reverse proxy (Traefik, nginx, Caddy) that terminates TLS and forwards HTTP to the Flask container. If `SESSION_COOKIE_SECURE=True` is set (recommended for HttpOnly cookies), the browser will only send the cookie over HTTPS. But Flask sees the request as HTTP (no `X-Forwarded-Proto` or incorrect `ProxyFix` config), so it won't set the `Secure` flag — or worse, it sets the flag but the cookie isn't sent on the next request because the browser sees the proxy as HTTP.
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| **Over-mocked tests** | HIGH | 1. Identify which mocks hide integration bugs by temporarily removing them<br>2. Add integration tests for those boundaries<br>3. Rewrite unit tests to test behavior, not implementation<br>4. Document what should be mocked vs. what should be integration tested |
-| **Flaky tests** | MEDIUM | 1. Isolate the failing test (run in isolation until it fails)<br>2. Add logging to identify state leakage<br>3. Add `pytest-randomly` to expose hidden dependencies<br>4. Fix fixture isolation or add explicit cleanup<br>5. Verify fix by running tests in random order 100+ times |
-| **Test coupling to implementation** | HIGH | 1. Identify tests that break on refactoring<br>2. Determine the intended behavior being tested<br>3. Rewrite tests to verify behavior through public API<br>4. Consider extracting private methods if they need testing |
-| **Slow test suite** | MEDIUM | 1. Profile test execution time (`--durations=10`)<br>2. Identify slow tests and slow fixtures<br>3. Move slow tests to separate `tests/integration/` directory<br>4. Add `pytest-xdist` for parallel execution<br>5. Optimize expensive fixtures (use appropriate scope) |
-| **Missing test isolation** | MEDIUM | 1. Identify tests that fail when run together<br>2. Add autouse fixtures to reset global state<br>3. Use in-memory databases for tests<br>4. Ensure all fixtures use function scope by default<br>5. Run with `pytest-randomly` to verify isolation |
-| **Tests break in CI but pass locally** | LOW-MEDIUM | 1. Compare local vs. CI environment (Python version, dependencies, env vars)<br>2. Reproduce CI failure locally (Docker, same Python version)<br>3. Check for hardcoded paths or missing `.gitignore` files<br>4. Ensure test dependencies are in `dev-dependencies` of `pyproject.toml`<br>5. Add CI-specific test configuration if needed |
+**Prevention:**
+- Verify `ProxyFix` is configured (already present on line 46: `ProxyFix(app.wsgi_app, x_for=1, x_proto=1, ...)`) and that `x_proto=1` is included.
+- Test cookie flags in the actual deployment: `curl -v https://your-app/` and check `Set-Cookie` headers.
+- If `SESSION_COOKIE_SECURE=True` and users access via IP (not HTTPS), the cookie is never sent — provide clear deployment docs.
+
+**Where in code:** `__init__.py` line 46 (ProxyFix); line 47 (secret_key — session signing).
 
 ---
 
-## Pitfall-to-Phase Mapping
+### Pitfall 8: Deck State Divergence Between Server and Client
 
-How roadmap phases should address these pitfalls.
+**What goes wrong:** Currently the server shuffles the deck in `fetch_deck()` (jellyfin_library.py line 326: `random.shuffle(movie_list)`) and stores it as a JSON blob in `rooms.movie_data`. The client receives the full deck from `/movies` and manages a local `movieStack` array. The client modifies this array on swipe (line 950: `movieStack.shift()`) and undo (line 715: `movieStack.unshift(lastMovie)`).
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| **Flaky tests from state leakage** | Phase 1 - Establish fixture patterns with proper isolation (yield fixtures, in-memory DB, provider reset) | Run tests with `pytest-randomly` multiple times; verify tests pass in all orders |
-| **Hard-to-maintain test setups** | Phase 1 - Design simple, focused fixtures before writing tests; document fixture dependencies | Review fixtures for complexity (>3 levels deep, >5 fixture args per test) |
-| **Testing libraries instead of application logic** | Phase 2 - Create test plan identifying which modules need tests vs. library code | Verify test coverage of application code (not stdlib/Flask/requests) |
-| **Over-mocking external dependencies** | Phase 1 - Establish boundaries: unit tests for logic, integration tests for APIs | Count mocks vs. real calls; ensure at least one integration test per external service |
-| **Test coupling to implementation** | Phase 2 - Establish test design patterns focusing on behavior before writing tests | Refactor production code; verify tests still pass without changes |
-| **Performance traps** | Phase 3 - Optimize test suite after coverage is achieved (pytest-xdist, fixture scopes) | Measure test suite runtime; target <10 seconds for unit tests |
-| **Security mistakes** | Phase 2 - Add security-focused test cases for auth failures and sensitive data | Run tests with audit for leaked secrets in logs/assertions |
+If the refactoring makes the server the single source of truth for "which card is current," the client's local array will diverge from the server's state whenever:
+1. The user swipes faster than the server responds (optimistic animation already consumed the card)
+2. An undo request fails but the client already put the card back
+3. Genre change arrives via SSE while the user is mid-swipe
+
+**Prevention:**
+- Keep the deck as a server-ordered list that the client renders without re-ordering.
+- Track "swiped up to index N" on the server, not the specific card order.
+- Undo should be a server-first operation: client sends undo, server responds with the card to restore, client adds it back.
+- Or: accept that deck state is eventually-consistent and design for idempotent operations.
+
+**Where in code:** `jellyfin_library.py` lines 272–327 (`fetch_deck`); `index.html` lines 924–951 (swipe handler), 707–717 (undo handler).
+
+---
+
+### Pitfall 9: CSP Blocks Inline Event Handlers After Template Refactor
+
+**What goes wrong:** The CSP header (lines 52–59) sets `script-src 'self'` which blocks inline event handlers. The HTML template currently has several inline `onclick` attributes:
+- Line 206: `<button ... onclick="confirmQuit()">`
+- Line 267: `<div ... onclick="selectGenre('All')">`
+- Line 268: `<div ... onclick="selectGenre('Recently Added')">`
+- Line 281: `<button ... onclick="...classList.add('hidden')">`
+- Line 629: `plexLink` with inline URL construction
+
+If the template is refactored or CSP is tightened (e.g., adding nonce support), these inline handlers will silently break — buttons become non-functional with no console error in some browsers.
+
+**Prevention:**
+- Migrate all inline handlers to `addEventListener` calls in the `<script>` block during the refactor.
+- Or add `'unsafe-inline'` to `script-src` (not recommended for security).
+- Or implement CSP nonce support: `script-src 'nonce-{{ csp_nonce }}'`.
+
+**Where in code:** `__init__.py` lines 49–60 (CSP middleware); `index.html` lines 206, 267, 281, etc.
+
+---
+
+### Pitfall 10: SSE Reconnection Drops Match State
+
+**What goes wrong:** When the SSE connection drops and `EventSource` auto-reconnects, the server starts a fresh `generate()` loop with `last_match_ts = None`. This means:
+1. If a match happened while the client was disconnected, the server will re-send the `last_match` event
+2. The client's `lastSeenMatchTs` JS variable persists across reconnects (it's a global, not reset)
+3. If the reconnected SSE sends a match with `ts > lastSeenMatchTs`, the match overlay re-appears — even if the user already dismissed it
+
+Conversely, if `lastSeenMatchTs` is somehow *ahead* of the server's `last_match.ts` (e.g., clock skew, page was open during a previous session), matches are silently dropped.
+
+**Prevention:**
+- On SSE reconnect, reset `lastSeenMatchTs` to the current time to avoid replaying old matches.
+- Or: the server should track per-user "last seen match" and only send new ones.
+- The current pattern of using `last_match_data` on the room row (shared between all users) is inherently imprecise for per-user match tracking.
+
+**Where in code:** `__init__.py` lines 473–518 (SSE generator); `index.html` lines 995–1027 (SSE client).
+
+---
+
+## Minor Pitfalls
+
+### Pitfall 11: Server Token Cache Becomes Stale on Password Change
+
+**What goes wrong:** `_token_user_id_cache` (line 70) caches Jellyfin token→user_id mappings for 300 seconds. If a Jellyfin admin revokes or rotates a user's token (password change, session invalidate), the cache still maps the old token to a user_id. Swipes and matches could be attributed to the wrong identity.
+
+**Prevention:** Reduce TTL or add a cache invalidation endpoint. The 300-second TTL is documented as a deliberate tradeoff (line 155 comment). For v2.0, document this risk and accept it — it's self-healing after TTL expiry.
+
+---
+
+### Pitfall 12: `session.pop()` Doesn't Cascade to SSE
+
+**What goes wrong:** `/room/quit` (line 403) calls `session.pop('active_room')`. If the SSE stream is running, it still has the old `code` in its closure. The generator will continue polling for the now-deleted room, eventually emitting `{closed: true}` when the room row is gone (line 490). This is actually correct behavior, but only because the delete happens before the session pop. If the order were reversed, there'd be a window where a new room could get the same pairing code.
+
+**Prevention:** Keep the current order: delete room rows first, then clear session. Don't refactor the order.
+
+---
+
+### Pitfall 13: Provider Singleton Not Thread/Greenlet-Safe
+
+**What goes wrong:** `_provider_singleton` (line 68) is a module-level global. Under gevent, multiple greenlets call `get_provider()` concurrently. The `JellyfinLibraryProvider` uses `requests.Session()` (jellyfin_library.py line 44) which is documented as not thread-safe for concurrent requests. Under high concurrency, response data from one greenlet's request could leak into another's.
+
+**Prevention:** Use `gevent.lock.Semaphore` around provider calls, or create per-request provider instances, or use `requests.Session` per-greenlet via thread-local storage (which gevent monkey-patches to be greenlet-local).
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation | Phase to Address |
+|-------------|---------------|------------|-----------------|
+| Server-side identity (session → Jellyfin user_id) | Dual-ID migration orphans swipes (#3) | Add `jellyfin_user_id` column; dual-write period | First phase — identity foundation |
+| HttpOnly session cookies | EventSource can't send headers (#4) | SSE authenticates via cookie only | Same phase as identity |
+| HttpOnly session cookies | Existing clients break without migration bridge (#6) | Dual-read period + `/auth/migrate-session` | First phase — must ship before old auth removed |
+| Server-owned deck | Client/server state divergence (#8) | Server tracks position; client renders server order | Deck phase |
+| Server-owned match notification | TOCTOU race in SQLite (#2) | `BEGIN IMMEDIATE` transaction | Match logic phase |
+| SSE restructuring | Generator session context loss (#1) | Keep generator context-free; pass data as args | SSE phase (late, after other changes stabilize) |
+| SSE restructuring | Reconnection replay (#10) | Reset `lastSeenMatchTs` on reconnect | SSE phase |
+| Session cookie security | ProxyFix + Secure flag (#7) | Verify in Docker deployment test | Final phase — deployment validation |
+| Session writes under gevent | Last-write-wins cookie loss (#5) | Minimize session writes; consider server-side sessions | Identity phase (design) + SSE phase (validation) |
+| CSP + template refactor | Inline handlers break (#9) | Migrate to addEventListener | Template phase |
+
+---
+
+## gevent-Specific Session Concerns
+
+### Greenlet-Local vs Thread-Local
+
+With `monkey.patch_all()`, Python's `threading.local()` becomes greenlet-local. Flask's request context uses Werkzeug's `LocalStack`, which is also greenlet-aware under gevent. This means:
+
+1. **Session access is safe per-greenlet** — each SSE connection gets its own request context.
+2. **Module-level state is shared** — `_token_user_id_cache`, `_provider_singleton` are shared across all greenlets. No synchronization exists.
+3. **SQLite connections are safe** — `get_db()` creates a new connection per call, not shared.
+
+### Session Cookie Size Under gevent
+
+Flask's default signed-cookie sessions have a practical size limit (~4KB). If the refactoring stores more data in the session (Jellyfin token, user_id, room code, solo mode, etc.), the cookie could exceed browser limits. Monitor session size during development.
+
+---
+
+## Migration Risk Matrix
+
+| Data Being Migrated | Risk Level | Rollback Complexity | Data Loss Risk |
+|---------------------|------------|-------------------|----------------|
+| `localStorage` → session cookie (auth token) | **High** | Medium — need to keep dual-read | No data loss, but sessions break without migration bridge |
+| `host_`/`guest_` IDs → Jellyfin user_id in swipes | **High** | Hard — requires re-mapping old swipes | Existing match history becomes unreachable |
+| Client deck order → server deck order | **Medium** | Easy — revert to client shuffle | No persistent data affected (deck is ephemeral) |
+| Client match detection → server match detection | **Low** | Easy — match logic is server-side already | Only concurrent swipe race (#2) |
+| Client deep link construction → server deep links | **Low** | Easy — template change only | No data affected |
 
 ---
 
 ## Sources
 
-- **Pytest Documentation**: Official pytest docs on fixtures, monkeypatching, flaky tests, and import modes - HIGH confidence (official source)
-- **Flask Testing Documentation**: Official Flask testing guide for fixtures, test client, and testing patterns - HIGH confidence (official source)
-- **Google Testing Blog - "Just Say No to More End-to-End Tests"**: Industry best practices on testing pyramid and test strategy - MEDIUM confidence (industry-standard approach)
-- **Python unittest.mock Documentation**: Official Python docs on mocking best practices, autospec, and where to patch - HIGH confidence (official source)
-- **Existing codebase analysis**: Reviewed `jellyswipe/__init__.py`, `jellyswipe/db.py`, and `jellyswipe/jellyfin_library.py` to identify specific testing challenges - HIGH confidence (direct analysis)
-
----
-
-*Pitfalls research for: Python Flask web application unit testing*
-*Researched: 2026-04-25*
+- Flask session concurrency warning: [Flask API docs — `SessionInterface`](https://flask.palletsprojects.com/api/#flask.sessions.SessionInterface) — "Multiple requests with the same session may be sent and handled concurrently."
+- Flask streaming session caveat: [Flask API docs — `stream_with_context`](https://flask.palletsprojects.com/api/#flask.stream_with_context) — "Do not modify the session in the generator."
+- Flask cookie security: [Flask web security docs](https://flask.palletsprojects.com/security/) — `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE`.
+- gevent greenlet isolation: [gevent docs — monkey patching](https://gevent.readthedocs.io/en/stable/monkey.html) — thread-local storage becomes greenlet-local.
+- Codebase: `jellyswipe/__init__.py`, `jellyswipe/templates/index.html`, `jellyswipe/db.py`, `jellyswipe/jellyfin_library.py` (direct analysis).
+- Existing concerns: `.planning/codebase/CONCERNS.md` — SSE polling loop, CSRF, session safety.
+- Confidence: **HIGH** — all pitfalls derived from codebase analysis verified against official Flask/gevent documentation.
