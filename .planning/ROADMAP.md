@@ -61,11 +61,11 @@ This roadmap eliminates tier responsibility violations between server and client
   3. Rows in `user_tokens` older than 24 hours are automatically cleaned up when `cleanup_expired_tokens()` is called
   4. Existing tests continue passing after schema migration (backward compatibility preserved)
 
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 23-01: Add user_tokens table and deck/match schema columns
-- [ ] 23-02: Implement expired token cleanup function
+- [ ] 23-01-PLAN.md — Add user_tokens table and v2.0 columns to rooms/matches via init_db()
+- [ ] 23-02-PLAN.md — Implement cleanup_expired_tokens() function + wire into init_db()
 
 ---
 
