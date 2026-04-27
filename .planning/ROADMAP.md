@@ -129,12 +129,11 @@ Plans:
   5. `POST /room/solo` creates a solo swipe session without the two-player room lifecycle
   6. Match check-and-insert is wrapped in SQLite `BEGIN IMMEDIATE` transaction — concurrent right-swipes on the same movie produce exactly one match
 
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 26-01: SSE-only match delivery with enriched metadata
-- [ ] 26-02: Jellyfin deep link generation, /me endpoint, /room/solo endpoint
-- [ ] 26-03: BEGIN IMMEDIATE transaction for swipe+match atomicity
+- [ ] 26-01-PLAN.md — SSE-only match delivery with enriched metadata, deep links, and BEGIN IMMEDIATE transaction safety
+- [ ] 26-02-PLAN.md — GET /me endpoint and POST /room/solo endpoint
 
 ---
 
@@ -193,10 +192,10 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 | 23. Database Schema + Token Vault | 0/2 | Not started | - |
 | 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
 | 25. RESTful Routes + Deck Ownership | 2/2 | Complete    | 2026-04-27 |
-| 26. Match Notification + Deep Links + Metadata | 0/3 | Not started | - |
+| 26. Match Notification + Deep Links + Metadata | 0/2 | Not started | - |
 | 27. Client Simplification + Cleanup | 0/2 | Not started | - |
 | 28. Deployment Validation | 0/2 | Not started | - |
-| **Total** | **0/13** | **In Progress** | - |
+| **Total** | **4/13** | **In Progress** | - |
 
 ---
 
