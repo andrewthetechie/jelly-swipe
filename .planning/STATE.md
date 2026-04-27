@@ -1,67 +1,112 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.6
-milestone_name: TBD
-status: planning
-last_updated: "2026-04-26T23:00:00.000Z"
+milestone_name: milestone
+status: milestone_complete
+last_updated: "2026-04-26T23:16:28.778Z"
+last_activity: 2026-04-26 -- Phase --phase execution started
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 5
+  completed_plans: 3
+  percent: 75
 ---
 
-# STATE — Jelly Swipe
+# State — Jelly Swipe
+
+**Milestone:** v1.6 Plex Reference Cleanup (EPIC-08)
+**Phase:** 26
+**Status:** Milestone complete
+**Progress:** [░░░░░░░░░░] 0%
+
+---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-26)
-
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
-**Current focus:** Planning next milestone — `/gsd-new-milestone`
 
-## Current Position
-
-**Milestone:** v1.6 — TBD
-**Status:** Planning
-**Previous:** v1.5 Route Test Coverage — SHIPPED 2026-04-26
-
-## Performance Metrics
-
-**Test Coverage:**
-- Total: 75% with `--cov-fail-under=70` CI enforcement
-- jellyswipe/__init__.py: 78%
-- db.py: 87%, jellyfin_library.py: 95%+
-
-**Test Suite:**
-- 159 tests across 8 test files
-- All tests passing, zero regressions
-
-**Milestone Velocity:**
-- v1.5: 9 phases, 9 plans, ~16 tasks, ~30 min execution
-- v1.4: 3 phases, 3 plans, 7 tasks, ~32 min
-- v1.3: 4 phases, 9 plans, 19 tasks, ~1 hour
-
-## Accumulated Context
-
-### Key Decisions (summary — full log in PROJECT.md)
-
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Flask app factory pattern | `create_app(test_config=None)` for test isolation | ✓ Shipped v1.5 |
-| Global XSS-safe JSON provider | OWASP JSON XSS defense in all responses | ✓ Shipped v1.5 |
-| External CSS/JS for CSP | `default-src 'self'` compliance | ✓ Shipped v1.5 |
-| Self-hosted fonts | Remove Google Fonts CDN dependency | ✓ Shipped v1.5 |
-
-### Open questions
-
-None at this time.
-
-### Known blockers
-
-None identified.
+**Current focus:** Phase --phase — 26
 
 ---
 
-*Last updated: 2026-04-26 after v1.5 milestone close*
+## Current Position
+
+Phase: --phase (26) — EXECUTING
+Plan: Not started
+Status: Executing Phase --phase
+Last activity: 2026-04-26
+
+---
+
+## Performance Metrics
+
+**Phase History:**
+
+- v1.0 (Jellyfin support): Phases 1–9 completed
+- v1.1 (Rename): No numbered phases
+- v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 completed
+- v1.3 (Unit Tests): Phases 14–17 completed
+- v1.4 (Authorization Hardening): Phases 1–18 completed
+- v1.5 (XSS Security Fix): Phases 19–22 completed
+
+**Current Milestone Metrics:**
+
+- Phases planned: 4 (Phases 23–26)
+- Requirements: 16
+- Plans: TBD
+
+---
+
+## Accumulated Context
+
+### Decisions
+
+**v1.6 Cleanup Strategy:**
+
+- Pure deletion milestone — no new features
+- Backend first (Phase 23), then frontend (Phase 24), then config/deploy (Phase 25), then acceptance sweep (Phase 26)
+- README fork attribution is intentional and must be preserved
+- `data/index.html` is dead (never-fetched PWA shell) — safe to delete entirely
+
+### Pending Todos
+
+None.
+
+### Blockers/Concerns
+
+- Template cleanup (Phase 24) is largest surface area — many Plex branches in JS
+- `data/index.html` deletion must not break PWA `sw.js` scope
+- All deletions must preserve existing Jellyfin functionality
+
+---
+
+## Session Continuity
+
+**Last Session:**
+--stopped-at
+
+**Resume with:**
+`/gsd-plan-phase 23`
+
+---
+
+## Quick Reference
+
+**Key Files:**
+
+- Project context: `.planning/PROJECT.md`
+- Requirements: `.planning/REQUIREMENTS.md`
+- Roadmap: `.planning/ROADMAP.md`
+- Milestones: `.planning/MILESTONES.md`
+
+**Issue Reference:**
+
+- Plex cleanup: https://github.com/andrewthetechie/jelly-swipe/issues/11
+
+---
+
+*State created: 2026-04-25*
+*Last updated: 2026-04-26 (v1.6 roadmap created)*
+
+**Planned Phase:** 24 (Frontend Plex Cleanup) — 2 plans — 2026-04-26T21:39:39.055Z

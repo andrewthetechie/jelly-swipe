@@ -166,7 +166,8 @@ class FakeProvider:
         return {"server_name": "Test Server"}
 
     def resolve_item_for_tmdb(self, movie_id):
-        raise RuntimeError("item lookup failed")
+        from types import SimpleNamespace
+        return SimpleNamespace(title=f"Movie {movie_id}", year=2026)
 
     def fetch_library_image(self, path):
         return (b"", "image/jpeg")

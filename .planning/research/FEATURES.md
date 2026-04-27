@@ -1,286 +1,203 @@
-# Feature Research: Flask Route Testing Patterns
+# Feature Landscape: XSS Security Fixes for Jelly Swipe
 
-**Domain:** Flask Application Route Testing
-**Researched:** 2026-04-26
-**Confidence:** HIGH
+**Domain:** Flask Web Application Security
+**Researched:** 2026-04-25
+**Overall confidence:** HIGH
 
-## Feature Landscape
+## Executive Summary
 
-### Table Stakes (Users Expect These)
+Jelly Swipe v1.5 requires XSS security fixes to address a stored XSS vulnerability where client-supplied `title` and `thumb` parameters are rendered unsafely using `innerHTML` in the template. Research indicates three primary defensive layers are needed: **Content Security Policy (CSP) headers**, **safe HTML escaping patterns** (textContent/DOM construction), and **server-side input validation**. The vulnerability manifests in `jellyswipe/templates/index.html` at lines 644-661 and 565-585 where user-controlled data is injected directly into the DOM without sanitization.
 
-Features developers expect in Flask route test suites. Missing these = tests feel incomplete.
+**Recommended approach:** Implement CSP as a defense-in-depth layer while fixing the root cause by replacing `innerHTML` with safe DOM APIs and removing client-controlled title/thumb from the API contract.
+
+## Table Stakes
+
+Features users expect in a secure web application. Missing these = product feels insecure and vulnerable.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Test Client Usage** | Standard Flask testing approach using `app.test_client()` for making requests | LOW | Supports GET/POST/PUT/DELETE with JSON/form data |
-| **Status Code Assertions** | Verifies routes return correct HTTP status (200, 400, 401, 403, 404, 500) | LOW | Use `assert response.status_code == expected` |
-| **Response JSON Validation** | API routes return JSON; must verify structure and values | LOW | Use `response.json` for parsed JSON data |
-| **Session Testing** | Flask apps use session for state; tests must verify session behavior | MEDIUM | Use `client.session_transaction()` context manager |
-| **Database State Verification** | Routes modify SQLite; tests must verify DB changes | MEDIUM | Query DB before/after request to assert state |
-| **Authentication Testing** | Protected routes require valid identity; tests verify auth enforcement | MEDIUM | Test both valid and invalid auth scenarios |
-| **Input Validation Testing** | Routes validate request data; tests verify rejection of invalid input | LOW | Test missing required fields, wrong types, malformed JSON |
-| **Parametrized Tests** | Multiple scenarios per route (different inputs, auth states) | LOW | Use `@pytest.mark.parametrize` for DRY tests |
-| **Error Handling Testing** | Routes must handle errors gracefully; tests verify error responses | MEDIUM | Test exception paths and error JSON structure |
-| **Header Validation** | Routes check headers (Authorization, Content-Type); tests verify enforcement | LOW | Test with/without required headers, invalid headers |
+| **Content Security Policy (CSP) Header** | Security-conscious users expect CSP headers on all modern web apps; absence indicates poor security posture | LOW | Set via Flask `@app.after_request` hook; recommended policy: `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com` |
+| **HTML Entity Escaping for User Data** | Basic XSS prevention requirement; without it, any user input can execute JavaScript | LOW | Replace `innerHTML` with `textContent` for text content; use `document.createElement()` for structured HTML; or implement strict escape helper |
+| **Server-Side Input Validation** | Never trust client data; validate and sanitize all inputs before storage or processing | MEDIUM | Reject title/thumb from client; resolve from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`; validate JSON structure |
+| **XSS Smoke Tests** | Automated verification that XSS is blocked; required for security regression testing | LOW | Add test file `tests/test_routes_xss.py` with tests proving script tags render as literal text, not executed |
 
-### Differentiators (Competitive Advantage)
+## Differentiators
 
-Features that set a comprehensive test suite apart. Not required, but valuable.
+Features that set the security posture apart. Not expected, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Security Regression Testing** | Prevents authorization bypass, XSS, injection attacks | HIGH | Tests for header spoofing, body injection, stored XSS |
-| **SSE Streaming Testing** | Validates Server-Sent Events for real-time updates | HIGH | Requires testing generator functions, event format |
-| **Proxy Route Allowlist Testing** | Prevents SSRF (Server-Side Request Forgery) via proxy | MEDIUM | Tests regex allowlist, rejects invalid paths |
-| **Rate Limiting Testing** | Prevents abuse of rate-limited endpoints | MEDIUM | Tests rate limit enforcement, headers |
-| **Concurrent Request Testing** | Validates SSE handles multiple clients, room operations | HIGH | Tests isolation between concurrent sessions |
-| **Generator/Iterator Testing** | Validates streaming responses don't leak resources | MEDIUM | Tests GeneratorExit, cleanup, timeouts |
-| **Token Cache Testing** | Validates identity resolution caching behavior | MEDIUM | Tests cache TTL, invalidation, stale data |
-| **Session Isolation Testing** | Ensures sessions don't leak between test cases | LOW | Uses function-scoped fixtures for fresh sessions |
-| **Mock Provider Testing** | Isolates route logic from Jellyfin API calls | MEDIUM | Uses FakeProvider stub for deterministic tests |
-| **Coverage Threshold Enforcement** | CI enforces minimum coverage (70% for routes) | LOW | Uses `--cov-fail-under=70` in pytest |
+| **Nonce-Based Strict CSP** | Provides strongest XSS protection by only allowing scripts with server-generated nonces; exceeds standard CSP implementations | HIGH | Generate cryptographically random nonce per response (128+ bits, Base64); inject into CSP header and all `<script nonce="...">` tags; requires template refactoring |
+| **Comprehensive Escape Helper** | Reusable utility for safe HTML rendering; reduces developer error surface area | MEDIUM | Implement JavaScript escape function using textContent or manual HTML entity encoding (`&` → `&amp;`, `<` → `&lt;`, etc.); document safe sinks vs unsafe sinks |
+| **CSP Violation Reporting** | Detects attempted XSS attacks in production; provides security monitoring | MEDIUM | Add `Content-Security-Policy-Report-Only` header during development; integrate reporting endpoint for production monitoring |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Anti-Features
 
-Features that seem good but create problems in route testing.
+Features to explicitly NOT build.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Real API Calls in Tests** | "Tests should be realistic" | Slow, flaky, requires real Jellyfin server | Mock all external calls with FakeProvider |
-| **Shared Database State** | "Setup DB once, run all tests" | Tests interfere with each other, hard to debug | Use function-scoped `db_connection` fixture |
-| **Sleep/Time-Based Assertions** | "Wait for SSE event" | Flaky, slow, brittle | Mock `time.time()` or use deterministic generators |
-| **Hard-Coded URLs** | "Simple to write" | Breaks when routes change | Use `client.get(url_for('endpoint'))` |
-| **Testing Implementation Details** | "Verify internal function calls" | Brittle to refactoring | Test observable behavior (inputs/outputs) |
-| **Global Test State** | "Share fixtures across tests" | Leaks state, causes intermittent failures | Use function-scoped fixtures, explicit setup/teardown |
-| **Testing Flask Internals** | "Verify g object, request context" | Brittle, tests framework not app | Test HTTP responses, not Flask internals |
-| **Single Monolithic Test File** | "All tests in one place" | Hard to navigate, slow CI runs | Split by route category (auth, room, proxy, sse, xss) |
-| **Assertion-less Tests** | "Just run route, check no error" | Doesn't verify correctness | Assert status, response body, DB state |
-| **Testing Multiple Concerns** | "Test auth + business logic together" | Hard to diagnose failures | One concern per test, use fixtures for setup |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **`'unsafe-inline'` in CSP** | Defeats the purpose of CSP by allowing inline scripts; common anti-pattern that creates false sense of security | Use nonce-based CSP or refactor to external scripts |
+| **`eval()` or `setTimeout(string)`** | Dangerous JavaScript patterns that execute arbitrary strings; blocked by strict CSP | Use `JSON.parse()` for JSON, pass functions to `setTimeout` |
+| **Client-Side Title/Thumb Parameters** | Original vulnerability source; allows attacker to inject malicious content | Resolve all metadata server-side from `movie_id` using `JellyfinLibraryProvider.resolve_item_for_tmdb()` |
+| **`dangerouslySetInnerHTML` Pattern** | Explicitly marks content as unsafe; exactly what we're trying to prevent | Use textContent, createElement, or DOMPurify if HTML is absolutely required |
 
 ## Feature Dependencies
 
 ```
-[Authentication Tests]
-    └──requires──> [FakeProvider Fixture]
-    └──requires──> [Client Fixture]
-    └──requires──> [Session Management Helper]
+[Server-Side Validation]
+    └──requires──> [Remove Client Title/Thumb from API]
+                       └──requires──> [Refactor /room/swipe Endpoint]
 
-[Room Operation Tests]
-    └──requires──> [DB Connection Fixture]
-    └──requires──> [Client Fixture]
-    └──requires──> [Session Management Helper]
-    └──requires──> [Room Seeding Helper]
+[Safe DOM Rendering]
+    └──requires──> [Replace innerHTML with textContent]
+                       └──requires──> [Template Refactoring]
 
-[SSE Streaming Tests]
-    └──requires──> [Client Fixture]
-    └──requires──> [Session Management Helper]
-    └──requires──> [Room Seeding Helper]
-    └──requires──> [Streaming Response Parser]
+[CSP Header]
+    └──enhances──> [All Other Features]
 
-[Proxy Route Tests]
-    └──requires──> [FakeProvider Fixture]
-    └──requires──> [Client Fixture]
-    └──requires──> [Path Validation Helper]
-
-[XSS Security Tests]
-    └──requires──> [FakeProvider Fixture]
-    └──requires──> [DB Connection Fixture]
-    └──requires──> [Client Fixture]
-    └──requires──> [XSS Payload Helper]
+[XSS Smoke Tests]
+    └──requires──> [All Security Fixes Implemented]
 ```
 
 ### Dependency Notes
 
-- **[Authentication Tests] requires [FakeProvider Fixture]:** Auth routes depend on Jellyfin provider for token validation. FakeProvider stubs this to avoid real API calls.
-- **[Room Operation Tests] requires [DB Connection Fixture]:** Room routes create/modify SQLite records. Tests need isolated DB to verify state changes.
-- **[SSE Streaming Tests] requires [Streaming Response Parser]:** SSE returns generator with `text/event-stream` content-type. Tests must parse event data format.
-- **[Proxy Route Tests] requires [Path Validation Helper]:** Proxy uses regex allowlist. Tests verify valid/invalid path patterns.
-- **[XSS Security Tests] requires [XSS Payload Helper]:** Tests must inject malicious payloads to verify escaping/rejection.
+- **Server-Side Validation requires Remove Client Title/Thumb from API:** The `/room/swipe` endpoint currently accepts `title` and `thumb` from the client (line 244 of `jellyswipe/__init__.py`). These must be removed and resolved server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb(movie_id)` to prevent malicious data from entering the system.
+
+- **Safe DOM Rendering requires Replace innerHTML with textContent:** Lines 644-661 and 565-585 of `index.html` use `innerHTML` with template literals containing user data (`${m.title}`, `${m.thumb}`). These must be refactored to use `textContent` or DOM construction methods to prevent script execution.
+
+- **CSP Header enhances All Other Features:** CSP provides defense-in-depth but is not a substitute for proper escaping and validation. It should be implemented alongside, not instead of, the other security features.
+
+- **XSS Smoke Tests requires All Security Fixes Implemented:** Tests should verify the complete fix chain: server rejects bad input, client renders safely, CSP blocks any remaining injection attempts.
 
 ## MVP Definition
 
-### Launch With (v1.5 - Route Test Coverage)
+### Launch With (v1.5)
 
-Minimum viable route test suite — what's needed for 70% coverage of `jellyswipe/__init__.py`.
+Minimum viable security fixes — what's needed to close the XSS vulnerability.
 
-- [ ] **Auth Route Tests** (`tests/test_routes_auth.py`) — Verify authentication endpoints work correctly
-  - Test `/auth/provider` returns provider config
-  - Test `/auth/jellyfin-use-server-identity` with valid/invalid delegate
-  - Test `/auth/jellyfin-login` with valid/invalid credentials
-  - Test missing username/password returns 400
-- [ ] **XSS Security Tests** (`tests/test_routes_xss.py`) — Prevent stored XSS attacks
-  - Test movie titles with HTML tags are escaped
-  - Test thumbnail URLs with `javascript:` are rejected
-  - Test room pairing codes don't allow script injection
-- [ ] **Room Operation Tests** (`tests/test_routes_room.py`) — Happy path for room lifecycle
-  - Test `/room/create` generates valid pairing code, creates DB record
-  - Test `/room/join` with valid/invalid code
-  - Test `/room/swipe` records swipe, detects matches
-  - Test `/room/quit` deletes room, archives matches
-  - Test `/room/status` returns current state
-  - Test `/room/go-solo` enables solo mode
-- [ ] **Proxy Route Tests** (`tests/test_routes_proxy.py`) — SSRF prevention
-  - Test `/proxy` with valid allowlisted path (UUID/MD5 pattern)
-  - Test `/proxy` rejects invalid paths (403)
-  - Test `/proxy` returns correct content-type
-- [ ] **SSE Streaming Tests** (`tests/test_routes_sse.py`) — Real-time updates
-  - Test `/room/stream` with valid room returns event stream
-  - Test `/room/stream` with invalid room returns empty stream
-  - Test `/room/stream` sends events when room state changes
-  - Test `/room/stream` handles GeneratorExit gracefully
+- [x] **Server-Side Input Validation** — Remove title/thumb from client API; resolve from movie_id via JellyfinLibraryProvider
+- [x] **Safe DOM Rendering** — Replace all `innerHTML` with `textContent` or DOM construction for user-controlled data
+- [x] **Basic CSP Header** — Set `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`
+- [x] **XSS Smoke Tests** — Add `tests/test_routes_xss.py` proving XSS is blocked
 
-### Add After Validation (v1.6+)
+### Add After Validation (v1.5.1)
 
-Features to add once core route coverage is working.
+Features to add once core security is verified.
 
-- [ ] **Edge Case Tests** — Boundary conditions and error paths
-  - Test concurrent room operations (race conditions)
-  - Test database connection failures
-  - Test provider authentication failures
-  - Test malformed request bodies (invalid JSON)
-- [ ] **Performance Tests** — Load testing for room operations
-  - Test room creation under load
-  - Test SSE with many concurrent clients
-  - Test proxy response times
-- [ ] **Integration Tests** — End-to-end workflows
-  - Test full room lifecycle (create → join → swipe → match → quit)
-  - Test authentication flow with real-ish provider
-  - Test SSE updates trigger UI refreshes
+- [ ] **Nonce-Based Strict CSP** — Upgrade to nonce-based CSP for stronger protection
+- [ ] **CSP Violation Reporting** — Add reporting endpoint for security monitoring
+- [ ] **Comprehensive Escape Helper** — Reusable utility function for safe HTML rendering
 
 ### Future Consideration (v2+)
 
-Features to defer until route testing is mature.
+Features to defer until security posture is stable.
 
-- [ ] **Property-Based Testing** — Hypothesis for generating test cases
-  - Test pairing code generation never collides
-  - Test swipe operations always consistent
-  - Test match detection is transitive
-- [ ] **Contract Testing** — Verify route contracts (Pact)
-  - Document expected request/response schemas
-  - Validate against frontend client expectations
-- [ ] **Visual Regression Testing** — UI changes don't break routes
-  - Test response JSON structure matches UI expectations
-  - Test error messages are user-friendly
+- [ ] **Trusted Types API** — Browser-native API for preventing DOM-based XSS (requires modern browser support)
+- [ ] **HTML Sanitization (DOMPurify)** — If user-generated HTML is ever needed, integrate DOMPurify library
+- [ ] **Subresource Integrity (SRI)** — Add integrity hashes for external scripts
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Auth Route Tests | HIGH | MEDIUM | P1 |
-| XSS Security Tests | HIGH | MEDIUM | P1 |
-| Room Operation Tests | HIGH | HIGH | P1 |
-| Proxy Route Tests | HIGH | MEDIUM | P1 |
-| SSE Streaming Tests | HIGH | HIGH | P1 |
-| Edge Case Tests | MEDIUM | HIGH | P2 |
-| Performance Tests | MEDIUM | HIGH | P3 |
-| Integration Tests | MEDIUM | HIGH | P2 |
-| Property-Based Testing | LOW | HIGH | P3 |
-| Contract Testing | LOW | MEDIUM | P3 |
-| Visual Regression Tests | LOW | HIGH | P3 |
+| Server-Side Input Validation | CRITICAL (closes vulnerability) | MEDIUM | P1 |
+| Safe DOM Rendering | CRITICAL (closes vulnerability) | MEDIUM | P1 |
+| Basic CSP Header | HIGH (defense-in-depth) | LOW | P1 |
+| XSS Smoke Tests | HIGH (regression prevention) | LOW | P1 |
+| Nonce-Based Strict CSP | MEDIUM (enhanced protection) | HIGH | P2 |
+| CSP Violation Reporting | MEDIUM (security monitoring) | MEDIUM | P2 |
+| Comprehensive Escape Helper | LOW (developer convenience) | MEDIUM | P3 |
+| Trusted Types API | LOW (future-proofing) | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for v1.5 (route test coverage milestone)
-- P2: Should have, add when possible (v1.6+)
+- P1: Must have for v1.5 (closes XSS vulnerability)
+- P2: Should have, add in v1.5.1 (enhanced protection)
 - P3: Nice to have, future consideration (v2+)
 
 ## Competitor Feature Analysis
 
-| Feature | Flask Tutorial Tests | pytest-Flask Plugin | Our Approach |
-|---------|---------------------|---------------------|--------------|
-| **Test Client** | `app.test_client()` | `client` fixture | `client` fixture in conftest.py (already exists) |
-| **Database Isolation** | Temporary file per test | Transaction rollback | Function-scoped `db_connection` fixture (already exists) |
-| **Auth Testing** | `AuthActions` helper class | `login()` fixture | `_set_session()` helper in test_route_authorization.py (already exists) |
-| **Session Testing** | `client.session_transaction()` | Built-in support | `client.session_transaction()` context manager |
-| **Parametrization** | `@pytest.mark.parametrize` | Built-in support | `@pytest.mark.parametrize` for multiple scenarios |
-| **Mocking** | `unittest.mock` | Built-in support | Custom `mocker` fixture in conftest.py (already exists) |
-| **SSE Testing** | Not covered | Requires custom handling | Custom SSE event parsing for streaming responses |
-| **Security Testing** | Basic auth only | Not covered | Dedicated security regression tests (test_route_authorization.py exists) |
-| **Coverage Enforcement** | `pytest-cov` | Optional | `--cov-fail-under=70` for CI enforcement (v1.5 goal) |
+| Feature | Standard Flask Apps | OWASP Recommendations | Our Approach |
+|---------|---------------------|----------------------|--------------|
+| CSP Header | Often missing or too permissive | Strict nonce-based CSP recommended | Start with basic CSP, upgrade to nonce-based in v1.5.1 |
+| HTML Escaping | Depends on template engine (Jinja2 autoescapes by default) | Output encoding for all contexts | Replace innerHTML with textContent (client-side) + Jinja2 autoescaping (server-side) |
+| Input Validation | Varies; often client-side only | Validate on server, whitelist approach | Server-side resolution from trusted source (Jellyfin/TMDB) |
+| XSS Testing | Rarely comprehensive | Unit tests + security testing | Add dedicated XSS smoke test suite |
 
-**Key Differentiators:**
-- We use framework-agnostic imports (conftest.py patches `load_dotenv` and `Flask`)
-- We have dedicated security regression tests for authorization hardening
-- We split route tests by category (auth, xss, room, proxy, sse) for maintainability
-- We use FakeProvider stub to isolate route logic from Jellyfin API
+## Complexity Notes
 
-## Implementation Patterns
+### Server-Side Validation (MEDIUM)
+- Requires refactoring `/room/swipe` endpoint to ignore client `title`/`thumb`
+- Must handle case where `JellyfinLibraryProvider.resolve_item_for_tmdb()` fails (graceful degradation)
+- Existing code already has `resolve_item_for_tmdb()` method for TMDB integration (lines 117-130)
+- **Dependency:** Requires understanding of movie_id to Jellyfin item mapping
 
-### Standard Test Structure
+### Safe DOM Rendering (MEDIUM)
+- Template has 11+ `innerHTML` usages (found via grep)
+- Must identify which contain user data vs static HTML
+- Static HTML can remain with `innerHTML` if no user data (e.g., trailer iframe at line 709)
+- **Pattern:** Replace `c.innerHTML = \`${m.title}\`` with `c.textContent = m.title` or use DOM creation API
+- **Safe sinks:** `textContent`, `insertAdjacentText`, `setAttribute`, `value`, `className` (per OWASP)
+- **Unsafe sinks:** `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` (must avoid)
 
+### Basic CSP Header (LOW)
+- Single `@app.after_request` hook in `jellyswipe/__init__.py`
+- Policy format validated by MDN and web.dev sources
+- Must allow `https://image.tmdb.org` for images (TMDB integration requirement)
+- Must allow `https://www.youtube.com` for trailer embeds (existing feature)
+- **Implementation:**
 ```python
-def test_route_name_happy_path(client, db_connection):
-    """Test [route] with valid input returns 200 and expected data."""
-    # Arrange: Setup DB state, session, auth
-    _seed_room(db_connection, "ROOM1")
-    _set_session(client, active_room="ROOM1")
-
-    # Act: Make request
-    response = client.post("/route", json={"key": "value"})
-
-    # Assert: Verify response and DB state
-    assert response.status_code == 200
-    assert response.json == {"expected": "data"}
-    rows = db_connection.execute("SELECT * FROM table").fetchall()
-    assert len(rows) == 1
+@app.after_request
+def add_security_headers(response):
+    csp = "default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com"
+    response.headers['Content-Security-Policy'] = csp
+    return response
 ```
 
-### Security Test Structure
+### XSS Smoke Tests (LOW)
+- Create `tests/test_routes_xss.py`
+- Test 1: Send malicious payload in swipe endpoint, verify it's not rendered as executable script
+- Test 2: Verify CSP header is present on all responses
+- Test 3: Verify server rejects title/thumb from client
+- **Framework:** Use existing pytest setup with mock responses (follows pattern of `test_db.py`)
 
-```python
-@pytest.mark.parametrize("header", SPOOF_HEADERS)
-def test_spoof_header_rejected(client, header):
-    """Test [route] rejects requests with [header] (security regression)."""
-    _set_session(client, active_room="ROOM1")
-
-    response = client.post("/route", json={"key": "value"}, headers={header: "attacker-id"})
-
-    assert response.status_code == 401
-    assert response.json == {"error": "Unauthorized"}
-```
-
-### SSE Test Structure
-
-```python
-def test_sse_streaming(client, db_connection):
-    """Test [route] returns SSE event stream with room state changes."""
-    _seed_room(db_connection, "ROOM1")
-    _set_session(client, active_room="ROOM1")
-
-    response = client.get("/room/stream")
-
-    assert response.status_code == 200
-    assert response.content_type == "text/event-stream"
-    assert b"data: " in response.data
-```
+### Nonce-Based Strict CSP (HIGH)
+- Requires generating random nonce per response: `secrets.token_urlsafe(16)` or `os.urandom(16).base64()`
+- Must inject nonce into all `<script>` tags via template variable
+- Template currently has inline scripts; must be refactored to accept nonce parameter
+- **Implementation complexity:** HIGH because all scripts need nonce attribute, including any dynamically created scripts
+- **Browser support:** Chrome 52+, Edge 79+, Firefox 52+, Safari 15.4+ (per web.dev sources)
 
 ## Sources
 
-- **Flask Official Documentation (HIGH confidence):** https://flask.palletsprojects.com/en/stable/testing/
-  - Test client usage (`app.test_client()`)
-  - Session testing (`client.session_transaction()`)
-  - Pytest fixtures for Flask apps
-- **Flask Tutorial Tests (HIGH confidence):** https://github.com/pallets/flask/blob/main/docs/tutorial/tests.md
-  - AuthActions helper class for login/logout
-  - Database fixture with temporary file
-  - Parametrized tests for multiple scenarios
-  - Authorization testing patterns
-- **Flask Web Security Documentation (HIGH confidence):** https://flask.palletsprojects.com/en/stable/security/
-  - XSS prevention with Markup/escape
-  - Security considerations for input validation
-- **Flask API Documentation (HIGH confidence):** https://flask.palletsprojects.com/en/stable/api/
-  - Response.json property for JSON responses
-  - stream_with_context for streaming responses
-  - test_client() method and parameters
-- **Existing Jelly Swipe Test Suite (HIGH confidence):** `tests/` directory
-  - `conftest.py` - Framework-agnostic imports, mocker fixture, db_connection fixture
-  - `test_route_authorization.py` - Security regression tests for EPIC-01
-  - `test_db.py` - Database testing patterns
-  - `test_jellyfin_library.py` - Provider mocking with FakeProvider
-- **Jelly Swipe Project Context (HIGH confidence):** `.planning/PROJECT.md`
-  - v1.5 milestone requirements (70% route coverage)
-  - Factory pattern refactoring (FACTORY-01)
-  - Route test files (TEST-ROUTE-01 through TEST-ROUTE-05)
+**Context7 Documentation (HIGH confidence):**
+- Flask web security: CSP header configuration, after_request pattern
+- Jinja2 autoescaping: Automatic HTML escaping enabled by default
+- Flask input handling: `request.json`, `get_json()`, HTML escaping with `markupsafe.escape`
+
+**MDN Web Docs (HIGH confidence):**
+- Content Security Policy guide: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP
+- CSP header reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+
+**web.dev Articles (HIGH confidence):**
+- Strict CSP guide: https://web.dev/articles/strict-csp
+- Nonce-based CSP implementation patterns and browser support
+
+**OWASP Cheat Sheet Series (HIGH confidence):**
+- XSS Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+- Safe sinks (textContent, insertAdjacentText) vs unsafe sinks (innerHTML)
+- Output encoding rules for HTML, JavaScript, CSS, URL contexts
+
+**Code Analysis (HIGH confidence):**
+- Vulnerable locations: `jellyswipe/templates/index.html` lines 644-661, 565-585
+- Server endpoint: `jellyswipe/__init__.py` line 244 (`/room/swipe` accepts title/thumb from client)
+- Existing method: `JellyfinLibraryProvider.resolve_item_for_tmdb()` can be leveraged for server-side resolution
+
+**Confidence Level Rationale:**
+- **HIGH confidence** for all sources: All information from official documentation (Flask, MDN, OWASP) or direct code analysis
+- **Verified through multiple sources:** CSP patterns cross-referenced between Context7, MDN, and web.dev
+- **No LOW confidence findings:** All claims backed by authoritative sources or direct code inspection
 
 ---
-*Feature research for: Flask Route Testing Patterns*
-*Researched: 2026-04-26*
+*Feature research for: XSS Security Fixes in Jelly Swipe Flask App*
+*Researched: 2026-04-25*

@@ -38,7 +38,7 @@ class LibraryMediaProvider(abc.ABC):
         """
         Validated upstream image bytes and Content-Type.
 
-        Raises PermissionError if path is missing or does not start with
-        /library/metadata/ (maps to HTTP 403). Raises on missing server config
-        so routes can return 503.
+        Path must match ``jellyfin/{id}/Primary`` where id is a 32-char hex
+        or 36-char UUID string. Raises PermissionError for invalid paths
+        (HTTP 403). Raises on missing server config so routes can return 503.
         """

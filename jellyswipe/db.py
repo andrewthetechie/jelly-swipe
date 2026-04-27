@@ -2,9 +2,8 @@
 
 import os
 import sqlite3
+from contextlib import contextmanager
 
-# Database path - must be set before calling get_db() or init_db()
-# This will be set by jellyswipe/__init__.py during package import
 DB_PATH = None
 
 
@@ -13,6 +12,20 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+@contextmanager
+def get_db_closing():
+    """Get a database connection that auto-closes on context exit.
+
+    Use in route code as: with get_db_closing() as conn: ...
+    """
+    conn = get_db()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -32,13 +45,13 @@ def init_db():
         if 'status' not in columns:
             conn.execute('ALTER TABLE matches ADD COLUMN status TEXT DEFAULT "active"')
         if 'user_id' not in columns:
-            # For existing databases with plex_id column, add user_id column
+            # Add user_id column for older databases
             conn.execute('ALTER TABLE matches ADD COLUMN user_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(swipes)")
         sw_cols = [col[1] for col in cursor.fetchall()]
         if 'user_id' not in sw_cols:
-            # For existing databases with plex_id column, add user_id column
+            # Add user_id column for older databases
             conn.execute('ALTER TABLE swipes ADD COLUMN user_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(rooms)")

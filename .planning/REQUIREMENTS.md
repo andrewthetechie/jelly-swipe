@@ -1,47 +1,40 @@
 # Requirements: Jelly Swipe
 
-**Defined:** 2026-04-25
-**Milestone:** v1.5 XSS Security Fix
+**Defined:** 2026-04-26
+**Milestone:** v1.6 Plex Reference Cleanup
 **Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-## v1.5 Requirements
+## v1.6 Requirements
 
-Requirements for this milestone are scoped to Issue #6 (`EPIC-03`) XSS vulnerability elimination.
+Requirements for this milestone are scoped to Issue #11 (EPIC-08) — remove all remaining Plex references from the source code. Purely deletion; no new features.
 
-### Server-Side Validation
+### Source Cleanup (SRC)
 
-- [x] **SSV-01**: `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body.
-- [x] **SSV-02**: `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`.
-- [x] **SSV-03**: Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data).
+- [ ] **SRC-01**: `/plex/server-info` route deleted from `jellyswipe/__init__.py` (lines 337–341).
+- [ ] **SRC-02**: `plex_id` references removed from `jellyswipe/db.py` comments (lines :35, :41).
+- [ ] **SRC-03**: `base.py` docstring at :42 updated to reference Jellyfin API path (`jellyfin/{id}/Primary`) instead of Plex `/library/metadata/`.
 
-### Safe DOM Rendering
+### Frontend Cleanup (FE)
 
-- [x] **DOM-01
-**: Template `jellyswipe/templates/index.html` replaces `innerHTML` with `textContent` for all user-controlled text content (title, summary, actor names).
-- [x] **DOM-02
-**: Template uses safe DOM construction methods (`document.createElement()`, `setAttribute()`) for structured HTML containing user data.
-- [x] **DOM-03
-**: Template removes or refactors unsafe innerHTML usages for `m.title`, `m.summary`, `m.thumb`, `m.movie_id`, `actor.name`, `actor.character`.
+- [x] **FE-01**: `.plex-yellow` and `.plex-open-btn` CSS classes renamed to neutral names in `jellyswipe/templates/index.html`.
+- [x] **FE-02**: `loginWithPlex` and `fetchPlexServerId` JS functions removed from `jellyswipe/templates/index.html`.
+- [x] **FE-03**: All `mediaProvider === 'plex'` conditional branches removed from `jellyswipe/templates/index.html`.
+- [x] **FE-04**: Plex-related localStorage keys (`plex_token`, `plex_id`) and Plex HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`) removed.
+- [x] **FE-05**: Literal Plex URLs removed (`plex.tv/api/v2/user`, `app.plex.tv/desktop`).
+- [x] **FE-06**: `plexServerId` variable and `plex_id` references removed from `/room/swipe` body handler.
+- [x] **FE-07**: Plex auth PIN flow removed (`/auth/check-returned-pin`, `/auth/plex-url` route calls).
+- [x] **FE-08**: Plex UI copy removed ("Login with Plex", "OPEN IN PLEX").
 
-### Content Security Policy
+### Config & Deploy Cleanup (CFG)
 
-- [x] **CSP-01
-**: Flask app sets `Content-Security-Policy` header on all responses via `@app.after_request` hook.
-- [x] **CSP-02
-**: CSP policy includes `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`.
-- [x] **CSP-03
-**: CSP policy does not include `'unsafe-inline'` or `'unsafe-eval'` directives.
+- [x] **CFG-01**: Manifest descriptions updated from "Plex or Jellyfin" to "Jellyfin" in both `jellyswipe/static/manifest.json` and `data/manifest.json`.
+- [x] **CFG-02**: Dead `data/index.html` deleted (never-fetched PWA shell).
+- [x] **CFG-03**: Plex env block removed from `unraid_template/jelly-swipe.html`.
+- [x] **CFG-04**: `requirements.txt` deleted or stripped of plexapi (file is deprecated; Docker uses uv).
 
-### XSS Testing
+### Acceptance Validation (ACC)
 
-- [x] **XSS-01
-**: Test file `tests/test_routes_xss.py` exists with smoke test proving XSS is blocked.
-- [x] **XSS-02
-**: Test verifies that swipe with `title: "<script>...</script>"` renders as literal text, not executed.
-- [x] **XSS-03
-**: Test verifies that CSP header is present on all HTTP responses.
-- [x] **XSS-04
-**: Test verifies that server rejects client-supplied `title`/`thumb` parameters.
+- [x] **ACC-01**: `rg -i 'plex'` against source returns only intentional historical references (README fork attribution).
 
 ## v2 Requirements
 
@@ -53,42 +46,44 @@ Deferred to future milestones.
 - **OPS-01 / PRD-01**: Neutral DB column naming and multi-library selection.
 - **ADV-01**: Coverage thresholds enforced in CI to prevent regression.
 - **ADV-02**: Multiple coverage reports (HTML for local, XML for CI).
-- **SEC-01–05**: Authorization hardening requirements (v1.4) — deferred pending v1.5 completion.
 
 ## Out of Scope
 
-Explicitly excluded from v1.5.
+Explicitly excluded from v1.6.
 
 | Feature | Reason |
 |---------|--------|
-| Nonce-based CSP | Higher complexity; basic CSP sufficient for v1.5, can upgrade in v1.5.1 |
-| CSP violation reporting | Security monitoring enhancement, not required to close XSS vulnerability |
-| Comprehensive escape helper utility | Direct textContent/DOM API usage is simpler for this scope |
-| Trusted Types API | Browser support and complexity; defer to future security enhancements |
+| Renaming DB columns from plex_id | v1.2 already migrated schema; only stale comments remain |
+| Adding new features | This is purely a cleanup milestone |
+| Updating README fork attribution | Intentional historical reference; must be preserved |
+| Refactoring frontend architecture | Only removing Plex dead code; no structural changes |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SSV-01 | Phase 19 | Validated |
-| SSV-02 | Phase 19 | Validated |
-| SSV-03 | Phase 19 | Validated |
-| DOM-01 | Phase 20 | Pending |
-| DOM-02 | Phase 20 | Pending |
-| DOM-03 | Phase 20 | Pending |
-| CSP-01 | Phase 21 | Pending |
-| CSP-02 | Phase 21 | Pending |
-| CSP-03 | Phase 21 | Pending |
-| XSS-01 | Phase 22 | Pending |
-| XSS-02 | Phase 22 | Pending |
-| XSS-03 | Phase 22 | Pending |
-| XSS-04 | Phase 22 | Pending |
+| SRC-01 | Phase 23 | Pending |
+| SRC-02 | Phase 23 | Pending |
+| SRC-03 | Phase 23 | Pending |
+| FE-01 | Phase 24 | Complete |
+| FE-02 | Phase 24 | Complete |
+| FE-03 | Phase 24 | Complete |
+| FE-04 | Phase 24 | Complete |
+| FE-05 | Phase 24 | Complete |
+| FE-06 | Phase 24 | Complete |
+| FE-07 | Phase 24 | Complete |
+| FE-08 | Phase 24 | Complete |
+| CFG-01 | Phase 25 | Complete |
+| CFG-02 | Phase 25 | Complete |
+| CFG-03 | Phase 25 | Complete |
+| CFG-04 | Phase 25 | Complete |
+| ACC-01 | Phase 26 | Complete |
 
 **Coverage:**
-- v1.5 requirements: 13 total
-- Mapped to phases: 13/13 ✓
-- Unmapped: 0
+- v1.6 requirements: 16 total
+- Mapped to phases: 16
+- Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-04-25*
-*Last updated: 2026-04-26 after Phase 19 completion*
+*Requirements defined: 2026-04-26*
+*Last updated: 2026-04-26 after v1.6 definition*

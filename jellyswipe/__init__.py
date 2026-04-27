@@ -123,7 +123,7 @@ def create_app(test_config=None):
         return _provider_singleton
 
     # Import database functions
-    from .db import get_db, init_db
+    from .db import get_db, get_db_closing, init_db
 
     # Set DB_PATH in db module (allow test_config override)
     import jellyswipe.db
@@ -311,11 +311,19 @@ def create_app(test_config=None):
         except Exception:
             return jsonify({"error": "Jellyfin login failed"}), 401
 
+    @app.route("/jellyfin/server-info", methods=["GET"])
+    def jellyfin_server_info():
+        try:
+            info = get_provider().server_info()
+            return jsonify({"baseUrl": info.get("machineIdentifier", ""), "webUrl": info.get("webUrl", "")})
+        except Exception:
+            return jsonify({"baseUrl": "", "webUrl": ""}), 200
+
     @app.route('/room/create', methods=['POST'])
     def create_room():
         pairing_code = str(random.randint(1000, 9999))
         movie_list = get_provider().fetch_deck()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
                          (pairing_code, json.dumps(movie_list), 0, 'All', 0))
         session['active_room'] = pairing_code
@@ -328,7 +336,7 @@ def create_app(test_config=None):
         code = session.get('active_room')
         if not code:
             return jsonify({'error': 'No active room'}), 400
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
         session['solo_mode'] = True
         return jsonify({'status': 'solo'})
@@ -336,7 +344,7 @@ def create_app(test_config=None):
     @app.route('/room/join', methods=['POST'])
     def join_room():
         code = request.json.get('code')
-        with get_db() as conn:
+        with get_db_closing() as conn:
             room = conn.execute('SELECT * FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room:
                 conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
@@ -351,7 +359,7 @@ def create_app(test_config=None):
         code = session.get('active_room')
         uid = session.get('my_user_id')
         data = request.json
-        mid, title, thumb = str(data.get('movie_id')), data.get('title'), data.get('thumb')
+        mid = str(data.get('movie_id'))
         user_id = _provider_user_id_from_request()
         if not user_id:
             return _unauthorized_response()
@@ -359,38 +367,57 @@ def create_app(test_config=None):
         if not code:
             return jsonify({'match': False})
 
-        with get_db() as conn:
+        # Log security warning if client sends title/thumb (potential XSS attempt or old client)
+        if data.get('title') is not None or data.get('thumb') is not None:
+            app.logger.warning(
+                "Security warning: Client sent title/thumb parameters in /room/swipe. "
+                f"IP={request.remote_addr}, movie_id={mid}, "
+                f"title={data.get('title')}, thumb={data.get('thumb')}"
+            )
+
+        # Resolve title and thumb server-side from Jellyfin (XSS fix per SSV-01, SSV-02)
+        title = None
+        thumb = None
+        try:
+            resolved = get_provider().resolve_item_for_tmdb(mid)
+            title = resolved.title
+            thumb = f"/proxy?path=jellyfin/{mid}/Primary"
+        except RuntimeError as exc:
+            app.logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
+
+        with get_db_closing() as conn:
             conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
                          (code, mid, uid, data.get('direction')))
 
             if data.get('direction') == 'right':
-                room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-                if room and room['solo_mode']:
-                    conn.execute(
-                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, user_id)
-                    )
-                    return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
-
-                other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
-                                         (code, mid, uid)).fetchone()
-
-                if other_swipe:
-                    conn.execute(
-                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, user_id)
-                    )
-
-                    if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
+                if title is not None and thumb is not None:
+                    room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+                    if room and room['solo_mode']:
                         conn.execute(
                             'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                            (code, mid, title, thumb, other_swipe['user_id'])
+                            (code, mid, title, thumb, user_id)
+                        )
+                        return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
+
+                    other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+                                             (code, mid, uid)).fetchone()
+
+                    if other_swipe:
+                        conn.execute(
+                            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
+                            (code, mid, title, thumb, user_id)
                         )
 
-                    match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
-                    conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+                        if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
+                            conn.execute(
+                                'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
+                                (code, mid, title, thumb, other_swipe['user_id'])
+                            )
 
-                    return jsonify({'match': True, 'title': title, 'thumb': thumb})
+                        match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
+                        conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+
+                        return jsonify({'match': True, 'title': title, 'thumb': thumb})
 
         return jsonify({'match': False})
 
@@ -402,7 +429,7 @@ def create_app(test_config=None):
         if not user_id:
             return _unauthorized_response()
 
-        with get_db() as conn:
+        with get_db_closing() as conn:
             if view == 'history':
                 rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND user_id = ?', (user_id,)).fetchall()
             else:
@@ -413,7 +440,7 @@ def create_app(test_config=None):
     def quit_room():
         code = session.get('active_room')
         if code:
-            with get_db() as conn:
+            with get_db_closing() as conn:
                 conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
                 conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
                 conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
@@ -427,7 +454,7 @@ def create_app(test_config=None):
         user_id = _provider_user_id_from_request()
         if not user_id:
             return _unauthorized_response()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, user_id))
         return jsonify({'status': 'deleted'})
 
@@ -439,17 +466,10 @@ def create_app(test_config=None):
         user_id = _provider_user_id_from_request()
         if not user_id:
             return _unauthorized_response()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
             conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, user_id))
         return jsonify({'status': 'undone'})
-
-    @app.route('/plex/server-info')
-    def get_server_info():
-        try:
-            return jsonify(get_provider().server_info())
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
 
     @app.route('/movies')
     def get_movies():
@@ -457,7 +477,7 @@ def create_app(test_config=None):
         genre = request.args.get('genre')
         if not code:
             return jsonify([])
-        with get_db() as conn:
+        with get_db_closing() as conn:
             if genre:
                 new_list = get_provider().fetch_deck(genre)
                 conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
@@ -477,7 +497,7 @@ def create_app(test_config=None):
         code = session.get('active_room')
         if not code:
             return jsonify({'ready': False})
-        with get_db() as conn:
+        with get_db_closing() as conn:
             room = conn.execute('SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room:
                 last_match = json.loads(room['last_match_data']) if room['last_match_data'] else None
@@ -500,7 +520,7 @@ def create_app(test_config=None):
             deadline = time.time() + TIMEOUT
             while time.time() < deadline:
                 try:
-                    with get_db() as conn:
+                    with get_db_closing() as conn:
                         row = conn.execute(
                             'SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?',
                             (code,)

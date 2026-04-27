@@ -1,7 +1,0 @@
-# Deprecated for local dev: use uv (pyproject.toml + uv.lock). Kept for Docker until Phase 12.
-flask
-plexapi
-werkzeug
-requests
-python-dotenv
-gunicorn
