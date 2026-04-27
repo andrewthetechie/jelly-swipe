@@ -2,22 +2,23 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Architecture Tier Fix
-status: ready_to_plan
-last_updated: "2026-04-26T18:00:00.000Z"
+status: executing
+last_updated: "2026-04-27T05:34:31.817Z"
+last_activity: 2026-04-27
 progress:
   total_phases: 6
-  completed_phases: 0
-  total_plans: 13
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 100
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Architecture Tier Fix
 **Phase:** 23 - Database Schema + Token Vault (Ready to plan)
-**Status:** Roadmap created, ready for Phase 23 planning
-**Progress:** [░░░░░░░░░░] 0%
+**Status:** Ready to execute
+**Progress:** [██████████] 100%
 
 ---
 
@@ -36,9 +37,9 @@ Users can run a swipe session backed by Jellyfin, with library browsing and deck
 ## Current Position
 
 Phase: 23 of 28 (Database Schema + Token Vault)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-04-26 — Roadmap created for v2.0
+Plan: 2 of 2 in current phase
+Status: Ready to execute
+Last activity: 2026-04-27
 
 ---
 
@@ -66,12 +67,15 @@ Last activity: 2026-04-26 — Roadmap created for v2.0
 - ADR as shipped artifact deferred — decisions documented in PROJECT.md and code
 
 **Phase Ordering Rationale:**
+
 1. Schema first (additive-only, zero breakage risk)
 2. Auth module second (populates schema, unblocks all downstream)
 3. Routes + deck third (identity-dependent route restructuring)
 4. Match + metadata fourth (depends on new routes and identity)
 5. Client cleanup fifth (subtractive, must come after server is stable)
 6. Deployment validation last (end-to-end Docker verification)
+- Used ISO 8601 string comparison for TTL-based token cleanup — avoids SQLite date functions
+- Proactively added all v2.0 columns in one migration pass (per D-04) — reduces migration churn
 
 ### Active Todos
 
@@ -93,7 +97,7 @@ None.
 ## Session Continuity
 
 **Last Session:**
-2026-04-26T18:00:00.000Z
+2026-04-27T05:34:31.814Z
 
 - v2.0 roadmap created with 6 phases (23-28)
 - 14/14 requirements mapped to phases
@@ -105,6 +109,7 @@ None.
 ## Quick Reference
 
 **Key Files:**
+
 - Project context: `.planning/PROJECT.md`
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
@@ -113,13 +118,17 @@ None.
 - Research: `.planning/research/SUMMARY.md`
 
 **Important Commands:**
+
 - `/gsd-plan-phase 23` — Begin planning Phase 23
 - `/gsd-transition` — Mark phase complete and move to next
 - `/gsd-progress` — View current progress
 
 **Issue Reference:**
+
 - Architecture tier violations: https://github.com/andrewthetechie/jelly-swipe/issues/8
 
 ---
 *State created: 2026-04-26*
 *Last updated: 2026-04-26 (roadmap created)*
+
+**Planned Phase:** 23 (Database Schema + Token Vault) — 2 plans — 2026-04-27T05:10:37.743Z
