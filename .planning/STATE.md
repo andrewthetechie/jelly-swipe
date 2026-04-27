@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Architecture Tier Fix
-status: executing
-last_updated: "2026-04-27T19:24:30Z"
+status: completed
+last_updated: "2026-04-27T20:21:31.106Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 8
-  percent: 67
+  completed_phases: 5
+  total_plans: 10
+  completed_plans: 10
+  percent: 100
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Architecture Tier Fix
-**Phase:** 26 (Complete) → 27
-**Status:** Phase 26 complete
-**Progress:** [███████---] 67%
+**Phase:** 27 (Complete) → 28
+**Status:** Phase 27 complete
+**Progress:** [██████████] 100%
 
 ---
 
@@ -79,6 +79,7 @@ Last activity: 2026-04-27
 - Rich metadata resolved from stored movie_data JSON (not Jellyfin API call) at match time
 - Deep link format: {JELLYFIN_URL}/web/#/details?id={itemId} (verified from jellyfin-web source)
 - Solo room as dedicated endpoint (not room flag hack) — ready=1, solo_mode=1 at creation
+- Client JS stripped of all localStorage, identity headers, Plex dead code; auth rewired to session cookies via GET /me; match popup SSE-only
 
 ### Active Todos
 
@@ -99,7 +100,9 @@ None.
 ## Session Continuity
 
 **Last Session:**
-- Phase 26 (Match Notification + Deep Links + Metadata) completed
+
+2026-04-27T20:21:31.103Z
+
 - Both plans executed: 26-01 (SSE match delivery) and 26-02 (/me + /room/solo)
 - 13 new tests added (7 SSE match + 6 /me + /room/solo)
 - 130 total tests passing
@@ -130,6 +133,6 @@ None.
 
 ---
 *State created: 2026-04-26*
-*Last updated: 2026-04-27 (Phase 26 complete)*
+*Last updated: 2026-04-27 (Phase 27 complete)*
 
-**Planned Phase:** 26 (Match Notification + Deep Links + Metadata) — 2 plans — 2026-04-27T19:18:48Z
+**Planned Phase:** 28 (Deployment Validation) — 2 plans — 2026-04-27T20:21:31.106Z

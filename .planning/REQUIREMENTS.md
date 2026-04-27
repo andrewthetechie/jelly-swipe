@@ -42,8 +42,10 @@ Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier re
 
 ### Client Cleanup
 
-- [ ] **CLNT-01**: Front-end never reads `provider_token` or `plex_token` from localStorage — all auth is session-cookie based
-- [ ] **CLNT-02**: Client-side match detection logic removed — match popup triggered only by SSE events, never by swipe HTTP response
+- [x] **CLNT-01
+**: Front-end never reads `provider_token` or `plex_token` from localStorage — all auth is session-cookie based
+- [x] **CLNT-02
+**: Client-side match detection logic removed — match popup triggered only by SSE events, never by swipe HTTP response
 
 ## v2 Requirements
 
