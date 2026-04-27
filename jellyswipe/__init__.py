@@ -123,7 +123,7 @@ def create_app(test_config=None):
         return _provider_singleton
 
     # Import database functions
-    from .db import get_db, init_db
+    from .db import get_db, get_db_closing, init_db
 
     # Set DB_PATH in db module (allow test_config override)
     import jellyswipe.db
@@ -323,7 +323,7 @@ def create_app(test_config=None):
     def create_room():
         pairing_code = str(random.randint(1000, 9999))
         movie_list = get_provider().fetch_deck()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
                          (pairing_code, json.dumps(movie_list), 0, 'All', 0))
         session['active_room'] = pairing_code
@@ -336,7 +336,7 @@ def create_app(test_config=None):
         code = session.get('active_room')
         if not code:
             return jsonify({'error': 'No active room'}), 400
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
         session['solo_mode'] = True
         return jsonify({'status': 'solo'})
@@ -344,7 +344,7 @@ def create_app(test_config=None):
     @app.route('/room/join', methods=['POST'])
     def join_room():
         code = request.json.get('code')
-        with get_db() as conn:
+        with get_db_closing() as conn:
             room = conn.execute('SELECT * FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room:
                 conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
@@ -385,7 +385,7 @@ def create_app(test_config=None):
         except RuntimeError as exc:
             app.logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
                          (code, mid, uid, data.get('direction')))
 
@@ -429,7 +429,7 @@ def create_app(test_config=None):
         if not user_id:
             return _unauthorized_response()
 
-        with get_db() as conn:
+        with get_db_closing() as conn:
             if view == 'history':
                 rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND user_id = ?', (user_id,)).fetchall()
             else:
@@ -440,7 +440,7 @@ def create_app(test_config=None):
     def quit_room():
         code = session.get('active_room')
         if code:
-            with get_db() as conn:
+            with get_db_closing() as conn:
                 conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
                 conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
                 conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
@@ -454,7 +454,7 @@ def create_app(test_config=None):
         user_id = _provider_user_id_from_request()
         if not user_id:
             return _unauthorized_response()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, user_id))
         return jsonify({'status': 'deleted'})
 
@@ -466,7 +466,7 @@ def create_app(test_config=None):
         user_id = _provider_user_id_from_request()
         if not user_id:
             return _unauthorized_response()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
             conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, user_id))
         return jsonify({'status': 'undone'})
@@ -477,7 +477,7 @@ def create_app(test_config=None):
         genre = request.args.get('genre')
         if not code:
             return jsonify([])
-        with get_db() as conn:
+        with get_db_closing() as conn:
             if genre:
                 new_list = get_provider().fetch_deck(genre)
                 conn.execute('UPDATE rooms SET movie_data = ?, current_genre = ? WHERE pairing_code = ?', (json.dumps(new_list), genre, code))
@@ -497,7 +497,7 @@ def create_app(test_config=None):
         code = session.get('active_room')
         if not code:
             return jsonify({'ready': False})
-        with get_db() as conn:
+        with get_db_closing() as conn:
             room = conn.execute('SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room:
                 last_match = json.loads(room['last_match_data']) if room['last_match_data'] else None
@@ -520,7 +520,7 @@ def create_app(test_config=None):
             deadline = time.time() + TIMEOUT
             while time.time() < deadline:
                 try:
-                    with get_db() as conn:
+                    with get_db_closing() as conn:
                         row = conn.execute(
                             'SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?',
                             (code,)

@@ -73,7 +73,7 @@ def _setup_solo_swipe_session(client):
 
 
 def test_swipe_xss_title_escaped_in_match_response(client):
-    """Swipe with XSS <script> in title — Flask jsonify escapes it in match response."""
+    """Swipe with XSS <script> in title — server ignores client title, resolves server-side."""
     _setup_solo_swipe_session(client)
 
     response = client.post(
@@ -89,14 +89,13 @@ def test_swipe_xss_title_escaped_in_match_response(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["match"] is True
-    # Per D-19: Flask jsonify encodes < as \u003c in JSON strings
-    assert "\u003c" in data.get("title", "")
-    # Raw unescaped <script> must NOT appear in the JSON body
+    assert XSS_SCRIPT_TAG not in data.get("title", "")
     assert "<script>" not in response.get_data(as_text=True)
+    assert data["title"] == "Movie movie-1"
 
 
 def test_swipe_xss_thumb_escaped_in_match_response(client):
-    """Swipe with XSS <img> in thumb — escaped in match response JSON."""
+    """Swipe with XSS <img> in thumb — server ignores client thumb, resolves server-side."""
     _setup_solo_swipe_session(client)
 
     response = client.post(
@@ -112,17 +111,14 @@ def test_swipe_xss_thumb_escaped_in_match_response(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["match"] is True
-    # Escaped form must be present
-    assert "\u003c" in data.get("thumb", "")
-    # Raw unescaped <img> must NOT appear in the response body
+    assert XSS_IMG_TAG not in data.get("thumb", "")
     assert "<img" not in response.get_data(as_text=True)
 
 
 def test_stored_xss_matches_endpoint(client):
-    """Stored XSS read path: swipe with XSS title, then GET /matches — must be escaped."""
+    """Stored XSS read path: server resolves metadata, XSS payloads never stored."""
     _setup_solo_swipe_session(client)
 
-    # Store XSS payload via swipe
     client.post(
         "/room/swipe",
         json={
@@ -133,20 +129,17 @@ def test_stored_xss_matches_endpoint(client):
         },
     )
 
-    # Retrieve via /matches endpoint
     response = client.get("/matches")
 
     assert response.status_code == 200
     body_text = response.get_data(as_text=True)
-    # Raw <script> and <img> must NOT appear in output
     assert "<script>" not in body_text
     assert "<img" not in body_text
-    # Escaped JSON unicode forms should be present (literal \u003c in HTTP body)
-    assert "\\u003c" in body_text
+    assert "Movie movie-3" in body_text
 
 
 def test_swipe_xss_img_tag_escaped(client):
-    """Swipe with <img onerror> XSS in title — escaped in match response."""
+    """Swipe with <img onerror> XSS in title — server ignores, resolves server-side."""
     _setup_solo_swipe_session(client)
 
     response = client.post(
@@ -162,12 +155,12 @@ def test_swipe_xss_img_tag_escaped(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["match"] is True
-    assert "\u003c" in data.get("title", "")
+    assert XSS_IMG_TAG not in data.get("title", "")
     assert "<img" not in response.get_data(as_text=True)
 
 
 def test_swipe_xss_event_handler_escaped(client):
-    """Swipe with event handler injection in title — quotes escaped in response."""
+    """Swipe with event handler injection in title — server ignores, resolves server-side."""
     _setup_solo_swipe_session(client)
 
     response = client.post(
@@ -183,8 +176,8 @@ def test_swipe_xss_event_handler_escaped(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["match"] is True
-    # The title value is present (round-trip through jsonify)
-    assert XSS_EVENT_HANDLER_DQ in data.get("title", "") or "\u0022" in data.get("title", "")
+    assert XSS_EVENT_HANDLER_DQ not in data.get("title", "")
+    assert data["title"] == "Movie movie-5"
 
 
 # ---------------------------------------------------------------------------

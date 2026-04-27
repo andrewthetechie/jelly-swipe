@@ -2,9 +2,8 @@
 
 import os
 import sqlite3
+from contextlib import contextmanager
 
-# Database path - must be set before calling get_db() or init_db()
-# This will be set by jellyswipe/__init__.py during package import
 DB_PATH = None
 
 
@@ -13,6 +12,20 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+@contextmanager
+def get_db_closing():
+    """Get a database connection that auto-closes on context exit.
+
+    Use in route code as: with get_db_closing() as conn: ...
+    """
+    conn = get_db()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db():

@@ -411,8 +411,8 @@ def test_swipe_right_solo_match(client):
     data = response.get_json()
     assert data["match"] is True
     assert data["solo"] is True
-    assert data["title"] == "Solo Movie"
-    assert data["thumb"] == "solo.jpg"
+    assert data["title"] == "Movie m1"
+    assert data["thumb"] == "/proxy?path=jellyfin/m1/Primary"
 
     # Verify match exists in DB
     conn = jellyswipe.db.get_db()
@@ -537,6 +537,6 @@ def test_swipe_right_updates_last_match_data(client):
 
     assert row["last_match_data"] is not None
     match_data = json.loads(row["last_match_data"])
-    assert match_data["title"] == "Match Movie"
-    assert match_data["thumb"] == "match.jpg"
+    assert match_data["title"] == "Movie m1"
+    assert match_data["thumb"] == "/proxy?path=jellyfin/m1/Primary"
     assert "ts" in match_data
