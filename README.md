@@ -73,7 +73,7 @@ and for user-scoped list actions must include a Jellyfin user token via:
 ```env
 JELLYFIN_URL=http://your-jellyfin-host:8096
 JELLYFIN_API_KEY=your-jellyfin-api-key
-TMDB_API_KEY=your-tmdb-v3-key
+TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
 FLASK_SECRET=long-random-string
 ```
 
@@ -83,54 +83,23 @@ Alternatively, use username/password authentication instead of API key:
 JELLYFIN_URL=http://your-jellyfin-host:8096
 JELLYFIN_USERNAME=your-username
 JELLYFIN_PASSWORD=your-password
-TMDB_API_KEY=your-tmdb-v3-key
+TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
 FLASK_SECRET=long-random-string
 ```
 
 ## Requirements
 - **Media backend:** Jellyfin — see [Media backend: Jellyfin](#media-backend-jellyfin) and the env table above.
-- **TMDB API key** — required at startup (trailers/cast); keep the key private.
+- **TMDB Read Access Token** — required at startup (trailers/cast); keep the token private.
 - **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone so it looks like an app, you must access it over an HTTPS connection. If you access it over local ip, it will work in the browser but when added to homescreen it will just act as a shortcut not like an app.
 
 ## TMDB API instructions
 Only required if you want trailers to work on the rear of the movie posters.
 
-1. Create a free TMDB Account
-If you don't already have one, you need to register on the TMDB website:
-
-Go to themoviedb.org/signup.
-
-Verify your email address to activate the account.
-
-2. Access the API Settings
-Once logged in:
-
-Click on your Profile Icon in the top right corner of the screen.
-
-Select Settings from the dropdown menu.
-
-On the left-hand sidebar, click on API.
-
-3. Create an API Key
-Under the "Request an API Key" section, click on the link for Create.
-
-You will be asked to choose a type of API key. Select Developer.
-
-Accept the Terms of Use.
-
-Fill out the form: * Type of Use: Personal/Educational.
-
-Application Name: Jelly-Swipe.
-
-Application URL: (You can put localhost or your server's IP).
-
-Application Summary: "An app to help find movies to watch from my Jellyfin library with a Tinder-style swipe interface."
-
-Submit the form.
-
-4. Copy your API Key
-You will now see two different keys. For Jelly-Swipe, you need the API Key (v3 auth). It is a long string of numbers and letters.
----
+1. Go to https://www.themoviedb.org/settings/api
+2. Log in or create a free TMDB account
+3. Under the **API** section, find **Read Access Token** (this is the v4 Bearer token)
+4. Copy the token value (not the API key)
+5. Set as `TMDB_ACCESS_TOKEN` environment variable
 
 ## Deployment
 
@@ -148,7 +117,7 @@ services:
       - JELLYFIN_URL=http://YOUR_JELLYFIN_IP:8096
       - JELLYFIN_API_KEY=your-jellyfin-api-key
       - FLASK_SECRET=SomeRandomString
-      - TMDB_API_KEY=your_copied_tmdb_key_here
+      - TMDB_ACCESS_TOKEN=your_copied_tmdb_token_here
     volumes:
       - ./data:/app/data
       - ./static:/app/static
@@ -163,7 +132,7 @@ docker run -d \
   -e JELLYFIN_URL=http://YOUR_JELLYFIN_IP:8096 \
   -e JELLYFIN_API_KEY=your-jellyfin-api-key \
   -e FLASK_SECRET=SomeRandomString \
-  -e TMDB_API_KEY=your_copied_tmdb_key_here \
+  -e TMDB_ACCESS_TOKEN=your_copied_tmdb_token_here \
   -v ./data:/app/data \
   -v ./static:/app/static \
   --restart unless-stopped \
@@ -176,7 +145,7 @@ For Unraid users, a pre-configured template is provided at `unraid_template/jell
 
 - **JELLYFIN_URL** — Base URL of your Jellyfin server (no trailing slash)
 - **JELLYFIN_API_KEY** — API key for unattended server access
-- **TMDB_API_KEY** — TMDB API key for trailers and cast information
+- **TMDB_ACCESS_TOKEN** — TMDB Read Access Token for trailers and cast information
 - **FLASK_SECRET** — Random secret string for Flask session security
 
 All fields are blank by default and must be filled in by the user. The template does not expose username/password authentication options — it uses API key authentication only.

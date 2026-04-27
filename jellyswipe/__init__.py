@@ -12,7 +12,42 @@ from flask.json.provider import DefaultJSONProvider
 from werkzeug.middleware.proxy_fix import ProxyFix
 from typing import Dict, Optional, Tuple
 import hashlib
-import sqlite3, os, random, re, requests, json, secrets, time
+import logging
+import traceback
+import sqlite3, os, random, re, json, secrets, time
+from jellyswipe.http_client import make_http_request
+from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
+from jellyswipe.ssrf_validator import validate_jellyfin_url
+
+_RATE_LIMITS = {
+    'get-trailer': 20,
+    'cast': 20,
+    'watchlist/add': 30,
+    'proxy': 10,
+}
+
+_logger = logging.getLogger(__name__)
+
+
+def generate_request_id() -> str:
+    return f"req_{int(time.time())}_{secrets.token_hex(4)}"
+
+
+def _check_rate_limit(endpoint: str) -> Optional[Tuple[Response, int]]:
+    allowed, retry_after = _rate_limiter.check(endpoint, request.remote_addr, _RATE_LIMITS[endpoint])
+    if not allowed:
+        _logger.warning("rate_limit_exceeded", extra={
+            'endpoint': endpoint,
+            'ip': request.remote_addr,
+            'retry_after': retry_after,
+        })
+        body = jsonify({'error': 'Rate limit exceeded', 'request_id': request.environ.get('jellyswipe.request_id', 'unknown')})
+        resp = body, 429
+        # Flask wraps tuples (response, status) — we need to return properly
+        response = Response(response=body.response, status=429, content_type='application/json')
+        response.headers['Retry-After'] = str(int(retry_after) + 1)
+        return response
+    return None
 
 # Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +58,7 @@ CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'
 
 # Validate required environment variables
 missing = []
-for v in ("TMDB_API_KEY", "FLASK_SECRET"):
+for v in ("TMDB_ACCESS_TOKEN", "FLASK_SECRET"):
     if not os.getenv(v):
         missing.append(v)
 
@@ -40,6 +75,9 @@ if not has_api and not has_user_pass:
 
 if missing:
     raise RuntimeError(f"Missing env vars: {missing}")
+
+# SSRF protection: validate JELLYFIN_URL at boot (per D-06)
+validate_jellyfin_url(os.getenv("JELLYFIN_URL"))
 
 # Direct Jellyfin provider instantiation (no factory pattern)
 from .jellyfin_library import JellyfinLibraryProvider
@@ -107,9 +145,48 @@ def create_app(test_config=None):
         response.headers['Content-Security-Policy'] = csp_policy
         return response
 
+    @app.before_request
+    def inject_request_id():
+        request.environ['jellyswipe.request_id'] = generate_request_id()
+
+    @app.after_request
+    def add_request_id_header(response):
+        response.headers['X-Request-Id'] = get_request_id()
+        return response
+
+    def get_request_id() -> str:
+        return request.environ.get('jellyswipe.request_id', 'unknown')
+
+    def make_error_response(message: str, status_code: int, include_request_id: bool = True, extra_fields: dict = None) -> Tuple[Response, int]:
+        if status_code >= 500:
+            message = 'Internal server error'
+        body = {'error': message}
+        if include_request_id:
+            body['request_id'] = get_request_id()
+        if extra_fields:
+            body.update(extra_fields)
+        return jsonify(body), status_code
+
+    def log_exception(exc: Exception, context: dict = None) -> None:
+        log_data = {
+            'request_id': get_request_id(),
+            'route': request.path,
+            'method': request.method,
+            'exception_type': type(exc).__name__,
+            'exception_message': str(exc),
+            'stack_trace': traceback.format_exc(),
+        }
+        if context:
+            log_data.update(context)
+        app.logger.error(
+            "unhandled_exception",
+            extra=log_data
+        )
+
     # Store environment variables in app.config for future use
     app.config['JELLYFIN_URL'] = os.getenv("JELLYFIN_URL", "").rstrip("/")
-    app.config['TMDB_API_KEY'] = os.getenv("TMDB_API_KEY")
+    app.config['TMDB_ACCESS_TOKEN'] = os.getenv("TMDB_ACCESS_TOKEN")
+    TMDB_AUTH_HEADERS = {"Authorization": f"Bearer {app.config['TMDB_ACCESS_TOKEN']}"}
 
     # Apply test configuration if provided
     if test_config:
@@ -171,7 +248,7 @@ def create_app(test_config=None):
         return str(value) if value else None
 
     def _unauthorized_response():
-        return jsonify({'error': 'Unauthorized'}), 401
+        return make_error_response('Unauthorized', 401)
 
     def _token_cache_key(token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -221,35 +298,67 @@ def create_app(test_config=None):
 
     @app.route('/get-trailer/<movie_id>')
     def get_trailer(movie_id):
+        rl = _check_rate_limit('get-trailer')
+        if rl:
+            return rl
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
-            search_url = f"https://api.themoviedb.org/3/search/movie?api_key={app.config['TMDB_API_KEY']}&query={item.title}&year={item.year}"
-            r = requests.get(search_url).json()
+            search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
+            search_response = make_http_request(
+                method='GET',
+                url=search_url,
+                headers=TMDB_AUTH_HEADERS,
+                timeout=(5, 15)
+            )
+            r = search_response.json()
             if r.get('results'):
                 tmdb_id = r['results'][0]['id']
-                v_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/videos?api_key={app.config['TMDB_API_KEY']}"
-                v_res = requests.get(v_url).json()
+                v_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/videos"
+                videos_response = make_http_request(
+                    method='GET',
+                    url=v_url,
+                    headers=TMDB_AUTH_HEADERS,
+                    timeout=(5, 15)
+                )
+                v_res = videos_response.json()
                 trailers = [v for v in v_res.get('results', []) if v['site'] == 'YouTube' and v['type'] == 'Trailer']
                 if trailers:
                     return jsonify({'youtube_key': trailers[0]['key']})
-            return jsonify({'error': 'Not found'}), 404
+            return make_error_response('Not found', 404)
         except RuntimeError as e:
             if "item lookup failed" in str(e).lower():
-                return jsonify({'error': 'Movie metadata not found'}), 404
-            return jsonify({'error': str(e)}), 500
+                return make_error_response('Movie metadata not found', 404)
+            log_exception(e)
+            return make_error_response('Internal server error', 500)
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            log_exception(e)
+            return make_error_response('Internal server error', 500)
 
     @app.route('/cast/<movie_id>')
     def get_cast(movie_id):
+        rl = _check_rate_limit('cast')
+        if rl:
+            return rl
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
-            search_url = f"https://api.themoviedb.org/3/search/movie?api_key={app.config['TMDB_API_KEY']}&query={item.title}&year={item.year}"
-            r = requests.get(search_url).json()
+            search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
+            search_response = make_http_request(
+                method='GET',
+                url=search_url,
+                headers=TMDB_AUTH_HEADERS,
+                timeout=(5, 15)
+            )
+            r = search_response.json()
             if r.get('results'):
                 tmdb_id = r['results'][0]['id']
-                credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits?api_key={app.config['TMDB_API_KEY']}"
-                c_res = requests.get(credits_url).json()
+                credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits"
+                credits_response = make_http_request(
+                    method='GET',
+                    url=credits_url,
+                    headers=TMDB_AUTH_HEADERS,
+                    timeout=(5, 15)
+                )
+                c_res = credits_response.json()
                 cast = []
                 for actor in c_res.get('cast', [])[:8]:
                     cast.append({
@@ -261,13 +370,18 @@ def create_app(test_config=None):
             return jsonify({'cast': []})
         except RuntimeError as e:
             if "item lookup failed" in str(e).lower():
-                return jsonify({'error': 'Movie metadata not found', 'cast': []}), 404
-            return jsonify({'error': str(e), 'cast': []}), 500
+                return make_error_response('Movie metadata not found', 404, extra_fields={'cast': []})
+            log_exception(e)
+            return make_error_response('Internal server error', 500, extra_fields={'cast': []})
         except Exception as e:
-            return jsonify({'error': str(e), 'cast': []}), 500
+            log_exception(e)
+            return make_error_response('Internal server error', 500, extra_fields={'cast': []})
 
     @app.route('/watchlist/add', methods=['POST'])
     def add_to_watchlist():
+        rl = _check_rate_limit('watchlist/add')
+        if rl:
+            return rl
         try:
             data = request.json
             movie_id = data.get('movie_id')
@@ -280,7 +394,8 @@ def create_app(test_config=None):
             get_provider().add_to_user_favorites(user_token, movie_id)
             return jsonify({'status': 'success'})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            log_exception(e)
+            return make_error_response('Internal server error', 500)
 
     @app.route('/auth/provider')
     def auth_provider():
@@ -294,7 +409,7 @@ def create_app(test_config=None):
             prov.server_access_token_for_delegate()
             uid = prov.server_primary_user_id_for_delegate()
         except RuntimeError:
-            return jsonify({"error": "Jellyfin delegate unavailable"}), 401
+            return make_error_response("Jellyfin delegate unavailable", 401)
         session["jf_delegate_server_identity"] = True
         return jsonify({"userId": uid})
 
@@ -309,7 +424,7 @@ def create_app(test_config=None):
             out = get_provider().authenticate_user_session(username, password)
             return jsonify({"authToken": out["token"], "userId": out["user_id"]})
         except Exception:
-            return jsonify({"error": "Jellyfin login failed"}), 401
+            return make_error_response("Jellyfin login failed", 401)
 
     @app.route("/jellyfin/server-info", methods=["GET"])
     def jellyfin_server_info():
@@ -335,7 +450,7 @@ def create_app(test_config=None):
     def go_solo():
         code = session.get('active_room')
         if not code:
-            return jsonify({'error': 'No active room'}), 400
+            return make_error_response('No active room', 400)
         with get_db_closing() as conn:
             conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
         session['solo_mode'] = True
@@ -352,7 +467,7 @@ def create_app(test_config=None):
                 session['my_user_id'] = 'guest_' + secrets.token_hex(8)
                 session['solo_mode'] = False
                 return jsonify({'status': 'success'})
-        return jsonify({'error': 'Invalid Code'}), 404
+        return make_error_response('Invalid Code', 404)
 
     @app.route('/room/swipe', methods=['POST'])
     def swipe():
@@ -562,6 +677,9 @@ def create_app(test_config=None):
 
     @app.route('/proxy')
     def proxy():
+        rl = _check_rate_limit('proxy')
+        if rl:
+            return rl
         path = request.args.get('path')
         if not path:
             abort(403)

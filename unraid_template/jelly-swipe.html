@@ -48,7 +48,7 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
       <Mode>password</Mode>
     </Variable>
     <Variable>
-      <Name>TMDB_API_KEY</Name>
+      <Name>TMDB_ACCESS_TOKEN</Name>
       <Value></Value>
       <Mode>password</Mode>
     </Variable>
@@ -68,7 +68,7 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
   <Config Name="WebUI Port" Target="5005" Default="5005" Mode="tcp" Description="Port used to access Jelly Swipe" Type="Port" Display="always" Required="true" Mask="false">5005</Config>
   <Config Name="JELLYFIN_URL" Target="JELLYFIN_URL" Default="" Mode="" Description="URL of your Jellyfin server" Type="Variable" Display="always" Required="true" Mask="false"/>
   <Config Name="JELLYFIN_API_KEY" Target="JELLYFIN_API_KEY" Default="" Mode="" Description="Your Jellyfin API key" Type="Variable" Display="always" Required="true" Mask="true"/>
-  <Config Name="TMDB_API_KEY" Target="TMDB_API_KEY" Default="" Mode="" Description="TMDB API key for Trailers to work" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="TMDB_ACCESS_TOKEN" Target="TMDB_ACCESS_TOKEN" Default="" Mode="" Description="TMDB Read Access Token for trailers and cast" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="FLASK_SECRET" Target="FLASK_SECRET" Default="" Mode="" Description="Random secret string for session security" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="AppData Config Path" Target="/app/data" Default="/mnt/user/appdata/jelly-swipe/data" Mode="rw" Description="Persistent storage for Jelly Swipe data" Type="Path" Display="always" Required="true" Mask="false"/>
 </Container>

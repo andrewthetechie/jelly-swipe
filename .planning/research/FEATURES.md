@@ -1,203 +1,167 @@
-# Feature Landscape: XSS Security Fixes for Jelly Swipe
+# Feature Research
 
-**Domain:** Flask Web Application Security
-**Researched:** 2026-04-25
-**Overall confidence:** HIGH
+**Domain:** Outbound HTTP hardening for a self-hosted Flask media-swipe app
+**Researched:** 2026-04-26
+**Confidence:** HIGH
 
-## Executive Summary
+## Feature Landscape
 
-Jelly Swipe v1.5 requires XSS security fixes to address a stored XSS vulnerability where client-supplied `title` and `thumb` parameters are rendered unsafely using `innerHTML` in the template. Research indicates three primary defensive layers are needed: **Content Security Policy (CSP) headers**, **safe HTML escaping patterns** (textContent/DOM construction), and **server-side input validation**. The vulnerability manifests in `jellyswipe/templates/index.html` at lines 644-661 and 565-585 where user-controlled data is injected directly into the DOM without sanitization.
+### Table Stakes (Security & Reliability Baseline)
 
-**Recommended approach:** Implement CSP as a defense-in-depth layer while fixing the root cause by replacing `innerHTML` with safe DOM APIs and removing client-controlled title/thumb from the API contract.
-
-## Table Stakes
-
-Features users expect in a secure web application. Missing these = product feels insecure and vulnerable.
+These are non-negotiable for any app making outbound HTTP calls to third-party APIs and user-configured internal servers. Missing them = app hangs silently, leaks secrets, or is exploitable.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Content Security Policy (CSP) Header** | Security-conscious users expect CSP headers on all modern web apps; absence indicates poor security posture | LOW | Set via Flask `@app.after_request` hook; recommended policy: `default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com` |
-| **HTML Entity Escaping for User Data** | Basic XSS prevention requirement; without it, any user input can execute JavaScript | LOW | Replace `innerHTML` with `textContent` for text content; use `document.createElement()` for structured HTML; or implement strict escape helper |
-| **Server-Side Input Validation** | Never trust client data; validate and sanitize all inputs before storage or processing | MEDIUM | Reject title/thumb from client; resolve from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`; validate JSON structure |
-| **XSS Smoke Tests** | Automated verification that XSS is blocked; required for security regression testing | LOW | Add test file `tests/test_routes_xss.py` with tests proving script tags render as literal text, not executed |
+| **Enforced timeouts on all HTTP calls** | Without timeouts, a hung upstream (TMDB, Jellyfin) blocks the gevent worker indefinitely. Users see spinning UI, no error, no recovery. Every production HTTP client mandates timeouts. | LOW | **Current state:** 4 of 15 `requests.*` calls have no timeout (lines 187, 191, 206, 210 in `__init__.py`). The `jellyfin_library.py` session calls all have timeouts (30s–90s). Fix: create a centralized `http_get()` / `http_request()` helper that wraps `requests` and requires `timeout=(connect, read)`. The `requests` library has **no session-level timeout default** — it must be passed per-call. A helper enforces this at the import boundary. |
+| **TMDB Bearer token auth (no key in URLs)** | API keys in query strings appear in server logs, browser DevTools, proxy logs, and Referer headers. TMDB's v3 API supports `Authorization: Bearer <read_access_token>` as a direct replacement for `?api_key=` on all read endpoints. The Bearer token IS the same credential as the API key — TMDB calls it a "read access token" in settings. | LOW | **Current state:** 4 URLs in `__init__.py` embed `TMDB_API_KEY` in query strings (lines 186, 190, 205, 209). **Fix:** Replace `api_key={TMDB_API_KEY}` with `headers={"Authorization": f"Bearer {TMDB_API_KEY}"}`. No API version change needed — TMDB v3 endpoints accept Bearer header interchangeably with query-param key. No new env var needed — `TMDB_API_KEY` already holds the read access token. |
+| **SSRF-safe JELLYFIN_URL validation at boot** | `JELLYFIN_URL` is user-configured and points to an internal server. If an operator sets it to a cloud metadata endpoint (169.254.169.254 on AWS/GCP/Azure), the app becomes an SSRF probe. Boot-time validation catches misconfiguration before any request fires. | MEDIUM | **Current state:** `JELLYFIN_URL` is read from env and used directly — no IP validation anywhere. **Fix:** Parse URL with `urllib.parse.urlparse()`, resolve hostname to IP, then check against a blocklist: reject 169.254.0.0/16 (link-local/metadata), 0.0.0.0, [::], and any DNS-rebinding patterns. Allow 127.0.0.0/8 (loopback), 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (RFC 1918). Run once at module load, raise `RuntimeError` on failure (consistent with existing env validation pattern at lines 24–41 of `__init__.py`). Must handle hostnames that resolve to multiple IPs (check all). |
+| **Error redaction (no upstream exception text in 5xx)** | Current code returns `jsonify({'error': str(e)})` on 500 — this leaks Jellyfin hostnames, TMDB URLs, Python tracebacks, and internal state to the browser. Attackers use error messages for reconnaissance. | LOW | **Current state:** 6 catch-all handlers return `str(e)` in JSON responses (lines 198–199, 224–225, 240, 434 in `__init__.py`). **Fix:** Generate a short request ID (`uuid4()[:8]` or `secrets.token_hex(4)`), log the full exception server-side with that ID, and return `{'error': 'Internal error', 'request_id': 'abc12345'}` to the client. The request ID lets operators correlate browser errors with server logs. Wrap in a Flask `@app.errorhandler(500)` or replace the inline handlers. |
 
-## Differentiators
+### Differentiators (Defense-in-Depth, Not Universally Expected)
 
-Features that set the security posture apart. Not expected, but valued.
+Features that go beyond baseline security. Self-hosted apps rarely implement these, but they're valuable for an app that proxies user-configured internal servers.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Nonce-Based Strict CSP** | Provides strongest XSS protection by only allowing scripts with server-generated nonces; exceeds standard CSP implementations | HIGH | Generate cryptographically random nonce per response (128+ bits, Base64); inject into CSP header and all `<script nonce="...">` tags; requires template refactoring |
-| **Comprehensive Escape Helper** | Reusable utility for safe HTML rendering; reduces developer error surface area | MEDIUM | Implement JavaScript escape function using textContent or manual HTML entity encoding (`&` → `&amp;`, `<` → `&lt;`, etc.); document safe sinks vs unsafe sinks |
-| **CSP Violation Reporting** | Detects attempted XSS attacks in production; provides security monitoring | MEDIUM | Add `Content-Security-Policy-Report-Only` header during development; integrate reporting endpoint for production monitoring |
+| **In-memory token-bucket rate limiter** | Prevents a single client or bot from burning through TMDB API quota (40 req/10s for free tier) or hammering the Jellyfin proxy. Most self-hosted apps don't rate-limit internal endpoints. | MEDIUM | **Scope:** Applied to `/proxy`, `/get-trailer`, `/cast`, `/watchlist/add` (per PROJECT.md HTTP-04). **Implementation:** Custom in-memory token-bucket, NOT Flask-Limiter (avoids new dependency). Token bucket = fixed capacity, refills at constant rate. Key on `request.remote_addr`. Per-route limits: stricter for TMDB-backed routes (`/get-trailer`, `/cast`), looser for proxy. Store in a module-level dict with thread-safe access (Flask + gevent = cooperative multitasking, so `threading.Lock` is appropriate). **Limitation:** In-memory means rate limits reset on process restart and don't share across gunicorn workers. Acceptable trade-off for a self-hosted single-user app. |
+| **Centralized HTTP helper with User-Agent + structured logging** | A single `http_get()`/`http_request()` function ensures consistent User-Agent, timeout enforcement, and request logging across all outbound calls. This is the foundation that makes all other hardening features work — timeouts, redaction, and logging all funnel through one code path. | MEDIUM | **Current state:** TMDB calls use bare `requests.get()` in `__init__.py`; Jellyfin calls use `self._session` in `jellyfin_library.py`. Two different patterns, no centralized logging. **Fix:** Create `jellyswipe/http.py` (or `jellyswipe/http_client.py`) with a `SafeHttpClient` class that wraps a `requests.Session`. Provides `get()`, `post()`, `request()` methods that: (1) enforce timeout, (2) set User-Agent, (3) log request URL + duration + status at INFO level, (4) redact URL secrets before logging. Both TMDB calls in `__init__.py` and Jellyfin calls in `jellyfin_library.py` migrate to this client. |
+| **Security-focused unit tests** | Validates that hardening actually works: SSRF rejection catches metadata IPs, timeout enforcement kills hung requests, error responses don't leak internals, rate limiter blocks excess traffic. | MEDIUM | **Current state:** 48 tests exist for db and jellyfin_library modules. No security-focused tests. **New tests:** (1) SSRF: parametrize over 169.254.x.x, 0.0.0.0, [::], public IPs, RFC 1918 — assert only RFC 1918 + loopback pass. (2) Timeouts: mock `requests.get` to raise `Timeout`, assert handler returns 504 not 500. (3) Redaction: trigger exception paths, assert response body has no traceback/hostname. (4) Rate limiter: rapid-fire requests, assert 429 after bucket drains. |
 
-## Anti-Features
+### Anti-Features (Commonly Requested, Often Problematic)
 
-Features to explicitly NOT build.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| **`'unsafe-inline'` in CSP** | Defeats the purpose of CSP by allowing inline scripts; common anti-pattern that creates false sense of security | Use nonce-based CSP or refactor to external scripts |
-| **`eval()` or `setTimeout(string)`** | Dangerous JavaScript patterns that execute arbitrary strings; blocked by strict CSP | Use `JSON.parse()` for JSON, pass functions to `setTimeout` |
-| **Client-Side Title/Thumb Parameters** | Original vulnerability source; allows attacker to inject malicious content | Resolve all metadata server-side from `movie_id` using `JellyfinLibraryProvider.resolve_item_for_tmdb()` |
-| **`dangerouslySetInnerHTML` Pattern** | Explicitly marks content as unsafe; exactly what we're trying to prevent | Use textContent, createElement, or DOMPurify if HTML is absolutely required |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Flask-Limiter or Redis-backed rate limiting** | "Use a well-tested library instead of hand-rolling" | Adds a hard dependency (`flask-limiter` + `limits` + `deprecated` transitive deps) for a feature that's 40 lines of token-bucket code. Redis backend requires infrastructure. Flask-Limiter's in-memory mode has the same per-worker limitation as a custom implementation — no advantage for single-process self-hosted use. | Custom in-memory token-bucket. Same per-worker limitation, zero new deps, trivially auditable. |
+| **requests retry with exponential backoff** | "Auto-retry failed requests for resilience" | Jellyfin auth calls already have a retry-on-401 pattern. Adding blanket retries to TMDB calls risks amplifying rate-limit violations (409 → retry → 409 → retry). Retry logic must be endpoint-aware, not blanket. | Explicit per-endpoint retry where needed (already exists for Jellyfin 401). No blanket retry on TMDB. |
+| **DNS rebinding protection (TOCTOU-safe SSRF)** | "Validate URL right before the request, not just at boot" | Requires overriding `requests` internals or a custom transport adapter. Complex, fragile, and unnecessary for a self-hosted app where `JELLYFIN_URL` changes only on restart. The threat model is operator misconfiguration, not adversarial DNS. | Boot-time validation is sufficient. Document that JELLYFIN_URL changes require restart. |
+| **Circuit breaker pattern** | "Stop calling a failing upstream entirely" | Adds significant complexity (state machine, half-open probes, cold/warm resets) for a small Flask app with at most 2 upstreams. Gunicorn's worker timeout already kills stuck workers. | Timeouts + 5xx error responses are sufficient. Workers recycle automatically. |
+| **HTTProxy / outbound request proxying** | "Route all outbound through a corporate proxy" | Self-hosted media app operators don't typically run outbound proxies. Adds env var surface (`HTTP_PROXY`, `HTTPS_PROXY`) that interacts poorly with internal Jellyfin URLs. | `requests.Session` respects proxy env vars already if operators set them. Don't add explicit proxy support. |
 
 ## Feature Dependencies
 
 ```
-[Server-Side Validation]
-    └──requires──> [Remove Client Title/Thumb from API]
-                       └──requires──> [Refactor /room/swipe Endpoint]
+[HTTP-01: Centralized HTTP helper]
+    └──enables──> [HTTP-02: TMDB Bearer token] (helper constructs headers)
+    └──enables──> [HTTP-03: Error redaction] (helper catches/wraps exceptions)
+    └──enables──> [HTTP-04: Rate limiting] (helper provides single choke point)
+    └──required──> [HTTP-06: Security tests] (tests mock the centralized client)
 
-[Safe DOM Rendering]
-    └──requires──> [Replace innerHTML with textContent]
-                       └──requires──> [Template Refactoring]
+[HTTP-02: TMDB Bearer token]
+    └──depends on──> [HTTP-01] (needs helper to enforce header-only auth)
 
-[CSP Header]
-    └──enhances──> [All Other Features]
+[HTTP-03: Error redaction]
+    └──depends on──> [HTTP-01] (helper generates request IDs, logs internally)
+    └──conflicts──> [inline str(e) in handlers] (must replace all jsonify({'error': str(e)}))
 
-[XSS Smoke Tests]
-    └──requires──> [All Security Fixes Implemented]
+[HTTP-04: Rate limiter]
+    └──independent──> [HTTP-01] (can be Flask decorator, not HTTP client feature)
+    └──enhances──> [HTTP-01] (rate limit checked before HTTP call fires)
+
+[HTTP-05: SSRF validation]
+    └──independent──> [HTTP-01] (runs at boot, before any HTTP client exists)
+
+[HTTP-06: Security tests]
+    └──requires──> [HTTP-01, 02, 03, 04, 05] (tests validate each feature)
 ```
 
 ### Dependency Notes
 
-- **Server-Side Validation requires Remove Client Title/Thumb from API:** The `/room/swipe` endpoint currently accepts `title` and `thumb` from the client (line 244 of `jellyswipe/__init__.py`). These must be removed and resolved server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb(movie_id)` to prevent malicious data from entering the system.
-
-- **Safe DOM Rendering requires Replace innerHTML with textContent:** Lines 644-661 and 565-585 of `index.html` use `innerHTML` with template literals containing user data (`${m.title}`, `${m.thumb}`). These must be refactored to use `textContent` or DOM construction methods to prevent script execution.
-
-- **CSP Header enhances All Other Features:** CSP provides defense-in-depth but is not a substitute for proper escaping and validation. It should be implemented alongside, not instead of, the other security features.
-
-- **XSS Smoke Tests requires All Security Fixes Implemented:** Tests should verify the complete fix chain: server rejects bad input, client renders safely, CSP blocks any remaining injection attempts.
+- **HTTP-01 enables HTTP-02, HTTP-03:** The centralized HTTP helper is the backbone. TMDB Bearer auth needs the helper to construct `Authorization` headers consistently. Error redaction needs the helper to catch exceptions in one place and generate request IDs. Build HTTP-01 first.
+- **HTTP-04 is independent of HTTP-01:** Rate limiting is a Flask-layer concern (decorator on routes), not an HTTP client concern. It can be built in parallel but should be tested after HTTP-01 so the test infrastructure is ready.
+- **HTTP-05 is fully independent:** SSRF validation runs at module import time, before the HTTP client is instantiated. No dependencies on any other feature. Good candidate for parallel implementation.
+- **HTTP-06 requires all others:** Security tests validate the behavior of each hardening feature. Must be built last, after the features under test exist.
+- **HTTP-03 conflicts with inline `str(e)`:** Every `jsonify({'error': str(e)})` in `__init__.py` must be replaced. This is a mechanical change but touches 6 catch blocks.
 
 ## MVP Definition
 
-### Launch With (v1.5)
+### Launch With (v1.6)
 
-Minimum viable security fixes — what's needed to close the XSS vulnerability.
+Minimum viable hardening — every outbound call is safe, no secrets leak, no SSRF surface.
 
-- [x] **Server-Side Input Validation** — Remove title/thumb from client API; resolve from movie_id via JellyfinLibraryProvider
-- [x] **Safe DOM Rendering** — Replace all `innerHTML` with `textContent` or DOM construction for user-controlled data
-- [x] **Basic CSP Header** — Set `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com`
-- [x] **XSS Smoke Tests** — Add `tests/test_routes_xss.py` proving XSS is blocked
+- [x] **HTTP-01: Centralized HTTP helper** — All 15 outbound calls go through one client with enforced timeouts, User-Agent, and request logging
+- [x] **HTTP-02: TMDB Bearer token** — `TMDB_API_KEY` moves from query strings to `Authorization` header on all 4 TMDB calls
+- [x] **HTTP-03: Error redaction** — 5xx responses return `{'error': 'Internal error', 'request_id': '...'}`; full exception logged server-side
+- [x] **HTTP-04: Rate limiter** — In-memory token-bucket on `/proxy`, `/get-trailer`, `/cast`, `/watchlist/add`
+- [x] **HTTP-05: SSRF validation** — `JELLYFIN_URL` validated at boot against metadata-IP blocklist
+- [x] **HTTP-06: Security tests** — Unit tests for SSRF rejection, timeout enforcement, error redaction, rate limiting
 
-### Add After Validation (v1.5.1)
+### Add After Validation (v1.x)
 
-Features to add once core security is verified.
-
-- [ ] **Nonce-Based Strict CSP** — Upgrade to nonce-based CSP for stronger protection
-- [ ] **CSP Violation Reporting** — Add reporting endpoint for security monitoring
-- [ ] **Comprehensive Escape Helper** — Reusable utility function for safe HTML rendering
+- [ ] **Request duration metrics** — Track p50/p99 latency per upstream (Jellyfin vs TMDB) via structured logs
+- [ ] **Adaptive rate limits** — Adjust TMDB rate limits based on 429 responses from upstream
+- [ ] **Health check endpoint** — `/health` that probes Jellyfin connectivity on demand
 
 ### Future Consideration (v2+)
 
-Features to defer until security posture is stable.
-
-- [ ] **Trusted Types API** — Browser-native API for preventing DOM-based XSS (requires modern browser support)
-- [ ] **HTML Sanitization (DOMPurify)** — If user-generated HTML is ever needed, integrate DOMPurify library
-- [ ] **Subresource Integrity (SRI)** — Add integrity hashes for external scripts
+- [ ] **Circuit breaker** — Only if upstream flakiness becomes a recurring operator complaint
+- [ ] **Redis-backed rate limiting** — Only if multi-worker rate sharing is needed (unlikely for self-hosted)
+- [ ] **mTLS to Jellyfin** — Only if operators run cert-based Jellyfin auth
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Server-Side Input Validation | CRITICAL (closes vulnerability) | MEDIUM | P1 |
-| Safe DOM Rendering | CRITICAL (closes vulnerability) | MEDIUM | P1 |
-| Basic CSP Header | HIGH (defense-in-depth) | LOW | P1 |
-| XSS Smoke Tests | HIGH (regression prevention) | LOW | P1 |
-| Nonce-Based Strict CSP | MEDIUM (enhanced protection) | HIGH | P2 |
-| CSP Violation Reporting | MEDIUM (security monitoring) | MEDIUM | P2 |
-| Comprehensive Escape Helper | LOW (developer convenience) | MEDIUM | P3 |
-| Trusted Types API | LOW (future-proofing) | HIGH | P3 |
+| HTTP-01: Centralized HTTP helper | HIGH (prevents hangs) | MEDIUM (new module + migrate 15 call sites) | P1 |
+| HTTP-02: TMDB Bearer token | HIGH (prevents secret leaks) | LOW (4 URL changes + header construction) | P1 |
+| HTTP-03: Error redaction | HIGH (prevents info disclosure) | LOW (replace 6 handlers + add request ID) | P1 |
+| HTTP-05: SSRF validation | HIGH (prevents cloud metadata attacks) | MEDIUM (IP parsing + DNS resolution + edge cases) | P1 |
+| HTTP-04: Rate limiter | MEDIUM (prevents TMDB quota burn) | MEDIUM (token-bucket impl + Flask decorator) | P2 |
+| HTTP-06: Security tests | HIGH (validates everything works) | MEDIUM (parametrized test fixtures) | P2 |
 
 **Priority key:**
-- P1: Must have for v1.5 (closes XSS vulnerability)
-- P2: Should have, add in v1.5.1 (enhanced protection)
-- P3: Nice to have, future consideration (v2+)
+- P1: Must have — security vulnerabilities if missing
+- P2: Should have — defense-in-depth, can ship in same milestone but after P1s
+
+**Suggested build order:** HTTP-05 (independent, boot-time) → HTTP-01 (foundation) → HTTP-02 (uses foundation) → HTTP-03 (uses foundation) → HTTP-04 (independent Flask layer) → HTTP-06 (validates all)
 
 ## Competitor Feature Analysis
 
-| Feature | Standard Flask Apps | OWASP Recommendations | Our Approach |
-|---------|---------------------|----------------------|--------------|
-| CSP Header | Often missing or too permissive | Strict nonce-based CSP recommended | Start with basic CSP, upgrade to nonce-based in v1.5.1 |
-| HTML Escaping | Depends on template engine (Jinja2 autoescapes by default) | Output encoding for all contexts | Replace innerHTML with textContent (client-side) + Jinja2 autoescaping (server-side) |
-| Input Validation | Varies; often client-side only | Validate on server, whitelist approach | Server-side resolution from trusted source (Jellyfin/TMDB) |
-| XSS Testing | Rarely comprehensive | Unit tests + security testing | Add dedicated XSS smoke test suite |
+| Feature | Typical Self-Hosted App | Enterprise SaaS | Jelly Swipe Approach |
+|---------|------------------------|-----------------|---------------------|
+| HTTP timeouts | Often missing | Required, enforced via middleware | Centralized helper with enforced `(connect, read)` tuple |
+| API key in URL | Common (convenient) | Never — always headers | Migrate to Bearer header |
+| Error redaction | `str(e)` to browser | Structured errors with correlation IDs | Request ID + server-side log + generic client message |
+| Rate limiting | Rare | Redis-backed, per-tenant | In-memory token-bucket, per-IP |
+| SSRF validation | Almost never | DNS rebinding + allowlist | Boot-time IP blocklist (metadata + dangerous ranges) |
 
-## Complexity Notes
+## Codebase Impact Assessment
 
-### Server-Side Validation (MEDIUM)
-- Requires refactoring `/room/swipe` endpoint to ignore client `title`/`thumb`
-- Must handle case where `JellyfinLibraryProvider.resolve_item_for_tmdb()` fails (graceful degradation)
-- Existing code already has `resolve_item_for_tmdb()` method for TMDB integration (lines 117-130)
-- **Dependency:** Requires understanding of movie_id to Jellyfin item mapping
+### Files to Create
+| File | Purpose | Lines (est.) |
+|------|---------|-------------|
+| `jellyswipe/http_client.py` | Centralized HTTP client with timeout enforcement, User-Agent, structured logging | ~80 |
+| `jellyswipe/rate_limiter.py` | In-memory token-bucket rate limiter | ~60 |
+| `jellyswipe/ssrf.py` | SSRF URL validation (boot-time) | ~50 |
+| `tests/test_http_hardening.py` | Security tests for all hardening features | ~200 |
 
-### Safe DOM Rendering (MEDIUM)
-- Template has 11+ `innerHTML` usages (found via grep)
-- Must identify which contain user data vs static HTML
-- Static HTML can remain with `innerHTML` if no user data (e.g., trailer iframe at line 709)
-- **Pattern:** Replace `c.innerHTML = \`${m.title}\`` with `c.textContent = m.title` or use DOM creation API
-- **Safe sinks:** `textContent`, `insertAdjacentText`, `setAttribute`, `value`, `className` (per OWASP)
-- **Unsafe sinks:** `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` (must avoid)
+### Files to Modify
+| File | Changes | Scope |
+|------|---------|-------|
+| `jellyswipe/__init__.py` | Replace 4 bare `requests.get()` calls with centralized client; replace TMDB `api_key=` with Bearer header; replace 6 `str(e)` error handlers with redacted responses; add rate limiter decorators to 4 routes; add SSRF validation at boot | HIGH — most route handlers touched |
+| `jellyswipe/jellyfin_library.py` | Migrate `self._session` usage to centralized client (optional — existing timeouts are OK, but logging/redaction benefit) | MEDIUM — internal API calls refactored |
+| `pyproject.toml` | No new dependencies needed | NONE |
 
-### Basic CSP Header (LOW)
-- Single `@app.after_request` hook in `jellyswipe/__init__.py`
-- Policy format validated by MDN and web.dev sources
-- Must allow `https://image.tmdb.org` for images (TMDB integration requirement)
-- Must allow `https://www.youtube.com` for trailer embeds (existing feature)
-- **Implementation:**
-```python
-@app.after_request
-def add_security_headers(response):
-    csp = "default-src 'self'; script-src 'self'; object-src 'none'; img-src 'self' https://image.tmdb.org; frame-src https://www.youtube.com"
-    response.headers['Content-Security-Policy'] = csp
-    return response
-```
+### Migration Path
 
-### XSS Smoke Tests (LOW)
-- Create `tests/test_routes_xss.py`
-- Test 1: Send malicious payload in swipe endpoint, verify it's not rendered as executable script
-- Test 2: Verify CSP header is present on all responses
-- Test 3: Verify server rejects title/thumb from client
-- **Framework:** Use existing pytest setup with mock responses (follows pattern of `test_db.py`)
+The centralized HTTP helper should be introduced incrementally:
 
-### Nonce-Based Strict CSP (HIGH)
-- Requires generating random nonce per response: `secrets.token_urlsafe(16)` or `os.urandom(16).base64()`
-- Must inject nonce into all `<script>` tags via template variable
-- Template currently has inline scripts; must be refactored to accept nonce parameter
-- **Implementation complexity:** HIGH because all scripts need nonce attribute, including any dynamically created scripts
-- **Browser support:** Chrome 52+, Edge 79+, Firefox 52+, Safari 15.4+ (per web.dev sources)
+1. **Phase 1:** Create `http_client.py` — standalone, no imports changed yet
+2. **Phase 2:** Migrate TMDB calls in `__init__.py` (the 4 bare `requests.get()` calls) — highest impact, all missing timeouts + all leaked API keys
+3. **Phase 3:** Migrate error handlers in `__init__.py` — replace `str(e)` with redacted responses
+4. **Phase 4:** Add rate limiter decorators to routes
+5. **Phase 5:** (Optional) Migrate `jellyfin_library.py` internal calls to centralized client for logging benefit
+6. **Phase 6:** Add SSRF validation at boot
+7. **Phase 7:** Write security tests
 
 ## Sources
 
-**Context7 Documentation (HIGH confidence):**
-- Flask web security: CSP header configuration, after_request pattern
-- Jinja2 autoescaping: Automatic HTML escaping enabled by default
-- Flask input handling: `request.json`, `get_json()`, HTML escaping with `markupsafe.escape`
-
-**MDN Web Docs (HIGH confidence):**
-- Content Security Policy guide: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP
-- CSP header reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
-
-**web.dev Articles (HIGH confidence):**
-- Strict CSP guide: https://web.dev/articles/strict-csp
-- Nonce-based CSP implementation patterns and browser support
-
-**OWASP Cheat Sheet Series (HIGH confidence):**
-- XSS Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
-- Safe sinks (textContent, insertAdjacentText) vs unsafe sinks (innerHTML)
-- Output encoding rules for HTML, JavaScript, CSS, URL contexts
-
-**Code Analysis (HIGH confidence):**
-- Vulnerable locations: `jellyswipe/templates/index.html` lines 644-661, 565-585
-- Server endpoint: `jellyswipe/__init__.py` line 244 (`/room/swipe` accepts title/thumb from client)
-- Existing method: `JellyfinLibraryProvider.resolve_item_for_tmdb()` can be leveraged for server-side resolution
-
-**Confidence Level Rationale:**
-- **HIGH confidence** for all sources: All information from official documentation (Flask, MDN, OWASP) or direct code analysis
-- **Verified through multiple sources:** CSP patterns cross-referenced between Context7, MDN, and web.dev
-- **No LOW confidence findings:** All claims backed by authoritative sources or direct code inspection
+- **requests library timeout documentation** — Context7 /psf/requests: timeout must be passed per-request, no session-level default exists. HIGH confidence.
+- **TMDB v3 API authentication** — Context7 /websites/developer_themoviedb_reference: all v3 endpoints accept `Authorization: Bearer <access_token>` header as alternative to `?api_key=`. HIGH confidence.
+- **TMDB API key vs read access token** — TMDB developer settings: the "API Key (v3 auth)" and "Read Access Token" are separate values, but the Read Access Token works as a Bearer token for all read endpoints. HIGH confidence.
+- **Flask-Limiter in-memory storage** — Context7 /alisaifee/flask-limiter: `storage_uri="memory://"` available but per-process, same limitation as custom impl. HIGH confidence.
+- **RFC 1918 / link-local IP ranges** — Standard networking: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (private), 169.254.0.0/16 (link-local/metadata), 127.0.0.0/8 (loopback). HIGH confidence.
+- **Codebase analysis** — Direct reading of `jellyswipe/__init__.py`, `jellyswipe/jellyfin_library.py`, `jellyswipe/base.py`, `pyproject.toml`. HIGH confidence.
 
 ---
-*Feature research for: XSS Security Fixes in Jelly Swipe Flask App*
-*Researched: 2026-04-25*
+*Feature research for: Jelly Swipe v1.6 Outbound HTTP Hardening*
+*Researched: 2026-04-26*
