@@ -76,7 +76,7 @@ def get_provider() -> JellyfinLibraryProvider:
 
 # Import database functions
 from .db import get_db, init_db
-from jellyswipe.auth import create_session, login_required
+from jellyswipe.auth import create_session, login_required, destroy_session
 
 # Set DB_PATH in db module
 import jellyswipe.db
@@ -212,6 +212,12 @@ def jellyfin_login():
     except Exception:
         return jsonify({"error": "Jellyfin login failed"}), 401
 
+@app.route('/auth/logout', methods=['POST'])
+@login_required
+def logout():
+    destroy_session()
+    return jsonify({'status': 'logged_out'})
+
 @app.route('/me')
 @login_required
 def get_me():
@@ -221,6 +227,7 @@ def get_me():
         'displayName': g.user_id,
         'serverName': info.get('name', ''),
         'serverId': info.get('machineIdentifier', ''),
+        'activeRoom': session.get('active_room'),
     })
 
 @app.route('/room', methods=['POST'])
@@ -254,20 +261,6 @@ def create_solo_room():
     session['active_room'] = pairing_code
     session['solo_mode'] = True
     return jsonify({'pairing_code': pairing_code})
-
-@app.route('/room/<code>/go-solo', methods=['POST'])
-@login_required
-def go_solo(code):
-    with get_db() as conn:
-        room = conn.execute('SELECT pairing_code FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        if not room:
-            return jsonify({'error': 'Room not found'}), 404
-        conn.execute('UPDATE rooms SET ready = 1, solo_mode = 1 WHERE pairing_code = ?', (code,))
-        cursor_pos = _get_cursor(conn, code, g.user_id)
-        if cursor_pos == 0:
-            _set_cursor(conn, code, g.user_id, 0)
-    session['solo_mode'] = True
-    return jsonify({'status': 'solo'})
 
 @app.route('/room/<code>/join', methods=['POST'])
 @login_required

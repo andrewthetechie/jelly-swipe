@@ -68,6 +68,19 @@ def get_current_token() -> Optional[Tuple[str, str]]:
     return (row['jellyfin_token'], row['jellyfin_user_id'])
 
 
+def destroy_session():
+    """Clear session cookie and delete vault entry.
+
+    Per CLNT-01: logout removes the server-side vault entry and
+    clears the session cookie so no auth state remains.
+    """
+    sid = session.get('session_id')
+    if sid:
+        with get_db() as conn:
+            conn.execute('DELETE FROM user_tokens WHERE session_id = ?', (sid,))
+        session.pop('session_id', None)
+
+
 def login_required(f):
     """Decorator that requires authenticated session.
 
