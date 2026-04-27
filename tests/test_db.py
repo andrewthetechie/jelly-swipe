@@ -42,6 +42,30 @@ class TestSchema:
         assert "swipes" in tables
         assert "matches" in tables
 
+    def test_all_four_tables_exist_after_init_db(self, db_connection):
+        """Test that all 4 tables exist after init_db (rooms, swipes, matches, user_tokens)."""
+        cursor = db_connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        assert "rooms" in tables
+        assert "swipes" in tables
+        assert "matches" in tables
+        assert "user_tokens" in tables
+
+    def test_user_tokens_table_exists_after_init_db(self, db_connection):
+        """Test that user_tokens table exists after init_db."""
+        cursor = db_connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        assert "user_tokens" in tables
+
+    def test_user_tokens_table_has_all_columns(self, db_connection):
+        """Test that user_tokens table has required columns."""
+        cursor = db_connection.execute("PRAGMA table_info(user_tokens)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "session_id" in columns
+        assert "jellyfin_token" in columns
+        assert "jellyfin_user_id" in columns
+        assert "created_at" in columns
+
     def test_rooms_table_has_all_columns(self, db_connection):
         """Test that rooms table has all required columns."""
         cursor = db_connection.execute("PRAGMA table_info(rooms)")
@@ -52,6 +76,8 @@ class TestSchema:
         assert "current_genre" in columns
         assert "solo_mode" in columns
         assert "last_match_data" in columns
+        assert "deck_position" in columns
+        assert "deck_order" in columns
 
     def test_swipes_table_has_all_columns(self, db_connection):
         """Test that swipes table has all required columns."""
@@ -72,6 +98,10 @@ class TestSchema:
         assert "thumb" in columns
         assert "status" in columns
         assert "user_id" in columns
+        assert "deep_link" in columns
+        assert "rating" in columns
+        assert "duration" in columns
+        assert "year" in columns
 
         # Check for UNIQUE constraint
         cursor = db_connection.execute("PRAGMA index_list(matches)")
@@ -122,6 +152,32 @@ class TestMigrations:
         cursor = db_connection.execute("PRAGMA table_info(rooms)")
         columns = [col[1] for col in cursor.fetchall()]
         assert "last_match_data" in columns
+
+    def test_migration_adds_deck_position_column_to_rooms(self, db_connection):
+        """Test that migration adds deck_position column to rooms table."""
+        cursor = db_connection.execute("PRAGMA table_info(rooms)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "deck_position" in columns
+
+    def test_migration_adds_deck_order_column_to_rooms(self, db_connection):
+        """Test that migration adds deck_order column to rooms table."""
+        cursor = db_connection.execute("PRAGMA table_info(rooms)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "deck_order" in columns
+
+    def test_migration_adds_deep_link_column_to_matches(self, db_connection):
+        """Test that migration adds deep_link column to matches table."""
+        cursor = db_connection.execute("PRAGMA table_info(matches)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "deep_link" in columns
+
+    def test_migration_adds_rating_duration_year_columns_to_matches(self, db_connection):
+        """Test that migration adds rating, duration, year columns to matches table."""
+        cursor = db_connection.execute("PRAGMA table_info(matches)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "rating" in columns
+        assert "duration" in columns
+        assert "year" in columns
 
 
 class TestCrudOperations:
@@ -213,6 +269,21 @@ class TestCrudOperations:
                 ("TEST123", "movie456", "Another Title", "http://thumb2.jpg", "active", "user789")
             )
 
+    def test_insert_and_select_from_user_tokens_table(self, db_connection):
+        """Test that we can INSERT and SELECT from user_tokens table."""
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("test-session-123", "test-token-abc", "user-xyz", "2026-04-27T00:00:00.000000")
+        )
+        cursor = db_connection.execute("SELECT * FROM user_tokens WHERE session_id = ?", ("test-session-123",))
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["session_id"] == "test-session-123"
+        assert row["jellyfin_token"] == "test-token-abc"
+        assert row["jellyfin_user_id"] == "user-xyz"
+        assert row["created_at"] == "2026-04-27T00:00:00.000000"
+
 
 class TestCleanup:
     """Tests for database cleanup operations."""
@@ -267,3 +338,6 @@ class TestIsolation:
 
         cursor = db_connection.execute("SELECT COUNT(*) FROM matches")
         assert cursor.fetchone()[0] == 0, "Matches table should be empty"
+
+        cursor = db_connection.execute("SELECT COUNT(*) FROM user_tokens")
+        assert cursor.fetchone()[0] == 0, "User tokens table should be empty"
