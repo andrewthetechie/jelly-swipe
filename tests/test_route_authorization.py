@@ -806,3 +806,122 @@ class TestGoSoloRemoved:
 
         resp = client.post('/room/ROOM1/go-solo')
         assert resp.status_code == 404
+
+
+# --- Phase 27 Compliance Tests ---
+
+
+class TestPhase27Compliance:
+    """Integration verification tests for Phase 27 (CLNT-01 and CLNT-02 compliance)."""
+
+    def test_auth_lifecycle(self, db_connection, client):
+        """Full auth lifecycle: delegate login -> GET /me (200) -> logout -> GET /me (401)."""
+        # Step 1: Login via delegate
+        resp = client.post('/auth/jellyfin-use-server-identity')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert 'userId' in data
+
+        # Step 2: GET /me returns 200 with user info
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        me_data = resp.get_json()
+        assert me_data['userId'] == 'verified-user'
+
+        # Step 3: POST /auth/logout clears session
+        resp = client.post('/auth/logout')
+        assert resp.status_code == 200
+        assert resp.get_json()['status'] == 'logged_out'
+
+        # Step 4: GET /me now returns 401
+        resp = client.get('/me')
+        assert resp.status_code == 401
+
+    def test_swipe_no_match_in_response(self, db_connection, client):
+        """Swipe returns {accepted: true} only — no match field (CLNT-02)."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection)
+
+        resp = client.post('/room/ROOM1/swipe',
+                           json={'movie_id': 'movie-1', 'direction': 'right'})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data == {'accepted': True}
+        assert 'match' not in data
+        assert 'title' not in data
+        assert 'thumb' not in data
+        assert 'solo' not in data
+
+    def test_sse_match_has_enriched_fields(self, db_connection, client):
+        """Two-player match via /room/{code}/status has deep_link, rating, duration, year."""
+        _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room_with_movies(db_connection)
+
+        # First user swipes right
+        client.post('/room/ROOM1/swipe',
+                     json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        # Second user
+        _setup_deck_session(client, db_connection, user_id="user-B", token="token-B")
+        with client.session_transaction() as sess:
+            sess["active_room"] = "ROOM1"
+
+        # Second user swipes right — creates match
+        client.post('/room/ROOM1/swipe',
+                     json={'movie_id': 'movie-1', 'direction': 'right'})
+
+        # Check room status for enriched match data
+        resp = client.get('/room/ROOM1/status')
+        assert resp.status_code == 200
+        status = resp.get_json()
+        assert status['last_match'] is not None
+        match = status['last_match']
+        assert match['type'] == 'match'
+        assert 'title' in match
+        assert 'thumb' in match
+        assert 'movie_id' in match
+        assert 'deep_link' in match
+        assert '/web/#/details?id=movie-1' in match['deep_link']
+        assert match['rating'] == '8.5'
+        assert match['duration'] == '2h 15m'
+        assert match['year'] == '2024'
+        assert 'ts' in match
+
+    def test_solo_endpoint_not_go_solo(self, db_connection, client):
+        """POST /room/solo creates solo room (200), POST /room/{code}/go-solo returns 404."""
+        _setup_deck_session(client, db_connection)
+
+        # POST /room/solo works
+        resp = client.post('/room/solo')
+        assert resp.status_code == 200
+        code = resp.get_json()['pairing_code']
+
+        # Old route returns 404
+        resp = client.post(f'/room/{code}/go-solo')
+        assert resp.status_code == 404
+
+    def test_me_returns_active_room(self, db_connection, client):
+        """GET /me tracks activeRoom: null -> code -> null after quit."""
+        _setup_deck_session(client, db_connection)
+
+        # Before room: activeRoom is null
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        assert resp.get_json()['activeRoom'] is None
+
+        # Create room: activeRoom becomes pairing code
+        resp = client.post('/room')
+        assert resp.status_code == 200
+        code = resp.get_json()['pairing_code']
+
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        assert resp.get_json()['activeRoom'] == code
+
+        # Quit room: activeRoom becomes null
+        resp = client.post(f'/room/{code}/quit')
+        assert resp.status_code == 200
+
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        assert resp.get_json()['activeRoom'] is None
