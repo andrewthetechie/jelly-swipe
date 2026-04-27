@@ -167,7 +167,7 @@ def create_app(test_config=None):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     app.secret_key = os.environ["FLASK_SECRET"]
-    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SECURE'] = not app.config.get('TESTING', False)
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
     @app.after_request
