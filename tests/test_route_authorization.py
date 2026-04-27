@@ -635,3 +635,86 @@ class TestSSEMatchDelivery:
             ("ROOM1", "movie-1", "user-B"),
         ).fetchone()[0]
         assert user_b == 1
+
+
+# --- GET /me Endpoint Tests ---
+
+
+class TestGetMe:
+    """Tests for GET /me identity endpoint (API-03)."""
+
+    def test_get_me_returns_user_info(self, db_connection, client):
+        """Authenticated GET /me returns userId, displayName, serverName, serverId."""
+        _set_session(client, db_connection, authenticated=True)
+
+        resp = client.get('/me')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['userId'] == 'verified-user'
+        assert data['displayName'] == 'verified-user'
+        assert data['serverName'] == 'TestServer'
+        assert data['serverId'] == 'test-server-id'
+
+    def test_get_me_requires_auth(self, db_connection, client):
+        """Unauthenticated GET /me returns 401."""
+        resp = client.get('/me')
+        assert resp.status_code == 401
+        assert resp.get_json() == {'error': 'Authentication required'}
+
+
+# --- Solo Room Endpoint Tests ---
+
+
+class TestSoloRoom:
+    """Tests for POST /room/solo endpoint (API-04)."""
+
+    def test_solo_room_creation(self, db_connection, client):
+        """POST /room/solo creates solo room with ready=1 and solo_mode=1."""
+        _setup_deck_session(client, db_connection)
+
+        resp = client.post('/room/solo')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert 'pairing_code' in data
+        code = data['pairing_code']
+        assert len(code) == 4
+
+        # Verify room state in DB
+        row = db_connection.execute(
+            "SELECT ready, solo_mode FROM rooms WHERE pairing_code = ?",
+            (code,),
+        ).fetchone()
+        assert row['ready'] == 1
+        assert row['solo_mode'] == 1
+
+    def test_solo_room_deck_cursor_initialized(self, db_connection, client):
+        """Solo room initializes deck cursor for creator at position 0."""
+        _setup_deck_session(client, db_connection)
+
+        resp = client.post('/room/solo')
+        code = resp.get_json()['pairing_code']
+
+        row = db_connection.execute(
+            "SELECT deck_position FROM rooms WHERE pairing_code = ?",
+            (code,),
+        ).fetchone()
+        positions = json.loads(row['deck_position'])
+        assert 'verified-user' in positions
+        assert positions['verified-user'] == 0
+
+    def test_solo_room_sets_session(self, db_connection, client):
+        """POST /room/solo sets session active_room and solo_mode=True."""
+        _setup_deck_session(client, db_connection)
+
+        resp = client.post('/room/solo')
+        code = resp.get_json()['pairing_code']
+
+        with client.session_transaction() as sess:
+            assert sess['active_room'] == code
+            assert sess['solo_mode'] is True
+
+    def test_solo_room_requires_auth(self, db_connection, client):
+        """Unauthenticated POST /room/solo returns 401."""
+        resp = client.post('/room/solo')
+        assert resp.status_code == 401
+        assert resp.get_json() == {'error': 'Authentication required'}
