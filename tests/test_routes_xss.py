@@ -140,18 +140,15 @@ class TestLayer1ServerSideValidation:
                     }
                 )
 
-                # Verify response was successful
+                # Verify response was successful and returns accepted-only (per D-01: no match payload in HTTP response)
                 assert response.status_code == 200
-
-                # Verify that the response contains server-resolved title, not client-supplied
                 response_data = json.loads(response.data)
-                assert response_data['title'] == "The Matrix"
-                assert response_data['title'] != '<script>alert("XSS")</script>'
+                assert response_data == {'accepted': True}
 
                 # Verify that provider was called (server-side resolution occurred)
                 mock_provider.resolve_item_for_tmdb.assert_called_once_with('movie123')
 
-                # Verify database contains only server-resolved data
+                # Verify database contains only server-resolved data (not client-supplied)
                 with jellyswipe.db.get_db() as conn:
                     cursor = conn.execute(
                         "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
@@ -211,14 +208,11 @@ class TestLayer1ServerSideValidation:
 
                 assert response.status_code == 200
 
-                # Verify server-resolved data is used, not client-supplied
+                # Per D-01: swipe returns accepted-only (no title/thumb in response)
                 response_data = json.loads(response.data)
-                assert response_data['title'] == "Safe Movie"
-                assert response_data['title'] != '<script>alert("XSS")</script>'
-                assert response_data['thumb'] == "/proxy?path=jellyfin/movie456/Primary"
-                assert response_data['thumb'] != 'malicious.jpg'
+                assert response_data == {'accepted': True}
 
-                # Verify database contains only server-resolved data
+                # Verify database contains only server-resolved data (not client-supplied)
                 with jellyswipe.db.get_db() as conn:
                     cursor = conn.execute(
                         "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
@@ -334,12 +328,10 @@ class TestEndToEndXSSBlocking:
                     }
                 )
 
-                # Verify Layer 1: Response was successful and contains server-resolved data
+                # Verify Layer 1: Response was successful (per D-01: accepted-only, no match payload)
                 assert response.status_code == 200
                 response_data = json.loads(response.data)
-                assert response_data['title'] == "Inception"
-                assert response_data['title'] != '<script>alert("XSS")</script>'
-                assert response_data['thumb'] == "/proxy?path=jellyfin/movie_e2e/Primary"
+                assert response_data == {'accepted': True}
 
                 # Verify Layer 3: CSP header is present
                 assert 'Content-Security-Policy' in response.headers

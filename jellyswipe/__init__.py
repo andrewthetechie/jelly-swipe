@@ -101,6 +101,25 @@ def _set_cursor(conn, code, user_id, position):
                  (json.dumps(positions), code))
 
 
+def _resolve_movie_meta(movie_data_json, movie_id):
+    """Resolve rating, duration, year from stored movie_data JSON (per D-09, D-10)."""
+    try:
+        movies = json.loads(movie_data_json)
+        for m in movies:
+            if str(m.get('id', '')) == str(movie_id):
+                rating = m.get('rating')
+                duration = m.get('duration')
+                year = m.get('year')
+                return {
+                    'rating': str(rating) if rating is not None else '',
+                    'duration': duration or '',
+                    'year': str(year) if year is not None else '',
+                }
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return {'rating': '', 'duration': '', 'year': ''}
+
+
 @app.route('/')
 def index(): return render_template('index.html', media_provider="jellyfin")
 
@@ -269,35 +288,61 @@ def swipe(code):
         if data.get('direction') == 'right':
             # Only create matches if we successfully resolved metadata server-side
             if title is not None and thumb is not None:
-                room = conn.execute('SELECT solo_mode FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+                room = conn.execute('SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+
+                # Resolve enriched metadata from stored movie_data JSON (per D-09, D-10)
+                meta = _resolve_movie_meta(room['movie_data'], mid) if room else {'rating': '', 'duration': '', 'year': ''}
+                deep_link = f"{JELLYFIN_URL}/web/#/details?id={mid}" if JELLYFIN_URL else ''
+
                 if room and room['solo_mode']:
+                    # Solo mode: create match directly, update last_match_data (per D-01)
                     conn.execute(
-                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, g.user_id)
+                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+                        (code, mid, title, thumb, g.user_id, deep_link, meta['rating'], meta['duration'], meta['year'])
                     )
-                    return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
-
-                other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
-                                         (code, mid, g.user_id)).fetchone()
-
-                if other_swipe:
-                    conn.execute(
-                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, g.user_id)
-                    )
-
-                    if other_swipe['user_id'] and other_swipe['user_id'] != g.user_id:
-                        conn.execute(
-                            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                            (code, mid, title, thumb, other_swipe['user_id'])
-                        )
-
-                    match_data = json.dumps({'title': title, 'thumb': thumb, 'ts': time.time()})
+                    match_data = json.dumps({
+                        'type': 'match', 'title': title, 'thumb': thumb,
+                        'movie_id': mid, 'rating': meta['rating'],
+                        'duration': meta['duration'], 'year': meta['year'],
+                        'deep_link': deep_link, 'ts': time.time()
+                    })
                     conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+                else:
+                    # Two-player mode: commit swipe + cursor before IMMEDIATE transaction
+                    conn.commit()
 
-                    return jsonify({'match': True, 'title': title, 'thumb': thumb})
+                    # Per D-11: Wrap match check-and-insert in BEGIN IMMEDIATE
+                    conn.execute('BEGIN IMMEDIATE')
+                    try:
+                        other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+                                                 (code, mid, g.user_id)).fetchone()
 
-    return jsonify({'match': False})
+                        if other_swipe:
+                            conn.execute(
+                                'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+                                (code, mid, title, thumb, g.user_id, deep_link, meta['rating'], meta['duration'], meta['year'])
+                            )
+
+                            if other_swipe['user_id'] and other_swipe['user_id'] != g.user_id:
+                                conn.execute(
+                                    'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+                                    (code, mid, title, thumb, other_swipe['user_id'], deep_link, meta['rating'], meta['duration'], meta['year'])
+                                )
+
+                            match_data = json.dumps({
+                                'type': 'match', 'title': title, 'thumb': thumb,
+                                'movie_id': mid, 'rating': meta['rating'],
+                                'duration': meta['duration'], 'year': meta['year'],
+                                'deep_link': deep_link, 'ts': time.time()
+                            })
+                            conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+
+                        conn.execute('COMMIT')
+                    except Exception:
+                        conn.execute('ROLLBACK')
+                        raise
+
+    return jsonify({'accepted': True})
 
 @app.route('/matches')
 @login_required
@@ -307,9 +352,9 @@ def get_matches():
 
     with get_db() as conn:
         if view == 'history':
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND user_id = ?', (g.user_id,)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id, deep_link, rating, duration, year FROM matches WHERE status = "archived" AND user_id = ?', (g.user_id,)).fetchall()
         else:
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, g.user_id)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id, deep_link, rating, duration, year FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, g.user_id)).fetchall()
         return jsonify([dict(row) for row in rows])
 
 @app.route('/room/<code>/quit', methods=['POST'])
