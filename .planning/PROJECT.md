@@ -14,15 +14,20 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.5 — XSS Security Fix
+## Current Milestone: v2.0 — Architecture Tier Fix
 
-**Goal:** Eliminate stored XSS vulnerability where client-supplied title/thumb parameters are rendered unsafely, allowing JavaScript injection.
+**Goal:** Eliminate tier responsibility violations — server owns identity, deck, match logic, and deep links; client owns animation and optimistic UI only.
 
 **Target features:**
-- Server-side: Never accept title/thumb from client; resolve from movie_id via JellyfinLibraryProvider.resolve_item_for_tmdb()
-- Client-side: Replace innerHTML with textContent/DOM construction or strict escape helper for all user-controlled data
-- Security: Set strict Content-Security-Policy header (no unsafe-inline scripts, restrict img-src to 'self' + image.tmdb.org, restrict frame-src to https://www.youtube.com)
-- Testing: Add smoke test in tests/test_routes_xss.py proving XSS is blocked (script tags render as literal text)
+- Server-side identity: session → Jellyfin token → user_id, no client-supplied identity headers
+- Server-side token storage: HttpOnly session cookie, client never sees tokens
+- Server-owned deck composition + order (single source of truth)
+- Server-owned match decision and notification (one channel via SSE)
+- Server-generated Jellyfin deep links (remove stale Plex URL construction)
+- RESTful swipe endpoint: POST /room/{code}/swipe with {movie_id, direction} only
+- Solo mode as dedicated endpoint (not a room flag hack)
+- Match cards with full metadata (rating, duration, year) via server-side join
+- ADR documenting tier responsibilities
 
 ## Requirements
 
@@ -50,12 +55,13 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **TEST-02** — Modern pytest methods with fixtures and parametrize. *Validated in Phase 14 (v1.3).*
 - ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
 - ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
+- ✓ **SSV-01** — `/room/swipe` does not accept title/thumb from client. *Validated in Phase 19 (v1.5).*
+- ✓ **SSV-02** — `/room/swipe` resolves metadata server-side via `resolve_item_for_tmdb()`. *Validated in Phase 19 (v1.5).*
+- ✓ **SSV-03** — Graceful handling when `resolve_item_for_tmdb()` fails. *Validated in Phase 19 (v1.5).*
 
 ### Active
 
-- **SSV-01** — `/room/swipe` endpoint does not accept `title` or `thumb` parameters from the client request body. *Validated in Phase 19 (v1.5).*
-- **SSV-02** — `/room/swipe` resolves movie metadata (title, thumb) server-side from `movie_id` via `JellyfinLibraryProvider.resolve_item_for_tmdb()`. *Validated in Phase 19 (v1.5).*
-- **SSV-03** — Server handles case where `resolve_item_for_tmdb()` fails gracefully (does not insert malformed match data). *Validated in Phase 19 (v1.5).*
+- Architecture tier fix requirements to be defined in milestone v2.0
 
 ### Out of Scope
 
@@ -71,12 +77,12 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ## Current state
 
-- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), and **v1.4** (authorization hardening) tagged; archives under `.planning/milestones/v1.0-*`, `v1.1-*`, `v1.2-*`, `v1.3-*`, and `v1.4-*`.
-- **In flight:** **v1.5 XSS Security Fix** (Phase 19 complete, 3 of 13 requirements validated) to close Issue #6 (`https://github.com/andrewthetechie/jelly-swipe/issues/6`).
+- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), **v1.4** (authorization hardening), **v1.5** (XSS security fix) tagged; archives under `.planning/milestones/`.
+- **In flight:** **v2.0 Architecture Tier Fix** (Issue #8) — eliminate 7 tier responsibility violations between server and client.
 - **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
 - **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
 - **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
-- **Tests:** 48 tests across 3 test files (test_infrastructure.py, test_db.py, test_jellyfin_library.py) with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting.
+- **Tests:** 54+ tests across test files with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting.
 
 ## Context
 
@@ -129,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after Phase 19 completion*
+*Last updated: 2026-04-26 after v2.0 milestone start*
