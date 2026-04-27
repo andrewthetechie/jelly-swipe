@@ -210,3 +210,49 @@ def test_delegate_sets_session_cookie(db_connection, client):
     with client.session_transaction() as sess:
         assert "session_id" in sess
         assert len(sess["session_id"]) > 0
+
+
+# --- Mutation Route Authorization Tests ---
+
+
+@pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
+@pytest.mark.parametrize("spoof_header", SPOOF_HEADERS)
+def test_spoofed_headers_ignored_when_vault_authenticated(db_connection, client, method, path, payload, spoof_header):
+    """Headers are ignored — vault identity is used regardless of what headers say."""
+    _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+    _prepare_route_state(db_connection, path, room_code="ROOM1",
+                         verified_user="verified-user", session_user="verified-user")
+    response = _send_request(client, method, path, payload, {spoof_header: "attacker-id"})
+    assert response.status_code != 401  # spoofed headers don't cause 401 when vault is valid
+
+
+def test_unauthenticated_swipe_no_side_effects(db_connection, client):
+    """Without a vault entry, no side effects occur."""
+    with client.session_transaction() as sess:
+        sess["active_room"] = "ROOM1"
+    _seed_room(db_connection, "ROOM1")
+    before_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
+    response = client.post("/room/swipe", json={"movie_id": "movie-1", "direction": "right"})
+    after_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
+    assert response.status_code == 401
+    assert after_swipes == before_swipes
+
+
+@pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
+def test_unauthenticated_returns_401(db_connection, client, method, path, payload):
+    """No vault entry = 401 regardless of headers."""
+    with client.session_transaction() as sess:
+        sess["active_room"] = "ROOM1"
+    _seed_room(db_connection, "ROOM1")
+    response = _send_request(client, method, path, payload, {})
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Authentication required"}
+
+
+@pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
+def test_authenticated_vault_identity_succeeds(db_connection, client, method, path, payload):
+    _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+    _prepare_route_state(db_connection, path, room_code="ROOM1",
+                         verified_user="verified-user", session_user="verified-user")
+    response = _send_request(client, method, path, payload, {})
+    assert response.status_code != 401

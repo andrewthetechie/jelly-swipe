@@ -9,7 +9,6 @@ except ImportError:
 
 from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort, g
 from werkzeug.middleware.proxy_fix import ProxyFix
-from typing import Dict, Optional, Tuple
 import sqlite3, os, random, re, requests, json, secrets, time
 
 # Default: repo ./data/jellyswipe.db (local dev). Docker: set DB_PATH=/app/data/jellyswipe.db or keep default when WORKDIR is /app.
@@ -67,13 +66,6 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 from .jellyfin_library import JellyfinLibraryProvider
 
 _provider_singleton = None
-TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
-_token_user_id_cache: Dict[str, Tuple[str, float]] = {}
-IDENTITY_ALIAS_HEADERS = (
-    "X-Provider-User-Id",
-    "X-Jellyfin-User-Id",
-    "X-Emby-UserId",
-)
 
 def get_provider() -> JellyfinLibraryProvider:
     """Get or create the JellyfinLibraryProvider singleton."""
@@ -94,92 +86,6 @@ jellyswipe.db.DB_PATH = DB_PATH
 @app.route('/')
 def index(): return render_template('index.html', media_provider="jellyfin")
 
-
-def _jellyfin_user_token_from_request() -> str:
-    if session.get("jf_delegate_server_identity"):
-        prov = get_provider()
-        try:
-            return prov.server_access_token_for_delegate()
-        except RuntimeError:
-            return ""
-    auth_header = request.headers.get("Authorization", "")
-    token = None
-    if auth_header:
-        try:
-            # Preserve tolerant Token="..." parsing for compatibility; trust comes from server validation.
-            token = get_provider().extract_media_browser_token(auth_header)
-        except Exception:
-            token = None
-    return token or ""
-
-
-def _request_has_identity_alias_headers() -> bool:
-    for header in IDENTITY_ALIAS_HEADERS:
-        if request.headers.get(header):
-            return True
-    return False
-
-
-def _set_identity_rejection_reason(reason: str) -> None:
-    request.environ["jellyswipe.identity_rejected"] = reason
-
-
-def _identity_rejection_reason() -> Optional[str]:
-    value = request.environ.get("jellyswipe.identity_rejected")
-    return str(value) if value else None
-
-
-def _unauthorized_response():
-    return jsonify({'error': 'Unauthorized'}), 401
-
-
-def _token_cache_key(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _resolve_user_id_from_token_cached(token: str) -> Optional[str]:
-    now = time.time()
-    cache_key = _token_cache_key(token)
-    cached = _token_user_id_cache.get(cache_key)
-    if cached:
-        user_id, expires_at = cached
-        if expires_at > now:
-            return user_id
-        _token_user_id_cache.pop(cache_key, None)
-
-    try:
-        user_id = get_provider().resolve_user_id_from_token(token)
-    except Exception:
-        return None
-
-    _token_user_id_cache[cache_key] = (
-        user_id,
-        # Keep cache short-lived to limit stale identity risk.
-        now + TOKEN_USER_ID_CACHE_TTL_SECONDS,
-    )
-    return user_id
-
-
-def _provider_user_id_from_request():
-    if session.get("jf_delegate_server_identity"):
-        prov = get_provider()
-        try:
-            return prov.server_primary_user_id_for_delegate()
-        except RuntimeError:
-            pass
-    # Alias headers are client-controlled; never treat them as identity.
-    if _request_has_identity_alias_headers():
-        _set_identity_rejection_reason("spoofed_alias_header")
-        return None
-
-    token = _jellyfin_user_token_from_request()
-    if not token:
-        return None
-    user_id = _resolve_user_id_from_token_cached(token)
-    if user_id:
-        return user_id
-    _set_identity_rejection_reason("token_resolution_failed")
-    return None
 
 @app.route('/get-trailer/<movie_id>')
 def get_trailer(movie_id):
@@ -227,17 +133,12 @@ def get_cast(movie_id):
         return jsonify({'error': str(e), 'cast': []}), 500
 
 @app.route('/watchlist/add', methods=['POST'])
+@login_required
 def add_to_watchlist():
     try:
         data = request.json
         movie_id = data.get('movie_id')
-        user_id = _provider_user_id_from_request()
-        if not user_id:
-            return _unauthorized_response()
-        user_token = _jellyfin_user_token_from_request()
-        if not user_token:
-            return _unauthorized_response()
-        get_provider().add_to_user_favorites(user_token, movie_id)
+        get_provider().add_to_user_favorites(g.jf_token, movie_id)
         return jsonify({'status': 'success'})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
@@ -275,6 +176,7 @@ def jellyfin_login():
         return jsonify({"error": "Jellyfin login failed"}), 401
 
 @app.route('/room/create', methods=['POST'])
+@login_required
 def create_room():
     pairing_code = str(random.randint(1000, 9999))
     movie_list = get_provider().fetch_deck()
@@ -282,11 +184,11 @@ def create_room():
         conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
                      (pairing_code, json.dumps(movie_list), 0, 'All', 0))
     session['active_room'] = pairing_code
-    session['my_user_id'] = 'host_' + secrets.token_hex(8)
     session['solo_mode'] = False
     return jsonify({'pairing_code': pairing_code})
 
 @app.route('/room/go-solo', methods=['POST'])
+@login_required
 def go_solo():
 
     code = session.get('active_room')
@@ -298,6 +200,7 @@ def go_solo():
     return jsonify({'status': 'solo'})
 
 @app.route('/room/join', methods=['POST'])
+@login_required
 def join_room():
     code = request.json.get('code')
     with get_db() as conn:
@@ -305,20 +208,16 @@ def join_room():
         if room:
             conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
             session['active_room'] = code
-            session['my_user_id'] = 'guest_' + secrets.token_hex(8)
             session['solo_mode'] = False
             return jsonify({'status': 'success'})
     return jsonify({'error': 'Invalid Code'}), 404
 
 @app.route('/room/swipe', methods=['POST'])
+@login_required
 def swipe():
     code = session.get('active_room')
-    uid = session.get('my_user_id')
     data = request.json
     mid = str(data.get('movie_id'))
-    user_id = _provider_user_id_from_request()
-    if not user_id:
-        return _unauthorized_response()
 
     if not code: return jsonify({'match': False})
 
@@ -345,7 +244,7 @@ def swipe():
 
     with get_db() as conn:
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
-                     (code, mid, uid, data.get('direction')))
+                     (code, mid, g.user_id, data.get('direction')))
 
         if data.get('direction') == 'right':
             # Only create matches if we successfully resolved metadata server-side
@@ -354,20 +253,20 @@ def swipe():
                 if room and room['solo_mode']:
                     conn.execute(
                         'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, user_id)
+                        (code, mid, title, thumb, g.user_id)
                     )
                     return jsonify({'match': True, 'title': title, 'thumb': thumb, 'solo': True})
 
                 other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
-                                         (code, mid, uid)).fetchone()
+                                         (code, mid, g.user_id)).fetchone()
 
                 if other_swipe:
                     conn.execute(
                         'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-                        (code, mid, title, thumb, user_id)
+                        (code, mid, title, thumb, g.user_id)
                     )
 
-                    if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
+                    if other_swipe['user_id'] and other_swipe['user_id'] != g.user_id:
                         conn.execute(
                             'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
                             (code, mid, title, thumb, other_swipe['user_id'])
@@ -381,21 +280,20 @@ def swipe():
     return jsonify({'match': False})
 
 @app.route('/matches')
+@login_required
 def get_matches():
     code = session.get('active_room')
     view = request.args.get('view')
-    user_id = _provider_user_id_from_request()
-    if not user_id:
-        return _unauthorized_response()
 
     with get_db() as conn:
         if view == 'history':
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND user_id = ?', (user_id,)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE status = "archived" AND user_id = ?', (g.user_id,)).fetchall()
         else:
-            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, user_id)).fetchall()
+            rows = conn.execute('SELECT title, thumb, movie_id FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, g.user_id)).fetchall()
         return jsonify([dict(row) for row in rows])
 
 @app.route('/room/quit', methods=['POST'])
+@login_required
 def quit_room():
     code = session.get('active_room')
     if code:
@@ -408,26 +306,21 @@ def quit_room():
     return jsonify({'status': 'session_ended'})
 
 @app.route('/matches/delete', methods=['POST'])
+@login_required
 def delete_match():
     mid = str(request.json.get('movie_id'))
-    user_id = _provider_user_id_from_request()
-    if not user_id:
-        return _unauthorized_response()
     with get_db() as conn:
-        conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, user_id))
+        conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, g.user_id))
     return jsonify({'status': 'deleted'})
 
 @app.route('/undo', methods=['POST'])
+@login_required
 def undo_swipe():
     code = session.get('active_room')
-    uid = session.get('my_user_id')
     mid = str(request.json.get('movie_id'))
-    user_id = _provider_user_id_from_request()
-    if not user_id:
-        return _unauthorized_response()
     with get_db() as conn:
-        conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, uid))
-        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, user_id))
+        conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, g.user_id))
+        conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, g.user_id))
     return jsonify({'status': 'undone'})
 
 @app.route('/plex/server-info')

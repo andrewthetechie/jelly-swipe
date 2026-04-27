@@ -15,11 +15,29 @@ import json
 import os
 import importlib
 import sys
+import secrets
+from datetime import datetime, timezone
 
 # CRITICAL: Import Flask BEFORE conftest.py's setup_test_environment runs
 # This captures the real Flask class before it gets mocked
 from flask import Flask as _RealFlaskClass
 _REAL_FLASK = _RealFlaskClass
+
+
+def _setup_vault_session(client, db_path, user_id="user_abc123", active_room="TEST123"):
+    """Seed the token vault and set session cookie for authenticated testing."""
+    import jellyswipe.db
+    session_id = "xss-test-" + secrets.token_hex(8)
+    conn = jellyswipe.db.get_db()
+    conn.execute(
+        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+        (session_id, "test-token", user_id, datetime.now(timezone.utc).isoformat())
+    )
+    conn.commit()
+    conn.close()
+    with client.session_transaction() as sess:
+        sess["session_id"] = session_id
+        sess["active_room"] = active_room
 
 
 @pytest.fixture
@@ -96,9 +114,8 @@ class TestLayer1ServerSideValidation:
 
         # Mock the session to simulate an authenticated user
         with flask_app.test_client() as client:
+            _setup_vault_session(client, jellyswipe.db.DB_PATH, user_id="user_abc123", active_room="TEST123")
             with client.session_transaction() as sess:
-                sess['active_room'] = 'TEST123'
-                sess['my_user_id'] = 'user_abc123'
                 sess['solo_mode'] = True
 
             # Create a mock for JellyfinLibraryProvider
@@ -109,10 +126,8 @@ class TestLayer1ServerSideValidation:
             mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
             # Patch get_provider() to return our mock
-            # Need to patch in the module where it's imported
             import jellyswipe
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_abc123'):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
                 # Send malicious payload with script tags in title and thumb
                 response = client.post(
                     '/room/swipe',
@@ -169,9 +184,8 @@ class TestLayer1ServerSideValidation:
             )
 
         with flask_app.test_client() as client:
+            _setup_vault_session(client, jellyswipe.db.DB_PATH, user_id="user_xyz789", active_room="TEST456")
             with client.session_transaction() as sess:
-                sess['active_room'] = 'TEST456'
-                sess['my_user_id'] = 'user_xyz789'
                 sess['solo_mode'] = True
 
             # Mock the provider
@@ -183,8 +197,7 @@ class TestLayer1ServerSideValidation:
 
             # Patch get_provider() and capture logs
             import jellyswipe
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_xyz789'):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
                 with caplog.at_level('WARNING'):
                     # Send request with title/thumb (old client or attack attempt)
                     response = client.post(
@@ -294,9 +307,8 @@ class TestEndToEndXSSBlocking:
             )
 
         with flask_app.test_client() as client:
+            _setup_vault_session(client, jellyswipe.db.DB_PATH, user_id="user_e2e", active_room="E2E123")
             with client.session_transaction() as sess:
-                sess['active_room'] = 'E2E123'
-                sess['my_user_id'] = 'user_e2e'
                 sess['solo_mode'] = True
 
             # Mock the provider to return safe data
@@ -306,8 +318,7 @@ class TestEndToEndXSSBlocking:
             mock_item.year = 2010
             mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_e2e'):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
                 # Send malicious payload
                 response = client.post(
                     '/room/swipe',
@@ -364,17 +375,15 @@ class TestEndToEndXSSBlocking:
             )
 
         with flask_app.test_client() as client:
+            _setup_vault_session(client, jellyswipe.db.DB_PATH, user_id="user_fail", active_room="FAIL789")
             with client.session_transaction() as sess:
-                sess['active_room'] = 'FAIL789'
-                sess['my_user_id'] = 'user_fail'
                 sess['solo_mode'] = True
 
             # Mock the provider to raise RuntimeError (simulating Jellyfin failure)
             mock_provider = MagicMock()
             mock_provider.resolve_item_for_tmdb.side_effect = RuntimeError("Jellyfin item lookup failed")
 
-            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider), \
-                 patch.object(jellyswipe, '_provider_user_id_from_request', return_value='user_fail'):
+            with patch.object(jellyswipe, 'get_provider', return_value=mock_provider):
                 with caplog.at_level('WARNING'):
                     # Send swipe request
                     response = client.post(
