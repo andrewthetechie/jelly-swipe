@@ -212,6 +212,17 @@ def jellyfin_login():
     except Exception:
         return jsonify({"error": "Jellyfin login failed"}), 401
 
+@app.route('/me')
+@login_required
+def get_me():
+    info = get_provider().server_info()
+    return jsonify({
+        'userId': g.user_id,
+        'displayName': g.user_id,
+        'serverName': info.get('name', ''),
+        'serverId': info.get('machineIdentifier', ''),
+    })
+
 @app.route('/room', methods=['POST'])
 @login_required
 def create_room():
@@ -224,6 +235,24 @@ def create_room():
                      (json.dumps({g.user_id: 0}), pairing_code))
     session['active_room'] = pairing_code
     session['solo_mode'] = False
+    return jsonify({'pairing_code': pairing_code})
+
+@app.route('/room/solo', methods=['POST'])
+@login_required
+def create_solo_room():
+    pairing_code = str(random.randint(1000, 9999))
+    movie_list = get_provider().fetch_deck()
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
+            (pairing_code, json.dumps(movie_list), 1, 'All', 1)
+        )
+        conn.execute(
+            'UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+            (json.dumps({g.user_id: 0}), pairing_code)
+        )
+    session['active_room'] = pairing_code
+    session['solo_mode'] = True
     return jsonify({'pairing_code': pairing_code})
 
 @app.route('/room/<code>/go-solo', methods=['POST'])
