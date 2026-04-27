@@ -12,196 +12,9 @@
     <meta name="apple-mobile-web-app-title" content="Jelly-Swipe">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Allura&display=swap');
-        
-        body { 
-            background-color: #111;
-            background-image: url('/static/brick.png');
-            background-size: auto;
-            background-repeat: repeat;
-            color: white; 
-            font-family: sans-serif; 
-            text-align: center; 
-            margin: 0; 
-            overflow: hidden; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-        }
-
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.8) 100%);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .hidden { display: none !important; }
-        .plex-yellow { color: #e5a00d; }
-        
-        .menu-btn { 
-            position: relative;
-            z-index: 2;
-            background: #e5a00d; 
-            border: none; 
-            padding: 15px; 
-            font-size: 1.2rem; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            margin: 10px; 
-            font-weight: bold; 
-            width: 240px; 
-            color: black; 
-        }
-        
-        #login-section, #main-menu { 
-            position: relative;
-            z-index: 2;
-            padding: 60px 20px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center;
-            flex-grow: 1; 
-        }
-        
-        .main-title { 
-            font-size: clamp(4.5rem, 18vw, 7.5rem); 
-            margin: 0 0 50px 0; 
-            font-weight: normal; 
-            color: #ff3131; 
-            font-family: 'allura', cursive; 
-            white-space: nowrap;
-            line-height: 0.9;
-            text-shadow: 
-                0 0 5px #fff, 
-                0 0 10px #fff, 
-                0 0 20px #ff3131, 
-                0 0 40px #ff3131, 
-                0 0 80px #ff3131, 
-                0 0 120px #ff3131, 
-                0 0 160px #8a0606;
-            animation: neon-blink 5s infinite; 
-        }
-
-        @keyframes neon-blink {
-            0%, 18%, 22%, 25%, 53%, 57%, 100% {
-                text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #ff3131, 0 0 40px #ff3131, 0 0 80px #ff3131, 0 0 120px #ff3131, 0 0 160px #8a0606;
-                color: #ff3131;
-            }
-            19%, 21%, 23%, 24%, 54%, 56% {
-                text-shadow: none;
-                color: #330000;
-            }
-        }
-        
-        #game-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; background: #111; z-index: 100; }
-        #swipe-deck { position: relative; width: 100%; max-width: 380px; margin: 60px auto 100px auto; height: 68vh; }
-        
-        .movie-card, .mini-poster { perspective: 1000px; }
-        .card-inner, .mini-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
-        .flipped .card-inner, .flipped .mini-inner { transform: rotateY(180deg); }
-        .card-front, .card-back, .mini-front, .mini-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 20px; overflow: hidden; }
-        .card-front, .mini-front { background-color: #000; }
-        .card-back, .mini-back { transform: rotateY(180deg); background: #1a1a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; border: 2px solid #e5a00d; }
-        .movie-card { position: absolute; width: 90%; height: 100%; left: 5%; top: 0; touch-action: none; z-index: 5; }
-        .movie-card img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
-        .movie-title { margin-bottom: 10px; font-weight: bold; font-size: 1.8rem; color: #e5a00d; padding: 0 10px; line-height: 1.1; }
-        .trailer-btn { background: #e5a00d; color: black; border: none; padding: 10px; width: 90%; font-weight: bold; border-radius: 8px; margin: 5px 0; cursor: pointer; font-size: 0.8rem; z-index: 200; }
-        .trailer-box { width: 90%; aspect-ratio: 16/9; background: #000; margin: 5px 0; border-radius: 8px; display: none; overflow: hidden; }
-        .trailer-box iframe { width: 100%; height: 100%; border: none; }
-        #matches-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; }
-        #matches-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 500px; overflow-y: auto; padding-bottom: 120px; }
-        .mini-poster { width: 100%; aspect-ratio: 2/3; border-radius: 10px; }
-        .mini-front img { width: 100%; height: 100%; object-fit: contain; }
-        .mini-front { border: 2px solid #333; }
-        .mini-back { padding: 10px; border-radius: 10px; }
-        .plex-open-btn { background: #e5a00d; color: black; border: none; padding: 10px 5px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; cursor: pointer; text-decoration: none; width: 90%; margin-top: 10px; display: block; text-align: center; }
-        .mini-title-text { font-size: 1.1rem; font-weight: bold; color: #e5a00d; text-align: center; margin-bottom: 5px; line-height: 1.1; }
-        .stats-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-        .stat-badge { background: black; color: #e5a00d; padding: 4px 8px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
-        .back-content { overflow-y: auto; flex-grow: 1; margin-bottom: 10px; padding: 0 15px; }
-        .back-content p { font-size: 0.95rem; line-height: 1.4; color: #eee; margin: 0; text-align: left; }
-        .glow-side { position: absolute; top: 0; width: 40%; height: 100%; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.2s; }
-        #glow-left { left: 0; background: linear-gradient(to right, rgba(211, 47, 47, 0.8), transparent); }
-        #glow-right { right: 0; background: linear-gradient(to left, rgba(76, 175, 80, 0.8), transparent); }
-        .pill-btn { position: fixed; bottom: 25px; width: 120px; height: 45px; border-radius: 30px; border: none; font-weight: bold; font-size: 0.9rem; z-index: 9999; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; }
-        #matches-pill { right: 20px; background: #e5a00d; color: black; }
-        #quit-pill { left: 20px; background: #d32f2f; color: black; }
-        #undo-btn { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #222; color: #a64703; width: 65px; height: 65px; border-radius: 50%; border: 3px solid #a64703; font-size: 1.0rem; z-index: 9999; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
-        #match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 15000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
-        .match-card-popup { background: #1a1a1a; width: 85%; max-width: 320px; border-radius: 20px; border: 2px solid #e5a00d; padding: 20px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(229, 160, 13, 0.4); animation: popupIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes popupIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .match-poster-preview { width: 140px; height: 210px; border-radius: 10px; object-fit: contain; border: 2px solid #333; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .match-logo { width: 100px; margin-bottom: 10px; }
-        .match-instruction { color: #ffffff; font-size: 0.9rem; font-style: italic; z-index: 20001; pointer-events: none; }
-        #game-instruction { position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); width: 100%; }
-        #modal-instruction { position: fixed; bottom: 85px; }
-        #genre-pill { position: fixed; top: 15px; right: 15px; width: 100px; height: 35px; border-radius: 20px; border: 1px solid #e5a00d; background: rgba(0,0,0,0.6); color: #e5a00d; font-weight: bold; font-size: 0.8rem; z-index: 10001; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        #genre-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; overflow: hidden; }
-        #genre-modal h1 { flex-shrink: 0; margin: 20px 0 15px; }
-        #genre-modal .menu-btn { flex-shrink: 0; margin: 15px 0 10px; }
-        .genre-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 400px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
-        .genre-item { background: #222; border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; }
-        .genre-item.active { border-color: #e5a00d; color: #e5a00d; }
-        #solo-badge { position: fixed; top: 15px; left: 15px; background: rgba(0,0,0,0.6); border: 1px solid #666; color: #aaa; font-size: 0.75rem; font-weight: bold; padding: 6px 12px; border-radius: 20px; z-index: 10001; backdrop-filter: blur(5px); letter-spacing: 0.05em; }
-        #match-solo-label { font-size: 0.85rem; color: #aaa; font-style: italic; margin-top: -15px; margin-bottom: 20px; }
-        #quit-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 40000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-        #quit-modal h2 { font-size: 1.8rem; color: #ff3131; margin: 0 0 10px; text-shadow: 0 0 10px #ff3131; }
-        #quit-modal p { color: #888; font-size: 0.95rem; margin: 0 0 35px; padding: 0 30px; line-height: 1.5; }
-        .quit-btn-row { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-        #quit-confirm-btn { background: #d32f2f; color: white; border: none; padding: 14px 30px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: box-shadow 0.3s; width: 200px; }
-        #quit-confirm-btn:hover { box-shadow: 0 0 20px rgba(211,47,47,0.7); }
-        #quit-cancel-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 14px 30px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: border-color 0.3s, color 0.3s; width: 200px; }
-        #quit-cancel-btn:hover { border-color: #888; color: white; }
-        #delete-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; border: 1px solid #333; border-radius: 16px; z-index: 50000; padding: 30px 25px; width: 280px; box-shadow: 0 8px 40px rgba(0,0,0,0.8); text-align: center; }
-        #delete-modal h3 { font-size: 1.2rem; color: #ff3131; margin: 0 0 8px; }
-        #delete-modal p { color: #888; font-size: 0.85rem; margin: 0 0 25px; line-height: 1.4; }
-        #delete-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 49999; }
-        .delete-btn-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        #delete-confirm-btn { background: #d32f2f; color: white; border: none; padding: 12px 0; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; width: 100%; }
-        #delete-cancel-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 12px 0; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; width: 100%; }
-        .cast-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 6px 8px 0; width: 100%; box-sizing: border-box; }
-        .cast-member { display: flex; flex-direction: column; align-items: center; width: 56px; flex-shrink: 0; }
-        .cast-member img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #e5a00d; background: #333; }
-        .cast-member .no-photo { width: 52px; height: 52px; border-radius: 50%; background: #333; border: 2px solid #555; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
-        .cast-member span { font-size: 0.58rem; color: #ccc; text-align: center; margin-top: 4px; line-height: 1.2; word-break: break-word; }
-        
-        .logout-btn { 
-            background: none; 
-            border: 1px solid #444; 
-            color: #666; 
-            padding: 8px 20px;
-            border-radius: 20px;
-            text-decoration: none; 
-            cursor: pointer; 
-            margin-top: 40px; 
-            font-size: 0.95rem; 
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-        .logout-btn:hover {
-            color: #ccc;
-            border-color: #888;
-            background: rgba(255,255,255,0.05);
-        }
-
-        .signature {
-            position: fixed;
-            bottom: 10px;
-            width: 100%;
-            font-family: 'allura', cursive;
-            color: rgba(79, 5, 5, 0.9);
-            font-size: 1.8rem;
-            pointer-events: none;
-            z-index: 2;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body>
+<body data-media-provider="{{ media_provider }}">
     <div id="session-expired-banner" class="hidden" style="position:fixed;top:0;left:0;width:100%;background:#d32f2f;color:white;text-align:center;padding:12px;z-index:99999;display:flex;align-items:center;justify-content:center;gap:15px;">
         <span>Session expired</span>
         <button onclick="document.getElementById('session-expired-banner').classList.add('hidden'); location.reload();" style="background:white;color:#d32f2f;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:bold;">Re-login</button>
@@ -209,7 +22,7 @@
     </div>
 
     <button id="matches-pill" class="pill-btn hidden">Shortlist</button>
-    <button id="quit-pill" class="pill-btn hidden" onclick="confirmQuit()">End Session</button>
+    <button id="quit-pill" class="pill-btn hidden">End Session</button>
     <button id="undo-btn" class="hidden">Undo</button>
 
     <div id="login-section">
@@ -228,30 +41,30 @@
             <h1 class="main-title">Jelly-Swipe</h1>
         </div>
         <div id="controls-area">
-            <button id="host-btn" class="menu-btn" onmouseover="this.style.boxShadow='0 0 20px rgba(229, 160, 13, 0.7)';" onmouseout="this.style.boxShadow='0 0 12px rgba(229, 160, 13, 0.4)';" style="box-shadow: 0 0 12px rgba(229, 160, 13, 0.4); transition: 0.3s ease;">Host Session</button>
+            <button id="host-btn" class="menu-btn glow-btn">Host Session</button>
             <div id="session-info" class="hidden">
-                <div style="position:relative;">
-                    <p>Code: <span id="session-display" class="plex-yellow" style="font-size: 2.5rem;">----</span></p>
-                    <label style="position:absolute; top:0; right:-10px; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer;">
-                        <span style="font-size:0.7rem; color:#666; letter-spacing:0.05em;">SOLO</span>
-                        <div id="solo-toggle-track" style="position:relative; width:40px; height:22px; background:#333; border-radius:22px; transition:background 0.3s;">
-                            <div id="solo-toggle-thumb" style="position:absolute; top:3px; left:3px; width:16px; height:16px; background:#888; border-radius:50%; transition:transform 0.3s, background 0.3s;"></div>
+                <div class="session-info-container">
+                    <p>Code: <span id="session-display" class="plex-yellow session-code">----</span></p>
+                    <label class="solo-toggle-label">
+                        <span class="solo-label-text">SOLO</span>
+                        <div id="solo-toggle-track" class="solo-toggle-track">
+                            <div id="solo-toggle-thumb" class="solo-toggle-thumb"></div>
                         </div>
-                        <input type="checkbox" id="solo-toggle" onchange="handleSoloToggle(this)" style="display:none;">
+                        <input type="checkbox" id="solo-toggle" class="solo-toggle-input">
                     </label>
                 </div>
-                <p style="color:#888; margin: 0;">Waiting for partner...</p>
+                <p class="waiting-text">Waiting for partner...</p>
             </div>
-            <div style="margin: 10px auto;">
-                <hr style="border:0; border-top:1px solid #333; width: 220px; margin: 15px auto;">
-                <input type="text" id="join-code" inputmode="numeric" maxlength="4" placeholder="Enter Host Code" style="padding:15px; width:180px; text-align:center; border-radius:8px; border:1px solid #444; background:#222; color:white; font-size:1.2rem;">
+            <div class="join-section">
+                <hr class="section-divider">
+                <input type="text" id="join-code" inputmode="numeric" maxlength="4" placeholder="Enter Host Code" class="join-code-input">
                 <br>
-                <button id="join-btn" class="menu-btn" onclick="joinRoom()" onmouseover="this.style.boxShadow='0 0 20px rgba(229, 160, 13, 0.7)';" onmouseout="this.style.boxShadow='0 0 12px rgba(229, 160, 13, 0.4)';" style="box-shadow: 0 0 12px rgba(229, 160, 13, 0.4); transition: 0.3s ease;">Join Session</button>
+                <button id="join-btn" class="menu-btn glow-btn">Join Session</button>
                 <br>
             </div>
-            <div style="margin: 10px auto;">
-                <hr style="border:0; border-top:1px solid #333; width: 220px; margin: 15px auto;">    
-                <button id="history-btn" class="menu-btn" style="background: #120000; color: #ff3131; margin: 10px; border: 1px solid #ff3131; box-shadow: 0 0 5px #ff3131, 0 0 15px rgba(255, 49, 49, 0.5); transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center;" onmouseover="this.style.boxShadow='0 0 10px #ff3131, 0 0 30px rgba(255, 49, 49, 0.8)'; this.style.background='#250000';" onmouseout="this.style.boxShadow='0 0 5px #ff3131, 0 0 15px rgba(255, 49, 49, 0.5)'; this.style.background='#120000';" onclick="openMatches(true)">
+            <div class="history-section">
+                <hr class="section-divider">    
+                <button id="history-btn" class="menu-btn history-btn">
                     Match History 
                 </button>
                 <br>
@@ -259,7 +72,7 @@
             </div>
         </div>
         <div id="game-area" class="hidden">
-            <button id="genre-pill" onclick="toggleGenreModal()">Genres ▾</button>
+            <button id="genre-pill">Genres ▾</button>
             <div id="solo-badge" class="hidden">Solo Mode</div>
             <div id="glow-left" class="glow-side"></div>
             <div id="glow-right" class="glow-side"></div>
@@ -271,16 +84,16 @@
     <div id="genre-modal" class="hidden">
         <h1 class="plex-yellow">Select Genre</h1>
         <div class="genre-list" id="genre-list">
-            <div class="genre-item active" onclick="selectGenre('All')">All Movies</div>
-            <div class="genre-item" onclick="selectGenre('Recently Added')">Recently Added</div>
+            <div class="genre-item active" data-genre="All">All Movies</div>
+            <div class="genre-item" data-genre="Recently Added">Recently Added</div>
         </div>
-        <button class="menu-btn" style="margin-top:20px;" onclick="toggleGenreModal()">Cancel</button>
+        <button class="menu-btn genre-cancel-btn">Cancel</button>
     </div>
 
     <div id="match-overlay" class="hidden">
         <div class="match-card-popup">
             <img src="/static/logo.png" class="match-logo">
-            <h1 class="plex-yellow" id="match-heading" style="font-size: 2rem; margin: 0 0 10px;">IT'S A MATCH!</h1>
+            <h1 class="plex-yellow match-heading" id="match-heading">IT'S A MATCH!</h1>
             <p id="match-solo-label" class="hidden">Added to your shortlist</p>
             <img id="match-popup-poster" class="match-poster-preview" src="">
             <h2 id="matched-movie-title" style="margin: 0 0 20px; font-size: 1.3rem; padding:0 10px;"></h2>
@@ -294,26 +107,26 @@
         <h1 id="modal-title" class="plex-yellow">Your Matches</h1>
         <div id="matches-list"></div>
         <div id="modal-instruction" class="match-instruction">Tap on match for more options</div>
-        <button class="menu-btn" style="position: fixed; bottom: 20px; width: 150px; z-index:20001;" onclick="document.getElementById('matches-modal').classList.add('hidden')">Close</button>
+        <button class="menu-btn close-matches-btn" id="close-matches-btn">Close</button>
     </div>
 
     <div id="quit-modal" class="hidden">
-        <img src="/static/sad.png" style="width:80px; margin-bottom:20px; opacity:0.6;">
+        <img src="/static/sad.png" class="quit-modal-img">
         <h2>End Session?</h2>
         <p>Your matches will be saved to<br>Match History.</p>
         <div class="quit-btn-row">
-            <button id="quit-confirm-btn" onclick="doQuit()">End Session</button>
-            <button id="quit-cancel-btn" onclick="document.getElementById('quit-modal').classList.add('hidden')">Cancel</button>
+            <button id="quit-confirm-btn">End Session</button>
+            <button id="quit-cancel-btn">Cancel</button>
         </div>
     </div>
 
-    <div id="delete-modal-overlay" class="hidden" onclick="closeDeleteModal()"></div>
+    <div id="delete-modal-overlay" class="hidden"></div>
     <div id="delete-modal" class="hidden">
         <h3>Delete Match?</h3>
         <p>This will remove the match from your list.</p>
         <div class="delete-btn-col">
             <button id="delete-confirm-btn">Delete</button>
-            <button id="delete-cancel-btn" onclick="closeDeleteModal()">Cancel</button>
+            <button id="delete-cancel-btn">Cancel</button>
         </div>
     </div>
 
@@ -1050,5 +863,6 @@
             } catch(e) { console.error('Auth check failed', e); }
         };
     </script>
+
 </body>
 </html>

@@ -12,7 +12,7 @@ services:
       # - JELLYFIN_USERNAME=your-username
       # - JELLYFIN_PASSWORD=your-password
       - FLASK_SECRET=pick-a-random-string
-      - TMDB_API_KEY=your-tmdb-v3-key
+      - TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
     volumes:
       - ./data:/app/data
     restart: unless-stopped

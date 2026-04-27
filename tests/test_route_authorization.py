@@ -235,7 +235,7 @@ def test_spoofed_headers_ignored_when_vault_authenticated(db_connection, client,
     _prepare_route_state(db_connection, path, room_code="ROOM1",
                          verified_user="verified-user", session_user="verified-user")
     response = _send_request(client, method, path, payload, {spoof_header: "attacker-id"})
-    assert response.status_code != 401  # spoofed headers don't cause 401 when vault is valid
+    assert response.status_code != 401
 
 
 def test_unauthenticated_swipe_no_side_effects(db_connection, client):
@@ -247,6 +247,9 @@ def test_unauthenticated_swipe_no_side_effects(db_connection, client):
     response = client.post("/room/ROOM1/swipe", json={"movie_id": "movie-1", "direction": "right"})
     after_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
     assert response.status_code == 401
+    data = response.get_json()
+    assert data["error"] == "Authentication required"
+    assert "X-Request-Id" in response.headers
     assert after_swipes == before_swipes
 
 
