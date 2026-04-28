@@ -15,6 +15,12 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body data-media-provider="{{ media_provider }}">
+    <div id="session-expired-banner" class="hidden session-expired-banner">
+        <span>Session expired</span>
+        <button id="relogin-btn" class="session-btn-relogin">Re-login</button>
+        <button id="dismiss-btn" class="session-btn-dismiss">Dismiss</button>
+    </div>
+
     <button id="matches-pill" class="pill-btn hidden">Shortlist</button>
     <button id="quit-pill" class="pill-btn hidden">End Session</button>
     <button id="undo-btn" class="hidden">Undo</button>
@@ -24,9 +30,9 @@
         <button id="login-btn" class="menu-btn">Login</button>
         <p class="login-then-text">Then</p>
         <div class="login-instructions">
-            <p class="plex-yellow login-step">1. Host a session &amp; share code</p>
-            <p class="plex-yellow login-step">2. Swipe right to match</p>
-            <p class="plex-yellow login-step">3. Or Host & enable Solo Mode</p>
+            <p class="plex-yellow">1. Host a session &amp; share code</p>
+            <p class="plex-yellow">2. Swipe right to match</p>
+            <p class="plex-yellow">3. Or Host & enable Solo Mode</p>
         </div>
     </div>
 
@@ -62,7 +68,7 @@
                     Match History 
                 </button>
                 <br>
-                <button class="logout-btn">Logout</button>
+                <button class="logout-btn" id="logout-btn">Logout</button>
             </div>
         </div>
         <div id="game-area" class="hidden">
@@ -91,6 +97,8 @@
             <p id="match-solo-label" class="hidden">Added to your shortlist</p>
             <img id="match-popup-poster" class="match-poster-preview" src="">
             <h2 id="matched-movie-title" class="matched-movie-title"></h2>
+            <div id="match-metadata" class="match-metadata"></div>
+            <a id="match-deep-link" class="menu-btn hidden match-deep-link" target="_blank" rel="noopener noreferrer">OPEN IN JELLYFIN</a>
             <button class="menu-btn keep-swiping-btn" id="keep-swiping-btn">Keep Swiping</button>
         </div>
     </div>

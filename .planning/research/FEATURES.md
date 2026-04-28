@@ -1,167 +1,331 @@
-# Feature Research
+# Feature Research: Architecture Tier Separation (v2.0)
 
-**Domain:** Outbound HTTP hardening for a self-hosted Flask media-swipe app
+**Domain:** Client/server responsibility boundaries in a collaborative swipe-matching app
 **Researched:** 2026-04-26
 **Confidence:** HIGH
 
-## Feature Landscape
+## Executive Summary
 
-### Table Stakes (Security & Reliability Baseline)
+Jelly Swipe v2.0 addresses 7 specific tier responsibility violations where client code performs work that belongs to the server, or where server and client duplicate the same logic. In properly-tiered swipe-matching apps, the server is the single source of truth for identity, deck composition/order, match detection, and deep link generation. The client owns only animation, optimistic UI updates, and rendering.
 
-These are non-negotiable for any app making outbound HTTP calls to third-party APIs and user-configured internal servers. Missing them = app hangs silently, leaks secrets, or is exploitable.
+Research confirms that Jellyfin Web uses **hash-based routing** (`createHashRouter`) with item detail pages at the `details` path, accepting `?id={itemId}` as a query parameter. The correct deep link format is `{JELLYFIN_URL}/web/#/details?id={itemId}` — the server already has `JELLYFIN_URL` as an env var, so it must generate these links rather than delegating URL construction to the client.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Enforced timeouts on all HTTP calls** | Without timeouts, a hung upstream (TMDB, Jellyfin) blocks the gevent worker indefinitely. Users see spinning UI, no error, no recovery. Every production HTTP client mandates timeouts. | LOW | **Current state:** 4 of 15 `requests.*` calls have no timeout (lines 187, 191, 206, 210 in `__init__.py`). The `jellyfin_library.py` session calls all have timeouts (30s–90s). Fix: create a centralized `http_get()` / `http_request()` helper that wraps `requests` and requires `timeout=(connect, read)`. The `requests` library has **no session-level timeout default** — it must be passed per-call. A helper enforces this at the import boundary. |
-| **TMDB Bearer token auth (no key in URLs)** | API keys in query strings appear in server logs, browser DevTools, proxy logs, and Referer headers. TMDB's v3 API supports `Authorization: Bearer <read_access_token>` as a direct replacement for `?api_key=` on all read endpoints. The Bearer token IS the same credential as the API key — TMDB calls it a "read access token" in settings. | LOW | **Current state:** 4 URLs in `__init__.py` embed `TMDB_API_KEY` in query strings (lines 186, 190, 205, 209). **Fix:** Replace `api_key={TMDB_API_KEY}` with `headers={"Authorization": f"Bearer {TMDB_API_KEY}"}`. No API version change needed — TMDB v3 endpoints accept Bearer header interchangeably with query-param key. No new env var needed — `TMDB_API_KEY` already holds the read access token. |
-| **SSRF-safe JELLYFIN_URL validation at boot** | `JELLYFIN_URL` is user-configured and points to an internal server. If an operator sets it to a cloud metadata endpoint (169.254.169.254 on AWS/GCP/Azure), the app becomes an SSRF probe. Boot-time validation catches misconfiguration before any request fires. | MEDIUM | **Current state:** `JELLYFIN_URL` is read from env and used directly — no IP validation anywhere. **Fix:** Parse URL with `urllib.parse.urlparse()`, resolve hostname to IP, then check against a blocklist: reject 169.254.0.0/16 (link-local/metadata), 0.0.0.0, [::], and any DNS-rebinding patterns. Allow 127.0.0.0/8 (loopback), 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (RFC 1918). Run once at module load, raise `RuntimeError` on failure (consistent with existing env validation pattern at lines 24–41 of `__init__.py`). Must handle hostnames that resolve to multiple IPs (check all). |
-| **Error redaction (no upstream exception text in 5xx)** | Current code returns `jsonify({'error': str(e)})` on 500 — this leaks Jellyfin hostnames, TMDB URLs, Python tracebacks, and internal state to the browser. Attackers use error messages for reconnaissance. | LOW | **Current state:** 6 catch-all handlers return `str(e)` in JSON responses (lines 198–199, 224–225, 240, 434 in `__init__.py`). **Fix:** Generate a short request ID (`uuid4()[:8]` or `secrets.token_hex(4)`), log the full exception server-side with that ID, and return `{'error': 'Internal error', 'request_id': 'abc12345'}` to the client. The request ID lets operators correlate browser errors with server logs. Wrap in a Flask `@app.errorhandler(500)` or replace the inline handlers. |
+Flask's built-in `session` (signed cookies backed by `app.secret_key`) is sufficient for server-owned identity. No additional library is needed — `Flask-Login` would add unnecessary abstraction for a system with two identity modes (delegate server identity vs. user-supplied credentials).
 
-### Differentiators (Defense-in-Depth, Not Universally Expected)
+## Table Stakes (Users Expect These)
 
-Features that go beyond baseline security. Self-hosted apps rarely implement these, but they're valuable for an app that proxies user-configured internal servers.
+Features users assume exist. Missing these = product feels broken or insecure.
+
+| # | Feature | Why Expected | Complexity | Current Violation | Notes |
+|---|---------|--------------|------------|-------------------|-------|
+| 1 | **Server-owned user identity** | Users expect a single consistent identity across sessions, not parallel IDs | MEDIUM | Violation #1: Server generates `host_xxx`/`guest_xxx` IDs in session while client sends Jellyfin user_id via headers — two parallel identity systems | Store `user_id` in Flask session after auth; remove client-supplied identity headers from all API calls. Server resolves identity once at login, persists in `session['user_id']`. |
+| 2 | **Server-side token storage (HttpOnly)** | Modern apps don't expose auth tokens to client JavaScript | MEDIUM | Violation #3: Client computes `Authorization: MediaBrowser ...` headers and persists tokens in `localStorage` | After `/auth/jellyfin-login` or delegate bootstrap, store the Jellyfin token server-side in `session['jf_token']` (Flask signed cookie). Client never sees the token. Return `session` cookie (already HttpOnly by default with `app.secret_key`). |
+| 3 | **Server-owned deck composition + order** | Deck content must be deterministic; all participants see the same cards | LOW | Violation #5: Server returns shuffled deck but client can re-fetch `/movies` and get a different shuffle | Server stores deck JSON blob in `rooms.movie_data` (already does this). Client must not re-fetch or re-shuffle. Genre changes trigger server-side deck regeneration only. |
+| 4 | **Single-channel match notification** | Match events should arrive from exactly one source | MEDIUM | Violation #4: Client decides match UX from `/room/swipe` response AND SSE pushes `last_match` — duplicate notification paths | `/room/swipe` should return `{matched: true/false}` without triggering a popup. The match popup should only fire from SSE `last_match` events. This eliminates race conditions and ensures both host and guest see matches. |
+| 5 | **Correct Jellyfin deep links** | "Open in Jellyfin" must actually open the movie | LOW | Violation #2: Client computes Plex deep links (`https://app.plex.tv/desktop/#!/server/...`) — completely wrong for Jellyfin | Server generates `{JELLYFIN_URL}/web/#/details?id={movie_id}` and includes it in match/deck responses. Client just uses `href` from server data. |
+| 6 | **Match cards with full metadata** | Users expect to see rating, duration, and year on matched movies | LOW | Violation #7: `get_matches()` returns `title, thumb, movie_id` only, but UI tries to render `rating`, `duration`, `year` badges (rendering empty) | Server-side join: `get_matches()` should return all card fields by re-querying Jellyfin or storing them in the `matches` table. |
+| 7 | **RESTful swipe endpoint** | Standard REST semantics for swipe actions | LOW | Violation (general): `/room/swipe` is a generic endpoint without room context in URL | Refactor to `POST /room/{code}/swipe` with body `{movie_id, direction}` only. Session provides identity; URL provides room context. |
+| 8 | **Solo mode as user property** | Solo mode is about how one person swipes, not a room property | MEDIUM | Violation #6: `go-solo` sets `rooms.solo_mode=1` which means both users in the room are forced into solo mode | Solo mode should be a session/user-level flag, not a room-level flag. `session['solo_mode'] = True` for the requesting user only. Match logic checks the swiping user's solo flag, not the room's. |
+
+## Differentiators (Beyond Basic Expectations)
+
+Features that set the app apart from a naive implementation. Not required, but valuable.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **In-memory token-bucket rate limiter** | Prevents a single client or bot from burning through TMDB API quota (40 req/10s for free tier) or hammering the Jellyfin proxy. Most self-hosted apps don't rate-limit internal endpoints. | MEDIUM | **Scope:** Applied to `/proxy`, `/get-trailer`, `/cast`, `/watchlist/add` (per PROJECT.md HTTP-04). **Implementation:** Custom in-memory token-bucket, NOT Flask-Limiter (avoids new dependency). Token bucket = fixed capacity, refills at constant rate. Key on `request.remote_addr`. Per-route limits: stricter for TMDB-backed routes (`/get-trailer`, `/cast`), looser for proxy. Store in a module-level dict with thread-safe access (Flask + gevent = cooperative multitasking, so `threading.Lock` is appropriate). **Limitation:** In-memory means rate limits reset on process restart and don't share across gunicorn workers. Acceptable trade-off for a self-hosted single-user app. |
-| **Centralized HTTP helper with User-Agent + structured logging** | A single `http_get()`/`http_request()` function ensures consistent User-Agent, timeout enforcement, and request logging across all outbound calls. This is the foundation that makes all other hardening features work — timeouts, redaction, and logging all funnel through one code path. | MEDIUM | **Current state:** TMDB calls use bare `requests.get()` in `__init__.py`; Jellyfin calls use `self._session` in `jellyfin_library.py`. Two different patterns, no centralized logging. **Fix:** Create `jellyswipe/http.py` (or `jellyswipe/http_client.py`) with a `SafeHttpClient` class that wraps a `requests.Session`. Provides `get()`, `post()`, `request()` methods that: (1) enforce timeout, (2) set User-Agent, (3) log request URL + duration + status at INFO level, (4) redact URL secrets before logging. Both TMDB calls in `__init__.py` and Jellyfin calls in `jellyfin_library.py` migrate to this client. |
-| **Security-focused unit tests** | Validates that hardening actually works: SSRF rejection catches metadata IPs, timeout enforcement kills hung requests, error responses don't leak internals, rate limiter blocks excess traffic. | MEDIUM | **Current state:** 48 tests exist for db and jellyfin_library modules. No security-focused tests. **New tests:** (1) SSRF: parametrize over 169.254.x.x, 0.0.0.0, [::], public IPs, RFC 1918 — assert only RFC 1918 + loopback pass. (2) Timeouts: mock `requests.get` to raise `Timeout`, assert handler returns 504 not 500. (3) Redaction: trigger exception paths, assert response body has no traceback/hostname. (4) Rate limiter: rapid-fire requests, assert 429 after bucket drains. |
+| **ADR documenting tier responsibilities** | Prevents future violations by codifying which tier owns what | LOW | Single markdown file: "Server owns: identity, deck, matches, deep links, tokens. Client owns: animation, DOM, optimistic UI." Future developers reference this. |
+| **Server-side deck cursor** | Prevents clients from seeing cards out of order or skipping ahead | MEDIUM | Store per-user position in deck (which card index each user is on). Server returns only the next card(s) rather than the full deck. Prevents client-side deck manipulation. |
+| **Idempotent swipe processing** | Prevents duplicate swipes from network retries | LOW | Add `UNIQUE(room_code, movie_id, user_id)` constraint on `swipes` table (already exists on `matches`). Use `INSERT OR IGNORE` pattern. |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Anti-Features (Commonly Requested, Often Problematic)
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Flask-Limiter or Redis-backed rate limiting** | "Use a well-tested library instead of hand-rolling" | Adds a hard dependency (`flask-limiter` + `limits` + `deprecated` transitive deps) for a feature that's 40 lines of token-bucket code. Redis backend requires infrastructure. Flask-Limiter's in-memory mode has the same per-worker limitation as a custom implementation — no advantage for single-process self-hosted use. | Custom in-memory token-bucket. Same per-worker limitation, zero new deps, trivially auditable. |
-| **requests retry with exponential backoff** | "Auto-retry failed requests for resilience" | Jellyfin auth calls already have a retry-on-401 pattern. Adding blanket retries to TMDB calls risks amplifying rate-limit violations (409 → retry → 409 → retry). Retry logic must be endpoint-aware, not blanket. | Explicit per-endpoint retry where needed (already exists for Jellyfin 401). No blanket retry on TMDB. |
-| **DNS rebinding protection (TOCTOU-safe SSRF)** | "Validate URL right before the request, not just at boot" | Requires overriding `requests` internals or a custom transport adapter. Complex, fragile, and unnecessary for a self-hosted app where `JELLYFIN_URL` changes only on restart. The threat model is operator misconfiguration, not adversarial DNS. | Boot-time validation is sufficient. Document that JELLYFIN_URL changes require restart. |
-| **Circuit breaker pattern** | "Stop calling a failing upstream entirely" | Adds significant complexity (state machine, half-open probes, cold/warm resets) for a small Flask app with at most 2 upstreams. Gunicorn's worker timeout already kills stuck workers. | Timeouts + 5xx error responses are sufficient. Workers recycle automatically. |
-| **HTTProxy / outbound request proxying** | "Route all outbound through a corporate proxy" | Self-hosted media app operators don't typically run outbound proxies. Adds env var surface (`HTTP_PROXY`, `HTTPS_PROXY`) that interacts poorly with internal Jellyfin URLs. | `requests.Session` respects proxy env vars already if operators set them. Don't add explicit proxy support. |
+Features to explicitly NOT build.
+
+| Anti-Feature | Why Requested | Why Problematic | What to Do Instead |
+|--------------|---------------|-----------------|-------------------|
+| **Client-side deck shuffling** | Feels faster to shuffle locally without waiting for server | Creates divergent decks between users; defeats collaborative matching | Server owns deck order. Client requests cards from server. |
+| **localStorage token persistence** | Survives page refresh; seems convenient | Tokens accessible to XSS (even with CSP); violates defense-in-depth; `session` cookie already handles persistence | Use Flask `session` (signed, HttpOnly by default). Set `session.permanent = True` for persistence across browser close. |
+| **Client-computed deep links** | Avoids a server round-trip | Ties client to specific media server URL formats (Plex vs Jellyfin); client doesn't know server base URL | Server generates `{JELLYFIN_URL}/web/#/details?id={itemId}`. Client just navigates to the `href`. |
+| **Dual notification path (SSE + HTTP response)** | Instant feedback on own swipe + partner notification | Race conditions; duplicate popups; divergent state between users | Single channel: SSE for ALL match notifications. HTTP response returns only `{matched: bool}` for the swiping user's optimistic UI. |
+| **Room-level solo mode flag** | Simplest implementation | Forces all participants into solo mode when only one user wanted it; couples a user preference to room state | Session-level solo flag: `session['solo_mode'] = True`. Match logic checks the individual user's flag. |
 
 ## Feature Dependencies
 
 ```
-[HTTP-01: Centralized HTTP helper]
-    └──enables──> [HTTP-02: TMDB Bearer token] (helper constructs headers)
-    └──enables──> [HTTP-03: Error redaction] (helper catches/wraps exceptions)
-    └──enables──> [HTTP-04: Rate limiting] (helper provides single choke point)
-    └──required──> [HTTP-06: Security tests] (tests mock the centralized client)
+[Server-Owned Identity (Feature 1)]
+    └──requires──> [Server-Side Token Storage (Feature 2)]
+    └──enables──> [RESTful Swipe Endpoint (Feature 7)]
+                       └──requires──> [Session user_id, not client headers]
 
-[HTTP-02: TMDB Bearer token]
-    └──depends on──> [HTTP-01] (needs helper to enforce header-only auth)
+[Solo Mode as User Property (Feature 8)]
+    └──requires──> [Server-Owned Identity (Feature 1)]
+    └──requires──> [Session-level solo flag]
 
-[HTTP-03: Error redaction]
-    └──depends on──> [HTTP-01] (helper generates request IDs, logs internally)
-    └──conflicts──> [inline str(e) in handlers] (must replace all jsonify({'error': str(e)}))
+[Single-Channel Match Notification (Feature 4)]
+    └──requires──> [SSE-only match display logic]
+    └──requires──> [Swipe response returns matched:bool only]
 
-[HTTP-04: Rate limiter]
-    └──independent──> [HTTP-01] (can be Flask decorator, not HTTP client feature)
-    └──enhances──> [HTTP-01] (rate limit checked before HTTP call fires)
+[Correct Jellyfin Deep Links (Feature 5)]
+    └──requires──> [Server knows JELLYFIN_URL (already has env var)]
+    └──enables──> [Match cards with full metadata (Feature 6)]
 
-[HTTP-05: SSRF validation]
-    └──independent──> [HTTP-01] (runs at boot, before any HTTP client exists)
+[Match Cards with Full Metadata (Feature 6)]
+    └──requires──> [Correct Jellyfin Deep Links (Feature 5)] — deep link is part of metadata
+    └──requires──> [Store rating/duration/year in matches table or server-side join]
 
-[HTTP-06: Security tests]
-    └──requires──> [HTTP-01, 02, 03, 04, 05] (tests validate each feature)
+[Server-Owned Deck (Feature 3)]
+    └──conflicts──> [Client-side re-fetch of /movies]
+    └──requires──> [Remove client shuffle logic]
 ```
 
 ### Dependency Notes
 
-- **HTTP-01 enables HTTP-02, HTTP-03:** The centralized HTTP helper is the backbone. TMDB Bearer auth needs the helper to construct `Authorization` headers consistently. Error redaction needs the helper to catch exceptions in one place and generate request IDs. Build HTTP-01 first.
-- **HTTP-04 is independent of HTTP-01:** Rate limiting is a Flask-layer concern (decorator on routes), not an HTTP client concern. It can be built in parallel but should be tested after HTTP-01 so the test infrastructure is ready.
-- **HTTP-05 is fully independent:** SSRF validation runs at module import time, before the HTTP client is instantiated. No dependencies on any other feature. Good candidate for parallel implementation.
-- **HTTP-06 requires all others:** Security tests validate the behavior of each hardening feature. Must be built last, after the features under test exist.
-- **HTTP-03 conflicts with inline `str(e)`:** Every `jsonify({'error': str(e)})` in `__init__.py` must be replaced. This is a mechanical change but touches 6 catch blocks.
+- **Feature 1 requires Feature 2:** Identity resolution depends on the server holding the Jellyfin token. If the token is in `localStorage`, the client must send it on every request — which means the client controls identity. Moving the token server-side into `session` is a prerequisite for server-owned identity.
+
+- **Feature 7 requires Feature 1:** The RESTful swipe endpoint (`POST /room/{code}/swipe`) needs the user identity from session, not from client headers. This can't work until identity is session-based.
+
+- **Feature 8 requires Feature 1:** Solo mode must be per-user, which requires per-user session identity. With room-level solo mode, you can't have one user in solo and another in collaborative mode.
+
+- **Feature 4 is independent of others but affects client behavior:** The SSE-only notification pattern is a client-side refactoring that removes the match popup trigger from the swipe response handler. It doesn't require identity or deck changes, but it's cleaner to do after the swipe endpoint is simplified.
+
+- **Feature 5 is independent:** Deep link generation only needs `JELLYFIN_URL` (already available) and `movie_id`. No dependency on identity or deck changes.
+
+- **Feature 6 depends on Feature 5:** Match metadata should include the deep link URL. If we're already augmenting the matches response, include all fields at once.
 
 ## MVP Definition
 
-### Launch With (v1.6)
+### Launch With (v2.0)
 
-Minimum viable hardening — every outbound call is safe, no secrets leak, no SSRF surface.
+Minimum tier separation fixes — what's needed to eliminate all 7 violations.
 
-- [x] **HTTP-01: Centralized HTTP helper** — All 15 outbound calls go through one client with enforced timeouts, User-Agent, and request logging
-- [x] **HTTP-02: TMDB Bearer token** — `TMDB_API_KEY` moves from query strings to `Authorization` header on all 4 TMDB calls
-- [x] **HTTP-03: Error redaction** — 5xx responses return `{'error': 'Internal error', 'request_id': '...'}`; full exception logged server-side
-- [x] **HTTP-04: Rate limiter** — In-memory token-bucket on `/proxy`, `/get-trailer`, `/cast`, `/watchlist/add`
-- [x] **HTTP-05: SSRF validation** — `JELLYFIN_URL` validated at boot against metadata-IP blocklist
-- [x] **HTTP-06: Security tests** — Unit tests for SSRF rejection, timeout enforcement, error redaction, rate limiting
+- [ ] **Feature 2: Server-side token storage** — After auth (delegate or login), store Jellyfin token in `session['jf_token']`; clear `localStorage` tokens; set `session.permanent = True`
+- [ ] **Feature 1: Server-owned identity** — On auth, resolve `user_id` from token and store in `session['user_id']`; remove all client identity headers from API calls; remove `X-Provider-User-Id` / `X-Jellyfin-User-Id` header support
+- [ ] **Feature 7: RESTful swipe endpoint** — Refactor to `POST /room/{code}/swipe` with `{movie_id, direction}` body only; identity from session
+- [ ] **Feature 3: Server-owned deck** — Remove client-side re-fetch/shuffle; client uses deck from server only; genre changes go through server
+- [ ] **Feature 4: Single-channel match notification** — Remove match popup trigger from swipe response; match display comes only from SSE events
+- [ ] **Feature 5: Correct Jellyfin deep links** — Server generates `{JELLYFIN_URL}/web/#/details?id={itemId}` in match/deck responses; remove Plex URL construction from client
+- [ ] **Feature 6: Full match metadata** — Augment `get_matches()` to return `rating`, `duration`, `year`, and `deep_link` for each match
+- [ ] **Feature 8: Solo mode as user property** — Move `solo_mode` from `rooms` table to `session` scope; match logic checks `session['solo_mode']`
+- [ ] **ADR documenting tier responsibilities** — Codify which tier owns what
 
-### Add After Validation (v1.x)
+### Add After Validation (v2.1)
 
-- [ ] **Request duration metrics** — Track p50/p99 latency per upstream (Jellyfin vs TMDB) via structured logs
-- [ ] **Adaptive rate limits** — Adjust TMDB rate limits based on 429 responses from upstream
-- [ ] **Health check endpoint** — `/health` that probes Jellyfin connectivity on demand
+Features to add once core tier separation is verified.
 
-### Future Consideration (v2+)
+- [ ] **Server-side deck cursor** — Per-user card position; prevents deck manipulation
+- [ ] **Idempotent swipe processing** — `UNIQUE` constraint on `swipes` table; `INSERT OR IGNORE`
+- [ ] **Rate limiting on swipe endpoint** — Prevent rapid-fire automated swipes
 
-- [ ] **Circuit breaker** — Only if upstream flakiness becomes a recurring operator complaint
-- [ ] **Redis-backed rate limiting** — Only if multi-worker rate sharing is needed (unlikely for self-hosted)
-- [ ] **mTLS to Jellyfin** — Only if operators run cert-based Jellyfin auth
+### Future Consideration (v3+)
+
+Features to defer until architecture is stable.
+
+- [ ] **WebSocket upgrade** — Replace SSE polling with WebSocket for lower latency
+- [ ] **Multi-device session support** — Same user from multiple browsers
+- [ ] **Playback status integration** — Track which matched movies have been watched
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| HTTP-01: Centralized HTTP helper | HIGH (prevents hangs) | MEDIUM (new module + migrate 15 call sites) | P1 |
-| HTTP-02: TMDB Bearer token | HIGH (prevents secret leaks) | LOW (4 URL changes + header construction) | P1 |
-| HTTP-03: Error redaction | HIGH (prevents info disclosure) | LOW (replace 6 handlers + add request ID) | P1 |
-| HTTP-05: SSRF validation | HIGH (prevents cloud metadata attacks) | MEDIUM (IP parsing + DNS resolution + edge cases) | P1 |
-| HTTP-04: Rate limiter | MEDIUM (prevents TMDB quota burn) | MEDIUM (token-bucket impl + Flask decorator) | P2 |
-| HTTP-06: Security tests | HIGH (validates everything works) | MEDIUM (parametrized test fixtures) | P2 |
+| Feature | User Value | Implementation Cost | Priority | Addresses Violation |
+|---------|------------|---------------------|----------|---------------------|
+| Server-side token storage | HIGH (security) | MEDIUM | P1 | #3 |
+| Server-owned identity | HIGH (correctness) | MEDIUM | P1 | #1 |
+| RESTful swipe endpoint | MEDIUM (clean API) | LOW | P1 | General |
+| Server-owned deck | MEDIUM (consistency) | LOW | P1 | #5 |
+| Single-channel match notification | HIGH (UX reliability) | MEDIUM | P1 | #4 |
+| Correct Jellyfin deep links | HIGH (core functionality) | LOW | P1 | #2 |
+| Full match metadata | MEDIUM (UX completeness) | LOW | P1 | #7 |
+| Solo mode as user property | MEDIUM (multi-user correctness) | MEDIUM | P1 | #6 |
+| ADR document | LOW (maintainability) | LOW | P1 | All |
+| Server-side deck cursor | LOW (anti-cheat) | MEDIUM | P2 | — |
+| Idempotent swipes | MEDIUM (reliability) | LOW | P2 | — |
 
 **Priority key:**
-- P1: Must have — security vulnerabilities if missing
-- P2: Should have — defense-in-depth, can ship in same milestone but after P1s
+- P1: Must have for v2.0 (eliminates all 7 violations)
+- P2: Should have, add when possible (hardening)
 
-**Suggested build order:** HTTP-05 (independent, boot-time) → HTTP-01 (foundation) → HTTP-02 (uses foundation) → HTTP-03 (uses foundation) → HTTP-04 (independent Flask layer) → HTTP-06 (validates all)
+## Responsibility Area Deep Dives
+
+### Area 1: Identity (Violations #1, #3)
+
+**Current state:** Two parallel identity systems operate simultaneously:
+- Server: `session['my_user_id'] = 'host_' + secrets.token_hex(8)` — random, not tied to Jellyfin
+- Client: `localStorage['provider_user_id']` — Jellyfin user_id, sent via `X-Provider-User-Id` header
+
+**Correct behavior:** After authentication (either delegate or login), the server resolves the Jellyfin `user_id` from the token and stores it in `session['user_id']`. All subsequent endpoints read identity from `session['user_id']`. The token is stored in `session['jf_token']` (server-side, signed cookie). Client never sees or sends the token.
+
+**Implementation pattern (Flask session, verified via Context7):**
+```python
+@app.route('/auth/jellyfin-login', methods=['POST'])
+def jellyfin_login():
+    # ... validate credentials ...
+    out = get_provider().authenticate_user_session(username, password)
+    session['user_id'] = out['user_id']
+    session['jf_token'] = out['token']
+    session.permanent = True
+    return jsonify({'status': 'ok'})  # No token in response
+
+@app.route('/auth/jellyfin-use-server-identity', methods=['POST'])
+def jellyfin_use_server_identity():
+    # ... resolve server identity ...
+    session['user_id'] = uid
+    session['jf_token'] = get_provider().server_access_token_for_delegate()
+    session['jf_delegate_server_identity'] = True
+    session.permanent = True
+    return jsonify({'status': 'ok'})
+```
+
+**Client changes:** Remove `providerIdentityHeaders()`, `providerToken()`, `providerUserId()`, `jellyfinAuthorizationHeader()`. All API calls become simple `fetch('/endpoint')` with `credentials: 'same-origin'` (session cookie). Remove `localStorage` token storage entirely.
+
+### Area 2: Deep Links (Violation #2)
+
+**Current state:** Client constructs Plex URLs:
+```javascript
+// index.html line 629
+const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
+```
+This produces URLs like `https://app.plex.tv/desktop/#!/server/abc123/details?key=/library/metadata/xyz789` — completely non-functional for Jellyfin.
+
+**Correct behavior (verified from jellyfin-web source):**
+- Jellyfin Web uses `createHashRouter` from react-router-dom (confirmed in `src/RootAppRouter.tsx`)
+- Item detail pages use the route path `details` (confirmed in both `src/apps/stable/routes/legacyRoutes/user.ts` and `src/apps/experimental/routes/legacyRoutes/user.ts`)
+- The item ID is passed as `?id={itemId}` query parameter
+- The `BangRedirect` component handles deprecated `!/details?id=` URLs with a warning
+
+**Correct URL format:**
+```
+{JELLYFIN_URL}/web/#/details?id={itemId}
+```
+Example: `http://192.168.1.100:8096/web/#/details?id=a1b2c3d4e5f6...`
+
+**Server-side generation:**
+```python
+def _jellyfin_deep_link(movie_id: str) -> str:
+    return f"{JELLYFIN_URL}/web/#/details?id={movie_id}"
+```
+
+The server already has `JELLYFIN_URL` as a module-level constant. Include `deep_link` in deck items and match responses.
+
+### Area 3: Match Notification (Violation #4)
+
+**Current state:** Two paths trigger match popups:
+1. **HTTP response path:** `/room/swipe` returns `{match: true, title: "...", thumb: "..."}` → client immediately shows match overlay (index.html lines 934-949)
+2. **SSE path:** `/room/stream` emits `last_match` event → client also shows match overlay (index.html lines 1015-1025)
+
+This creates race conditions and duplicate popups. The swiping user sees the match from the HTTP response, then again from SSE. The partner only sees it from SSE.
+
+**Correct behavior:**
+- `/room/swipe` returns `{matched: true/false}` — a simple boolean for optimistic UI (e.g., green glow on swipe)
+- Match popup/overlay is triggered **only** from SSE `last_match` events
+- This ensures both users see the match at the same time (via SSE) and avoids duplicate notifications
+
+**Implementation:** Remove match overlay logic from the swipe `fetch().then()` handler. Keep only the SSE handler for match display. The swipe response still returns `matched: bool` for the animation layer (green/red glow feedback).
+
+### Area 4: Deck Management (Violation #5)
+
+**Current state:** Server stores shuffled deck in `rooms.movie_data`. Client fetches `/movies` and gets the server deck. But:
+- Client can re-fetch `/movies` at any time, getting the same stored deck
+- Genre change triggers `GET /movies?genre=X` which regenerates the deck server-side but also re-shuffles
+- Client's `selectGenre()` function re-fetches and overwrites local `movieStack`
+
+**Correct behavior:**
+- Server stores deck in `rooms.movie_data` on create (already does this)
+- Client fetches deck once when game starts
+- Genre changes go through server: `POST /room/{code}/genre` → server regenerates deck → SSE notifies with `genre` change → both clients fetch the new deck
+- Client never triggers deck regeneration independently
+
+**Key change:** Remove `selectGenre()` client-side re-fetch logic. Genre selection should be a server-side operation that updates `rooms.movie_data` and notifies via SSE.
+
+### Area 5: Solo Mode (Violation #6)
+
+**Current state:** `go-solo` sets `rooms.solo_mode = 1` in the database. This is a room-level flag, so when the host goes solo, the guest is also forced into solo mode. The match logic checks `room['solo_mode']` to decide if right-swipes create immediate matches.
+
+**Correct behavior:** Solo mode is a per-user preference stored in session:
+```python
+@app.route('/room/go-solo', methods=['POST'])
+def go_solo():
+    session['solo_mode'] = True
+    return jsonify({'status': 'solo'})
+```
+
+Match logic checks the swiping user's session, not the room:
+```python
+is_solo = session.get('solo_mode', False)
+if is_solo and direction == 'right':
+    # Create match for this user only
+```
+
+This allows one user to be in solo mode while another swipes collaboratively (or both in solo mode independently).
+
+### Area 6: Match Metadata (Violation #7)
+
+**Current state:** `get_matches()` SQL:
+```sql
+SELECT title, thumb, movie_id FROM matches WHERE ...
+```
+
+Client UI tries to render `m.rating`, `m.duration`, `m.year` (index.html lines 608-625) — these are `undefined`, producing empty badge spans.
+
+**Correct behavior:** Two approaches:
+1. **Store metadata in matches table:** Add `rating`, `duration`, `year` columns to `matches` and populate them when creating matches (preferred — avoids re-querying Jellyfin for every match list fetch)
+2. **Server-side join at query time:** Re-resolve items from Jellyfin when fetching matches (expensive, slow)
+
+**Recommended approach:** Store all card fields when creating the match. The `resolve_item_for_tmdb()` method already exists. Extend the match creation to store `rating`, `duration`, `year`, `deep_link` alongside `title` and `thumb`.
+
+## Tier Responsibility Matrix
+
+Clear ownership for each responsibility area.
+
+| Responsibility | Server Owns | Client Owns |
+|---------------|-------------|-------------|
+| **User identity** | Resolves Jellyfin user_id from token; stores in session | Sends credentials once at login; receives session cookie |
+| **Auth tokens** | Stores Jellyfin token in session (HttpOnly) | Never sees token |
+| **Deck composition** | Fetches from Jellyfin, shuffles, stores in DB | Receives deck via API; renders cards |
+| **Deck order** | Determines and persists order | Respects server order; no re-shuffle |
+| **Match detection** | Queries swipes table for mutual right-swipes | Receives match notification via SSE |
+| **Match notification** | Pushes via SSE `last_match` event | Displays overlay when SSE event arrives |
+| **Deep link generation** | Constructs `{JELLYFIN_URL}/web/#/details?id={id}` | Navigates to `href` from server data |
+| **Swipe recording** | Validates identity from session; inserts into DB | Sends `{movie_id, direction}` only |
+| **Solo mode** | Stores per-user in session; checks per-user for match logic | Toggles UI; sends request to server |
+| **Match metadata** | Stores/enriches with rating, duration, year, deep_link | Renders badges from server data |
+| **Animation/UX** | — | Card drag, flip, glow effects, swipe animations |
+| **Optimistic UI** | Returns `{matched: bool}` | Shows green/red glow based on response |
 
 ## Competitor Feature Analysis
 
-| Feature | Typical Self-Hosted App | Enterprise SaaS | Jelly Swipe Approach |
-|---------|------------------------|-----------------|---------------------|
-| HTTP timeouts | Often missing | Required, enforced via middleware | Centralized helper with enforced `(connect, read)` tuple |
-| API key in URL | Common (convenient) | Never — always headers | Migrate to Bearer header |
-| Error redaction | `str(e)` to browser | Structured errors with correlation IDs | Request ID + server-side log + generic client message |
-| Rate limiting | Rare | Redis-backed, per-tenant | In-memory token-bucket, per-IP |
-| SSRF validation | Almost never | DNS rebinding + allowlist | Boot-time IP blocklist (metadata + dangerous ranges) |
-
-## Codebase Impact Assessment
-
-### Files to Create
-| File | Purpose | Lines (est.) |
-|------|---------|-------------|
-| `jellyswipe/http_client.py` | Centralized HTTP client with timeout enforcement, User-Agent, structured logging | ~80 |
-| `jellyswipe/rate_limiter.py` | In-memory token-bucket rate limiter | ~60 |
-| `jellyswipe/ssrf.py` | SSRF URL validation (boot-time) | ~50 |
-| `tests/test_http_hardening.py` | Security tests for all hardening features | ~200 |
-
-### Files to Modify
-| File | Changes | Scope |
-|------|---------|-------|
-| `jellyswipe/__init__.py` | Replace 4 bare `requests.get()` calls with centralized client; replace TMDB `api_key=` with Bearer header; replace 6 `str(e)` error handlers with redacted responses; add rate limiter decorators to 4 routes; add SSRF validation at boot | HIGH — most route handlers touched |
-| `jellyswipe/jellyfin_library.py` | Migrate `self._session` usage to centralized client (optional — existing timeouts are OK, but logging/redaction benefit) | MEDIUM — internal API calls refactored |
-| `pyproject.toml` | No new dependencies needed | NONE |
-
-### Migration Path
-
-The centralized HTTP helper should be introduced incrementally:
-
-1. **Phase 1:** Create `http_client.py` — standalone, no imports changed yet
-2. **Phase 2:** Migrate TMDB calls in `__init__.py` (the 4 bare `requests.get()` calls) — highest impact, all missing timeouts + all leaked API keys
-3. **Phase 3:** Migrate error handlers in `__init__.py` — replace `str(e)` with redacted responses
-4. **Phase 4:** Add rate limiter decorators to routes
-5. **Phase 5:** (Optional) Migrate `jellyfin_library.py` internal calls to centralized client for logging benefit
-6. **Phase 6:** Add SSRF validation at boot
-7. **Phase 7:** Write security tests
+| Feature | Tinder (reference app) | Typical Swipe Apps | Jelly Swipe Approach |
+|---------|----------------------|--------------------|---------------------|
+| Identity | Server-owned (OAuth/Facebook) | Server-owned session | Server-owned session via Jellyfin token |
+| Deck | Server-shuffled, paginated | Server-owned cursor | Server-owned, stored in SQLite |
+| Match detection | Server-side background job | Server-side on swipe | Server-side on swipe (immediate) |
+| Match notification | Push notification or in-app | WebSocket or SSE | SSE (polling-based generator) |
+| Deep link | N/A (in-app) | N/A (in-app) | Server-generated Jellyfin URL |
 
 ## Sources
 
-- **requests library timeout documentation** — Context7 /psf/requests: timeout must be passed per-request, no session-level default exists. HIGH confidence.
-- **TMDB v3 API authentication** — Context7 /websites/developer_themoviedb_reference: all v3 endpoints accept `Authorization: Bearer <access_token>` header as alternative to `?api_key=`. HIGH confidence.
-- **TMDB API key vs read access token** — TMDB developer settings: the "API Key (v3 auth)" and "Read Access Token" are separate values, but the Read Access Token works as a Bearer token for all read endpoints. HIGH confidence.
-- **Flask-Limiter in-memory storage** — Context7 /alisaifee/flask-limiter: `storage_uri="memory://"` available but per-process, same limitation as custom impl. HIGH confidence.
-- **RFC 1918 / link-local IP ranges** — Standard networking: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (private), 169.254.0.0/16 (link-local/metadata), 127.0.0.0/8 (loopback). HIGH confidence.
-- **Codebase analysis** — Direct reading of `jellyswipe/__init__.py`, `jellyswipe/jellyfin_library.py`, `jellyswipe/base.py`, `pyproject.toml`. HIGH confidence.
+**Jellyfin Web Source Code (HIGH confidence):**
+- `src/RootAppRouter.tsx`: Confirms `createHashRouter` — hash-based routing (`/web/#/path`)
+- `src/apps/stable/routes/legacyRoutes/user.ts`: `path: 'details'` for item detail pages
+- `src/apps/experimental/routes/legacyRoutes/user.ts`: Same `path: 'details'` in experimental layout
+- `src/components/router/BangRedirect.tsx`: Handles deprecated `!/details` URLs, confirms hash-based routing
+
+**Flask Documentation (HIGH confidence via Context7):**
+- `session` object: Cryptographically signed cookies, `session.permanent = True` for persistence
+- `app.secret_key`: Required for session signing (already configured in Jelly Swipe)
+- Session is dict-like: `session['user_id'] = value` / `session.pop('key', None)`
+
+**Jellyfin API (HIGH confidence via Context7):**
+- `AuthenticationResult` schema: Returns `AccessToken` and `User.Id` — confirms token+user_id pattern
+- `/Users/AuthenticateByName`: Standard auth endpoint for user login
+- `/Users/Me`: Returns current user info from token — used for token-to-user-id resolution
+
+**Direct Code Analysis (HIGH confidence):**
+- `jellyswipe/__init__.py`: Current route handlers, identity resolution, session usage
+- `jellyswipe/templates/index.html`: Client-side identity headers, Plex deep link construction, match popup triggers
+- `jellyswipe/jellyfin_library.py`: Provider with auth, deck fetch, item resolution
+- `jellyswipe/db.py`: Schema with `rooms`, `swipes`, `matches` tables
+- `jellyswipe/base.py`: Abstract `LibraryMediaProvider` contract
 
 ---
-*Feature research for: Jelly Swipe v1.6 Outbound HTTP Hardening*
+*Feature research for: Architecture Tier Separation in Jelly Swipe v2.0*
 *Researched: 2026-04-26*

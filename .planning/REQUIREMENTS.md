@@ -1,40 +1,51 @@
 # Requirements: Jelly Swipe
 
 **Defined:** 2026-04-26
-**Milestone:** v1.6 Plex Reference Cleanup
+**Milestone:** v2.0 Architecture Tier Fix
 **Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-## v1.6 Requirements
+## v2.0 Requirements
 
-Requirements for this milestone are scoped to Issue #11 (EPIC-08) — remove all remaining Plex references from the source code. Purely deletion; no new features.
+Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier responsibility violations between server and client.
 
-### Source Cleanup (SRC)
+### Identity & Auth
 
-- [ ] **SRC-01**: `/plex/server-info` route deleted from `jellyswipe/__init__.py` (lines 337–341).
-- [ ] **SRC-02**: `plex_id` references removed from `jellyswipe/db.py` comments (lines :35, :41).
-- [ ] **SRC-03**: `base.py` docstring at :42 updated to reference Jellyfin API path (`jellyfin/{id}/Primary`) instead of Plex `/library/metadata/`.
+- [x] **AUTH-01**: Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity
+- [x] **AUTH-02
+**: Jellyfin API token stored in server-side `user_tokens` SQLite table, keyed by session_id; never exposed to client JavaScript
+- [x] **AUTH-03
+**: Expired `user_tokens` rows are cleaned up automatically (rows older than 24 hours deleted)
 
-### Frontend Cleanup (FE)
+### Deck Management
 
-- [x] **FE-01**: `.plex-yellow` and `.plex-open-btn` CSS classes renamed to neutral names in `jellyswipe/templates/index.html`.
-- [x] **FE-02**: `loginWithPlex` and `fetchPlexServerId` JS functions removed from `jellyswipe/templates/index.html`.
-- [x] **FE-03**: All `mediaProvider === 'plex'` conditional branches removed from `jellyswipe/templates/index.html`.
-- [x] **FE-04**: Plex-related localStorage keys (`plex_token`, `plex_id`) and Plex HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`) removed.
-- [x] **FE-05**: Literal Plex URLs removed (`plex.tv/api/v2/user`, `app.plex.tv/desktop`).
-- [x] **FE-06**: `plexServerId` variable and `plex_id` references removed from `/room/swipe` body handler.
-- [x] **FE-07**: Plex auth PIN flow removed (`/auth/check-returned-pin`, `/auth/plex-url` route calls).
-- [x] **FE-08**: Plex UI copy removed ("Login with Plex", "OPEN IN PLEX").
+- [x] **DECK-01**: Server is sole source of deck composition and shuffle order; client never re-fetches or re-shuffles
+- [x] **DECK-02**: Server tracks each user's cursor position in the deck for reconnect support
 
-### Config & Deploy Cleanup (CFG)
+### Match & Notification
 
-- [x] **CFG-01**: Manifest descriptions updated from "Plex or Jellyfin" to "Jellyfin" in both `jellyswipe/static/manifest.json` and `data/manifest.json`.
-- [x] **CFG-02**: Dead `data/index.html` deleted (never-fetched PWA shell).
-- [x] **CFG-03**: Plex env block removed from `unraid_template/jelly-swipe.html`.
-- [x] **CFG-04**: `requirements.txt` deleted or stripped of plexapi (file is deprecated; Docker uses uv).
+- [x] **MTCH-01
+**: Match notification delivered exclusively via SSE stream — swipe HTTP response returns `{accepted: true}` only, no match payload
+- [x] **MTCH-02
+**: Match responses enriched with rating, duration, and year via server-side join through movies table
+- [x] **MTCH-03
+**: Match check-and-insert wrapped in SQLite `BEGIN IMMEDIATE` transaction to prevent TOCTOU race
 
-### Acceptance Validation (ACC)
+### RESTful API
 
-- [x] **ACC-01**: `rg -i 'plex'` against source returns only intentional historical references (README fork attribution).
+- [x] **API-01**: Swipe endpoint restructured as `POST /room/{code}/swipe` accepting `{movie_id, direction}` only
+- [x] **API-02
+**: Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — client never constructs media URLs
+- [x] **API-03
+**: `GET /me` endpoint returns verified user id, display name, and server info from server-side session
+- [x] **API-04
+**: Dedicated `POST /room/solo` endpoint creates a solo session without the two-player room lifecycle
+
+### Client Cleanup
+
+- [x] **CLNT-01
+**: Front-end never reads `provider_token` or `plex_token` from localStorage — all auth is session-cookie based
+- [x] **CLNT-02
+**: Client-side match detection logic removed — match popup triggered only by SSE events, never by swipe HTTP response
 
 ## v2 Requirements
 
@@ -49,41 +60,40 @@ Deferred to future milestones.
 
 ## Out of Scope
 
-Explicitly excluded from v1.6.
+Explicitly excluded from v2.0.
 
 | Feature | Reason |
 |---------|--------|
-| Renaming DB columns from plex_id | v1.2 already migrated schema; only stale comments remain |
-| Adding new features | This is purely a cleanup milestone |
-| Updating README fork attribution | Intentional historical reference; must be preserved |
-| Refactoring frontend architecture | Only removing Plex dead code; no structural changes |
+| Dual-read migration bridge | Accept breaking change during upgrade; no backward-compatible localStorage path |
+| Flask-Session extension | Custom SQLite token vault is simpler and consistent with existing patterns |
+| Delegate mode disambiguation | Same-account multi-user is not a supported use case in v2.0 |
+| Redis or external session store | Single-server Docker deployment; filesystem/SQLite sufficient |
+| ADR as a shipped artifact | Decision documented in PROJECT.md and code; formal ADR is documentation overhead for this scale |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SRC-01 | Phase 23 | Pending |
-| SRC-02 | Phase 23 | Pending |
-| SRC-03 | Phase 23 | Pending |
-| FE-01 | Phase 24 | Complete |
-| FE-02 | Phase 24 | Complete |
-| FE-03 | Phase 24 | Complete |
-| FE-04 | Phase 24 | Complete |
-| FE-05 | Phase 24 | Complete |
-| FE-06 | Phase 24 | Complete |
-| FE-07 | Phase 24 | Complete |
-| FE-08 | Phase 24 | Complete |
-| CFG-01 | Phase 25 | Complete |
-| CFG-02 | Phase 25 | Complete |
-| CFG-03 | Phase 25 | Complete |
-| CFG-04 | Phase 25 | Complete |
-| ACC-01 | Phase 26 | Complete |
+| AUTH-01 | Phase 24 | Complete |
+| AUTH-02 | Phase 23 | Pending |
+| AUTH-03 | Phase 23 | Pending |
+| DECK-01 | Phase 25 | Complete |
+| DECK-02 | Phase 25 | Complete |
+| MTCH-01 | Phase 26 | Complete |
+| MTCH-02 | Phase 26 | Complete |
+| MTCH-03 | Phase 26 | Complete |
+| API-01 | Phase 25 | Complete |
+| API-02 | Phase 26 | Complete |
+| API-03 | Phase 26 | Complete |
+| API-04 | Phase 26 | Complete |
+| CLNT-01 | Phase 27 | Pending |
+| CLNT-02 | Phase 27 | Pending |
 
 **Coverage:**
-- v1.6 requirements: 16 total
-- Mapped to phases: 16
-- Unmapped: 0 ✓
+- v2.0 requirements: 14 total
+- Mapped to phases: 14 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-26*
-*Last updated: 2026-04-26 after v1.6 definition*
+*Last updated: 2026-04-26 after roadmap creation (traceability mapped to Phases 23-28)*

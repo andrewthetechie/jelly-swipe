@@ -46,10 +46,11 @@ def test_jellyfin_use_server_identity_success(client):
 
 
 def test_jellyfin_use_server_identity_sets_session_flag(client):
-    """Successful delegate identity sets jf_delegate_server_identity in session."""
+    """Successful delegate identity sets session_id in session (vault-based auth)."""
     client.post("/auth/jellyfin-use-server-identity")
     with client.session_transaction() as sess:
-        assert sess.get("jf_delegate_server_identity") is True
+        assert "session_id" in sess
+        assert len(sess["session_id"]) > 0
 
 
 def test_jellyfin_use_server_identity_runtime_error_returns_401(client, monkeypatch):
@@ -88,17 +89,16 @@ def test_jellyfin_use_server_identity_failure_no_session_flag(client, monkeypatc
 
 
 def test_jellyfin_login_success(client):
-    """POST /auth/jellyfin-login with valid credentials returns authToken and userId."""
+    """POST /auth/jellyfin-login with valid credentials returns userId only (token stored in vault)."""
     response = client.post(
         "/auth/jellyfin-login",
         json={"username": "testuser", "password": "testpass"},
     )
     assert response.status_code == 200
     data = response.get_json()
-    assert "authToken" in data
     assert "userId" in data
-    assert data["authToken"] == "valid-token"
     assert data["userId"] == "verified-user"
+    assert "authToken" not in data
 
 
 def test_jellyfin_login_missing_username_returns_400(client):

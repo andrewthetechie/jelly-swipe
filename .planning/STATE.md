@@ -1,93 +1,112 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.6
-milestone_name: milestone
-status: milestone_complete
-last_updated: "2026-04-26T23:16:28.778Z"
-last_activity: 2026-04-26 -- Phase --phase execution started
+milestone: v2.0
+milestone_name: Architecture Tier Fix
+status: completed
+last_updated: "2026-04-27T20:21:31.106Z"
+last_activity: 2026-04-27
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 3
-  percent: 75
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 10
+  completed_plans: 10
+  percent: 100
 ---
 
 # State — Jelly Swipe
 
-**Milestone:** v1.6 Plex Reference Cleanup (EPIC-08)
-**Phase:** 26
-**Status:** Milestone complete
-**Progress:** [░░░░░░░░░░] 0%
+**Milestone:** v2.0 Architecture Tier Fix
+**Phase:** 27 (Complete) → 28
+**Status:** Phase 27 complete
+**Progress:** [██████████] 100%
 
 ---
 
 ## Project Reference
 
-**Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
+**What This Is:**
+Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB.
 
-**Current focus:** Phase --phase — 26
+**Core Value:**
+Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
+
+**Current Focus:** Phase 27 (Client Simplification + Cleanup)
 
 ---
 
 ## Current Position
 
-Phase: --phase (26) — EXECUTING
-Plan: Not started
-Status: Executing Phase --phase
-Last activity: 2026-04-26
-
----
-
-## Performance Metrics
-
-**Phase History:**
-
-- v1.0 (Jellyfin support): Phases 1–9 completed
-- v1.1 (Rename): No numbered phases
-- v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 completed
-- v1.3 (Unit Tests): Phases 14–17 completed
-- v1.4 (Authorization Hardening): Phases 1–18 completed
-- v1.5 (XSS Security Fix): Phases 19–22 completed
-
-**Current Milestone Metrics:**
-
-- Phases planned: 4 (Phases 23–26)
-- Requirements: 16
-- Plans: TBD
+Phase: 26 — COMPLETE
+Plan: Both plans complete (26-01, 26-02)
+Status: Ready for Phase 27
+Last activity: 2026-04-27
 
 ---
 
 ## Accumulated Context
 
-### Decisions
+### Decisions Made
 
-**v1.6 Cleanup Strategy:**
+**v2.0 Architecture Strategy (Current Milestone):**
 
-- Pure deletion milestone — no new features
-- Backend first (Phase 23), then frontend (Phase 24), then config/deploy (Phase 25), then acceptance sweep (Phase 26)
-- README fork attribution is intentional and must be preserved
-- `data/index.html` is dead (never-fetched PWA shell) — safe to delete entirely
+- Server owns identity (session → Jellyfin token → user_id) — AUTH-01
+- Token vault is custom SQLite `user_tokens` table (not Flask-Session) — AUTH-02
+- Expired tokens auto-cleaned after 24 hours — AUTH-03
+- Server owns deck composition and order — DECK-01
+- Server tracks per-user deck cursor for reconnect — DECK-02
+- Match notification via SSE only (no HTTP response payload) — MTCH-01
+- Match metadata enriched server-side (rating, duration, year) — MTCH-02
+- Swipe+match wrapped in BEGIN IMMEDIATE transaction — MTCH-03
+- RESTful swipe endpoint: POST /room/{code}/swipe — API-01
+- Server generates Jellyfin deep links — API-02
+- GET /me returns verified identity from session — API-03
+- POST /room/solo for dedicated solo sessions — API-04
+- Client removes localStorage tokens and identity headers — CLNT-01
+- Client removes match detection from swipe response — CLNT-02
+- Flask-Session rejected in favor of custom SQLite token vault (simpler, consistent)
+- ADR as shipped artifact deferred — decisions documented in PROJECT.md and code
 
-### Pending Todos
+**Phase Ordering Rationale:**
+
+1. Schema first (additive-only, zero breakage risk)
+2. Auth module second (populates schema, unblocks all downstream)
+3. Routes + deck third (identity-dependent route restructuring)
+4. Match + metadata fourth (depends on new routes and identity)
+5. Client cleanup fifth (subtractive, must come after server is stable)
+6. Deployment validation last (end-to-end Docker verification)
+- Used ISO 8601 string comparison for TTL-based token cleanup — avoids SQLite date functions
+- Proactively added all v2.0 columns in one migration pass (per D-04) — reduces migration churn
+- Rich metadata resolved from stored movie_data JSON (not Jellyfin API call) at match time
+- Deep link format: {JELLYFIN_URL}/web/#/details?id={itemId} (verified from jellyfin-web source)
+- Solo room as dedicated endpoint (not room flag hack) — ready=1, solo_mode=1 at creation
+- Client JS stripped of all localStorage, identity headers, Plex dead code; auth rewired to session cookies via GET /me; match popup SSE-only
+
+### Active Todos
+
+None yet.
+
+### Known Blockers
 
 None.
 
-### Blockers/Concerns
+### Risks and Concerns
 
-- Template cleanup (Phase 24) is largest surface area — many Plex branches in JS
-- `data/index.html` deletion must not break PWA `sw.js` scope
-- All deletions must preserve existing Jellyfin functionality
+- **SSE generator session context loss** — Flask warns against reading `session` inside streaming generators; all values must be captured by closure in view functions
+- **Session cookie last-write-wins** — Flask signed-cookie is a single blob; concurrent requests can silently overwrite changes
+- **Delegate mode disambiguation** — Two browsers with same Jellyfin account need reliable session_id-based disambiguation
 
 ---
 
 ## Session Continuity
 
 **Last Session:**
---stopped-at
 
-**Resume with:**
-`/gsd-plan-phase 23`
+2026-04-27T20:21:31.103Z
+
+- Both plans executed: 26-01 (SSE match delivery) and 26-02 (/me + /room/solo)
+- 13 new tests added (7 SSE match + 6 /me + /room/solo)
+- 130 total tests passing
+- Next step: Phase 27 (Client Simplification + Cleanup)
 
 ---
 
@@ -99,14 +118,21 @@ None.
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
 - Milestones: `.planning/MILESTONES.md`
+- State: `.planning/STATE.md` (this file)
+- Research: `.planning/research/SUMMARY.md`
+
+**Important Commands:**
+
+- `/gsd-plan-phase 27` — Begin planning Phase 27
+- `/gsd-transition` — Mark phase complete and move to next
+- `/gsd-progress` — View current progress
 
 **Issue Reference:**
 
-- Plex cleanup: https://github.com/andrewthetechie/jelly-swipe/issues/11
+- Architecture tier violations: https://github.com/andrewthetechie/jelly-swipe/issues/8
 
 ---
+*State created: 2026-04-26*
+*Last updated: 2026-04-27 (Phase 27 complete)*
 
-*State created: 2026-04-25*
-*Last updated: 2026-04-26 (v1.6 roadmap created)*
-
-**Planned Phase:** 24 (Frontend Plex Cleanup) — 2 plans — 2026-04-26T21:39:39.055Z
+**Planned Phase:** 28 (Deployment Validation) — 2 plans — 2026-04-27T20:21:31.106Z

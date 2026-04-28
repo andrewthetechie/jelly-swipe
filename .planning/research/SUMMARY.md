@@ -1,229 +1,182 @@
 # Project Research Summary
 
-**Project:** Jelly Swipe - v1.5 Route Test Coverage
-**Domain:** Flask web application with route testing and app factory pattern
+**Project:** Jelly Swipe v2.0 — Architecture Tier Fix
+**Domain:** Flask + SQLite + SSE (gevent) collaborative swipe-matching app
 **Researched:** 2026-04-26
 **Confidence:** HIGH
 
 ## Executive Summary
 
-v1.5 is a focused testing milestone: refactor the Flask app to the standard app factory pattern and add comprehensive route tests to achieve 70% coverage of `jellyswipe/__init__.py`. Research confirms this is a well-established pattern in the Flask ecosystem with no new dependencies required. The existing stack (Flask 3.1.3+, pytest 9.0.0+, pytest-cov 7.1.0+) already provides all necessary components. Flask's built-in test client (`app.test_client()`) is sufficient—no need for pytest-flask plugin.
+Jelly Swipe is a self-hosted collaborative movie-swiping app that pairs with a Jellyfin media server. Research identified 7 specific tier responsibility violations where the client performs work that belongs on the server — from storing auth tokens in `localStorage` to constructing broken Plex deep links instead of Jellyfin URLs. The recommended fix is a server-owned identity vault: after authentication, the Jellyfin token is stored in a new `user_tokens` SQLite table keyed by session ID, and the client receives only an opaque `session_id` in Flask's built-in signed cookie. This eliminates token exposure to client-side JavaScript while requiring only one new dependency (`flask-session` considered but rejected in favor of a leaner custom approach using the existing SQLite database).
 
-The recommended approach is straightforward: (1) refactor `jellyswipe/__init__.py` into a `create_app(test_config=None)` factory function with backwards-compatible global `app` instance, (2) add `app` and `client` fixtures to `conftest.py`, (3) create 5 route test files (auth, xss, room, proxy, sse) following existing patterns, and (4) add `--cov-fail-under=70` to pytest configuration for CI enforcement. Critical risks are test isolation (state leakage between tests) and testing implementation details rather than behavior—both addressed by following Flask's official testing documentation and the existing framework-agnostic test patterns in the codebase.
+The migration must be carefully sequenced because the current codebase has two parallel identity systems (`host_`/`guest_` synthetic IDs for swipes vs. Jellyfin UUIDs for matches). Switching to a single identity will orphan existing swipes if not handled with a dual-write transition period. The biggest technical risk is the SSE generator under gevent — Flask explicitly warns against reading or modifying `session` inside streaming generators, and the current code correctly captures values by closure. The refactoring must preserve this context-free generator pattern while passing identity data as arguments from the view function.
 
 ## Key Findings
 
 ### Recommended Stack
 
-No new dependencies required for v1.5. The existing stack has all necessary components for Flask route testing with app factory pattern.
+Only one new concept is needed: a `user_tokens` SQLite table for storing Jellyfin tokens server-side. No new Python packages are required. Flask's built-in signed cookie session (`SecureCookieSessionInterface`) is sufficient because the session only holds a `session_id` (~100 bytes total). The actual sensitive data lives in SQLite, which is a domain-specific concern better suited to a custom table than a generic Flask-Session backend.
 
-**Core technologies:**
-- **Flask 3.1.3+** — Web framework with built-in test client and app factory pattern support. Standard Flask pattern, no additional plugins needed.
-- **pytest 9.0.0+** — Test framework with excellent fixture support and parametrization. Already in use with 48 tests, well-understood in the codebase.
-- **pytest-cov 7.1.0+** — Coverage measurement with `--cov-fail-under=70` threshold enforcement. Single configuration change to pyproject.toml.
+**Core technologies (existing, no changes):**
+- **Flask >=3.1.3** — Session signing, SSE streaming, RESTful routing — all built-in
+- **gevent >=24.10** — Cooperative I/O for SSE; filesystem I/O is safe under monkey patching
+- **SQLite (stdlib)** — New `user_tokens` table alongside existing `rooms`/`swipes`/`matches` tables
+- **requests >=2.33.1** — Jellyfin API client, unchanged
 
-**Supporting technologies:**
-- **pytest-mock 3.14.0+** — Mocking utilities for external API calls. Already used in existing tests.
-- **responses 0.25.0+** — HTTP request mocking for Jellyfin/TMDB APIs. Prevents real API calls during tests.
+**NOT recommended:**
+- **Flask-Session** — Adds a cachelib/filesystem abstraction when the session cookie only needs to hold `session_id` + `active_room` (~100 bytes). The sensitive token goes in a custom SQLite table, which is simpler and more consistent with the existing codebase that uses raw `sqlite3`.
+- **Flask-Login** — Requires a User model; Jelly Swipe identity comes from Jellyfin, not a local user table.
+- **Redis** — External service dependency, overkill for a self-hosted single-server Docker app.
 
 ### Expected Features
 
-**Must have (table stakes) for v1.5:**
-- Test client usage with `app.test_client()` for making HTTP requests
-- Status code assertions (200, 400, 401, 403, 404, 500) for all routes
-- Response JSON validation for API routes
-- Session testing via `client.session_transaction()` for stateful routes
-- Database state verification for routes that modify SQLite
-- Authentication testing for protected routes
-- Input validation testing for malformed requests
-- Header validation for Authorization and Content-Type headers
-- Parametrized tests for multiple scenarios per route
-- Error handling testing for exception paths
+**Must have (table stakes — all P1):**
+- Server-side token storage — tokens never leave the server, stored in `user_tokens` table
+- Server-owned user identity — single canonical `user_id` from Jellyfin, resolved once at login
+- RESTful endpoint restructuring — `/room/{code}/swipe`, `/room/{code}/deck`, etc.
+- Server-owned deck composition + order — client never re-shuffles or re-fetches independently
+- Single-channel match notification — SSE-only match popups, not dual HTTP+SSE paths
+- Correct Jellyfin deep links — `{JELLYFIN_URL}/web/#/details?id={itemId}` from server
+- Full match metadata — `rating`, `duration`, `year`, `deep_link` in match responses
+- Solo mode as per-user session flag — not a room-level property
 
-**Should have (differentiators) for v1.5:**
-- Security regression testing (authorization bypass, XSS, injection attacks)
-- SSE streaming testing for real-time updates
-- Proxy route allowlist testing for SSRF prevention
-- Coverage threshold enforcement (70%) in CI
+**Should have (v2.1 hardening):**
+- Server-side deck cursor — per-user position tracking prevents deck manipulation
+- Idempotent swipe processing — `UNIQUE(room_code, movie_id, user_id)` constraint
+- ADR documenting tier responsibilities — prevents future violations
 
-**Defer (v2+):**
-- Edge case tests (concurrent operations, connection failures, malformed JSON)
-- Performance tests (load testing, SSE with many clients)
-- Integration tests (end-to-end workflows)
-- Property-based testing (Hypothesis)
-- Contract testing (Pact)
+**Defer (v3+):**
+- WebSocket upgrade (replacing SSE)
+- Multi-device session support
+- Playback status integration
 
 ### Architecture Approach
 
-The test suite follows a layered architecture: Test Suite (pytest) → Test Dependencies (pytest-mock, tmp_path, monkeypatch) → Production Code (jellyswipe modules) → External Dependencies (SQLite, Jellyfin API, Flask). The app factory pattern allows creating isolated test instances with test configuration, enabling proper test isolation. Existing framework-agnostic tests (test_db.py, test_jellyfin_library.py) remain unchanged—route tests are additive.
+The architecture introduces a "token vault" pattern: a new `user_tokens` SQLite table maps `session_id → (jellyfin_token, jellyfin_user_id)`. A `@login_required` decorator reads the session cookie, looks up the token vault, and populates `g.user_id` + `g.jf_token` for every authenticated request. The SSE generator remains context-free — all session values are captured in the view function and passed as closure arguments. Route structure moves to RESTful patterns with room code in the URL path rather than session.
 
 **Major components:**
-1. **conftest.py** — Shared fixtures (app, client, db_connection, mock_env_vars, mocker). Centralizes test setup/teardown.
-2. **jellyswipe/__init__.py (refactored)** — `create_app(test_config=None)` factory function with backwards-compatible global `app` instance.
-3. **Route test files** — 5 test files organized by route category (auth, xss, room, proxy, sse) for maintainability.
-4. **pytest-cov** — Coverage measurement with 70% threshold enforcement in CI.
-
-**Key patterns:**
-- In-memory SQLite with tmp_path fixture for database isolation
-- Mock external API calls with pytest-mock and responses
-- Environment variable monkeypatching for test configuration
-- Function-scoped fixtures for complete test isolation
-- Framework-agnostic imports for existing module tests
+1. **`auth.py` (NEW)** — Token vault CRUD, `create_session()`, `get_current_token()`, `@login_required` decorator
+2. **`__init__.py` (MODIFIED)** — Routes refactored to RESTful patterns, identity from `g.user_id` instead of client headers
+3. **`db.py` (MODIFIED)** — New `user_tokens` table, `rooms.deck_position` column, `matches.deep_link` column
+4. **`templates/index.html` (SIMPLIFIED)** — Remove token storage, identity headers, match detection from swipe response, deep link construction
 
 ### Critical Pitfalls
 
-**Top 5 pitfalls to avoid:**
+1. **SSE generator session context loss** — Never read `session` inside the SSE `generate()` function. Pass all values as arguments from the view function. Flask docs explicitly warn against this; violations cause silent 500 errors that kill the match notification stream. *(PITFALLS.md #1)*
 
-1. **Flaky tests from state leakage** — Tests pass individually but fail together. Use function-scoped fixtures with yield, in-memory databases, and explicit session clearing. All tests must be order-independent.
+2. **Match detection TOCTOU race in SQLite** — Two simultaneous right-swipes on the same movie can silently miss a match because the check-then-insert is not wrapped in `BEGIN IMMEDIATE`. Fix: wrap swipe+match logic in an explicit transaction. *(PITFALLS.md #2)*
 
-2. **Test coupling to implementation details** — Tests break when refactoring code without behavior change. Test behavior (given input X, expect output Y), not how it's achieved. Use black-box testing for routes.
+3. **Dual identity migration orphans existing swipes** — Current code uses `host_`/`guest_` synthetic IDs in `swipes` and Jellyfin UUIDs in `matches`. Switching to Jellyfin-only IDs makes old swipes unreachable. Fix: dual-write period with a `jellyfin_user_id` column added alongside the existing `user_id`. *(PITFALLS.md #3)*
 
-3. **Over-mocking external dependencies** — Tests pass even when integration fails. Mock only what's necessary; use realistic mock data. Prefer test doubles over mocks where possible.
+4. **EventSource cannot send Authorization headers** — The browser `EventSource` API only sends cookies, never custom headers. SSE endpoint must authenticate via session cookie, never `Authorization` header. *(PITFALLS.md #4)*
 
-4. **Testing libraries instead of application logic** — Tests verify Flask/SQLite/requests work, not your code. Test your code, not well-tested libraries. Verify business logic and integration, not framework behavior.
-
-5. **Hard-to-maintain test setups** — Complex fixture hierarchies become unmaintainable. Keep fixtures simple and focused (one responsibility per fixture). Prefer function-scoped fixtures. Use helper functions for complex setup.
+5. **Session cookie last-write-wins under gevent** — Flask's signed-cookie session is a single blob; concurrent requests from the same browser can silently overwrite each other's session changes. Mitigation: minimize session writes (set identity/room once, never modify during SSE lifecycle). *(PITFALLS.md #5)*
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure for v1.5:
+Based on research, suggested phase structure:
 
-### Phase 1: App Factory Refactor
-**Rationale:** Must come first—route tests require app factory pattern for test isolation. This is a prerequisite for all subsequent phases.
-**Delivers:** `jellyswipe/__init__.py` refactored into `create_app(test_config=None)` factory function with backwards-compatible global `app` instance.
-**Addresses:** FACTORY-01 requirement
-**Avoids:** "Testing libraries instead of application logic" pitfall by providing proper test infrastructure
-**Features:** None (infrastructure phase)
+### Phase 1: Database Schema + Token Vault
+**Rationale:** All other changes depend on the `user_tokens` table and schema migration. This is the foundation that server-owned identity builds on. Additive-only schema changes have the lowest risk.
+**Delivers:** `user_tokens` table, `rooms.deck_position` column, `matches.deep_link` column, migration script
+**Addresses:** Features 2 (server-side token storage), prerequisites for Features 1, 3, 5, 6, 8
+**Avoids:** Pitfall #3 (dual identity orphans) — new columns added alongside existing ones, no data loss
+**Stack:** SQLite schema migration only, no new packages
 
-### Phase 2: Test Infrastructure Setup
-**Rationale:** Route tests need `app` and `client` fixtures before writing tests. This phase establishes the foundation for all route testing.
-**Delivers:** Updated `conftest.py` with `app` and `client` fixtures that work with app factory pattern.
-**Uses:** Flask's built-in test client, pytest fixtures
-**Implements:** Architecture Pattern 3 (environment variable monkeypatching)
-**Avoids:** "Flaky tests from state leakage" pitfall by establishing proper fixture patterns
-**Features:** None (infrastructure phase)
+### Phase 2: Auth Module + Server-Owned Identity
+**Rationale:** Once the token vault exists, the auth module can store tokens and resolve user identity. This unblocks all downstream features that depend on server-owned identity. Must include a dual-read migration period for existing clients.
+**Delivers:** `auth.py` with `create_session()`, `get_current_token()`, `@login_required`; refactored login/delegate routes; client migration bridge
+**Addresses:** Features 1 (server-owned identity), 2 (server-side token storage), 8 (solo mode as user property)
+**Avoids:** Pitfall #4 (EventSource can't send headers) — auth via session cookie only; Pitfall #5 (last-write-wins) — minimize session writes
+**Stack:** Flask built-in session, SQLite user_tokens table
+**Research flag:** Delegate mode (two browsers, same Jellyfin account) needs careful design — the `session_id` disambiguator pattern should be validated during planning
 
-### Phase 3: Auth Route Tests
-**Rationale:** Authentication is a security-critical dependency for most other routes. Testing auth first validates the test infrastructure on a focused domain.
-**Delivers:** `tests/test_routes_auth.py` with tests for `/auth/provider`, `/auth/jellyfin-use-server-identity`, `/auth/jellyfin-login`.
-**Uses:** app fixture, client fixture, FakeProvider for mocking
-**Implements:** Table stakes features (authentication testing, status code assertions, session testing)
-**Avoids:** "Over-mocking external dependencies" by using realistic mock data for Jellyfin responses
-**Features:** TEST-ROUTE-01 (auth route tests)
+### Phase 3: RESTful Endpoint Restructuring + Server-Owned Deck
+**Rationale:** With identity stable in `g.user_id`, routes can be refactored to RESTful patterns with room code in the URL. Deck ownership moves server-side at the same time since both require route changes and client-side URL updates.
+**Delivers:** All routes refactored to `/room/{code}/...` pattern, server-tracked `deck_position`, genre changes through server
+**Addresses:** Features 3 (server-owned deck), 7 (RESTful endpoints)
+**Avoids:** Pitfall #8 (deck state divergence) — server tracks position, client renders server order
+**Stack:** Flask URL converters, SQLite schema changes
+**Research flag:** Deck state edge cases (empty deck, reconnect resume, mid-session genre change) need detailed planning
 
-### Phase 4: XSS Security Tests
-**Rationale:** Security testing is a competitive differentiator and should be done early to catch vulnerabilities. Independent of auth routes—can be tested in parallel.
-**Delivers:** `tests/test_routes_xss.py` with tests for HTML tag escaping, `javascript:` URL rejection, script injection prevention.
-**Uses:** app fixture, client fixture, db_connection fixture, XSS payload helpers
-**Implements:** Differentiator features (security regression testing, input validation testing)
-**Avoids:** "Testing implementation details" by focusing on observable behavior (escaped output, rejected input)
-**Features:** TEST-ROUTE-02 (XSS security tests)
+### Phase 4: Match Notification + Deep Links + Metadata
+**Rationale:** Match logic depends on stable identity (Phase 2) and RESTful routes (Phase 3). Deep links and metadata enrichment are independent but naturally group with match changes since they affect the same code paths.
+**Delivers:** Unified SSE-only match notifications, server-generated Jellyfin deep links, enriched match metadata
+**Addresses:** Features 4 (single-channel match), 5 (correct deep links), 6 (full match metadata)
+**Avoids:** Pitfall #1 (SSE generator context loss) — generator stays context-free; Pitfall #2 (TOCTOU race) — wrap in `BEGIN IMMEDIATE`
+**Stack:** Flask SSE, SQLite transactions, Jellyfin URL format
 
-### Phase 5: Room Operation Tests
-**Rationale:** Core business logic—rooms, swipes, matches are the primary value of the application. Depends on database state management, so comes after auth/xss tests validate test infrastructure.
-**Delivers:** `tests/test_routes_room.py` with tests for `/room/create`, `/room/join`, `/room/swipe`, `/room/quit`, `/room/status`, `/room/go-solo`.
-**Uses:** app fixture, client fixture, db_connection fixture, room seeding helpers
-**Implements:** Table stakes features (database state verification, error handling testing)
-**Avoids:** "Flaky tests from state leakage" by using function-scoped db_connection fixture
-**Features:** TEST-ROUTE-03 (room operation tests)
+### Phase 5: Client Simplification + Cleanup
+**Rationale:** Client changes are subtractive — removing token storage, identity headers, match detection from swipe responses, deep link construction. Must come last because all server-side changes must be stable first.
+**Delivers:** Stripped-down client with no token handling, no identity headers, no match detection, no URL construction
+**Addresses:** All features (client side of each), anti-features list
+**Avoids:** Pitfall #6 (migration bridge) — dual-read period ensures smooth transition; Pitfall #9 (CSP + inline handlers) — migrate to addEventListener during cleanup
+**Stack:** Vanilla JS, no new dependencies
 
-### Phase 6: Proxy Route Tests
-**Rationale:** SSRF prevention is a security requirement. Independent of room operations—tests proxy allowlist and rate limiting without room context.
-**Delivers:** `tests/test_routes_proxy.py` with tests for `/proxy` with valid/invalid paths, allowlist regex validation, content-type verification.
-**Uses:** app fixture, client fixture, FakeProvider for mocking
-**Implements:** Differentiator features (proxy route allowlist testing, SSRF prevention)
-**Avoids:** "Over-mocking external dependencies" by testing actual proxy behavior with mocked backends
-**Features:** TEST-ROUTE-04 (proxy route tests)
-
-### Phase 7: SSE Streaming Tests
-**Rationale:** SSE is the most complex testing domain (generator functions, streaming responses). Comes last as it depends on room operations working correctly and requires special handling for streaming responses.
-**Delivers:** `tests/test_routes_sse.py` with tests for `/room/stream` event streaming, invalid room handling, state change events, GeneratorExit handling.
-**Uses:** app fixture, client fixture, db_connection fixture, room seeding helpers, SSE event parsing
-**Implements:** Differentiator features (SSE streaming testing, generator/iterator testing)
-**Avoids:** "Hard-to-maintain test setups" by keeping SSE test fixtures focused and simple
-**Features:** TEST-ROUTE-05 (SSE streaming tests)
-
-### Phase 8: Coverage Enforcement
-**Rationale:** Final phase—add coverage threshold enforcement after all tests are written to avoid blocking development.
-**Delivers:** Updated `pyproject.toml` with `--cov-fail-under=70` in pytest.ini_options.
-**Uses:** pytest-cov 7.1.0+
-**Implements:** Coverage threshold enforcement (70%)
-**Avoids:** None—this is the validation phase
-**Features:** TEST-COV-01 (coverage enforcement)
+### Phase 6: Deployment Validation + ADR
+**Rationale:** Final validation that the entire flow works end-to-end in Docker, cookie security is correct behind reverse proxies, and the tier responsibility decisions are documented for future developers.
+**Delivers:** Docker volume mount for sessions, ProxyFix verification, ADR document
+**Avoids:** Pitfall #7 (SameSite + HTTPS termination) — verify in actual deployment
+**Stack:** Docker, existing gunicorn config
 
 ### Phase Ordering Rationale
 
-- **Factory refactor first:** App factory pattern is a hard dependency for route tests. Cannot write route tests without it.
-- **Test infrastructure second:** Fixtures must exist before tests can be written. Establishes patterns for all subsequent phases.
-- **Auth and XSS early:** Security-critical domains tested early to catch vulnerabilities. Independent of each other—could be parallelized.
-- **Room operations after auth:** Core business logic depends on database state management, validated by earlier phases.
-- **Proxy after room:** Independent of room operations but validates SSRF prevention (security priority).
-- **SSE last:** Most complex domain (streaming, generators), depends on room operations working correctly.
-- **Coverage enforcement last:** Threshold added after all tests exist to avoid blocking development.
-
-**How this avoids pitfalls:**
-- Function-scoped fixtures in Phase 2 prevent state leakage (Pitfall 1)
-- Behavior-focused tests in Phases 3-7 avoid testing implementation details (Pitfall 2)
-- Realistic mock data in Phases 3, 4, 6 prevent over-mocking (Pitfall 3)
-- Testing routes through HTTP contract in Phases 3-7 avoids testing libraries (Pitfall 4)
-- Simple, focused fixtures in Phase 2 prevent hard-to-maintain setups (Pitfall 5)
+- **Identity before everything else:** Server-owned identity (Phase 2) is a hard dependency for RESTful routes, solo mode, and match notification. It must come first because downstream features read `g.user_id`.
+- **Schema before logic:** Phase 1 (schema migration) is additive-only and has zero risk of breaking existing functionality. It creates the tables and columns that Phase 2 populates.
+- **Routes before deck:** Phase 3 combines RESTful restructuring with deck ownership because both require coordinated server+client URL changes. Doing them together avoids touching the same files twice.
+- **Match logic after identity + routes:** Match notification depends on correct identity resolution and the new route structure. Deep links and metadata naturally group here since they affect the match/deck responses.
+- **Client cleanup last:** The client simplification is purely subtractive. It must come after all server-side changes are stable because the client needs to work with both old and new server endpoints during the migration window.
 
 ### Research Flags
 
-**Phases likely needing deeper research during planning:**
-- **Phase 5 (Room Operation Tests):** Complex business logic with multiple database operations. May need to plan test scenarios carefully for edge cases (concurrent swipes, race conditions).
-- **Phase 7 (SSE Streaming Tests):** Generator functions and streaming responses are niche. Flask documentation on SSE testing is sparse—may need to research generator testing patterns and SSE event format validation.
+**Phases needing deeper research during planning:**
+- **Phase 2:** Delegate mode identity disambiguation — two browsers with the same Jellyfin account need a reliable `session_id`-based disambiguator for room operations. The research identified this as a gap; the exact implementation (separate `swipes.user_session_id` column? room participant list?) needs design during planning.
+- **Phase 3:** Deck cursor resume-on-reconnect behavior — if a user reloads mid-session, the server must serve cards from `deck_position` without re-shuffling. Edge cases around concurrent swipes advancing the cursor need careful specification.
+- **Phase 4:** `BEGIN IMMEDIATE` transaction pattern for swipe+match atomicity — need to verify that this works correctly with gevent's cooperative I/O and the existing `get_db()` connection-per-request pattern.
 
 **Phases with standard patterns (skip research-phase):**
-- **Phase 1 (App Factory Refactor):** Well-documented Flask pattern. Official Flask tutorial has examples.
-- **Phase 2 (Test Infrastructure Setup):** Standard pytest fixture patterns. Already used in existing conftest.py.
-- **Phase 3 (Auth Route Tests):** Standard Flask authentication testing. Existing test_route_authorization.py shows the pattern.
-- **Phase 4 (XSS Security Tests):** Standard input validation and escaping tests. Well-understood security testing patterns.
-- **Phase 6 (Proxy Route Tests):** Standard SSRF prevention testing. Regex allowlist testing is straightforward.
-- **Phase 8 (Coverage Enforcement):** Single configuration change. Well-documented pytest-cov usage.
+- **Phase 1:** Additive SQLite schema migration — well-documented, no research needed
+- **Phase 5:** Client JS simplification — purely subtractive, no new patterns
+- **Phase 6:** Deployment validation — standard Docker/nginx configuration
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies verified with official Flask and pytest documentation. No new dependencies required—existing stack is sufficient. |
-| Features | HIGH | Flask testing patterns well-documented. Existing 48 tests demonstrate successful patterns. Feature dependencies clear from codebase. |
-| Architecture | HIGH | App factory pattern is standard Flask. Layered test architecture verified with official docs. Anti-patterns identified from community best practices. |
-| Pitfalls | HIGH | Pitfalls based on official pytest/Flask documentation and industry best practices. Anti-patterns map to well-known testing mistakes. |
+| Stack | HIGH | Only one new concept (user_tokens table); all existing deps verified compatible. STACK.md and ARCHITECTURE.md agree on keeping existing deps unchanged. |
+| Features | HIGH | 8 P1 features with clear dependency graph and direct codebase line references. Jellyfin deep link format verified from jellyfin-web source code. |
+| Architecture | HIGH | Token vault pattern validated against Flask docs (Context7). SSE+session compatibility confirmed. Migration path mapped phase-by-phase with risk levels. |
+| Pitfalls | HIGH | 13 pitfalls identified with exact line references in codebase. All critical pitfalls verified against Flask/gevent official documentation. |
 
 **Overall confidence:** HIGH
 
-All research sources are official documentation (Flask, pytest) or direct codebase analysis. No inference required. The recommended approach follows established patterns in the Flask ecosystem.
-
 ### Gaps to Address
 
-No significant gaps. Research was comprehensive:
+- **Delegate mode identity:** The research recommends using `session_id` as a disambiguator when two browsers share the same Jellyfin account, but the exact schema (new column? separate participant tracking table?) is unresolved. This needs design during Phase 2 planning.
+- **Session cookie size:** Flask's signed-cookie session has a ~4KB practical limit. The research estimates ~100 bytes for `session_id` + `active_room`, but if additional flags are added (solo_mode, preferences), the size should be monitored during development.
+- **Provider singleton thread safety:** `_provider_singleton` is a module-level global shared across gevent greenlets. `requests.Session()` is not thread-safe. This is a pre-existing issue, not introduced by v2.0, but the refactoring may exacerbate it if auth lookups increase provider usage. Low priority but should be tracked.
 
-- **SSE testing patterns:** Flask documentation on SSE is sparse, but generator testing is standard Python. May need to research SSE event format validation during Phase 7 planning.
-- **Coverage threshold target:** 70% is a milestone requirement, not derived from research. May need to validate this threshold is achievable after writing tests.
-- **Room operation edge cases:** Complex business logic may have unanticipated edge cases. Tests should be written to surface these during implementation, not before.
+### Architectural Tension: STACK.md vs. ARCHITECTURE.md
 
-These gaps are minor and don't block roadmap creation. They can be addressed during phase planning.
+STACK.md recommends Flask-Session (cachelib/filesystem backend) for server-side session storage. ARCHITECTURE.md recommends against Flask-Session in favor of a custom `user_tokens` SQLite table with Flask's built-in signed cookies.
+
+**Recommendation: Follow ARCHITECTURE.md's approach.** The custom SQLite token vault is simpler, more consistent with the existing codebase (which uses raw `sqlite3` throughout), and avoids adding a dependency. Flask's built-in signed cookie only needs to hold `session_id` + `active_room` — well under the 4KB limit. Flask-Session's cachelib/filesystem backend would add an unnecessary abstraction layer for what is fundamentally a domain-specific data concern.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- **Flask Official Documentation (Testing)** — https://flask.palletsprojects.com/en/stable/testing/ — Test client usage, app factory pattern, session management
-- **Flask Official Documentation (Application Factory)** — https://flask.palletsprojects.com/en/stable/tutorial/factory/ — Factory pattern implementation
-- **pytest Documentation** — https://docs.pytest.org/en/stable/ — Fixture system, parametrization, test discovery
-- **pytest-mock Documentation** — https://pytest-mock.readthedocs.io/ — Mocking patterns, mocker fixture
-- **pytest-cov Documentation** — `--cov-fail-under` threshold enforcement
-- **Existing Jelly Swipe Test Suite** — `tests/conftest.py`, `tests/test_db.py`, `tests/test_jellyfin_library.py`, `tests/test_route_authorization.py` — Demonstrates successful patterns in the codebase
+- Flask session docs (Context7, `/pallets/flask`) — signed cookie behavior, streaming session caveats, cookie security config
+- Flask-Session docs (Context7, `/pallets-eco/flask-session`) — server-side backends, cachelib configuration, deprecated `filesystem` backend
+- Flask streaming docs (Context7) — "access session in view function, not in generator" warning
+- Gevent docs (Context7, `/gevent/gevent`) — monkey patching, cooperative I/O, greenlet-local storage
+- Jellyfin Web source code — `RootAppRouter.tsx` (hash-based routing), `user.ts` routes (`details` path), `BangRedirect.tsx`
+- Jellyfin API (Context7) — `AuthenticationResult` schema, `/Users/AuthenticateByName` endpoint
 
-### Secondary (MEDIUM confidence)
-- **Flask Tutorial Tests** — https://github.com/pallets/flask/blob/main/docs/tutorial/tests.md — AuthActions helper class, database fixtures, authorization testing
-- **Flask Web Security Documentation** — https://flask.palletsprojects.com/en/stable/security/ — XSS prevention, input validation
-- **Project pyproject.toml** — Confirms current versions: pytest >=9.0.0, pytest-cov >=6.0.0, pytest-mock >=3.14.0, responses >=0.25.0
-- **uv.lock** — Confirms pytest-cov version 7.1.0 is locked
-
-### Tertiary (LOW confidence)
-- **Community blog posts on Flask testing** — Reinforced official documentation patterns, no new findings
-- **pytest-xdist documentation** — Parallel execution patterns (deferred to v2+, not needed for v1.5)
+### Secondary (HIGH confidence — direct codebase analysis)
+- `jellyswipe/__init__.py` (563 lines) — route handlers, identity resolution, SSE generator, session usage
+- `jellyswipe/templates/index.html` (1072 lines) — client identity headers, Plex deep links, match popup triggers
+- `jellyswipe/db.py` (52 lines) — schema with `rooms`, `swipes`, `matches` tables
+- `jellyswipe/jellyfin_library.py` (482 lines) — provider auth, deck fetch, item resolution
 
 ---
 *Research completed: 2026-04-26*

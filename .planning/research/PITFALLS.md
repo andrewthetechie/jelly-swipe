@@ -1,271 +1,297 @@
-# Pitfalls Research
+# Domain Pitfalls — v2.0 Architecture Tier Fix
 
-**Domain:** Flask + gevent outbound HTTP hardening (centralized client, SSRF validation, rate limiting, error redaction)
+**Domain:** Flask + SQLite + SSE (gevent) monolith, refactoring tier responsibilities between server and client
 **Researched:** 2026-04-26
-**Confidence:** HIGH
+**Codebase analyzed:** `jellyswipe/__init__.py` (563 lines), `jellyswipe/templates/index.html` (1072 lines), `jellyswipe/db.py` (52 lines), `jellyswipe/jellyfin_library.py` (482 lines)
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: In-Memory Rate Limiter State Is Per-Worker, Not Global
+Mistakes that cause silent data loss, broken sessions, or undetectable regressions.
 
-**What goes wrong:**
-A token-bucket rate limiter stored in a Python module-level dict or class attribute lives inside **one gunicorn worker process**. With multiple gunicorn workers (`--workers N`), each worker gets its own independent limiter. A client that hits the rate limit on worker 1 can immediately succeed on worker 2, effectively multiplying the allowed rate by the worker count.
+### Pitfall 1: SSE Generator Session Stale-Read / Context Loss
 
-**Why it happens:**
-Gunicorn uses a pre-fork model. The gevent worker class monkey-patches inside each forked worker — not in the master. Each worker process has its own Python interpreter, its own copy of module globals, and its own in-memory data structures. Developers coming from threaded servers (gthread) or single-worker setups assume "in-memory" means "shared across all concurrent requests," but with gunicorn+gevent it only means "shared across concurrent greenlets within one OS process."
+**What goes wrong:** The `/room/stream` SSE generator captures `code = session.get('active_room')` once in the view function (line 469), then runs for up to 3600 seconds polling the database. If the refactoring introduces session reads *inside* the generator (e.g., checking auth state on each poll cycle), two failures occur:
+1. Without `stream_with_context()`, the generator has no Flask request context — accessing `session` or `request` raises `RuntimeError: Working outside of request context`.
+2. Even with `stream_with_context()`, Flask docs explicitly warn: **"Do not modify the session in the generator, as the Set-Cookie header will already be sent."**
 
-**How to avoid:**
-- **Default deployment is 1 worker** (current Dockerfile has no `--workers` flag, so gunicorn defaults to 1). In-memory limiter works correctly for this.
-- Document that adding `--workers N > 1` breaks the rate-limit guarantee unless the limiter uses shared storage (Redis, file-based).
-- Add a startup warning if `--workers > 1` and in-memory limiter is in use: "Rate limiting is per-worker; effective limit = N × configured limit."
-- Structure the limiter behind an interface so swapping to Redis later is a config change, not a rewrite.
+**Why it happens:** The current generator is context-free by design — it only uses the `code` local variable captured by closure. Refactoring to check auth state per-cycle is a natural impulse when moving identity server-side.
 
-**Warning signs:**
-- `gunicorn.conf.py` or Dockerfile CMD adds `--workers 2+`
-- Rate-limit tests pass in unit tests (single process) but a load test shows 2× the allowed request rate
-- Users report rate limit is "not working" under load
+**Consequences:** Silent 500 errors in the SSE stream (caught by the generic `except Exception` on line 517), causing the client to stop receiving match notifications with no visible error.
 
-**Phase to address:**
-Phase where rate limiter is built — add the worker-isolation documentation and startup warning alongside the limiter implementation.
+**Prevention:**
+- Keep the SSE generator context-free. Pass all needed data (room code, user id) as arguments from the view function.
+- If the generator must check mutable state, read from the database (already the pattern), not from `session`.
+- Never call `session.modify()` inside the generator.
 
----
+**Detection:** SSE stream stops sending events but doesn't close (client sees no `closed: true` event). Match overlays stop appearing for one user but not the other.
 
-### Pitfall 2: SSRF Validation at Boot Is Defeated by DNS Rebinding
-
-**What goes wrong:**
-Validating `JELLYFIN_URL` at boot time (reject `169.254.x.x`, allow loopback + RFC 1918) only checks the hostname **at startup**. If the URL uses a hostname (not IP), DNS rebinding can resolve it to a metadata endpoint later. An attacker who controls the DNS for `evil.example.com` could:
-1. Have it resolve to `192.168.1.100` at boot (passes validation)
-2. Rebind it to `169.254.169.254` at request time (SSRF to cloud metadata)
-
-**Why it happens:**
-Developers implement boot-time validation because it's simpler than per-request validation. The assumption is "JELLYFIN_URL is set once and doesn't change." But DNS TTLs and external resolvers mean the IP behind a hostname can change at any time.
-
-**How to avoid:**
-- **Boot validation is still correct for this project** because `JELLYFIN_URL` is operator-configured (not user-controlled) and typically points to `http://jellyfin:8096` (Docker network) or `http://192.168.x.x:8096` (LAN IP). The threat model is operator misconfiguration, not adversarial DNS rebinding.
-- For defense-in-depth: resolve the hostname to IP at boot and also revalidate the IP on each request (or cache the resolved IP and use that instead of the hostname).
-- Log a warning at boot if `JELLYFIN_URL` is a hostname (not an IP), explaining the DNS rebinding risk.
-- Document that operators should use IP addresses or Docker DNS names (which are not rebinding-eligible) in `JELLYFIN_URL`.
-
-**Warning signs:**
-- `JELLYFIN_URL=http://some-public-domain.com:8096` (external hostname)
-- SSRF validation only checks `socket.getaddrinfo()` once at import time
-- No revalidation on subsequent HTTP calls
-
-**Phase to address:**
-Boot validation phase — implement boot-time check AND document the DNS rebinding limitation. Add IP resolution + caching if time allows.
+**Where in code:** `__init__.py` lines 467–521 (`room_stream` route and `generate()` closure).
 
 ---
 
-### Pitfall 3: Error Redaction Breaks Existing Error Contracts
+### Pitfall 2: Match Detection TOCTOU Race in SQLite
 
-**What goes wrong:**
-The existing code returns `jsonify({'error': str(e)}), 500` in **8 route handlers** (`__init__.py` lines 198, 199, 223, 225, 240, 434, etc.). These handlers currently expose upstream error text (e.g., `"Jellyfin request failed (HTTP 401)"` from `JellyfinLibraryProvider._api`). If error redaction is implemented naively — replacing all `str(e)` with a generic message — the frontend JavaScript that checks `response.error` for specific strings will break silently.
+**What goes wrong:** The swipe endpoint (lines 343–378) performs a non-atomic check-then-insert sequence:
+1. `INSERT INTO swipes` (line 344)
+2. `SELECT user_id FROM swipes WHERE ... AND user_id != ?` (line 358)
+3. `INSERT INTO matches` (lines 362–371)
 
-**Why it happens:**
-The frontend in `templates/index.html` likely checks for error strings like `'Not found'`, `'Unauthorized'`, etc. When adding centralized error handling, developers replace `str(e)` everywhere with `f"Internal error (ref={request_id})"`, assuming the frontend doesn't parse error messages. But the SPA shows these messages to users and may branch on them.
+When two users swipe right on the same movie simultaneously:
+- User A: INSERT swipe → SELECT (no other right swipe yet) → no match
+- User B: INSERT swipe → SELECT (finds A's right swipe) → creates match
+- Result: Match is only created for User B's perspective. User A's swipe is orphaned — they never see the match.
 
-**How to avoid:**
-- **Audit the frontend JavaScript** in `templates/index.html` for `error` field usage before changing error shapes.
-- Preserve **known 4xx error messages** that are user-facing and expected (e.g., `'Not found'`, `'Unauthorized'`, `'Invalid Code'`).
-- Only redact **5xx error messages** — replace `str(e)` with a generic message + request ID.
-- Use a consistent error response shape: `{"error": "user_message", "request_id": "abc123"}` for 5xx, `{"error": "user_message"}` for 4xx.
-- Implement via a Flask `@app.errorhandler(500)` or `@app.errorhandler(Exception)` to avoid changing every route handler.
+**Why it happens:** SQLite default journal mode allows concurrent reads during writes, but the check-then-insert is not wrapped in a transaction with `BEGIN IMMEDIATE`. The `with get_db() as conn:` context manager uses autocommit, not an explicit transaction.
 
-**Warning signs:**
-- Frontend shows "Internal error (ref=abc123)" for all errors, including expected ones like "Movie not found"
-- Tests that assert on specific error messages break
-- `try/except` blocks that catch specific error strings stop matching
+**Consequences:** Silent match loss. Two users both swiped right, but only one sees the match notification. No error is raised.
 
-**Phase to address:**
-Error redaction phase — first audit frontend error handling, then implement 5xx-only redaction.
+**Prevention:**
+- Wrap the swipe+match logic in `BEGIN IMMEDIATE` transaction to serialize concurrent swipes on the same movie.
+- Or use `INSERT ... SELECT` pattern to atomically detect and create matches.
+- Alternative: After both users swipe, have the *second* swipe always create matches for *both* user_ids (which is partially the current pattern on lines 366–371, but the first user's match insert is skipped because the SELECT found nothing).
 
----
+**Detection:** Two users report swiping right on the same movie but only one sees a match. Intermittent — only occurs under timing coincidence.
 
-### Pitfall 4: Centralized HTTP Helper Misses Stray `requests.*` Calls
-
-**What goes wrong:**
-The codebase has two categories of HTTP calls:
-1. **`JellyfinLibraryProvider._session`** (a `requests.Session`) — used for all Jellyfin API calls with timeouts
-2. **Bare `requests.get()`** — used for 4 TMDB calls in `__init__.py` (lines 187, 191, 206, 210) with NO timeouts, and 1 fallback call in `jellyfin_library.py` line 354
-
-When building a centralized HTTP helper, developers focus on the TMDB calls (the ones without timeouts) but miss the stray `requests.get()` in `jellyfin_library.py:354` (the `server_info` fallback that hits `/System/Info/Public`). This call goes through a different code path and won't get timeouts, User-Agent, or logging.
-
-**Why it happens:**
-The stray `requests.get()` in `server_info()` is outside the `_api()` method — it's a direct call using the module-level `requests` module, not `self._session`. It's easy to miss when grep-based auditing only catches calls in `__init__.py`.
-
-**How to avoid:**
-- **Grep for ALL `requests.` calls** before and after implementing the helper:
-  ```bash
-  rg 'requests\.(get|post|put|delete|patch|head|request)\s*\(' jellyswipe/
-  ```
-- The centralized helper should replace:
-  - 4 TMDB calls in `__init__.py` (lines 187, 191, 206, 210)
-  - 1 stray `requests.get()` in `jellyfin_library.py` (line 354)
-- Use a **no-bare-requests lint rule** (or pre-commit hook) to prevent new `requests.*` calls outside the helper.
-- Consider having the centralized helper wrap `requests.Session` so even `jellyfin_library.py._session` calls go through it for consistent logging/timeouts.
-
-**Warning signs:**
-- `rg 'requests\.' jellyswipe/ | grep -v '_session\.'` returns results after migration
-- TMDB calls have timeouts but a new call added during the milestone doesn't
-- Production monitoring shows a hung request with no timeout after 30+ minutes
-
-**Phase to address:**
-Centralized HTTP helper phase — begin with a comprehensive audit of all HTTP calls, implement helper, then verify zero stray calls remain.
+**Where in code:** `__init__.py` lines 343–378 (swipe endpoint).
 
 ---
 
-### Pitfall 5: `requests.Session` Thread-Safety with Gevent Greenlets
+### Pitfall 3: Dual Identity Migration Orphans Existing Swipes
 
-**What goes wrong:**
-`requests.Session` uses `urllib3` connection pools that are thread-safe via locks. With gevent monkey-patching, those locks become cooperative locks (greenlet-safe). However, `requests.Session` also stores cookies and auth state that are **not** protected by any lock — they're shared mutable state. In Jelly Swipe, `JellyfinLibraryProvider._session` is a singleton shared across all greenlets. If one greenlet triggers `self._session.headers["Authorization"] = ...` while another is mid-request, the second greenlet could send the wrong auth header.
+**What goes wrong:** The current system has **two distinct identity keys** used in different contexts:
+- `uid = session.get('my_user_id')` — format `host_<hex>` or `guest_<hex>`, used as `user_id` in the `swipes` table (line 345)
+- `user_id = _provider_user_id_from_request()` — Jellyfin UUID, used as `user_id` in the `matches` table (lines 352, 354, 364)
 
-**Why it happens:**
-The current code sets `self._session.headers["Content-Type"]` in `__init__` and passes auth via per-request `headers=self._auth_headers()` (which creates a new dict each time), so per-request headers override session headers. This pattern is safe. But if the centralized HTTP helper starts setting auth on the session object itself (rather than per-request), or if cookie handling gets enabled, state leaks between greenlets.
+The match detection query (line 358) uses `uid` to find "other user's swipes", but match records are stored with `user_id` (Jellyfin ID). If the refactoring consolidates to a single identity (e.g., always use Jellyfin user_id for swipes), existing `swipes` rows with `host_*`/`guest_*` values become unreachable. Conversely, if the refactoring changes the `matches.user_id` column semantics, existing match history breaks.
 
-**How to avoid:**
-- **Keep the current pattern**: pass auth via per-request `headers=` kwarg, not via session-level headers.
-- The centralized HTTP helper should accept auth as a parameter and pass it per-request.
-- Do NOT enable `session.cookies` or `session.auth` — keep the session as a connection pool only.
-- If adding TMDB Bearer auth, pass it as `headers={"Authorization": f"Bearer {token}"}` per-request, not on the session.
-- Document this constraint clearly: "Session is shared across greenlets; never mutate session state."
+**Why it happens:** The dual-ID system evolved incrementally. Swipes use session-derived anonymous IDs; matches use provider-verified IDs. There's no foreign key or migration path between them.
 
-**Warning signs:**
-- `session.headers["Authorization"] = ...` or `session.auth = ...` in the helper
-- `session.cookies` being read from in one request with values set by another
-- Intermittent 401 errors under concurrent load (auth state corruption)
+**Consequences:**
+- Active rooms during migration: swipes recorded under old IDs, matches looked up under new IDs → matches silently stop working mid-session.
+- Historical matches: `/matches?view=history` queries by Jellyfin `user_id` but rows contain different identity formats → empty history after migration.
 
-**Phase to address:**
-Centralized HTTP helper phase — design the helper API to enforce per-request auth from the start.
+**Prevention:**
+- Write a one-time migration that backfills `swipes.user_id` with the Jellyfin user_id where possible (requires mapping `host_`/`guest_` IDs back to Jellyfin IDs — which may not exist).
+- Alternatively: keep both identity columns and add a migration that copies the session-ID to a new column while adding the Jellyfin ID alongside.
+- **Safest approach:** Add a `jellyfin_user_id` column to both tables; populate it going forward; keep the old `user_id` column for backward compatibility during a transition period.
 
----
+**Detection:** After migration, match history appears empty for existing users. New matches work but old ones are invisible.
 
-## Technical Debt Patterns
-
-Shortcuts that seem reasonable when adding HTTP hardening but create long-term problems.
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| In-memory rate limiter (no Redis) | No new dependency, simpler code | Per-worker limits with multi-worker gunicorn; state lost on restart | Acceptable now — default is 1 worker; document limitation |
-| Boot-only SSRF validation | Simple, one-time check | DNS rebinding not caught; doesn't protect if URL changes mid-run | Acceptable — `JELLYFIN_URL` is operator-controlled, not user input |
-| `jsonify({'error': 'Internal error'})` for all 5xx | Quick redaction, no per-route changes | Frontend may parse error messages; loss of debuggability | Never for 5xx — must include request_id; redact only upstream text |
-| Centralized helper wraps only TMDB calls | Smaller diff, less risk of regression | Jellyfin calls don't get consistent logging/User-Agent | Not acceptable — all outbound calls should go through the helper |
-| `except Exception as e: return jsonify({'error': str(e)}), 500` | Keeps existing pattern working | Leaks upstream errors, no request ID, no structured logging | Acceptable temporarily during migration; must be replaced in error-redaction phase |
+**Where in code:** `__init__.py` lines 313–378 (swipe + match logic); `db.py` schema (lines 22–28).
 
 ---
 
-## Integration Gotchas
+### Pitfall 4: EventSource Cannot Send Authorization Headers
 
-Common mistakes when integrating HTTP hardening features with Flask + gevent.
+**What goes wrong:** The browser `EventSource` API (used on line 997: `new EventSource('/room/stream')`) does **not** support custom headers. It only sends cookies. If the refactoring changes the SSE endpoint to require `Authorization` header verification (instead of relying on the session cookie), the SSE connection will fail with 401 on every request.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| **Flask `@app.errorhandler`** | Register handler for all exceptions, breaking the SSE `/room/stream` generator that catches `GeneratorExit` | Only handle `Exception` (not `BaseException`); let `GeneratorExit` propagate naturally |
-| **Flask `after_request`** | Add request-ID header in `after_request` but it doesn't fire on unhandled exceptions | Generate request ID at the start of request processing (via `before_request` or middleware), store in `g.request_id`, read in error handler |
-| **`requests.Session` + gevent** | Create a new `requests.Session()` per request — defeats connection pooling, high overhead | Share a session across greenlets; pass auth per-request via `headers=` kwarg |
-| **Token-bucket + gevent** | Use `threading.Lock` for bucket synchronization — becomes a cooperative lock under gevent (works, but `gevent.lock.Semaphore` is more explicit) | `threading.Lock` works after monkey-patching; either is fine. Just ensure the lock exists. |
-| **TMDB Bearer auth** | Keep `TMDB_API_KEY` env var name but use it as Bearer token — conflates v3 API key with v4 access token | Rename to `TMDB_ACCESS_TOKEN` or `TMDB_READ_ACCESS_TOKEN`; keep backward compatibility with a clear deprecation warning |
-| **Error redaction + CSP header** | `@app.after_request` CSP header runs after error handler; ensure error JSON responses also get CSP | CSP is already set in `add_csp_header()` which runs on all responses including errors — no change needed |
-| **Rate limiter + SSE stream** | Rate-limit `/room/stream` — long-lived SSE connections would consume all tokens | Exclude `/room/stream` from rate limiting; only limit request-response endpoints |
+**Why it happens:** A natural refactoring instinct is "all authenticated endpoints should verify the token in the Authorization header." But `EventSource` doesn't support `withCredentials` in the same way as `XMLHttpRequest` — it always sends cookies for same-origin requests, but never sends custom headers.
 
----
+**Consequences:** SSE stream returns 401 or empty response. Client never receives room-ready notifications, match notifications, or genre changes. The room appears stuck in "waiting for partner" state.
 
-## Performance Traps
+**Prevention:**
+- SSE endpoint must authenticate via session cookie only, not `Authorization` header.
+- The current pattern is correct: `room_stream()` reads `session.get('active_room')` (line 469).
+- If HttpOnly session cookies are adopted, SSE will work automatically since `EventSource` sends cookies same-origin.
+- Do **not** add `_provider_user_id_from_request()` to the SSE endpoint — it reads `Authorization` headers which `EventSource` cannot send.
 
-Patterns that work at small scale but fail as usage grows.
+**Detection:** Browser console shows `EventSource` error events. Network tab shows 401 on `/room/stream`. Room never transitions from "waiting" to active.
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| **Token bucket no cleanup** | In-memory dict grows unbounded as new IP/key entries are added and never evicted | Add TTL-based cleanup: evict buckets older than the refill window on each check, or use a periodic cleanup greenlet | At 10K+ unique IPs (unlikely for LAN app, but possible if exposed publicly) |
-| **SSRF regex on every request** | Resolving and validating `JELLYFIN_URL` IP on every outbound call adds DNS latency | Cache resolved IP at boot; only re-resolve on failure | At 100+ concurrent requests to Jellyfin (unlikely for 2-4 user sessions) |
-| **Rate limiter lock contention** | `threading.Lock` (cooperative under gevent) serializes all rate-limit checks | For this scale (LAN movie swiping, ~4 users), a single lock is fine. Only optimize if >100 req/sec sustained | At >100 req/sec per worker |
-| **Error logging on every 5xx** | Structured JSON logging with full stack traces on every error fills disk | Log stack traces at DEBUG level; log error summary (with request_id) at WARNING level | At sustained error rates (>10/sec) |
-| **Request ID generation overhead** | UUID4 generation on every request adds ~1μs — negligible | Use `uuid.uuid4()` or `os.urandom(8).hex()` — both are fast enough | Never breaks for this scale |
+**Where in code:** `__init__.py` line 467–521 (SSE route); `index.html` line 997 (`new EventSource('/room/stream')`).
 
 ---
 
-## Security Mistakes
+### Pitfall 5: Session Cookie Last-Write-Wins Under gevent Concurrency
 
-Domain-specific security issues for HTTP hardening on Flask + gevent.
+**What goes wrong:** Flask's default `SecureCookieSessionInterface` stores the entire session as a single signed cookie. Flask docs warn: **"Multiple requests with the same session may be sent and handled concurrently. There is no guarantee on the order in which the session for each request is opened or saved."**
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| **TMDB API key in URL query strings** (current state) | Key appears in access logs, browser history, referrer headers, and proxy logs | Move to `Authorization: Bearer <token>` header; TMDB supports this for both v3 and v4 APIs (confirmed: developer.themoviedb.org docs) |
-| **Stray `requests.get()` without timeout** (current: `__init__.py` lines 187, 191, 206, 210) | A single hung TMDB call blocks the gevent greenlet indefinitely, consuming a worker slot forever | Enforce timeouts in the centralized helper; make `timeout` a required parameter |
-| **`str(e)` in 500 responses** (current state) | Leaks internal Jellyfin server URLs, API paths, error details to clients | Replace with generic message + request_id; log the full error server-side |
-| **SSRF via `JELLYFIN_URL` pointing to cloud metadata** | If `JELLYFIN_URL` is set to `http://169.254.169.254/`, the server fetches AWS/GCP metadata | Boot-time IP validation rejecting `169.254.0.0/16`, `[fd00:ec2::]/32` |
-| **Rate limiter bypass via header spoofing** | `X-Forwarded-For` header spoofing bypasses IP-based rate limiting behind reverse proxy | Use `ProxyFix` (already in place: `__init__.py` line 46) — it trusts only one proxy layer. Document that rate limiter uses `request.remote_addr` after ProxyFix processing |
-| **No User-Agent on outbound requests** | TMDB or Jellyfin may rate-limit or block requests with default `python-requests/X.X.X` User-Agent | Set a custom User-Agent in the centralized helper: `JellySwipe/1.6 (github.com/andrewthetechie/jelly-swipe)` |
+Under gevent, each SSE connection holds a greenlet open for up to 3600 seconds. During that time, the same browser may make concurrent requests that modify the session (e.g., `/room/swipe` while the SSE generator is running). The last response to save the session cookie wins — the other's changes are silently lost.
 
----
+**Why it happens:** gevent's cooperative scheduling means requests interleave at I/O boundaries. Two requests from the same browser share the same session cookie. Flask signs the entire session dict into one cookie — there's no per-key merging.
 
-## UX Pitfalls
+**Consequences:** `session['active_room']` or `session['my_user_id']` gets overwritten with stale data. User appears to leave the room randomly, or their identity flips to an empty value.
 
-Common user-experience mistakes when adding HTTP hardening.
+**Prevention:**
+- Minimize session writes. Set identity and room data once (on create/join) and never modify them during the SSE lifecycle.
+- If session writes during SSE are unavoidable, consider server-side sessions (Flask-Session with SQLAlchemy or filesystem backend) which support per-key updates.
+- Read session data before returning the response, not in background tasks.
+- The current code is mostly safe because session writes happen on create/join only, but the refactoring may introduce new session writes (e.g., storing the Jellyfin token in session).
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| **Generic "Internal error" for all failures** | Users can't tell if it's a temporary network issue or a permanent problem | Distinguish: "Service temporarily unavailable" (5xx) vs "Not found" (404) vs "Too many requests, try again in a moment" (429) |
-| **Rate limit response has no retry guidance** | Users spam retry, making the problem worse | Return `429` with `Retry-After` header and a user-friendly JSON message |
-| **Silent timeout with no feedback** | TMDB trailer or cast fetch hangs, UI shows loading spinner forever | Frontend should have its own client-side timeout; server should return `504 Gateway Timeout` with a message, not hang |
-| **Breaking change in error response shape** | Frontend JavaScript expects `{'error': 'specific message'}` but gets `{'error': 'Internal error', 'request_id': 'abc'}` | Keep `error` field for user messages; add `request_id` as an additional field. Don't change the existing field semantics |
+**Detection:** User is in a room, swiping works, then suddenly their session reverts to the pre-join state. Intermittent, only under concurrent request patterns.
+
+**Where in code:** Any route that writes to `session` — `create_room` (line 282), `join_room` (line 304), `go_solo` (line 294), `jellyfin_use_server_identity` (line 257).
 
 ---
 
-## "Looks Done But Isn't" Checklist
+## Moderate Pitfalls
 
-Things that appear complete but are missing critical pieces.
+### Pitfall 6: HttpOnly Cookie Migration — No Backward Bridge
 
-- [ ] **All HTTP calls have timeouts:** Verify by grepping for `requests.` — must find ZERO bare calls without `timeout=`. Check both `__init__.py` AND `jellyfin_library.py`
-- [ ] **TMDB key removed from URLs:** Verify by grepping for `api_key=` in the codebase. Also check that no `api_key` appears in any constructed URL string
-- [ ] **Error redaction covers ALL routes:** Verify that every `except Exception as e: return jsonify({'error': str(e)}), 500` has been converted to the redacted form. The `server_info` route (line 434) and `add_to_watchlist` (line 240) are easy to miss
-- [ ] **Rate limiter applies to all 4 target routes:** Verify `/proxy`, `/get-trailer`, `/cast`, `/watchlist/add` all return 429 when over limit. `/room/stream` must NOT be rate-limited
-- [ ] **SSRF validation rejects metadata IPs:** Test with `JELLYFIN_URL=http://169.254.169.254` — must fail at boot. Test with `http://192.168.1.100` — must pass. Test with `http://localhost:8096` — must pass
-- [ ] **Bearer token auth works with TMDB v3 API:** TMDB docs confirm Bearer token works for v3 endpoints (search/movie, movie/videos, movie/credits). Verify with a live test or confirmed mock
-- [ ] **Existing tests still pass:** The 48 existing tests mock `requests.Session` — verify they still work after introducing the centralized helper
+**What goes wrong:** Current flow: `/auth/jellyfin-login` returns `{"authToken": "...", "userId": "..."}` as JSON (line 270). Client stores in `localStorage` and sends as `Authorization` header on every request. If the refactoring changes this to set an HttpOnly session cookie instead, existing deployed clients will:
+1. Still have tokens in `localStorage` from their last session
+2. Still send `Authorization` headers
+3. But the server now expects the session cookie, not the header
+4. If the server stops reading `Authorization` headers, every existing user's session breaks immediately
 
----
+**Prevention:**
+- Build a **dual-read migration period**: server checks both session cookie and `Authorization` header during transition.
+- Add a `/auth/migrate-session` endpoint that the client calls once to move the `localStorage` token into the session cookie.
+- Client-side: on `window.onload`, if `localStorage` has tokens but session doesn't, call the migration endpoint.
+- After migration, clear `localStorage` tokens and use only session cookie.
 
-## Recovery Strategies
-
-When pitfalls occur despite prevention, how to recover.
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| **Stray `requests.get()` without timeout found in production** | LOW | 1. Add the missing call to the centralized helper<br>2. Add a grep check in CI to prevent regressions: `rg 'requests\.(get|post|put|delete|patch)\s*\(' jellyswipe/ --glob '!*http_helper*'` |
-| **Rate limiter ineffective with multi-worker deployment** | LOW | 1. Add Redis-backed storage to Flask-Limiter or custom limiter<br>2. Or enforce `--workers 1` in the Dockerfile and document the limitation<br>3. Add startup warning when workers > 1 |
-| **Error redaction broke frontend error handling** | MEDIUM | 1. Audit frontend for `error` field usage<br>2. Restore specific 4xx error messages that the frontend depends on<br>3. Only redact 5xx responses; keep 4xx messages user-friendly |
-| **Session auth state leak between greenlets** | MEDIUM | 1. Find where session headers/auth are being mutated<br>2. Move to per-request `headers=` parameter<br>3. Add a test that verifies concurrent requests get correct auth |
-| **DNS rebinding bypasses SSRF validation** | LOW (unlikely threat model) | 1. Add per-request IP validation (resolve hostname, check IP before each request)<br>2. Or pin the resolved IP at boot and use IP instead of hostname for all subsequent requests |
+**Where in code:** `__init__.py` lines 96–111 (`_jellyfin_user_token_from_request`); `index.html` lines 326–349 (client auth functions).
 
 ---
 
-## Pitfall-to-Phase Mapping
+### Pitfall 7: SameSite Cookie + Reverse Proxy HTTPS Termination
 
-How roadmap phases should address these pitfalls.
+**What goes wrong:** Docker deployments typically use a reverse proxy (Traefik, nginx, Caddy) that terminates TLS and forwards HTTP to the Flask container. If `SESSION_COOKIE_SECURE=True` is set (recommended for HttpOnly cookies), the browser will only send the cookie over HTTPS. But Flask sees the request as HTTP (no `X-Forwarded-Proto` or incorrect `ProxyFix` config), so it won't set the `Secure` flag — or worse, it sets the flag but the cookie isn't sent on the next request because the browser sees the proxy as HTTP.
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| **Stray `requests.get()` calls** | Centralized HTTP helper — start with comprehensive audit | `rg 'requests\.(get|post)\s*\(' jellyswipe/` returns zero results (outside helper) |
-| **No timeouts on TMDB calls** | Centralized HTTP helper — make `timeout` a required parameter | Every `http_helper.*()` call has `timeout=`; test that missing timeout raises ValueError |
-| **Error redaction breaks frontend** | Error redaction phase — audit frontend first, redact only 5xx | Frontend still shows specific error messages for 4xx; 5xx shows generic message + request_id |
-| **Rate limiter per-worker isolation** | Rate limiter phase — document limitation, add startup warning | Startup log shows warning when `--workers > 1`; README documents in-memory limitation |
-| **SSRF DNS rebinding** | Boot validation phase — implement boot check + document DNS risk | Boot rejects `169.254.x.x` IPs; README documents operator guidance for using IPs not hostnames |
-| **Session state leak between greenlets** | Centralized HTTP helper phase — enforce per-request auth pattern | Code review confirms no `session.headers[...] = ...` or `session.auth = ...` mutations |
-| **Missing rate limit on target routes** | Rate limiter phase — test all 4 routes | Integration test hits each route rapidly and verifies 429 response |
-| **TMDB Bearer auth migration** | TMDB auth phase — rename env var, update all 4 call sites | `rg 'api_key=' jellyswipe/` returns zero; `TMDB_API_KEY` renamed with backward compat |
+**Prevention:**
+- Verify `ProxyFix` is configured (already present on line 46: `ProxyFix(app.wsgi_app, x_for=1, x_proto=1, ...)`) and that `x_proto=1` is included.
+- Test cookie flags in the actual deployment: `curl -v https://your-app/` and check `Set-Cookie` headers.
+- If `SESSION_COOKIE_SECURE=True` and users access via IP (not HTTPS), the cookie is never sent — provide clear deployment docs.
+
+**Where in code:** `__init__.py` line 46 (ProxyFix); line 47 (secret_key — session signing).
+
+---
+
+### Pitfall 8: Deck State Divergence Between Server and Client
+
+**What goes wrong:** Currently the server shuffles the deck in `fetch_deck()` (jellyfin_library.py line 326: `random.shuffle(movie_list)`) and stores it as a JSON blob in `rooms.movie_data`. The client receives the full deck from `/movies` and manages a local `movieStack` array. The client modifies this array on swipe (line 950: `movieStack.shift()`) and undo (line 715: `movieStack.unshift(lastMovie)`).
+
+If the refactoring makes the server the single source of truth for "which card is current," the client's local array will diverge from the server's state whenever:
+1. The user swipes faster than the server responds (optimistic animation already consumed the card)
+2. An undo request fails but the client already put the card back
+3. Genre change arrives via SSE while the user is mid-swipe
+
+**Prevention:**
+- Keep the deck as a server-ordered list that the client renders without re-ordering.
+- Track "swiped up to index N" on the server, not the specific card order.
+- Undo should be a server-first operation: client sends undo, server responds with the card to restore, client adds it back.
+- Or: accept that deck state is eventually-consistent and design for idempotent operations.
+
+**Where in code:** `jellyfin_library.py` lines 272–327 (`fetch_deck`); `index.html` lines 924–951 (swipe handler), 707–717 (undo handler).
+
+---
+
+### Pitfall 9: CSP Blocks Inline Event Handlers After Template Refactor
+
+**What goes wrong:** The CSP header (lines 52–59) sets `script-src 'self'` which blocks inline event handlers. The HTML template currently has several inline `onclick` attributes:
+- Line 206: `<button ... onclick="confirmQuit()">`
+- Line 267: `<div ... onclick="selectGenre('All')">`
+- Line 268: `<div ... onclick="selectGenre('Recently Added')">`
+- Line 281: `<button ... onclick="...classList.add('hidden')">`
+- Line 629: `plexLink` with inline URL construction
+
+If the template is refactored or CSP is tightened (e.g., adding nonce support), these inline handlers will silently break — buttons become non-functional with no console error in some browsers.
+
+**Prevention:**
+- Migrate all inline handlers to `addEventListener` calls in the `<script>` block during the refactor.
+- Or add `'unsafe-inline'` to `script-src` (not recommended for security).
+- Or implement CSP nonce support: `script-src 'nonce-{{ csp_nonce }}'`.
+
+**Where in code:** `__init__.py` lines 49–60 (CSP middleware); `index.html` lines 206, 267, 281, etc.
+
+---
+
+### Pitfall 10: SSE Reconnection Drops Match State
+
+**What goes wrong:** When the SSE connection drops and `EventSource` auto-reconnects, the server starts a fresh `generate()` loop with `last_match_ts = None`. This means:
+1. If a match happened while the client was disconnected, the server will re-send the `last_match` event
+2. The client's `lastSeenMatchTs` JS variable persists across reconnects (it's a global, not reset)
+3. If the reconnected SSE sends a match with `ts > lastSeenMatchTs`, the match overlay re-appears — even if the user already dismissed it
+
+Conversely, if `lastSeenMatchTs` is somehow *ahead* of the server's `last_match.ts` (e.g., clock skew, page was open during a previous session), matches are silently dropped.
+
+**Prevention:**
+- On SSE reconnect, reset `lastSeenMatchTs` to the current time to avoid replaying old matches.
+- Or: the server should track per-user "last seen match" and only send new ones.
+- The current pattern of using `last_match_data` on the room row (shared between all users) is inherently imprecise for per-user match tracking.
+
+**Where in code:** `__init__.py` lines 473–518 (SSE generator); `index.html` lines 995–1027 (SSE client).
+
+---
+
+## Minor Pitfalls
+
+### Pitfall 11: Server Token Cache Becomes Stale on Password Change
+
+**What goes wrong:** `_token_user_id_cache` (line 70) caches Jellyfin token→user_id mappings for 300 seconds. If a Jellyfin admin revokes or rotates a user's token (password change, session invalidate), the cache still maps the old token to a user_id. Swipes and matches could be attributed to the wrong identity.
+
+**Prevention:** Reduce TTL or add a cache invalidation endpoint. The 300-second TTL is documented as a deliberate tradeoff (line 155 comment). For v2.0, document this risk and accept it — it's self-healing after TTL expiry.
+
+---
+
+### Pitfall 12: `session.pop()` Doesn't Cascade to SSE
+
+**What goes wrong:** `/room/quit` (line 403) calls `session.pop('active_room')`. If the SSE stream is running, it still has the old `code` in its closure. The generator will continue polling for the now-deleted room, eventually emitting `{closed: true}` when the room row is gone (line 490). This is actually correct behavior, but only because the delete happens before the session pop. If the order were reversed, there'd be a window where a new room could get the same pairing code.
+
+**Prevention:** Keep the current order: delete room rows first, then clear session. Don't refactor the order.
+
+---
+
+### Pitfall 13: Provider Singleton Not Thread/Greenlet-Safe
+
+**What goes wrong:** `_provider_singleton` (line 68) is a module-level global. Under gevent, multiple greenlets call `get_provider()` concurrently. The `JellyfinLibraryProvider` uses `requests.Session()` (jellyfin_library.py line 44) which is documented as not thread-safe for concurrent requests. Under high concurrency, response data from one greenlet's request could leak into another's.
+
+**Prevention:** Use `gevent.lock.Semaphore` around provider calls, or create per-request provider instances, or use `requests.Session` per-greenlet via thread-local storage (which gevent monkey-patches to be greenlet-local).
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation | Phase to Address |
+|-------------|---------------|------------|-----------------|
+| Server-side identity (session → Jellyfin user_id) | Dual-ID migration orphans swipes (#3) | Add `jellyfin_user_id` column; dual-write period | First phase — identity foundation |
+| HttpOnly session cookies | EventSource can't send headers (#4) | SSE authenticates via cookie only | Same phase as identity |
+| HttpOnly session cookies | Existing clients break without migration bridge (#6) | Dual-read period + `/auth/migrate-session` | First phase — must ship before old auth removed |
+| Server-owned deck | Client/server state divergence (#8) | Server tracks position; client renders server order | Deck phase |
+| Server-owned match notification | TOCTOU race in SQLite (#2) | `BEGIN IMMEDIATE` transaction | Match logic phase |
+| SSE restructuring | Generator session context loss (#1) | Keep generator context-free; pass data as args | SSE phase (late, after other changes stabilize) |
+| SSE restructuring | Reconnection replay (#10) | Reset `lastSeenMatchTs` on reconnect | SSE phase |
+| Session cookie security | ProxyFix + Secure flag (#7) | Verify in Docker deployment test | Final phase — deployment validation |
+| Session writes under gevent | Last-write-wins cookie loss (#5) | Minimize session writes; consider server-side sessions | Identity phase (design) + SSE phase (validation) |
+| CSP + template refactor | Inline handlers break (#9) | Migrate to addEventListener | Template phase |
+
+---
+
+## gevent-Specific Session Concerns
+
+### Greenlet-Local vs Thread-Local
+
+With `monkey.patch_all()`, Python's `threading.local()` becomes greenlet-local. Flask's request context uses Werkzeug's `LocalStack`, which is also greenlet-aware under gevent. This means:
+
+1. **Session access is safe per-greenlet** — each SSE connection gets its own request context.
+2. **Module-level state is shared** — `_token_user_id_cache`, `_provider_singleton` are shared across all greenlets. No synchronization exists.
+3. **SQLite connections are safe** — `get_db()` creates a new connection per call, not shared.
+
+### Session Cookie Size Under gevent
+
+Flask's default signed-cookie sessions have a practical size limit (~4KB). If the refactoring stores more data in the session (Jellyfin token, user_id, room code, solo mode, etc.), the cookie could exceed browser limits. Monitor session size during development.
+
+---
+
+## Migration Risk Matrix
+
+| Data Being Migrated | Risk Level | Rollback Complexity | Data Loss Risk |
+|---------------------|------------|-------------------|----------------|
+| `localStorage` → session cookie (auth token) | **High** | Medium — need to keep dual-read | No data loss, but sessions break without migration bridge |
+| `host_`/`guest_` IDs → Jellyfin user_id in swipes | **High** | Hard — requires re-mapping old swipes | Existing match history becomes unreachable |
+| Client deck order → server deck order | **Medium** | Easy — revert to client shuffle | No persistent data affected (deck is ephemeral) |
+| Client match detection → server match detection | **Low** | Easy — match logic is server-side already | Only concurrent swipe race (#2) |
+| Client deep link construction → server deep links | **Low** | Easy — template change only | No data affected |
 
 ---
 
 ## Sources
 
-- **requests documentation** (Context7): Timeout patterns, Session objects, connection pooling — HIGH confidence
-- **gevent documentation** (Context7): Monkey patching behavior, DNS patching, greenlet-local storage — HIGH confidence
-- **Flask documentation** (Context7): `errorhandler`, `after_request`, `before_request` patterns — HIGH confidence
-- **Flask-Limiter documentation** (Context7): In-memory storage backend, gevent compatibility, storage strategies — HIGH confidence
-- **gunicorn documentation** (Context7): gevent worker class, monkey patching performed in worker process — HIGH confidence
-- **TMDB API documentation** (developer.themoviedb.org): Bearer token auth works for v3 API, rate limits (~40 req/sec) — HIGH confidence
-- **Codebase analysis**: Direct analysis of `jellyswipe/__init__.py` (563 lines), `jellyswipe/jellyfin_library.py` (482 lines), `Dockerfile`, `pyproject.toml`, `tests/conftest.py` — HIGH confidence
-
----
-*Pitfalls research for: Flask + gevent outbound HTTP hardening (Jelly Swipe v1.6)*
-*Researched: 2026-04-26*
+- Flask session concurrency warning: [Flask API docs — `SessionInterface`](https://flask.palletsprojects.com/api/#flask.sessions.SessionInterface) — "Multiple requests with the same session may be sent and handled concurrently."
+- Flask streaming session caveat: [Flask API docs — `stream_with_context`](https://flask.palletsprojects.com/api/#flask.stream_with_context) — "Do not modify the session in the generator."
+- Flask cookie security: [Flask web security docs](https://flask.palletsprojects.com/security/) — `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE`.
+- gevent greenlet isolation: [gevent docs — monkey patching](https://gevent.readthedocs.io/en/stable/monkey.html) — thread-local storage becomes greenlet-local.
+- Codebase: `jellyswipe/__init__.py`, `jellyswipe/templates/index.html`, `jellyswipe/db.py`, `jellyswipe/jellyfin_library.py` (direct analysis).
+- Existing concerns: `.planning/codebase/CONCERNS.md` — SSE polling loop, CSRF, session safety.
+- Confidence: **HIGH** — all pitfalls derived from codebase analysis verified against official Flask/gevent documentation.

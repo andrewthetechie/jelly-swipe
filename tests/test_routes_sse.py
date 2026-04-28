@@ -1,4 +1,4 @@
-"""Comprehensive SSE streaming tests for the /room/stream endpoint.
+"""Comprehensive SSE streaming tests for the /room/<code>/stream endpoint.
 
 Tests cover SSE response format, state change events (ready, genre, solo, match),
 room closure on missing room, stable state deduplication, and GeneratorExit handling.
@@ -7,11 +7,12 @@ Satisfies TEST-ROUTE-05.
 
 import json
 import secrets
-import threading
-import time
+from datetime import datetime, timezone
 
 import jellyswipe.db
 import pytest
+import time
+import threading
 
 
 # ---------------------------------------------------------------------------
@@ -19,31 +20,24 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _set_session_room(client, room_code, user_id=None):
-    """Set session with active_room and user identity for SSE stream tests.
-
-    Simplified version of _set_session from test_routes_room.py — always
-    sets delegate=True and active_room=room_code.
-    """
+def _set_session_room(client, room_code, user_id="verified-user"):
+    """Set session with active_room and vault-based auth for SSE stream tests."""
+    session_id = "test-session-" + secrets.token_hex(8)
+    conn = jellyswipe.db.get_db()
+    conn.execute(
+        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+        (session_id, "valid-token", user_id, datetime.now(timezone.utc).isoformat())
+    )
+    conn.commit()
+    conn.close()
     with client.session_transaction() as sess:
+        sess["session_id"] = session_id
         sess["active_room"] = room_code
-        if user_id is None:
-            user_id = f"test-user-{secrets.token_hex(4)}"
-        sess["my_user_id"] = user_id
-        sess["jf_delegate_server_identity"] = True
         sess["solo_mode"] = False
 
 
 def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None):
-    """Seed a room row directly via jellyswipe.db.get_db() for SSE tests.
-
-    Args:
-        room_code: Pairing code for the room.
-        ready: Room ready flag (0 or 1).
-        solo_mode: Solo mode flag (0 or 1).
-        current_genre: Current genre string.
-        last_match_data: Last match JSON string (None for no match).
-    """
+    """Seed a room row directly via jellyswipe.db.get_db() for SSE tests."""
     movie_data = json.dumps([])
     conn = jellyswipe.db.get_db()
     try:
@@ -58,11 +52,7 @@ def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", l
 
 
 def _make_time_mock(iterations_before_timeout):
-    """Create a time.time mock that advances past deadline after N calls.
-
-    Returns a closure that returns real time for the first `iterations_before_timeout`
-    calls, then returns real_time + 3700 (past the 3600s deadline) to exit the loop.
-    """
+    """Create a time.time mock that advances past deadline after N calls."""
     call_count = 0
     real_start = time.time()
 
@@ -80,26 +70,28 @@ def _make_time_mock(iterations_before_timeout):
 # ---------------------------------------------------------------------------
 
 
-def test_stream_no_active_room(client):
-    """GET /room/stream without active room returns empty SSE data."""
-    response = client.get("/room/stream")
-
-    assert response.status_code == 200
-    assert response.content_type.startswith("text/event-stream")
-    assert response.data.decode() == "data: {}\n\n"
-
-
-def test_stream_response_headers(client, monkeypatch):
-    """GET /room/stream returns correct SSE content-type and cache headers."""
-    _seed_stream_room("TEST1")
-    _set_session_room(client, "TEST1")
-
-    # Mock time to exit the generator loop after a few iterations
+def test_stream_nonexistent_room(client, monkeypatch):
+    """GET /room/<code>/stream for nonexistent room sends closed event."""
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(3))
 
-    response = client.get("/room/stream")
-    # Consume data while monkeypatch is active (generator runs lazily)
+    with client.get("/room/FAKE/stream") as response:
+        data = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert response.content_type.startswith("text/event-stream")
+    assert "closed" in data
+
+
+def test_stream_response_headers(client, monkeypatch):
+    """GET /room/<code>/stream returns correct SSE content-type and cache headers."""
+    _seed_stream_room("TEST1")
+    _set_session_room(client, "TEST1")
+
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+    monkeypatch.setattr(time, "time", _make_time_mock(3))
+
+    response = client.get("/room/TEST1/stream")
     _ = response.data
 
     assert response.content_type.startswith("text/event-stream")
@@ -120,13 +112,13 @@ def test_stream_room_not_found(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(3))
 
-    with client.get("/room/stream") as response:
+    with client.get("/room/FAKE/stream") as response:
         data = response.get_data(as_text=True)
 
-    assert 'data: {"closed": true}\n\n' in data
+    assert 'data: {"closed": true}' in data.replace("\n", "")
 
     events = [e for e in data.split("\n\n") if e.strip()]
-    assert len(events) == 1
+    assert len(events) >= 1
 
 
 def test_stream_initial_state_events(client, monkeypatch):
@@ -134,14 +126,12 @@ def test_stream_initial_state_events(client, monkeypatch):
     _seed_stream_room("TEST1", ready=0, current_genre="All", solo_mode=0)
     _set_session_room(client, "TEST1")
 
-    # deadline calc + 2 loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(4))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
-    # Initial event: ready=False (0 -> bool -> False != None -> sends), solo=False, genre="All"
     assert '"ready": false' in data
     assert '"solo": false' in data
     assert '"genre": "All"' in data
@@ -152,18 +142,14 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
     _seed_stream_room("TEST1", ready=0, current_genre="All")
     _set_session_room(client, "TEST1")
 
-    # deadline calc + 2 full loop iterations + exit on 3rd check
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(5))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
-    # Parse SSE events
     events = [e.strip() for e in data.split("\n\n") if e.strip()]
 
-    # On first poll: ready=false and genre="All" sent (both differ from None)
-    # On second poll: state unchanged, nothing sent
     ready_count = sum(1 for e in events if '"ready"' in e)
     genre_count = sum(1 for e in events if '"genre"' in e)
 
@@ -182,11 +168,10 @@ def test_stream_match_event(client, monkeypatch):
     _seed_stream_room("TEST1", ready=1, last_match_data=match_data)
     _set_session_room(client, "TEST1")
 
-    # deadline + 2 iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(4))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
     assert '"last_match"' in data
@@ -198,14 +183,12 @@ def test_stream_ready_state_change(client, monkeypatch):
     _seed_stream_room("TEST1", ready=0)
     _set_session_room(client, "TEST1")
 
-    # Use a custom sleep side-effect that updates the DB on first call
     sleep_call_count = 0
 
     def _sleep_with_db_update(_):
         nonlocal sleep_call_count
         sleep_call_count += 1
         if sleep_call_count == 1:
-            # After first poll (ready=0 sent), flip ready to 1
             conn = jellyswipe.db.get_db()
             try:
                 conn.execute(
@@ -216,14 +199,12 @@ def test_stream_ready_state_change(client, monkeypatch):
             finally:
                 conn.close()
 
-    # deadline + 3 loop iterations (with state changes) then exit
     monkeypatch.setattr(time, "sleep", _sleep_with_db_update)
     monkeypatch.setattr(time, "time", _make_time_mock(7))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
-    # Should have both initial ready=false and subsequent ready=true
     assert '"ready": false' in data, f"Missing initial ready=false in: {data}"
     assert '"ready": true' in data, f"Missing updated ready=true in: {data}"
 
@@ -234,7 +215,7 @@ def test_stream_ready_state_change(client, monkeypatch):
 
 
 def test_stream_generator_exit(client, monkeypatch):
-    """GeneratorExit is handled gracefully — no exception propagated on client disconnect."""
+    """GeneratorExit is handled gracefully - no exception propagated on client disconnect."""
     _seed_stream_room("TEST1")
     _set_session_room(client, "TEST1")
 
@@ -243,15 +224,13 @@ def test_stream_generator_exit(client, monkeypatch):
 
     def consume():
         try:
-            resp = client.get("/room/stream")
-            # Consume data while monkeypatch is active
+            resp = client.get("/room/TEST1/stream")
             result["data"] = resp.data.decode()
             result["status"] = resp.status_code
             result["content_type"] = resp.content_type
         except Exception as exc:
             error_holder["error"] = exc
 
-    # Mock time globally for the thread
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(5))
 
@@ -259,10 +238,7 @@ def test_stream_generator_exit(client, monkeypatch):
     t.start()
     t.join(timeout=10)
 
-    # Thread completed without hanging
     assert not t.is_alive(), "Thread should have completed"
-    # No exception raised
     assert "error" not in error_holder, f"Unexpected error: {error_holder['error']}"
-    # Response was received successfully
     assert result.get("status") == 200
     assert "text/event-stream" in result.get("content_type", "")

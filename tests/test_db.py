@@ -42,6 +42,30 @@ class TestSchema:
         assert "swipes" in tables
         assert "matches" in tables
 
+    def test_all_four_tables_exist_after_init_db(self, db_connection):
+        """Test that all 4 tables exist after init_db (rooms, swipes, matches, user_tokens)."""
+        cursor = db_connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        assert "rooms" in tables
+        assert "swipes" in tables
+        assert "matches" in tables
+        assert "user_tokens" in tables
+
+    def test_user_tokens_table_exists_after_init_db(self, db_connection):
+        """Test that user_tokens table exists after init_db."""
+        cursor = db_connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        assert "user_tokens" in tables
+
+    def test_user_tokens_table_has_all_columns(self, db_connection):
+        """Test that user_tokens table has required columns."""
+        cursor = db_connection.execute("PRAGMA table_info(user_tokens)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "session_id" in columns
+        assert "jellyfin_token" in columns
+        assert "jellyfin_user_id" in columns
+        assert "created_at" in columns
+
     def test_rooms_table_has_all_columns(self, db_connection):
         """Test that rooms table has all required columns."""
         cursor = db_connection.execute("PRAGMA table_info(rooms)")
@@ -52,6 +76,8 @@ class TestSchema:
         assert "current_genre" in columns
         assert "solo_mode" in columns
         assert "last_match_data" in columns
+        assert "deck_position" in columns
+        assert "deck_order" in columns
 
     def test_swipes_table_has_all_columns(self, db_connection):
         """Test that swipes table has all required columns."""
@@ -72,6 +98,10 @@ class TestSchema:
         assert "thumb" in columns
         assert "status" in columns
         assert "user_id" in columns
+        assert "deep_link" in columns
+        assert "rating" in columns
+        assert "duration" in columns
+        assert "year" in columns
 
         # Check for UNIQUE constraint
         cursor = db_connection.execute("PRAGMA index_list(matches)")
@@ -122,6 +152,32 @@ class TestMigrations:
         cursor = db_connection.execute("PRAGMA table_info(rooms)")
         columns = [col[1] for col in cursor.fetchall()]
         assert "last_match_data" in columns
+
+    def test_migration_adds_deck_position_column_to_rooms(self, db_connection):
+        """Test that migration adds deck_position column to rooms table."""
+        cursor = db_connection.execute("PRAGMA table_info(rooms)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "deck_position" in columns
+
+    def test_migration_adds_deck_order_column_to_rooms(self, db_connection):
+        """Test that migration adds deck_order column to rooms table."""
+        cursor = db_connection.execute("PRAGMA table_info(rooms)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "deck_order" in columns
+
+    def test_migration_adds_deep_link_column_to_matches(self, db_connection):
+        """Test that migration adds deep_link column to matches table."""
+        cursor = db_connection.execute("PRAGMA table_info(matches)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "deep_link" in columns
+
+    def test_migration_adds_rating_duration_year_columns_to_matches(self, db_connection):
+        """Test that migration adds rating, duration, year columns to matches table."""
+        cursor = db_connection.execute("PRAGMA table_info(matches)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert "rating" in columns
+        assert "duration" in columns
+        assert "year" in columns
 
 
 class TestCrudOperations:
@@ -213,6 +269,21 @@ class TestCrudOperations:
                 ("TEST123", "movie456", "Another Title", "http://thumb2.jpg", "active", "user789")
             )
 
+    def test_insert_and_select_from_user_tokens_table(self, db_connection):
+        """Test that we can INSERT and SELECT from user_tokens table."""
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("test-session-123", "test-token-abc", "user-xyz", "2026-04-27T00:00:00.000000")
+        )
+        cursor = db_connection.execute("SELECT * FROM user_tokens WHERE session_id = ?", ("test-session-123",))
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["session_id"] == "test-session-123"
+        assert row["jellyfin_token"] == "test-token-abc"
+        assert row["jellyfin_user_id"] == "user-xyz"
+        assert row["created_at"] == "2026-04-27T00:00:00.000000"
+
 
 class TestCleanup:
     """Tests for database cleanup operations."""
@@ -267,3 +338,109 @@ class TestIsolation:
 
         cursor = db_connection.execute("SELECT COUNT(*) FROM matches")
         assert cursor.fetchone()[0] == 0, "Matches table should be empty"
+
+        cursor = db_connection.execute("SELECT COUNT(*) FROM user_tokens")
+        assert cursor.fetchone()[0] == 0, "User tokens table should be empty"
+
+
+class TestCleanupExpiredTokens:
+    """Tests for cleanup_expired_tokens() function."""
+
+    def test_expired_tokens_are_deleted(self, db_connection):
+        """Test that rows older than 24 hours are deleted."""
+        from datetime import datetime, timedelta, timezone
+
+        # Insert a token that's 25 hours old (expired)
+        expired_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("expired-session", "expired-token", "user-1", expired_time)
+        )
+
+        # Insert a fresh token (should be preserved)
+        fresh_time = datetime.now(timezone.utc).isoformat()
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("fresh-session", "fresh-token", "user-2", fresh_time)
+        )
+
+        # Commit inserts so cleanup_expired_tokens() can see them via its own connection
+        db_connection.commit()
+
+        # Run cleanup
+        jellyswipe.db.cleanup_expired_tokens()
+
+        # Re-open connection to see committed changes (cleanup_expired_tokens uses its own connection)
+        conn = jellyswipe.db.get_db()
+        try:
+            rows = conn.execute("SELECT session_id FROM user_tokens").fetchall()
+            session_ids = [row["session_id"] for row in rows]
+            assert "expired-session" not in session_ids
+            assert "fresh-session" in session_ids
+        finally:
+            conn.close()
+
+    def test_cleanup_on_empty_table(self, db_connection):
+        """Test that cleanup works on empty user_tokens table without error."""
+        # Should not raise any exceptions
+        jellyswipe.db.cleanup_expired_tokens()
+
+        # Verify table is still empty
+        cursor = db_connection.execute("SELECT COUNT(*) FROM user_tokens")
+        assert cursor.fetchone()[0] == 0
+
+    def test_boundary_token_at_exactly_24_hours_is_deleted(self, db_connection):
+        """Test that a token exactly at the 24-hour boundary is deleted (< comparison)."""
+        from datetime import datetime, timedelta, timezone
+
+        # Insert a token that's exactly 24 hours old
+        boundary_time = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        db_connection.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            ("boundary-session", "boundary-token", "user-3", boundary_time)
+        )
+
+        # Commit insert so cleanup_expired_tokens() can see it via its own connection
+        db_connection.commit()
+
+        # Run cleanup
+        jellyswipe.db.cleanup_expired_tokens()
+
+        # Boundary token should be deleted (strictly less than cutoff)
+        conn = jellyswipe.db.get_db()
+        try:
+            rows = conn.execute("SELECT session_id FROM user_tokens").fetchall()
+            session_ids = [row["session_id"] for row in rows]
+            assert "boundary-session" not in session_ids
+        finally:
+            conn.close()
+
+    def test_cleanup_called_during_init_db(self, db_path, monkeypatch):
+        """Test that cleanup_expired_tokens is called during init_db (D-03)."""
+        import jellyswipe.db
+        from datetime import datetime, timedelta, timezone
+
+        # Set up a fresh database
+        monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
+        jellyswipe.db.init_db()
+
+        # Insert an expired token directly
+        expired_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        with jellyswipe.db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                ("pre-existing-expired", "old-token", "old-user", expired_time)
+            )
+
+        # Call init_db again — this triggers cleanup_expired_tokens
+        jellyswipe.db.init_db()
+
+        # The expired token should be gone
+        with jellyswipe.db.get_db() as conn:
+            rows = conn.execute("SELECT session_id FROM user_tokens").fetchall()
+            session_ids = [row["session_id"] for row in rows]
+            assert "pre-existing-expired" not in session_ids

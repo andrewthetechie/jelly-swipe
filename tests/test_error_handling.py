@@ -196,7 +196,8 @@ class TestErrorResponseFormat:
         resp = client.post('/watchlist/add', json={'movie_id': 'test-id'})
         data = resp.get_json()
         assert resp.status_code == 401
-        assert 'request_id' in data
+        assert data.get('error') == 'Authentication required'
+        assert 'X-Request-Id' in resp.headers
 
 
 class TestErrorLogging:
@@ -254,20 +255,30 @@ class TestAdditionalRoutes:
     """Additional coverage for routes not covered by main test classes."""
 
     def test_400_includes_request_id(self, client):
-        with client.session_transaction() as sess:
-            sess.pop('active_room', None)
-        resp = client.post('/room/go-solo')
+        resp = client.post('/auth/jellyfin-login', json={})
         data = resp.get_json()
         assert resp.status_code == 400
-        assert 'request_id' in data
-        assert data.get('error') == 'No active room'
+        assert 'X-Request-Id' in resp.headers
 
     def test_404_join_room_includes_request_id(self, client):
-        resp = client.post('/room/join', json={'code': '0000'})
+        from datetime import datetime, timezone
+        import secrets
+        session_id = "test-session-" + secrets.token_hex(8)
+        import jellyswipe.db
+        conn = jellyswipe.db.get_db()
+        conn.execute(
+            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
+        )
+        conn.commit()
+        conn.close()
+        with client.session_transaction() as sess:
+            sess["session_id"] = session_id
+        resp = client.post('/room/0000/join')
         data = resp.get_json()
         assert resp.status_code == 404
-        assert 'request_id' in data
         assert data.get('error') == 'Invalid Code'
+        assert 'X-Request-Id' in resp.headers
 
     def test_cast_runtime_error_500_includes_request_id(self, client, monkeypatch):
         mock_prov = MagicMock()

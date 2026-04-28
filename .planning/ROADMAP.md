@@ -1,143 +1,216 @@
 # Roadmap — Jelly Swipe
 
-**Milestone:** v1.6 Plex Reference Cleanup
+**Milestone:** v2.0 Architecture Tier Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 23 - Backend Source Cleanup (Not started)
-**Last Updated:** 2026-04-26
+**Current Phase:** 25 - RESTful Routes + Deck Ownership
+**Last Updated:** 2026-04-27
+
+---
+
+## Milestones
+
+- ✅ **v1.0 MVP** - Phases 1-9 (shipped 2026-04-24)
+- ✅ **v1.1 Rename** - Phases 10 (shipped 2026-04-24)
+- ✅ **v1.2 uv + Package** - Phases 11-13 (shipped 2026-04-25)
+- ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
+- ✅ **v1.4 Auth Hardening** - Phases 18 (shipped)
+- ✅ **v1.5 XSS Fix** - Phases 19-22 (shipped 2026-04-26)
+- 🚧 **v2.0 Architecture Tier Fix** - Phases 23-28 (in progress)
 
 ---
 
 ## Overview
 
-This roadmap removes all remaining Plex references from the source code so `rg -i 'plex'` returns only intentional historical references (README fork attribution). Purely a deletion milestone — no new features. Work spans four phases covering backend source files, the frontend template, configuration/deploy artifacts, and a final acceptance sweep.
+This roadmap eliminates tier responsibility violations between server and client. The server takes ownership of identity resolution, token storage, deck composition, match decision logic, and deep link generation. The client is simplified to animation and optimistic UI only. The migration is sequenced so additive schema changes come first, auth logic builds on the new schema, routes and deck ownership come next, match/notification logic follows, client cleanup is purely subtractive, and deployment validation confirms everything works end-to-end.
 
-**Phases:** 4
-**Requirements:** 16 (SRC-01–03, FE-01–08, CFG-01–04, ACC-01)
+**Status:** 🚧 **In Progress**
+**Phases:** 6 (Phases 23-28)
+**Requirements:** 14
 **Starting Phase:** 23 (continuing from v1.5 Phase 22)
 
 ---
 
 ## Phases
 
-- [ ] **Phase 23: Backend Source Cleanup** — Remove dead `/plex/server-info` route, stale `plex_id` comments from db.py, and fix base.py docstring to reference Jellyfin API path
-- [x] **Phase 24: Frontend Plex Cleanup** — Strip all Plex CSS classes, JS functions, conditional branches, localStorage keys, URLs, and UI copy from templates/index.html (completed 2026-04-26)
-- [x] **Phase 25: Config & Deploy Cleanup** — Update manifest descriptions, delete dead data/index.html, clean Unraid template, and remove/strip requirements.txt (completed 2026-04-26)
-- [x] **Phase 26: Acceptance Validation** — Run `rg -i 'plex'` and verify only intentional historical references remain (completed 2026-04-26)
+**Phase Numbering:**
+- Integer phases (23, 24, 25...): Planned milestone work
+- Decimal phases (23.1, 24.1...): Urgent insertions (marked with INSERTED)
+
+- [ ] **Phase 23: Database Schema + Token Vault** - Additive-only schema migration: user_tokens table, deck state columns, expired token cleanup
+- [x] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification (completed 2026-04-27)
+- [x] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor (completed 2026-04-27)
+- [x] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo (completed 2026-04-27)
+- [x] **Phase 27: Client Simplification + Cleanup** - Remove localStorage tokens, identity headers, client-side match detection, URL construction (completed 2026-04-27)
+- [ ] **Phase 28: Deployment Validation** - Docker volume mounts, ProxyFix verification, end-to-end flow validation
 
 ---
 
 ## Phase Details
 
-### Phase 23: Backend Source Cleanup
+### Phase 23: Database Schema + Token Vault
 
-**Goal:** All dead Plex route code and stale Plex references removed from backend Python source files.
+**Goal:** Foundation exists for server-side token storage — database has the tables and columns needed by all subsequent phases.
 
-**Depends on:** Nothing (first phase of v1.6)
+**Depends on:** Nothing (first phase of v2.0, additive-only)
 
-**Requirements:** SRC-01, SRC-02, SRC-03
+**Requirements:** AUTH-02, AUTH-03
 
 **Success Criteria** (what must be TRUE):
-1. `/plex/server-info` route no longer exists in `jellyswipe/__init__.py` — requesting it returns 404
-2. `jellyswipe/db.py` contains zero `plex_id` references in comments or code
-3. `base.py` docstring references Jellyfin API path (`jellyfin/{id}/Primary`) instead of Plex `/library/metadata/`
+  1. `user_tokens` table exists in SQLite with columns: session_id (PK), jellyfin_token, jellyfin_user_id, created_at
+  2. Existing rooms and matches tables have new columns alongside existing ones — no data loss from additive-only migration
+  3. Rows in `user_tokens` older than 24 hours are automatically cleaned up when `cleanup_expired_tokens()` is called
+  4. Existing tests continue passing after schema migration (backward compatibility preserved)
 
-**Plans:** 1/1 plans complete
+**Plans:** 2 plans
 
 Plans:
-- [x] 23-01-PLAN.md — Remove dead Plex route code and stale references from 3 backend Python files
+- [ ] 23-01-PLAN.md — Add user_tokens table and v2.0 columns to rooms/matches via init_db()
+- [ ] 23-02-PLAN.md — Implement cleanup_expired_tokens() function + wire into init_db()
 
 ---
 
-### Phase 24: Frontend Plex Cleanup
+### Phase 24: Auth Module + Server-Owned Identity
 
-**Goal:** All Plex-specific CSS, JavaScript, localStorage keys, URLs, and UI copy removed from the main template — leaving only Jellyfin code paths.
+**Goal:** Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity.
 
-**Depends on:** Phase 23 (backend clean first, then frontend)
+**Depends on:** Phase 23 (user_tokens table exists)
 
-**Requirements:** FE-01, FE-02, FE-03, FE-04, FE-05, FE-06, FE-07, FE-08
+**Requirements:** AUTH-01
 
 **Success Criteria** (what must be TRUE):
-1. No CSS classes containing "plex" exist in `jellyswipe/templates/index.html`
-2. No JavaScript functions referencing Plex (`loginWithPlex`, `fetchPlexServerId`) exist in the template
-3. No `mediaProvider === 'plex'` conditional branches remain in any frontend code
-4. No Plex-related localStorage keys (`plex_token`, `plex_id`), HTTP headers (`X-Plex-Token`, `X-Plex-User-ID`), or literal Plex URLs exist in the codebase
-5. No Plex UI copy ("Login with Plex", "OPEN IN PLEX") appears in the application interface
+  1. User authenticates via Jellyfin credentials, and the server stores the Jellyfin token in `user_tokens` keyed by session_id — client never sees the token
+  2. All authenticated endpoints resolve user_id from session cookie + token vault lookup — no client-supplied user_id or identity headers are read
+  3. Client receives an HttpOnly session cookie containing only session_id; browser DevTools show no token in localStorage or JavaScript-accessible cookies
+  4. `@login_required` decorator populates `g.user_id` and `g.jf_token` for every authenticated request; unauthenticated requests get a clear error
 
 **Plans:** 2/2 plans complete
 
 Plans:
-- [x] 24-01-PLAN.md — Add Jellyfin server-info endpoint and rename Plex CSS classes
-- [x] 24-02-PLAN.md — Remove all Plex JS functions, branches, localStorage, URLs, and UI copy
+- [x] 24-01-PLAN.md — Create auth.py with token vault CRUD and @login_required decorator
+- [x] 24-02-PLAN.md — Refactor login/delegate routes + apply @login_required to mutation endpoints
 
 ---
 
-### Phase 25: Config & Deploy Cleanup
+### Phase 25: RESTful Routes + Deck Ownership
 
-**Goal:** All deployment and configuration artifacts are free of Plex references and dead files are removed.
+**Goal:** Routes follow RESTful patterns with room code in URL path, and the server is the sole source of deck composition, order, and cursor position.
 
-**Depends on:** Phase 24 (frontend clean, then sweep remaining config files)
+**Depends on:** Phase 24 (stable server-owned identity via g.user_id)
 
-**Requirements:** CFG-01, CFG-02, CFG-03, CFG-04
+**Requirements:** API-01, DECK-01, DECK-02
 
 **Success Criteria** (what must be TRUE):
-1. Both `manifest.json` files describe "Jellyfin" only — no "Plex or Jellyfin" text
-2. `data/index.html` no longer exists on disk
-3. `unraid_template/jelly-swipe.html` contains no Plex environment variables
-4. `requirements.txt` is either deleted or contains no `plexapi` reference
+  1. Swipe endpoint accepts `POST /room/{code}/swipe` with body `{movie_id, direction}` only — no title, thumb, or metadata parameters accepted
+  2. Deck composition and shuffle order are generated server-side; client receives cards from server without re-fetching or re-shuffling
+  3. Server tracks each user's cursor position in the deck; a user who reloads the page resumes where they left off in the same deck order
+  4. Existing route patterns that depend on client-supplied identity or deck state are replaced by server-resolved equivalents
 
-**Plans:** 1/1 plans complete
+**Plans:** 2/2 plans complete
 
 Plans:
-- [x] 25-01-PLAN.md — Update manifest descriptions and delete dead config files
+- [x] 25-01-PLAN.md — Restructure all routes to RESTful URL patterns with room code in path
+- [x] 25-02-PLAN.md — Implement server-owned deck composition, cursor tracking, and pagination
 
 ---
 
-### Phase 26: Acceptance Validation
+### Phase 26: Match Notification + Deep Links + Metadata
 
-**Goal:** Verified that `rg -i 'plex'` against source returns only intentional historical references (README fork attribution), confirming the cleanup is complete.
+**Goal:** Match logic is fully server-owned with enriched match data, correct Jellyfin deep links, and new identity/solo endpoints.
 
-**Depends on:** Phase 25 (all cleanup complete before final sweep)
+**Depends on:** Phase 25 (RESTful routes and server-owned identity in place)
 
-**Requirements:** ACC-01
+**Requirements:** MTCH-01, MTCH-02, MTCH-03, API-02, API-03, API-04
 
 **Success Criteria** (what must be TRUE):
-1. `rg -i 'plex'` returns only README fork attribution references — no hits in source, templates, config, or deploy files
-2. All 16 v1.6 requirements pass individual verification
-3. Application still starts and serves correctly with Jellyfin configuration after all deletions
+  1. Swipe HTTP response returns `{accepted: true}` only; match notifications appear exclusively via SSE stream event, never in the swipe response payload
+  2. Match SSE events include rating, duration, year, and deep_link — client receives complete match data without additional API calls
+  3. Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — no Plex URL construction patterns remain
+  4. `GET /me` returns verified user id, display name, and server info from server-side session
+  5. `POST /room/solo` creates a solo swipe session without the two-player room lifecycle
+  6. Match check-and-insert is wrapped in SQLite `BEGIN IMMEDIATE` transaction — concurrent right-swipes on the same movie produce exactly one match
 
-**Plans:** 1/1 plans complete
+**Plans:** 2 plans
 
 Plans:
-- [x] 26-01-PLAN.md — Fix stale README reference and run full acceptance sweep
+- [x] 26-01-PLAN.md — SSE-only match delivery with enriched metadata, deep links, and BEGIN IMMEDIATE transaction safety
+- [x] 26-02-PLAN.md — GET /me endpoint and POST /room/solo endpoint
+
+---
+
+### Phase 27: Client Simplification + Cleanup
+
+**Goal:** Client JavaScript is stripped of all server-responsibility code — token storage, identity headers, match detection, and URL construction are removed.
+
+**Depends on:** Phase 26 (all server-side endpoints stable and producing correct responses)
+
+**Requirements:** CLNT-01, CLNT-02
+
+**Success Criteria** (what must be TRUE):
+  1. No JavaScript code reads `provider_token` or `plex_token` from localStorage — all auth flows use session cookies exclusively
+  2. Client-side match detection logic is removed; match popup renders only when an SSE event arrives, never from the swipe HTTP response
+  3. Client never constructs media URLs — all deep links come from server match responses
+  4. Client sends no identity headers (no X-User-Id, X-Provider-Token, or similar); server resolves identity from session cookie alone
+
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 27-01-PLAN.md — Dead code removal + auth rewire + route migration + logout endpoint
+- [x] 27-02-PLAN.md — Integration verification tests for CLNT-01 and CLNT-02 compliance
+
+---
+
+### Phase 28: Deployment Validation
+
+**Goal:** The refactored application works correctly in Docker deployment with proper cookie security and proxy headers.
+
+**Depends on:** Phase 27 (all code changes complete)
+
+**Requirements:** (validation phase — no new requirements; validates all 14 v2.0 requirements end-to-end)
+
+**Success Criteria** (what must be TRUE):
+  1. Docker container starts and the application serves requests correctly with gunicorn + gevent workers
+  2. Session cookies are properly configured for reverse proxy deployment — ProxyFix sets correct X-Forwarded headers and cookies respect HTTPS behind a proxy
+  3. Full end-to-end flow works in Docker: authenticate → create/join room → swipe → receive match via SSE → open Jellyfin deep link
+
+**Plans:** TBD
+
+Plans:
+- [ ] 28-01: Docker build verification and ProxyFix configuration
+- [ ] 28-02: End-to-end flow validation in Docker environment
 
 ---
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 23 → 24 → 25 → 26
+Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 23. Backend Source Cleanup | 1/1 | Complete    | 2026-04-26 |
-| 24. Frontend Plex Cleanup | 2/2 | Complete    | 2026-04-26 |
-| 25. Config & Deploy Cleanup | 1/1 | Complete    | 2026-04-26 |
-| 26. Acceptance Validation | 1/1 | Complete    | 2026-04-26 |
+| 23. Database Schema + Token Vault | 0/2 | Not started | - |
+| 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
+| 25. RESTful Routes + Deck Ownership | 2/2 | Complete    | 2026-04-27 |
+| 26. Match Notification + Deep Links + Metadata | 2/2 | Complete    | 2026-04-27 |
+| 27. Client Simplification + Cleanup | 2/2 | Complete    | 2026-04-27 |
+| 28. Deployment Validation | 0/2 | Not started | - |
+| **Total** | **10/13** | **In Progress** | - |
 
 ---
 
 ## Milestone Context
 
-**Previous Milestones:**
-- v1.0 (Jellyfin support): Phases 1–9 ✅
-- v1.1 (Rename): No numbered phases ✅
-- v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 ✅
-- v1.3 (Unit Tests): Phases 14–17 ✅
-- v1.4 (Authorization Hardening): Phases 1–18 ✅
-- v1.5 (XSS Security Fix): Phases 19–22 ✅
+**Previous Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 completed
+**Current Milestone:** v2.0 (Architecture Tier Fix) — Phases 23-28
+**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/8
+**Status:** 🚧 In Progress
 
-**Current Milestone:** v1.6 Plex Reference Cleanup — Phases 23–26
-**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/11
+**Architecture Goal:**
+Eliminate tier responsibility violations — server owns identity, deck, match logic, and deep links; client owns animation and optimistic UI only.
+
+**Research Flags (phases needing deeper investigation during planning):**
+- **Phase 24:** Delegate mode identity disambiguation — two browsers with same Jellyfin account need session_id-based disambiguator
+- **Phase 25:** Deck cursor resume-on-reconnect behavior — user reloads mid-session must resume from server-tracked position
+- **Phase 26:** `BEGIN IMMEDIATE` pattern with gevent cooperative I/O — verify compatibility with existing `get_db()` connection-per-request
 
 ---
 
