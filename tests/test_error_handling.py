@@ -144,7 +144,7 @@ class TestErrorSanitization:
                                         if seg and 'str(e)' in seg:
                                             violations.append(f"Line {parent.lineno}: {seg}")
 
-        assert len(violations) == 0 or all('Line 651' in v for v in violations), f"Found str(e) in return statements:\n" + "\n".join(violations)
+        assert len(violations) == 0, f"Found str(e) in return statements:\n" + "\n".join(violations)
 
 
 class TestErrorResponseFormat:

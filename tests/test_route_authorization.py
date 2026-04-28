@@ -788,6 +788,7 @@ class TestGetMeActiveRoom:
     def test_me_includes_active_room_code(self, db_connection, client):
         """GET /me returns activeRoom with room code when room active."""
         _set_session(client, db_connection, active_room="ROOM1", authenticated=True)
+        _seed_room(db_connection, "ROOM1")
 
         resp = client.get('/me')
         assert resp.status_code == 200

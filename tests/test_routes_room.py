@@ -425,8 +425,8 @@ def test_swipe_right_dual_match(client):
     conn = jellyswipe.db.get_db()
     try:
         conn.execute(
-            "INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)",
-            ("TEST1", "m1", "user-2", "right"),
+            "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
+            ("TEST1", "m1", "user-2", "right", "other-session-id"),
         )
         conn.commit()
     finally:
@@ -487,8 +487,8 @@ def test_swipe_right_updates_last_match_data(client):
     conn = jellyswipe.db.get_db()
     try:
         conn.execute(
-            "INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)",
-            ("TEST1", "m1", "user-2", "right"),
+            "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
+            ("TEST1", "m1", "user-2", "right", "other-session-id"),
         )
         conn.commit()
     finally:
