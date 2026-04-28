@@ -660,7 +660,8 @@ def create_app(test_config=None):
         try:
             return jsonify(get_provider().server_info())
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            log_exception(e)
+            return make_error_response('Internal server error', 500)
 
     @app.route('/room/<code>/deck')
     @login_required
