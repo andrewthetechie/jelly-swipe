@@ -167,7 +167,11 @@ def create_app(test_config=None):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     app.secret_key = os.environ["FLASK_SECRET"]
-    app.config['SESSION_COOKIE_SECURE'] = not app.config.get('TESTING', False)
+    # SESSION_COOKIE_SECURE must match the transport layer:
+    # - HTTP deployments (Docker, local dev) need Secure=False or cookies are never stored
+    # - HTTPS deployments (reverse proxy with X-Forwarded-Proto) should set Secure=True
+    # Default to False (safe for HTTP); set SESSION_COOKIE_SECURE env var to 'true' for HTTPS
+    app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
     @app.after_request
@@ -460,13 +464,21 @@ def create_app(test_config=None):
     @app.route('/me')
     @login_required
     def get_me():
+        active_room = session.get('active_room')
+        if active_room:
+            with get_db() as conn:
+                row = conn.execute('SELECT 1 FROM rooms WHERE pairing_code = ?', (active_room,)).fetchone()
+            if not row:
+                session.pop('active_room', None)
+                session.pop('solo_mode', None)
+                active_room = None
         info = get_provider().server_info()
         return jsonify({
             'userId': g.user_id,
             'displayName': g.user_id,
             'serverName': info.get('name', ''),
             'serverId': info.get('machineIdentifier', ''),
-            'activeRoom': session.get('active_room'),
+            'activeRoom': active_room,
         })
 
     @app.route("/jellyfin/server-info", methods=["GET"])
@@ -542,8 +554,8 @@ def create_app(test_config=None):
             app.logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
         with get_db() as conn:
-            conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)',
-                         (code, mid, g.user_id, data.get('direction')))
+            conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
+                         (code, mid, g.user_id, data.get('direction'), session.get('session_id')))
 
             current_pos = _get_cursor(conn, code, g.user_id)
             _set_cursor(conn, code, g.user_id, current_pos + 1)
@@ -572,8 +584,8 @@ def create_app(test_config=None):
 
                         conn.execute('BEGIN IMMEDIATE')
                         try:
-                            other_swipe = conn.execute('SELECT user_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
-                                                     (code, mid, g.user_id)).fetchone()
+                            other_swipe = conn.execute('SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND session_id != ?',
+                                                     (code, mid, session.get('session_id'))).fetchone()
 
                             if other_swipe:
                                 conn.execute(
@@ -639,7 +651,7 @@ def create_app(test_config=None):
     def undo_swipe(code):
         mid = str(request.json.get('movie_id'))
         with get_db() as conn:
-            conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND user_id = ?', (code, mid, g.user_id))
+            conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND session_id = ?', (code, mid, session.get('session_id')))
             conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, g.user_id))
         return jsonify({'status': 'undone'})
 

@@ -34,7 +34,7 @@ def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT, solo_mode INTEGER DEFAULT 0)')
-        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT)')
+        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, session_id TEXT)')
         conn.execute('''CREATE TABLE IF NOT EXISTS matches (
             room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT,
             status TEXT DEFAULT "active", user_id TEXT,
@@ -70,8 +70,9 @@ def init_db():
         cursor = conn.execute("PRAGMA table_info(swipes)")
         sw_cols = [col[1] for col in cursor.fetchall()]
         if 'user_id' not in sw_cols:
-            # Add user_id column for older databases
             conn.execute('ALTER TABLE swipes ADD COLUMN user_id TEXT')
+        if 'session_id' not in sw_cols:
+            conn.execute('ALTER TABLE swipes ADD COLUMN session_id TEXT')
 
         cursor = conn.execute("PRAGMA table_info(rooms)")
         room_cols = [col[1] for col in cursor.fetchall()]

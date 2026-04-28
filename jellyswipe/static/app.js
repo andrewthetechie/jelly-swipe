@@ -392,6 +392,43 @@
             const matchesPill = document.getElementById('matches-pill');
             if (matchesPill) matchesPill.onclick = () => openMatches(false);
 
+            const joinBtn = document.getElementById('join-btn');
+            if (joinBtn) joinBtn.onclick = () => joinRoom();
+
+            const quitPill = document.getElementById('quit-pill');
+            if (quitPill) quitPill.onclick = () => confirmQuit();
+
+            const historyBtn = document.getElementById('history-btn');
+            if (historyBtn) historyBtn.onclick = () => openMatches(true);
+
+            const genrePill = document.getElementById('genre-pill');
+            if (genrePill) genrePill.onclick = () => toggleGenreModal();
+
+            const soloToggle = document.getElementById('solo-toggle');
+            if (soloToggle) soloToggle.addEventListener('change', function() { handleSoloToggle(this); });
+
+            const genreCancelBtn = document.querySelector('.genre-cancel-btn');
+            if (genreCancelBtn) genreCancelBtn.addEventListener('click', () => toggleGenreModal());
+
+            const quitConfirmBtn = document.getElementById('quit-confirm-btn');
+            if (quitConfirmBtn) quitConfirmBtn.addEventListener('click', () => doQuit());
+
+            const quitCancelBtn = document.getElementById('quit-cancel-btn');
+            if (quitCancelBtn) quitCancelBtn.addEventListener('click', () => {
+                document.getElementById('quit-modal').classList.add('hidden');
+            });
+
+            const deleteOverlay = document.getElementById('delete-modal-overlay');
+            if (deleteOverlay) deleteOverlay.addEventListener('click', () => closeDeleteModal());
+
+            const deleteCancelBtn = document.getElementById('delete-cancel-btn');
+            if (deleteCancelBtn) deleteCancelBtn.addEventListener('click', () => closeDeleteModal());
+
+            const closeMatchesBtn = document.getElementById('close-matches-btn');
+            if (closeMatchesBtn) closeMatchesBtn.addEventListener('click', () => {
+                document.getElementById('matches-modal').classList.add('hidden');
+            });
+
             const reloginBtn = document.getElementById('relogin-btn');
             if (reloginBtn) reloginBtn.addEventListener('click', () => {
                 document.getElementById('session-expired-banner').classList.add('hidden');
@@ -671,8 +708,14 @@
                 const d = JSON.parse(event.data);
                 if (d.closed) {
                     sseSource.close();
+                    sseSource = null;
                     currentRoomCode = null;
-                    location.reload();
+                    document.getElementById('game-area').classList.add('hidden');
+                    document.getElementById('branding').classList.remove('hidden');
+                    document.getElementById('controls-area').classList.remove('hidden');
+                    document.getElementById('quit-pill').classList.add('hidden');
+                    document.getElementById('matches-pill').classList.add('hidden');
+                    document.getElementById('undo-btn').classList.add('hidden');
                     return;
                 }
                 if (d.genre && d.genre !== currentGenre) {
@@ -684,7 +727,7 @@
                 if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
                     loadMovies(d.solo || false);
                 }
-                if (d.last_match && !isSoloMode) {
+                if (d.last_match) {
                     document.getElementById('matched-movie-title').innerText = d.last_match.title;
                     document.getElementById('match-popup-poster').src = d.last_match.thumb || '';
                     const heading = document.getElementById('match-heading');
