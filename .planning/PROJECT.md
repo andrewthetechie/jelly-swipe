@@ -14,20 +14,16 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v2.0 — Architecture Tier Fix
+## Current Milestone: v1.7 — SSE/SQLite Architecture Fix
 
-**Goal:** Eliminate tier responsibility violations — server owns identity, deck, match logic, and deep links; client owns animation and optimistic UI only.
+**Goal:** Fix the SQLite contention and SSE reliability problems that collapse the app under load when multiple rooms have connected browsers.
 
 **Target features:**
-- Server-side identity: session → Jellyfin token → user_id, no client-supplied identity headers
-- Server-side token storage: HttpOnly session cookie, client never sees tokens
-- Server-owned deck composition + order (single source of truth)
-- Server-owned match decision and notification (one channel via SSE)
-- Server-generated Jellyfin deep links (remove stale Plex URL construction)
-- RESTful swipe endpoint: POST /room/{code}/swipe with {movie_id, direction} only
-- Solo mode as dedicated endpoint (not a room flag hack)
-- Match cards with full metadata (rating, duration, year) via server-side join
-- ADR documenting tier responsibilities
+- Enable WAL mode and NORMAL synchronous in `init_db` to eliminate file-lock contention
+- Refactor SSE generator to hold one DB connection per client instead of opening/closing every 1.5s
+- Add jitter to SSE poll interval to avoid synchronized thundering-herd queries
+- Add SSE heartbeat (`: ping\n\n`) every ~15s to prevent proxy connection reaping
+- Improve SSE error handling for room disappearance and connection drops
 
 ## Requirements
 
@@ -55,13 +51,26 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 - ✓ **TEST-02** — Modern pytest methods with fixtures and parametrize. *Validated in Phase 14 (v1.3).*
 - ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
 - ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
-- ✓ **SSV-01** — `/room/swipe` does not accept title/thumb from client. *Validated in Phase 19 (v1.5).*
-- ✓ **SSV-02** — `/room/swipe` resolves metadata server-side via `resolve_item_for_tmdb()`. *Validated in Phase 19 (v1.5).*
-- ✓ **SSV-03** — Graceful handling when `resolve_item_for_tmdb()` fails. *Validated in Phase 19 (v1.5).*
 
 ### Active
 
-- Architecture tier fix requirements to be defined in milestone v2.0
+- [ ] **DB-01**: SQLite runs in WAL mode with `synchronous=NORMAL` set in `init_db`
+- [ ] **DB-02**: SSE generator holds one DB connection per client (not per-poll-cycle)
+- [ ] **SSE-01**: Poll interval includes random jitter to desynchronize thundering-herd queries
+- [ ] **SSE-02**: SSE stream sends heartbeat comment (`: ping\n\n`) every ~15s to prevent proxy reaping
+- [ ] **SSE-03**: SSE handles room disappearance gracefully (immediate exit, not next-tick-only)
+
+### Validated (v1.6+)
+
+- ✓ **CLN-01** — `/plex/server-info` route deleted from `jellyswipe/__init__.py`. *Validated in Phase 23 (v1.6).*
+- ✓ **CLN-02** — `plex_id` references removed from `jellyswipe/db.py`. *Validated in Phase 23 (v1.6).*
+- ✓ **CLN-03** — All Plex CSS/JS/localStorage/URLs/copy removed from `templates/index.html`. *Validated in Phase 24 (v1.6).*
+- ✓ **CLN-04** — Manifest descriptions updated to "Jellyfin only". *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-05** — Dead `data/index.html` deleted. *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-06** — Plex env block removed from Unraid template. *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-07** — `requirements.txt` deleted. *Validated in Phase 25 (v1.6).*
+- ✓ **CLN-08** — `base.py` docstring references Jellyfin API path. *Validated in Phase 23 (v1.6).*
+- ✓ **CLN-09** — `rg -i 'plex'` returns zero matches in source (complete cleanup). *Validated in Phase 26 (v1.6).*
 
 ### Out of Scope
 
@@ -77,12 +86,13 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ## Current state
 
-- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), **v1.4** (authorization hardening), **v1.5** (XSS security fix) tagged; archives under `.planning/milestones/`.
-- **In flight:** **v2.0 Architecture Tier Fix** (Issue #8) — eliminate 7 tier responsibility violations between server and client.
-- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management.
-- **UI:** Embedded HTML in `jellyswipe/templates/index.html` and mirrored `data/index.html` (PWA-oriented copy); product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
-- **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release (see `.github/workflows/release-ghcr.yml`).
-- **Tests:** 54+ tests across test files with pytest framework; GitHub Actions workflow runs tests on every push/PR; pytest-cov provides terminal coverage reporting.
+- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), **v1.4** (authorization hardening), **v1.5** (XSS fix), and **v1.6** (Plex cleanup) tagged; archives under `.planning/milestones/v1.0-*` through `v1.6-*`.
+- **Completed:** **v1.6 Plex Reference Cleanup** (EPIC-08, Issue #11) — all Plex references removed from source code; zero stale references.
+- **Current problem:** `/room/stream` opens a per-client SSE generator that polls SQLite every 1.5s with a new connection per cycle; combined with no WAL mode, no jitter, no heartbeat, and poor room-disappearance handling, this collapses under concurrent load.
+- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management; gunicorn with gevent workers (1000 connections).
+- **UI:** Single-page `jellyswipe/templates/index.html`; product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
+- **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release.
+- **Tests:** 48 tests across 3 test files; pytest framework; GitHub Actions workflow on push/PR; pytest-cov terminal coverage.
 
 ## Context
 
@@ -96,8 +106,9 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 - **Compatibility**: Support recent stable Jellyfin (10.8+) unless research proves a narrower window; call out version assumptions in README.
 - **Security**: Do not log tokens; prefer headers over query-string API keys; HTTPS assumed for remote servers.
-- **Minimal churn**: Prefer a clear provider abstraction over duplicating route handlers, while keeping the diff reviewable.
+- **Minimal churn**: Prefer surgical fixes over rewriting; keep diffs reviewable.
 - **Test isolation**: All unit tests must be framework-agnostic and mock external dependencies to ensure fast, reliable execution in CI.
+- **No architecture rewrites**: This milestone fixes the existing SSE/SQLite pattern — not replacing it with Redis, Postgres, or a message broker.
 
 ## Key Decisions
 
@@ -135,4 +146,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v2.0 milestone start*
+*Last updated: 2026-04-29 after v1.7 milestone started*

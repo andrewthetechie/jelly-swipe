@@ -16,6 +16,11 @@ import logging
 import traceback
 import sqlite3, os, random, re, json, secrets, time
 import requests
+
+try:
+    from gevent import sleep as _gevent_sleep
+except ImportError:
+    _gevent_sleep = None
 from jellyswipe.http_client import make_http_request
 from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
 from jellyswipe.ssrf_validator import validate_jellyfin_url
@@ -715,46 +720,67 @@ def create_app(test_config=None):
             last_match_ts = None
             POLL = 1.5
             TIMEOUT = 3600
+            _last_event_time = time.time()
 
-            deadline = time.time() + TIMEOUT
-            while time.time() < deadline:
-                try:
-                    with get_db_closing() as conn:
+            # Per DB-02: Hold one persistent connection for the entire
+            # stream lifetime instead of opening/closing per poll cycle.
+            # WAL mode (set in init_db) eliminates file-lock contention
+            # so concurrent readers don't block this connection.
+            conn = sqlite3.connect(jellyswipe.db.DB_PATH)
+            conn.row_factory = sqlite3.Row
+            try:
+                deadline = time.time() + TIMEOUT
+                while time.time() < deadline:
+                    try:
                         row = conn.execute(
                             'SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?',
                             (code,)
                         ).fetchone()
 
-                    if row is None:
-                        yield f"data: {json.dumps({'closed': True})}\n\n"
+                        if row is None:
+                            yield f"data: {json.dumps({'closed': True})}\n\n"
+                            return
+
+                        ready = bool(row['ready'])
+                        genre = row['current_genre']
+                        solo = bool(row['solo_mode'])
+                        last_match = json.loads(row['last_match_data']) if row['last_match_data'] else None
+                        match_ts = last_match['ts'] if last_match else None
+
+                        payload = {}
+                        if ready != last_ready:
+                            payload['ready'] = ready
+                            payload['solo'] = solo
+                            last_ready = ready
+                        if genre != last_genre:
+                            payload['genre'] = genre
+                            last_genre = genre
+                        if match_ts and match_ts != last_match_ts:
+                            payload['last_match'] = last_match
+                            last_match_ts = match_ts
+
+                        if payload:
+                            yield f"data: {json.dumps(payload)}\n\n"
+                            _last_event_time = time.time()
+                        elif time.time() - _last_event_time >= 15:
+                            yield ": ping\n\n"
+                            _last_event_time = time.time()
+
+                        delay = POLL + random.uniform(0, 0.5)
+                        if _gevent_sleep is not None:
+                            _gevent_sleep(delay)
+                        else:
+                            time.sleep(delay)
+                    except GeneratorExit:
                         return
-
-                    ready = bool(row['ready'])
-                    genre = row['current_genre']
-                    solo = bool(row['solo_mode'])
-                    last_match = json.loads(row['last_match_data']) if row['last_match_data'] else None
-                    match_ts = last_match['ts'] if last_match else None
-
-                    payload = {}
-                    if ready != last_ready:
-                        payload['ready'] = ready
-                        payload['solo'] = solo
-                        last_ready = ready
-                    if genre != last_genre:
-                        payload['genre'] = genre
-                        last_genre = genre
-                    if match_ts and match_ts != last_match_ts:
-                        payload['last_match'] = last_match
-                        last_match_ts = match_ts
-
-                    if payload:
-                        yield f"data: {json.dumps(payload)}\n\n"
-
-                    time.sleep(POLL)
-                except GeneratorExit:
-                    return
-                except Exception:
-                    time.sleep(POLL)
+                    except Exception:
+                        delay = POLL + random.uniform(0, 0.5)
+                        if _gevent_sleep is not None:
+                            _gevent_sleep(delay)
+                        else:
+                            time.sleep(delay)
+            finally:
+                conn.close()
 
         return Response(generate(), mimetype='text/event-stream',
                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
