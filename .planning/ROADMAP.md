@@ -19,7 +19,7 @@ This roadmap fixes the SQLite contention and SSE reliability problems that colla
 
 ## Phases
 
-- [ ] **Phase 27: Database Architecture** — Enable WAL mode, set synchronous=NORMAL, and refactor SSE generator to hold one SQLite connection per client session
+- [x] **Phase 27: Database Architecture** — Enable WAL mode, set synchronous=NORMAL, and refactor SSE generator to hold one SQLite connection per client session (completed 2026-04-30)
 - [ ] **Phase 28: SSE Reliability** — Add poll jitter, heartbeat comments, and graceful room-disappearance exit to the SSE stream
 - [ ] **Phase 29: Acceptance Validation** — Verify all 48 existing tests still pass after all architecture changes
 
@@ -40,10 +40,10 @@ This roadmap fixes the SQLite contention and SSE reliability problems that colla
   2. SSE generator opens one SQLite connection at stream start and reuses it across all poll cycles, closing only at generator exit
   3. `get_db()` continues to work for non-SSE code paths (one-off queries create connections as before)
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 27-01-PLAN.md — Enable WAL mode, add persistent SSE connection, verify no regressions
+- [x] 27-01-PLAN.md — Enable WAL mode, add persistent SSE connection, verify no regressions
 
 ---
 
@@ -95,7 +95,7 @@ Phases execute in numeric order: 27 → 28 → 29
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 27. Database Architecture | 0/1 | Planned | - |
+| 27. Database Architecture | 1/1 | Complete   | 2026-04-30 |
 | 28. SSE Reliability | 0/1 | Not started | - |
 | 29. Acceptance Validation | 0/1 | Not started | - |
 
