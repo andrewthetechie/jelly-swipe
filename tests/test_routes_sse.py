@@ -9,6 +9,7 @@ import json
 import secrets
 import threading
 import time
+from datetime import datetime, timezone
 
 import jellyswipe.db
 import pytest
@@ -20,18 +21,27 @@ import pytest
 
 
 def _set_session_room(client, room_code, user_id=None):
-    """Set session with active_room and user identity for SSE stream tests.
+    """Set session with active_room and vault-based authentication for SSE stream tests.
 
-    Simplified version of _set_session from test_routes_room.py — always
-    sets delegate=True and active_room=room_code.
+    Creates a vault entry in user_tokens and sets session_id in addition to
+    the session variables, so @login_required passes.
     """
+    if user_id is None:
+        user_id = f"test-user-{secrets.token_hex(4)}"
+    session_id = "test-session-" + secrets.token_hex(8)
+    conn = jellyswipe.db.get_db()
+    conn.execute(
+        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+        (session_id, "valid-token", user_id, datetime.now(timezone.utc).isoformat())
+    )
+    conn.commit()
+    conn.close()
     with client.session_transaction() as sess:
         sess["active_room"] = room_code
-        if user_id is None:
-            user_id = f"test-user-{secrets.token_hex(4)}"
         sess["my_user_id"] = user_id
         sess["jf_delegate_server_identity"] = True
         sess["solo_mode"] = False
+        sess["session_id"] = session_id
 
 
 def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None):
@@ -81,12 +91,12 @@ def _make_time_mock(iterations_before_timeout):
 
 
 def test_stream_no_active_room(client):
-    """GET /room/stream without active room returns empty SSE data."""
-    response = client.get("/room/stream")
+    """GET /room/<code>/stream for nonexistent room returns closed event."""
+    response = client.get("/room/TEST1/stream")
 
     assert response.status_code == 200
     assert response.content_type.startswith("text/event-stream")
-    assert response.data.decode() == "data: {}\n\n"
+    assert '"closed": true' in response.data.decode()
 
 
 def test_stream_response_headers(client, monkeypatch):
@@ -102,7 +112,7 @@ def test_stream_response_headers(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(5))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     # Consume data while monkeypatch is active (generator runs lazily)
     _ = response.data
 
@@ -124,7 +134,7 @@ def test_stream_room_not_found(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(3))
 
-    with client.get("/room/stream") as response:
+    with client.get("/room/TEST1/stream") as response:
         data = response.get_data(as_text=True)
 
     assert 'data: {"closed": true}\n\n' in data
@@ -146,7 +156,7 @@ def test_stream_initial_state_events(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
     # Initial event: ready=False (0 -> bool -> False != None -> sends), solo=False, genre="All"
@@ -168,7 +178,7 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
     # Parse SSE events
@@ -202,7 +212,7 @@ def test_stream_match_event(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
     assert '"last_match"' in data
@@ -240,7 +250,7 @@ def test_stream_ready_state_change(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", _sleep_with_db_update)
     monkeypatch.setattr(time, "time", _make_time_mock(12))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/TEST1/stream")
     data = response.data.decode()
 
     # Should have both initial ready=false and subsequent ready=true
@@ -267,7 +277,7 @@ def test_stream_generator_exit(client, monkeypatch):
 
     def consume():
         try:
-            resp = client.get("/room/stream")
+            resp = client.get("/room/TEST1/stream")
             # Consume data while monkeypatch is active
             result["data"] = resp.data.decode()
             result["status"] = resp.status_code
@@ -313,7 +323,7 @@ def test_stream_jitter_applied(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", capture_sleep)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/JITTER1/stream")
     _ = response.data  # consume generator
 
     assert len(sleep_calls) >= 1, f"Expected at least 1 sleep call, got {len(sleep_calls)}"
@@ -358,7 +368,7 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _time_with_gap)
 
-    response = client.get("/room/stream")
+    response = client.get("/room/HB1/stream")
     data = response.data.decode()
 
     assert ": ping\n\n" in data, f"Expected heartbeat ': ping\\n\\n' in SSE stream, got: {repr(data)}"
@@ -376,7 +386,7 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/NHB1/stream")
     data = response.data.decode()
 
     # With rapid polls (mocked time advances quickly), state changes produce data events
@@ -411,7 +421,7 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
     monkeypatch.setattr(time, "sleep", _sleep_and_delete)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
-    response = client.get("/room/stream")
+    response = client.get("/room/VANISH1/stream")
     data = response.data.decode()
 
     assert '"closed": true' in data, f"Expected closed:true event in SSE stream, got: {repr(data)}"
