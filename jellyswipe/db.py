@@ -33,6 +33,11 @@ def init_db():
     """Initialize the database schema and run migrations."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
+        # WAL mode and synchronous=NORMAL must be set outside any transaction.
+        # The with-block wraps all operations in a transaction, but PRAGMAs
+        # that change database mode must execute before the transaction starts.
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA synchronous=NORMAL')
         conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT, solo_mode INTEGER DEFAULT 0)')
         conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, session_id TEXT)')
         conn.execute('''CREATE TABLE IF NOT EXISTS matches (

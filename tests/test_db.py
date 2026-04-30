@@ -324,6 +324,39 @@ class TestCleanup:
         assert valid_swipes[0]["room_code"] == "VALID_ROOM"
 
 
+class TestWalMode:
+    """Tests for SQLite WAL mode configuration."""
+
+    def test_init_db_sets_wal_mode(self, db_connection):
+        """Per DB-01: init_db() sets WAL mode."""
+        import jellyswipe.db
+
+        # Query journal_mode on a fresh connection
+        cursor = db_connection.execute("PRAGMA journal_mode")
+        result = cursor.fetchone()
+        assert result[0].lower() == "wal", f"Expected WAL mode, got {result[0]}"
+
+    def test_init_db_sets_synchronous_normal(self, db_connection):
+        """Per D-02: synchronous=NORMAL alongside WAL for reduced disk flushes."""
+        cursor = db_connection.execute("PRAGMA synchronous")
+        result = cursor.fetchone()
+        assert result[0] == 1, f"Expected synchronous=NORMAL (1), got {result[0]}"
+
+    def test_wal_mode_persists_across_connections(self, db_path, monkeypatch):
+        """Per D-06: WAL mode persists at database file level — new connections inherit it."""
+        import jellyswipe.db
+
+        monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
+        jellyswipe.db.init_db()
+
+        # Open a completely new connection and verify WAL persists
+        conn2 = sqlite3.connect(db_path)
+        cursor = conn2.execute("PRAGMA journal_mode")
+        result = cursor.fetchone()
+        conn2.close()
+        assert result[0].lower() == "wal", f"WAL mode did not persist: got {result[0]}"
+
+
 class TestIsolation:
     """Tests for test isolation."""
 
