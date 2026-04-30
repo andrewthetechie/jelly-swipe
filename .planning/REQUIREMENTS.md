@@ -10,8 +10,8 @@ Fix the SQLite contention and SSE reliability problems that collapse the app und
 
 ### SQLite Performance (DB)
 
-- [ ] **DB-01**: SQLite runs in WAL mode with `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` set at database initialization
-- [ ] **DB-02**: SSE generator holds one SQLite connection per client session instead of opening and closing a connection every 1.5-second poll cycle
+- [x] **DB-01**: SQLite runs in WAL mode with `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` set at database initialization
+- [x] **DB-02**: SSE generator holds one SQLite connection per client session instead of opening and closing a connection every 1.5-second poll cycle
 
 ### SSE Reliability (SSE)
 
@@ -57,8 +57,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DB-01 | Phase 27 | Pending |
-| DB-02 | Phase 27 | Pending |
+| DB-01 | Phase 27 | Complete |
+| DB-02 | Phase 27 | Complete |
 | SSE-01 | Phase 28 | Pending |
 | SSE-02 | Phase 28 | Pending |
 | SSE-03 | Phase 28 | Pending |
