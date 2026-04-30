@@ -16,6 +16,11 @@ import logging
 import traceback
 import sqlite3, os, random, re, json, secrets, time
 import requests
+
+try:
+    from gevent import sleep as _gevent_sleep
+except ImportError:
+    _gevent_sleep = None
 from jellyswipe.http_client import make_http_request
 from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
 from jellyswipe.ssrf_validator import validate_jellyfin_url
@@ -715,6 +720,7 @@ def create_app(test_config=None):
             last_match_ts = None
             POLL = 1.5
             TIMEOUT = 3600
+            _last_event_time = time.time()
 
             # Per DB-02: Hold one persistent connection for the entire
             # stream lifetime instead of opening/closing per poll cycle.
@@ -755,12 +761,24 @@ def create_app(test_config=None):
 
                         if payload:
                             yield f"data: {json.dumps(payload)}\n\n"
+                            _last_event_time = time.time()
+                        elif time.time() - _last_event_time >= 15:
+                            yield ": ping\n\n"
+                            _last_event_time = time.time()
 
-                        time.sleep(POLL)
+                        delay = POLL + random.uniform(0, 0.5)
+                        if _gevent_sleep is not None:
+                            _gevent_sleep(delay)
+                        else:
+                            time.sleep(delay)
                     except GeneratorExit:
                         return
                     except Exception:
-                        time.sleep(POLL)
+                        delay = POLL + random.uniform(0, 0.5)
+                        if _gevent_sleep is not None:
+                            _gevent_sleep(delay)
+                        else:
+                            time.sleep(delay)
             finally:
                 conn.close()
 
