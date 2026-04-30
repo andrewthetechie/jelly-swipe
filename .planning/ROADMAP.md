@@ -61,10 +61,10 @@ Plans:
   3. SSE generator exits immediately when the queried room record disappears from the database (no waiting for next poll tick)
   4. Existing SSE event formats (match notifications, room full, etc.) remain unchanged and functional
 
-**Plans:** TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 28-01: SSE jitter, heartbeat, and graceful exit
+- [ ] 28-01-PLAN.md — Add poll jitter, SSE heartbeat, gevent sleep, and room-disappearance tests
 
 ---
 
@@ -96,7 +96,7 @@ Phases execute in numeric order: 27 → 28 → 29
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 27. Database Architecture | 1/1 | Complete    | 2026-04-30 |
-| 28. SSE Reliability | 0/1 | Not started | - |
+| 28. SSE Reliability | 0/1 | Planned | - |
 | 29. Acceptance Validation | 0/1 | Not started | - |
 
 ---
@@ -117,4 +117,4 @@ Phases execute in numeric order: 27 → 28 → 29
 ---
 
 *Roadmap created: 2026-04-29*
-*Last updated: 2026-04-29 (Phase 27 planned)*
+*Last updated: 2026-04-29 (Phase 28 planned)*

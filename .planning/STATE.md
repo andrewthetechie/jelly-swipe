@@ -3,22 +3,22 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: SSE/SQLite Architecture Fix
 status: planning
-last_updated: "2026-04-30T04:07:11.919Z"
+last_updated: "2026-04-30T04:30:00.000Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 3
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v1.7 SSE/SQLite Architecture Fix (EPIC-06)
-**Phase:** 28
-**Status:** Ready to plan
-**Progress:** [░░░░░░░░░░] 0%
+**Phase:** 28 (sse-reliability)
+**Status:** Planned
+**Progress:** [██░░░░░░░░] 33%
 
 ---
 
@@ -26,15 +26,15 @@ progress:
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-**Current focus:** Phase 27 — database-architecture
+**Current focus:** Phase 28 — SSE Reliability (poll jitter, heartbeat, room disappearance)
 
 ---
 
 ## Current Position
 
-Phase: 27 (database-architecture) — EXECUTING
-Plan: Not started
-Status: Executing Phase 27
+Phase: 28 (sse-reliability) — PLANNED
+Plan: 28-01 (1 plan, 0 completed)
+Status: Ready to execute
 Last activity: 2026-04-30
 
 ---
@@ -50,12 +50,13 @@ Last activity: 2026-04-30
 - v1.4 (Authorization Hardening): Phases 1–18 completed
 - v1.5 (XSS Security Fix): Phases 19–22 completed
 - v1.6 (Plex Reference Cleanup): Phases 23–26 completed
+- v1.7 Phase 27 (Database Architecture): Completed ✅
 
 **Current Milestone Metrics:**
 
 - Phases planned: 3
-- Requirements: 6
-- Plans: 3
+- Requirements: 6 (2 complete, 3 in progress, 1 pending)
+- Plans: 1 for Phase 28
 
 ---
 
@@ -68,7 +69,19 @@ Last activity: 2026-04-30
 - Fix, don't replace — WAL, connection reuse, jitter, heartbeat are surgical fixes to the existing pattern
 - SSE remains the push mechanism (no WebSocket migration in this milestone)
 - SQLite remains the data store (no Postgres/Redis migration)
-- Phase 27 (DB fixes) must come before Phase 28 (SSE fixes) because SSE changes need the persistent connection
+- Phase 27 (DB fixes) must come before Phase 28 (SSE fixes) because SSE changes need the persistent connection ✅
+
+**Phase 28 SSE Decisions:**
+
+- D-01: Jitter adds random.uniform(0, 0.5) to each POLL sleep
+- D-02: Uses stdlib random module (already imported)
+- D-03: Jitter applies to error recovery path too
+- D-04: _last_event_time tracker, reset on data event or heartbeat
+- D-05: SSE comment format (: ping\n\n) per RFC 8895
+- D-06: Hard-coded 15-second interval
+- D-07/D-08: Room disappearance already handled — verify and test only
+- D-09/D-10/D-11: New tests in test_routes_sse.py
+- D-12/D-13: gevent.sleep fallback with try/except ImportError
 
 ### Pending Todos
 
@@ -76,18 +89,17 @@ None.
 
 ### Blockers/Concerns
 
-- WAL mode requires testing on Docker volume mounts (default journal mode resets on reconnect without WAL pragma)
-- SSE generator refactoring must preserve gevent compatibility
+None — Phase 27 completed successfully, persistent SSE connection pattern established.
 
 ---
 
 ## Session Continuity
 
 **Last Session:**
-2026-04-30T04:07:11.912Z
+2026-04-30
 
 **Resume with:**
-`/gsd-plan-phase 27`
+`/gsd-execute-phase 28`
 
 ---
 
@@ -98,9 +110,10 @@ None.
 - Project context: `.planning/PROJECT.md`
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
-- Milestones: `.planning/MILESTONES.md`
+- Phase 28 plan: `.planning/phases/28-coverage-enforcement/28-01-PLAN.md`
+- SSE generator: `jellyswipe/__init__.py` lines 622-684
+- SSE tests: `tests/test_routes_sse.py`
 
 ---
-
 *State created: 2026-04-29*
-*Last updated: 2026-04-29 (roadmap created)*
+*Last updated: 2026-04-30 (Phase 28 planned)*
