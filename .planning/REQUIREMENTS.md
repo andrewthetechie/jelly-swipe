@@ -15,9 +15,9 @@ Fix the SQLite contention and SSE reliability problems that collapse the app und
 
 ### SSE Reliability (SSE)
 
-- [ ] **SSE-01**: Poll interval includes random jitter (0–0.5s) to desynchronize concurrent thundering-herd queries
-- [ ] **SSE-02**: SSE stream sends heartbeat comment (`: ping\n\n`) every ~15 seconds to prevent reverse proxy connection reaping
-- [ ] **SSE-03**: SSE stream handles room disappearance gracefully — exits immediately when the room record is gone, rather than waiting for the next poll tick
+- [x] **SSE-01**: Poll interval includes random jitter (0–0.5s) to desynchronize concurrent thundering-herd queries
+- [x] **SSE-02**: SSE stream sends heartbeat comment (`: ping\n\n`) every ~15 seconds to prevent reverse proxy connection reaping
+- [x] **SSE-03**: SSE stream handles room disappearance gracefully — exits immediately when the room record is gone, rather than waiting for the next poll tick
 
 ### Acceptance (ACC)
 
@@ -59,9 +59,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | DB-01 | Phase 27 | Complete |
 | DB-02 | Phase 27 | Complete |
-| SSE-01 | Phase 28 | Pending |
-| SSE-02 | Phase 28 | Pending |
-| SSE-03 | Phase 28 | Pending |
+| SSE-01 | Phase 28 | Complete |
+| SSE-02 | Phase 28 | Complete |
+| SSE-03 | Phase 28 | Complete |
 | ACC-01 | Phase 29 | Pending |
 
 **Coverage:**
