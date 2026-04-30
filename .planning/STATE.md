@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: SSE/SQLite Architecture Fix
-status: requirements
+status: roadmap_created
 last_updated: "2026-04-29"
-last_activity: 2026-04-29 — Milestone v1.7 started
+last_activity: 2026-04-29 — Roadmap created (Phases 27–29)
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -16,8 +16,8 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v1.7 SSE/SQLite Architecture Fix (EPIC-06)
-**Phase:** Not started
-**Status:** Defining requirements
+**Phase:** 27 - Database Architecture (Not started)
+**Status:** Roadmap created, ready to plan
 **Progress:** [░░░░░░░░░░] 0%
 
 ---
@@ -32,10 +32,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 27 of 29 (Database Architecture)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-29 — Milestone v1.7 started
+Status: Roadmap created
+Last activity: 2026-04-29 — Roadmap created with 3 phases, 6 requirements
 
 ---
 
@@ -53,9 +53,9 @@ Last activity: 2026-04-29 — Milestone v1.7 started
 
 **Current Milestone Metrics:**
 
-- Phases planned: TBD
-- Requirements: TBD
-- Plans: TBD
+- Phases planned: 3
+- Requirements: 6
+- Plans: 3
 
 ---
 
@@ -68,6 +68,7 @@ Last activity: 2026-04-29 — Milestone v1.7 started
 - Fix, don't replace — WAL, connection reuse, jitter, heartbeat are surgical fixes to the existing pattern
 - SSE remains the push mechanism (no WebSocket migration in this milestone)
 - SQLite remains the data store (no Postgres/Redis migration)
+- Phase 27 (DB fixes) must come before Phase 28 (SSE fixes) because SSE changes need the persistent connection
 
 ### Pending Todos
 
@@ -83,7 +84,7 @@ None.
 ## Session Continuity
 
 **Last Session:**
-Milestone v1.7 initialized
+Roadmap created for v1.7 — 3 phases, 6 requirements, 100% coverage
 
 **Resume with:**
 `/gsd-plan-phase 27`
@@ -102,4 +103,4 @@ Milestone v1.7 initialized
 ---
 
 *State created: 2026-04-29*
-*Last updated: 2026-04-29 (v1.7 milestone started)*
+*Last updated: 2026-04-29 (roadmap created)*

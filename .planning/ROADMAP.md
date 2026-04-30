@@ -1,218 +1,120 @@
 # Roadmap — Jelly Swipe
 
-**Milestone:** v2.0 Architecture Tier Fix
+**Milestone:** v1.7 SSE/SQLite Architecture Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 25 - RESTful Routes + Deck Ownership
-**Last Updated:** 2026-04-27
-
----
-
-## Milestones
-
-- ✅ **v1.0 MVP** - Phases 1-9 (shipped 2026-04-24)
-- ✅ **v1.1 Rename** - Phases 10 (shipped 2026-04-24)
-- ✅ **v1.2 uv + Package** - Phases 11-13 (shipped 2026-04-25)
-- ✅ **v1.3 Unit Tests** - Phases 14-17 (shipped 2026-04-25)
-- ✅ **v1.4 Auth Hardening** - Phases 18 (shipped)
-- ✅ **v1.5 XSS Fix** - Phases 19-22 (shipped 2026-04-26)
-- 🚧 **v2.0 Architecture Tier Fix** - Phases 23-28 (in progress)
+**Current Phase:** 27 - Database Architecture (Not started)
+**Last Updated:** 2026-04-29
 
 ---
 
 ## Overview
 
-This roadmap eliminates tier responsibility violations between server and client. The server takes ownership of identity resolution, token storage, deck composition, match decision logic, and deep link generation. The client is simplified to animation and optimistic UI only. The migration is sequenced so additive schema changes come first, auth logic builds on the new schema, routes and deck ownership come next, match/notification logic follows, client cleanup is purely subtractive, and deployment validation confirms everything works end-to-end.
+This roadmap fixes the SQLite contention and SSE reliability problems that collapse the app under load when multiple rooms have connected browsers. Three surgical phases: enable WAL mode and persistent connections, add SSE reliability features (jitter, heartbeat, graceful exit), and validate nothing broke.
 
-**Status:** 🚧 **In Progress**
-**Phases:** 6 (Phases 23-28)
-**Requirements:** 14
-**Starting Phase:** 23 (continuing from v1.5 Phase 22)
+**Phases:** 3
+**Requirements:** 6 (DB-01, DB-02, SSE-01, SSE-02, SSE-03, ACC-01)
+**Starting Phase:** 27 (continuing from v1.6 Phase 26)
 
 ---
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (23, 24, 25...): Planned milestone work
-- Decimal phases (23.1, 24.1...): Urgent insertions (marked with INSERTED)
-
-- [ ] **Phase 23: Database Schema + Token Vault** - Additive-only schema migration: user_tokens table, deck state columns, expired token cleanup
-- [x] **Phase 24: Auth Module + Server-Owned Identity** - Token vault CRUD, @login_required decorator, session cookie auth, identity unification (completed 2026-04-27)
-- [x] **Phase 25: RESTful Routes + Deck Ownership** - POST /room/{code}/swipe, server-owned deck composition/order/cursor (completed 2026-04-27)
-- [x] **Phase 26: Match Notification + Deep Links + Metadata** - SSE-only match delivery, enriched match metadata, Jellyfin deep links, /me, /room/solo (completed 2026-04-27)
-- [x] **Phase 27: Client Simplification + Cleanup** - Remove localStorage tokens, identity headers, client-side match detection, URL construction (completed 2026-04-27)
-- [ ] **Phase 28: Deployment Validation** - Docker volume mounts, ProxyFix verification, end-to-end flow validation
+- [ ] **Phase 27: Database Architecture** — Enable WAL mode, set synchronous=NORMAL, and refactor SSE generator to hold one SQLite connection per client session
+- [ ] **Phase 28: SSE Reliability** — Add poll jitter, heartbeat comments, and graceful room-disappearance exit to the SSE stream
+- [ ] **Phase 29: Acceptance Validation** — Verify all 48 existing tests still pass after all architecture changes
 
 ---
 
 ## Phase Details
 
-### Phase 23: Database Schema + Token Vault
+### Phase 27: Database Architecture
 
-**Goal:** Foundation exists for server-side token storage — database has the tables and columns needed by all subsequent phases.
+**Goal:** SQLite no longer bottlenecks under concurrent SSE load — WAL mode eliminates file-lock contention and the SSE generator holds a single persistent connection per client.
 
-**Depends on:** Nothing (first phase of v2.0, additive-only)
+**Depends on:** Nothing (first phase of v1.7)
 
-**Requirements:** AUTH-02, AUTH-03
-
-**Success Criteria** (what must be TRUE):
-  1. `user_tokens` table exists in SQLite with columns: session_id (PK), jellyfin_token, jellyfin_user_id, created_at
-  2. Existing rooms and matches tables have new columns alongside existing ones — no data loss from additive-only migration
-  3. Rows in `user_tokens` older than 24 hours are automatically cleaned up when `cleanup_expired_tokens()` is called
-  4. Existing tests continue passing after schema migration (backward compatibility preserved)
-
-**Plans:** 2 plans
-
-Plans:
-- [ ] 23-01-PLAN.md — Add user_tokens table and v2.0 columns to rooms/matches via init_db()
-- [ ] 23-02-PLAN.md — Implement cleanup_expired_tokens() function + wire into init_db()
-
----
-
-### Phase 24: Auth Module + Server-Owned Identity
-
-**Goal:** Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity.
-
-**Depends on:** Phase 23 (user_tokens table exists)
-
-**Requirements:** AUTH-01
+**Requirements:** DB-01, DB-02
 
 **Success Criteria** (what must be TRUE):
-  1. User authenticates via Jellyfin credentials, and the server stores the Jellyfin token in `user_tokens` keyed by session_id — client never sees the token
-  2. All authenticated endpoints resolve user_id from session cookie + token vault lookup — no client-supplied user_id or identity headers are read
-  3. Client receives an HttpOnly session cookie containing only session_id; browser DevTools show no token in localStorage or JavaScript-accessible cookies
-  4. `@login_required` decorator populates `g.user_id` and `g.jf_token` for every authenticated request; unauthenticated requests get a clear error
-
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 24-01-PLAN.md — Create auth.py with token vault CRUD and @login_required decorator
-- [x] 24-02-PLAN.md — Refactor login/delegate routes + apply @login_required to mutation endpoints
-
----
-
-### Phase 25: RESTful Routes + Deck Ownership
-
-**Goal:** Routes follow RESTful patterns with room code in URL path, and the server is the sole source of deck composition, order, and cursor position.
-
-**Depends on:** Phase 24 (stable server-owned identity via g.user_id)
-
-**Requirements:** API-01, DECK-01, DECK-02
-
-**Success Criteria** (what must be TRUE):
-  1. Swipe endpoint accepts `POST /room/{code}/swipe` with body `{movie_id, direction}` only — no title, thumb, or metadata parameters accepted
-  2. Deck composition and shuffle order are generated server-side; client receives cards from server without re-fetching or re-shuffling
-  3. Server tracks each user's cursor position in the deck; a user who reloads the page resumes where they left off in the same deck order
-  4. Existing route patterns that depend on client-supplied identity or deck state are replaced by server-resolved equivalents
-
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 25-01-PLAN.md — Restructure all routes to RESTful URL patterns with room code in path
-- [x] 25-02-PLAN.md — Implement server-owned deck composition, cursor tracking, and pagination
-
----
-
-### Phase 26: Match Notification + Deep Links + Metadata
-
-**Goal:** Match logic is fully server-owned with enriched match data, correct Jellyfin deep links, and new identity/solo endpoints.
-
-**Depends on:** Phase 25 (RESTful routes and server-owned identity in place)
-
-**Requirements:** MTCH-01, MTCH-02, MTCH-03, API-02, API-03, API-04
-
-**Success Criteria** (what must be TRUE):
-  1. Swipe HTTP response returns `{accepted: true}` only; match notifications appear exclusively via SSE stream event, never in the swipe response payload
-  2. Match SSE events include rating, duration, year, and deep_link — client receives complete match data without additional API calls
-  3. Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — no Plex URL construction patterns remain
-  4. `GET /me` returns verified user id, display name, and server info from server-side session
-  5. `POST /room/solo` creates a solo swipe session without the two-player room lifecycle
-  6. Match check-and-insert is wrapped in SQLite `BEGIN IMMEDIATE` transaction — concurrent right-swipes on the same movie produce exactly one match
-
-**Plans:** 2 plans
-
-Plans:
-- [x] 26-01-PLAN.md — SSE-only match delivery with enriched metadata, deep links, and BEGIN IMMEDIATE transaction safety
-- [x] 26-02-PLAN.md — GET /me endpoint and POST /room/solo endpoint
-
----
-
-### Phase 27: Client Simplification + Cleanup
-
-**Goal:** Client JavaScript is stripped of all server-responsibility code — token storage, identity headers, match detection, and URL construction are removed.
-
-**Depends on:** Phase 26 (all server-side endpoints stable and producing correct responses)
-
-**Requirements:** CLNT-01, CLNT-02
-
-**Success Criteria** (what must be TRUE):
-  1. No JavaScript code reads `provider_token` or `plex_token` from localStorage — all auth flows use session cookies exclusively
-  2. Client-side match detection logic is removed; match popup renders only when an SSE event arrives, never from the swipe HTTP response
-  3. Client never constructs media URLs — all deep links come from server match responses
-  4. Client sends no identity headers (no X-User-Id, X-Provider-Token, or similar); server resolves identity from session cookie alone
-
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 27-01-PLAN.md — Dead code removal + auth rewire + route migration + logout endpoint
-- [x] 27-02-PLAN.md — Integration verification tests for CLNT-01 and CLNT-02 compliance
-
----
-
-### Phase 28: Deployment Validation
-
-**Goal:** The refactored application works correctly in Docker deployment with proper cookie security and proxy headers.
-
-**Depends on:** Phase 27 (all code changes complete)
-
-**Requirements:** (validation phase — no new requirements; validates all 14 v2.0 requirements end-to-end)
-
-**Success Criteria** (what must be TRUE):
-  1. Docker container starts and the application serves requests correctly with gunicorn + gevent workers
-  2. Session cookies are properly configured for reverse proxy deployment — ProxyFix sets correct X-Forwarded headers and cookies respect HTTPS behind a proxy
-  3. Full end-to-end flow works in Docker: authenticate → create/join room → swipe → receive match via SSE → open Jellyfin deep link
+  1. `init_db()` executes `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` at startup, and the WAL mode persists across connection reopens
+  2. SSE generator opens one SQLite connection at stream start and reuses it across all poll cycles, closing only at generator exit
+  3. `get_db()` continues to work for non-SSE code paths (one-off queries create connections as before)
 
 **Plans:** TBD
 
 Plans:
-- [ ] 28-01: Docker build verification and ProxyFix configuration
-- [ ] 28-02: End-to-end flow validation in Docker environment
+- [ ] 27-01: WAL mode and persistent SSE connection
+
+---
+
+### Phase 28: SSE Reliability
+
+**Goal:** SSE streams stay connected and healthy under concurrent load — no thundering-herd queries, no proxy connection reaping, no silent hangs on room disappearance.
+
+**Depends on:** Phase 27 (SSE changes build on the persistent connection from DB-02)
+
+**Requirements:** SSE-01, SSE-02, SSE-03
+
+**Success Criteria** (what must be TRUE):
+  1. SSE poll interval varies by 0–0.5s random jitter per cycle, preventing synchronized thundering-herd database queries
+  2. SSE stream sends `: ping\n\n` heartbeat at approximately 15-second intervals when no data events are emitted
+  3. SSE generator exits immediately when the queried room record disappears from the database (no waiting for next poll tick)
+  4. Existing SSE event formats (match notifications, room full, etc.) remain unchanged and functional
+
+**Plans:** TBD
+
+Plans:
+- [ ] 28-01: SSE jitter, heartbeat, and graceful exit
+
+---
+
+### Phase 29: Acceptance Validation
+
+**Goal:** The architecture fixes are transparent — all existing tests pass without modification and the application still works correctly.
+
+**Depends on:** Phase 28 (all code changes complete before validation)
+
+**Requirements:** ACC-01
+
+**Success Criteria** (what must be TRUE):
+  1. All 48 existing tests pass with no modifications to test code
+  2. Application starts correctly and serves the root page after all architecture changes
+  3. No regression in SSE stream behavior for normal single-room, single-client usage
+
+**Plans:** TBD
+
+Plans:
+- [ ] 29-01: Run full test suite and verify application startup
 
 ---
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28
+Phases execute in numeric order: 27 → 28 → 29
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 23. Database Schema + Token Vault | 0/2 | Not started | - |
-| 24. Auth Module + Server-Owned Identity | 2/2 | Complete    | 2026-04-27 |
-| 25. RESTful Routes + Deck Ownership | 2/2 | Complete    | 2026-04-27 |
-| 26. Match Notification + Deep Links + Metadata | 2/2 | Complete    | 2026-04-27 |
-| 27. Client Simplification + Cleanup | 2/2 | Complete    | 2026-04-27 |
-| 28. Deployment Validation | 0/2 | Not started | - |
-| **Total** | **10/13** | **In Progress** | - |
+| 27. Database Architecture | 0/1 | Not started | - |
+| 28. SSE Reliability | 0/1 | Not started | - |
+| 29. Acceptance Validation | 0/1 | Not started | - |
 
 ---
 
 ## Milestone Context
 
-**Previous Milestone:** v1.5 (XSS Security Fix) — Phases 19-22 completed
-**Current Milestone:** v2.0 (Architecture Tier Fix) — Phases 23-28
-**Issue Reference:** https://github.com/andrewthetechie/jelly-swipe/issues/8
-**Status:** 🚧 In Progress
+**Previous Milestones:**
+- v1.0 (Jellyfin support): Phases 1–9 ✅
+- v1.1 (Rename): No numbered phases ✅
+- v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 ✅
+- v1.3 (Unit Tests): Phases 14–17 ✅
+- v1.4 (Authorization Hardening): Phases 1–18 ✅
+- v1.5 (XSS Security Fix): Phases 19–22 ✅
+- v1.6 (Plex Reference Cleanup): Phases 23–26 ✅
 
-**Architecture Goal:**
-Eliminate tier responsibility violations — server owns identity, deck, match logic, and deep links; client owns animation and optimistic UI only.
-
-**Research Flags (phases needing deeper investigation during planning):**
-- **Phase 24:** Delegate mode identity disambiguation — two browsers with same Jellyfin account need session_id-based disambiguator
-- **Phase 25:** Deck cursor resume-on-reconnect behavior — user reloads mid-session must resume from server-tracked position
-- **Phase 26:** `BEGIN IMMEDIATE` pattern with gevent cooperative I/O — verify compatibility with existing `get_db()` connection-per-request
+**Current Milestone:** v1.7 SSE/SQLite Architecture Fix — Phases 27–29
 
 ---
 
-*Roadmap created: 2026-04-26*
-*Last updated: 2026-04-26*
+*Roadmap created: 2026-04-29*
+*Last updated: 2026-04-29*
