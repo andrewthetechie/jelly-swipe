@@ -1,51 +1,27 @@
 # Requirements: Jelly Swipe
 
-**Defined:** 2026-04-26
-**Milestone:** v2.0 Architecture Tier Fix
+**Defined:** 2026-04-29
+**Milestone:** v1.7 SSE/SQLite Architecture Fix
 **Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-## v2.0 Requirements
+## v1.7 Requirements
 
-Requirements for this milestone are scoped to Issue #8 — eliminating 7 tier responsibility violations between server and client.
+Fix the SQLite contention and SSE reliability problems that collapse the app under load when multiple rooms have connected browsers.
 
-### Identity & Auth
+### SQLite Performance (DB)
 
-- [x] **AUTH-01**: Server resolves user identity from session cookie alone — no client-supplied headers for user_id or identity
-- [x] **AUTH-02
-**: Jellyfin API token stored in server-side `user_tokens` SQLite table, keyed by session_id; never exposed to client JavaScript
-- [x] **AUTH-03
-**: Expired `user_tokens` rows are cleaned up automatically (rows older than 24 hours deleted)
+- [ ] **DB-01**: SQLite runs in WAL mode with `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` set at database initialization
+- [ ] **DB-02**: SSE generator holds one SQLite connection per client session instead of opening and closing a connection every 1.5-second poll cycle
 
-### Deck Management
+### SSE Reliability (SSE)
 
-- [x] **DECK-01**: Server is sole source of deck composition and shuffle order; client never re-fetches or re-shuffles
-- [x] **DECK-02**: Server tracks each user's cursor position in the deck for reconnect support
+- [ ] **SSE-01**: Poll interval includes random jitter (0–0.5s) to desynchronize concurrent thundering-herd queries
+- [ ] **SSE-02**: SSE stream sends heartbeat comment (`: ping\n\n`) every ~15 seconds to prevent reverse proxy connection reaping
+- [ ] **SSE-03**: SSE stream handles room disappearance gracefully — exits immediately when the room record is gone, rather than waiting for the next poll tick
 
-### Match & Notification
+### Acceptance (ACC)
 
-- [x] **MTCH-01
-**: Match notification delivered exclusively via SSE stream — swipe HTTP response returns `{accepted: true}` only, no match payload
-- [x] **MTCH-02
-**: Match responses enriched with rating, duration, and year via server-side join through movies table
-- [x] **MTCH-03
-**: Match check-and-insert wrapped in SQLite `BEGIN IMMEDIATE` transaction to prevent TOCTOU race
-
-### RESTful API
-
-- [x] **API-01**: Swipe endpoint restructured as `POST /room/{code}/swipe` accepting `{movie_id, direction}` only
-- [x] **API-02
-**: Server generates Jellyfin deep links as `{JELLYFIN_URL}/web/#/details?id={itemId}` — client never constructs media URLs
-- [x] **API-03
-**: `GET /me` endpoint returns verified user id, display name, and server info from server-side session
-- [x] **API-04
-**: Dedicated `POST /room/solo` endpoint creates a solo session without the two-player room lifecycle
-
-### Client Cleanup
-
-- [x] **CLNT-01
-**: Front-end never reads `provider_token` or `plex_token` from localStorage — all auth is session-cookie based
-- [x] **CLNT-02
-**: Client-side match detection logic removed — match popup triggered only by SSE events, never by swipe HTTP response
+- [ ] **ACC-01**: All existing tests (48+) continue to pass after all architecture changes
 
 ## v2 Requirements
 
@@ -58,42 +34,41 @@ Deferred to future milestones.
 - **ADV-01**: Coverage thresholds enforced in CI to prevent regression.
 - **ADV-02**: Multiple coverage reports (HTML for local, XML for CI).
 
+### Architecture Improvements (Future)
+
+- **ARCH-01**: Replace room-state-as-message-bus pattern with a proper event notification mechanism (e.g., server-sent events triggered by writes, or a pub/sub layer) to prevent `last_match_data` overwrites when multiple matches occur within one poll cycle.
+- **ARCH-02**: Migrate `/movies` endpoint to serve movie data from a cached/optimized path instead of reading a multi-KB blob from SQLite on every room join.
+
 ## Out of Scope
 
-Explicitly excluded from v2.0.
+Explicitly excluded from v1.7.
 
 | Feature | Reason |
 |---------|--------|
-| Dual-read migration bridge | Accept breaking change during upgrade; no backward-compatible localStorage path |
-| Flask-Session extension | Custom SQLite token vault is simpler and consistent with existing patterns |
-| Delegate mode disambiguation | Same-account multi-user is not a supported use case in v2.0 |
-| Redis or external session store | Single-server Docker deployment; filesystem/SQLite sufficient |
-| ADR as a shipped artifact | Decision documented in PROJECT.md and code; formal ADR is documentation overhead for this scale |
+| WebSocket migration | SSE works — this milestone fixes the existing pattern, not replaces it |
+| Postgres/Redis data store | SQLite is appropriate for the app's scale; WAL fixes the contention |
+| Message bus architecture | Out of scope for this fix; `last_match_data` overwrite is a known limitation to address later |
+| Rate limiting on SSE endpoint | Not the root cause; may be added later |
+| Replacing gevent workers | gevent is appropriate for SSE; the problem is SQLite access patterns |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 24 | Complete |
-| AUTH-02 | Phase 23 | Pending |
-| AUTH-03 | Phase 23 | Pending |
-| DECK-01 | Phase 25 | Complete |
-| DECK-02 | Phase 25 | Complete |
-| MTCH-01 | Phase 26 | Complete |
-| MTCH-02 | Phase 26 | Complete |
-| MTCH-03 | Phase 26 | Complete |
-| API-01 | Phase 25 | Complete |
-| API-02 | Phase 26 | Complete |
-| API-03 | Phase 26 | Complete |
-| API-04 | Phase 26 | Complete |
-| CLNT-01 | Phase 27 | Pending |
-| CLNT-02 | Phase 27 | Pending |
+| DB-01 | Phase 27 | Pending |
+| DB-02 | Phase 27 | Pending |
+| SSE-01 | Phase 28 | Pending |
+| SSE-02 | Phase 28 | Pending |
+| SSE-03 | Phase 28 | Pending |
+| ACC-01 | Phase 29 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 14 total
-- Mapped to phases: 14 ✓
-- Unmapped: 0
+- v1.7 requirements: 6 total
+- Mapped to phases: 6
+- Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-04-26*
-*Last updated: 2026-04-26 after roadmap creation (traceability mapped to Phases 23-28)*
+*Requirements defined: 2026-04-29*
+*Last updated: 2026-04-29 after v1.7 definition*
