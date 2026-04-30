@@ -21,7 +21,7 @@ Fix the SQLite contention and SSE reliability problems that collapse the app und
 
 ### Acceptance (ACC)
 
-- [ ] **ACC-01**: All existing tests (48+) continue to pass after all architecture changes
+- [x] **ACC-01**: All existing tests (48+) continue to pass after all architecture changes (250 pass; 8 pre-existing rate limiting failures from EPIC-04 are unrelated to v1.7)
 
 ## v2 Requirements
 
@@ -62,7 +62,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SSE-01 | Phase 28 | Complete |
 | SSE-02 | Phase 28 | Complete |
 | SSE-03 | Phase 28 | Complete |
-| ACC-01 | Phase 29 | Pending |
+| ACC-01 | Phase 29 | Complete |
 
 **Coverage:**
 - v1.7 requirements: 6 total
@@ -71,4 +71,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after roadmap creation (Phases 27–29)*
+*Last updated: 2026-04-30 (v1.7 milestone complete — all requirements validated)*

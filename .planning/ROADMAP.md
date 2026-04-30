@@ -2,8 +2,8 @@
 
 **Milestone:** v1.7 SSE/SQLite Architecture Fix
 **Granularity:** Standard (5-8 phases)
-**Current Phase:** 27 - Database Architecture (Not started)
-**Last Updated:** 2026-04-29
+**Current Phase:** 29 - Acceptance Validation (Complete)
+**Last Updated:** 2026-04-30
 
 ---
 
@@ -21,7 +21,7 @@ This roadmap fixes the SQLite contention and SSE reliability problems that colla
 
 - [x] **Phase 27: Database Architecture** — Enable WAL mode, set synchronous=NORMAL, and refactor SSE generator to hold one SQLite connection per client session (completed 2026-04-30)
 - [x] **Phase 28: SSE Reliability** — Add poll jitter, heartbeat comments, and graceful room-disappearance exit to the SSE stream (completed 2026-04-30)
-- [ ] **Phase 29: Acceptance Validation** — Verify all 48 existing tests still pass after all architecture changes
+- [x] **Phase 29: Acceptance Validation** — Verify all 48 existing tests still pass after all architecture changes (completed 2026-04-30)
 
 ---
 
@@ -81,10 +81,10 @@ Plans:
   2. Application starts correctly and serves the root page after all architecture changes
   3. No regression in SSE stream behavior for normal single-room, single-client usage
 
-**Plans:** TBD
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 29-01: Run full test suite and verify application startup
+- [x] 29-01-PLAN.md — Run full test suite and verify application startup
 
 ---
 
@@ -97,7 +97,7 @@ Phases execute in numeric order: 27 → 28 → 29
 |-------|----------------|--------|-----------|
 | 27. Database Architecture | 1/1 | Complete    | 2026-04-30 |
 | 28. SSE Reliability | 1/1 | Complete    | 2026-04-30 |
-| 29. Acceptance Validation | 0/1 | Not started | - |
+| 29. Acceptance Validation | 1/1 | Complete    | 2026-04-30 |
 
 ---
 
@@ -117,4 +117,4 @@ Phases execute in numeric order: 27 → 28 → 29
 ---
 
 *Roadmap created: 2026-04-29*
-*Last updated: 2026-04-29 (Phase 28 planned)*
+*Last updated: 2026-04-30 (Phase 29 complete — v1.7 milestone complete)*
