@@ -1,35 +1,76 @@
-# Phase 28: Coverage Enforcement - Discussion Log
+# Phase 28: SSE Reliability - Discussion Log
 
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
-> Decisions captured in 28-CONTEXT.md — this log preserves the discussion.
+> Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-04-26
-**Phase:** 28-coverage-enforcement
-**Mode:** discuss
+**Date:** 2026-04-30
+**Phase:** 28-coverage-enforcement (v1.7 SSE Reliability)
+**Areas discussed:** Poll Jitter, Heartbeat Mechanism, Room Disappearance, gevent Compatibility, Test Strategy
+**Mode:** `--auto --all --batch` (all decisions auto-selected)
 
-## Gray Areas Presented
+---
 
-1. **Threshold scope** — Whole-package vs per-file `__init__.py` enforcement
-2. **Coverage configuration** — Append to addopts vs separate coverage section
-3. **CI verification** — Whether CI workflow needs changes
+## Poll Jitter (SSE-01)
 
-## Decisions
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Random uniform jitter | `time.sleep(POLL + random.uniform(0, 0.5))` — simple, effective, stdlib only | ✓ |
+| Decorrelated jitter | Exponential backoff with jitter — overkill for fixed-interval polling | |
+| Deterministic stagger | Per-client offset based on session ID — requires client identity | |
 
-All areas resolved with default/recommended choices — no interactive discussion needed.
+**Auto-selected:** Random uniform jitter (recommended default)
+**Notes:** stdlib `random` module, no new deps. Jitter applies to every sleep cycle including error recovery path.
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| Threshold scope | Whole-package `--cov-fail-under=70` | Currently 75% total; simpler than per-file; `__init__.py` at 78% dominates |
-| Coverage configuration | Append to existing addopts | Single-line change to pyproject.toml; no new config sections |
-| CI verification | No changes needed | CI runs `uv run pytest tests/` which reads pyproject.toml |
+---
 
-## Current Coverage Baseline
+## Heartbeat Mechanism (SSE-02)
 
-```
-jellyswipe/__init__.py:          78%
-jellyswipe/base.py:             100%
-jellyswipe/db.py:                87%
-jellyswipe/jellyfin_library.py:  69%
-TOTAL:                           75%
-Tests: 159 passing
-```
+| Option | Description | Selected |
+|--------|-------------|----------|
+| SSE comment heartbeat | Yield `: ping\n\n` every ~15s — invisible to EventSource clients | ✓ |
+| Data event heartbeat | Yield `data: {"type":"ping"}\n\n` — requires client-side handling | |
+| Dual heartbeat | Both comment and data event — redundant complexity | |
+
+**Auto-selected:** SSE comment heartbeat (recommended default)
+**Notes:** 15-second interval provides ~4 heartbeats/min, well within proxy idle timeouts. No client-side changes needed.
+
+---
+
+## Room Disappearance Handling (SSE-03)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Immediate exit (existing) | Current Phase 27 behavior: yield `closed: True` and return on null row | ✓ |
+| Retry then exit | Retry query N times before exiting — adds latency | |
+| Error event then exit | Yield error event before closing — client may not handle | |
+
+**Auto-selected:** Immediate exit (recommended default — already implemented)
+**Notes:** Phase 27 refactored code already exits immediately on null row. SSE-03 is verified and tested.
+
+---
+
+## gevent Compatibility (Deferred from Phase 27)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Conditional gevent.sleep() | `try: from gevent import sleep as gevent_sleep` with runtime fallback to `time.sleep` | ✓ |
+| Always use time.sleep() | Simpler but blocks gevent workers | |
+| Always use gevent.sleep() | Fails in test environments without gevent | |
+
+**Auto-selected:** Conditional gevent.sleep() (recommended default)
+**Notes:** Gracefully degrades in test/dev environments. Production gunicorn+gevent gets non-blocking sleep.
+
+---
+
+## the agent's Discretion
+
+- Variable naming for heartbeat state tracker (`_last_event_time` vs `last_heartbeat`)
+- Whether to extract jitter/heartbeat logic into helper functions or keep inline
+- Whether to add a comment explaining the gevent sleep fallback
+- Ordering of jitter calculation vs data event check
+
+## Deferred Ideas
+
+- SSE reconnection logic on the client side (EventSource auto-reconnects by spec)
+- Configurable heartbeat interval (hard-code 15s for now)
+- Message bus for `last_match_data` overwrites (future milestone)
