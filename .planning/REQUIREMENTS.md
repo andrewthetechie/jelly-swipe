@@ -21,7 +21,7 @@
 
 ### Deployment
 
-- [ ] **DEP-01**: `Dockerfile` CMD updated to run Uvicorn; `pyproject.toml` updated: Flask, Gunicorn, gevent, Werkzeug removed; `fastapi>=0.136.1`, `uvicorn[standard]>=0.46.0`, `itsdangerous>=2.2.0`, `jinja2>=3.1.6`, `python-multipart>=0.0.18` added; `httpx>=0.28.1` added as dev dependency
+- [x] **DEP-01**: `Dockerfile` CMD updated to run Uvicorn; `pyproject.toml` updated: Flask, Gunicorn, gevent, Werkzeug removed; `fastapi>=0.136.1`, `uvicorn[standard]>=0.46.0`, `itsdangerous>=2.2.0`, `jinja2>=3.1.6`, `python-multipart>=0.0.18` added; `httpx>=0.28.1` added as dev dependency
 
 ### Testing
 
@@ -46,7 +46,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEP-01 | Phase 30 | Pending |
+| DEP-01 | Phase 30 | Complete |
 | FAPI-01 | Phase 31, Phase 35 | Pending |
 | FAPI-04 | Phase 31 | Pending |
 | ARCH-04 | Phase 31 | Pending |

@@ -43,7 +43,7 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
 
 **Milestone Goal:** Replace Flask with FastAPI and Uvicorn, split the 839-line monolith into domain routers with dependency injection, and migrate all 48 tests to FastAPI's TestClient — with zero change to endpoint behavior.
 
-- [ ] **Phase 30: Package and Deployment Infrastructure** — Swap Flask/Gunicorn/gevent for FastAPI/Uvicorn in pyproject.toml; update Dockerfile CMD; zero logic changes
+- [x] **Phase 30: Package and Deployment Infrastructure** — Swap Flask/Gunicorn/gevent for FastAPI/Uvicorn in pyproject.toml; update Dockerfile CMD; zero logic changes (completed 2026-05-02)
 - [ ] **Phase 31: FastAPI App Factory and Session Middleware** — Create the FastAPI app factory with SessionMiddleware, security headers, XSS-safe JSON response class, and lifespan DB initialization
 - [ ] **Phase 32: Auth Rewrite and Dependency Injection Layer** — De-Flaskify auth.py; create dependencies.py with require_auth(), get_db_dep(), get_provider()
 - [ ] **Phase 33: Router Extraction and Endpoint Parity** — Split all 21 non-SSE routes from the monolith into five domain APIRouter modules; every original URL path works
@@ -70,7 +70,7 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
 **Plans**: 1 plan
 
 Plans:
-- [ ] 30-01-PLAN.md — Update pyproject.toml, regenerate uv.lock, update Dockerfile CMD, add Flask import guard
+- [x] 30-01-PLAN.md — Update pyproject.toml, regenerate uv.lock, update Dockerfile CMD, add Flask import guard
 
 ---
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 30. Package and Deployment Infrastructure | 0/1 | Not started | - |
+| 30. Package and Deployment Infrastructure | 1/1 | Complete    | 2026-05-02 |
 | 31. FastAPI App Factory and Session Middleware | 0/TBD | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 0/TBD | Not started | - |
 | 33. Router Extraction and Endpoint Parity | 0/TBD | Not started | - |
