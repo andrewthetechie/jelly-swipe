@@ -1,223 +1,189 @@
-# Technology Stack
+# Stack Research: Flask → FastAPI Migration
 
-**Project:** Jelly Swipe (v2.0 — Architecture Tier Fix)
-**Researched:** 2026-04-26
-**Confidence:** HIGH
+**Project:** Jelly Swipe v2.0 — Flask → FastAPI + MVC Refactor
+**Researched:** 2026-05-01
+**Confidence:** HIGH (all versions verified against PyPI as of 2026-05-01)
 
-## Recommended Stack
+---
 
-### New Runtime Dependencies
+## Current Stack (what is being replaced or kept)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Flask-Session** | >=0.8.0 | Server-side session storage | Stores Jellyfin tokens and session identity server-side; client receives only an HttpOnly session cookie with a session ID (never the token). Filesystem backend via cachelib is zero-config for a single-server Docker deployment. Brings `cachelib>=0.13.0` and `msgspec>=0.18.6` as transitive deps — no additional installs needed. |
+| Package | Current Version Constraint | Role | Migration Fate |
+|---------|---------------------------|------|----------------|
+| `flask` | >=3.1.3 | Web framework | **REMOVE** |
+| `gunicorn` | >=25.3.0 | WSGI server | **REMOVE** |
+| `gevent` | >=24.10 | Async I/O / SSE concurrency | **REMOVE** |
+| `werkzeug` | >=3.1.8 | WSGI utilities (ProxyFix, routing) | **REMOVE** (pulled in by Flask; no longer a direct dep) |
+| `requests` | >=2.33.1 | HTTP client for Jellyfin/TMDB | **KEEP** — unchanged |
+| `python-dotenv` | >=1.2.2 | .env loading | **KEEP** — unchanged |
+| `pytest` | >=9.0.0 | Test runner | **KEEP** — update test patterns only |
+| `pytest-cov` | >=6.0.0 | Coverage | **KEEP** |
+| `pytest-mock` | >=3.14.0 | Mocking | **KEEP** |
+| `responses` | >=0.25.0 | HTTP mock | **KEEP** |
+| `pytest-timeout` | >=2.3.0 | Test timeout | **KEEP** |
 
-### Existing Runtime Dependencies (NO changes needed)
+---
 
-| Technology | Version | Purpose | Why it stays |
-|------------|---------|---------|-------------|
-| **Flask** | >=3.1.3 | Web framework | Already provides `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE`, `SESSION_COOKIE_SECURE` config. No upgrade needed. |
-| **gevent** | >=24.10 | Async I/O for SSE streaming | Works with Flask-Session's filesystem backend — filesystem I/O is cooperative under gevent workers. No conflicts. |
-| **gunicorn** | >=25.3.0 | WSGI server with gevent workers | `-k gevent` worker class is compatible with Flask-Session. SSE streams work because session lookup happens at request start, before the long-lived response begins. |
-| **werkzeug** | >=3.1.8 | WSGI utilities | Provides the underlying cookie signing and `SecureCookie` that Flask-Session replaces at the session interface level. Still used for routing, debugging, proxy fix. |
-| **requests** | >=2.33.1 | HTTP client for Jellyfin/TMDB APIs | No change. Used by `JellyfinLibraryProvider` for server-to-Jellyfin API calls. |
-| **python-dotenv** | >=1.2.2 | .env file loading | No change. |
+## Required Changes
 
-### Development Dependencies (NO changes needed)
+### Packages to ADD (runtime)
 
-| Technology | Version | Purpose | Notes |
-|------------|---------|---------|-------|
-| **pytest** | >=9.0.0 | Test framework | Session tests use Flask test client with `with session_transaction()` |
-| **pytest-cov** | >=6.0.0 | Coverage reporting | No change |
-| **pytest-mock** | >=3.14.0 | Mocking utilities | Mock `get_provider()` and session store for unit tests |
-| **responses** | >=0.25.0 | HTTP request mocking | Mock Jellyfin auth endpoints in session tests |
-| **pytest-timeout** | >=2.3.0 | Test timeout prevention | No change |
+| Package | Latest Version | Purpose | Why this one |
+|---------|---------------|---------|--------------|
+| `fastapi` | **0.136.1** | Web framework | Replaces Flask. Python >=3.10 required — compatible with project's Python 3.13 constraint. Bundles Starlette 1.0.0 and Pydantic >=2.9.0 as hard deps. |
+| `uvicorn[standard]` | **0.46.0** | ASGI server | Replaces Gunicorn+gevent. The `[standard]` extra adds `uvloop`, `httptools`, and `websockets` for production throughput. Python >=3.10. |
+| `itsdangerous` | **2.2.0** | Cookie signing for SessionMiddleware | Required by Starlette's `SessionMiddleware` (replaces Flask's cookie sessions). Python >=3.8. |
+| `jinja2` | **3.1.6** | HTML template rendering | Required by FastAPI's `Jinja2Templates` class to serve `index.html`. Was an indirect Flask dep; now must be explicit. Python >=3.7. |
+| `python-multipart` | **>=0.0.18** | Form body parsing | Required when any route uses `Form(...)`. The existing routes use JSON bodies, not HTML forms — but the login route (`/auth/jellyfin-login`) receives JSON, so this may not be strictly needed. Add it as a guard against Starlette raising `RuntimeError` if form parsing is ever triggered. |
 
-## Flask-Session Configuration
+**Do NOT add `pydantic` explicitly.** FastAPI 0.136.1 already pins `pydantic>=2.9.0` as a hard dependency. It will be resolved transitively. Adding an explicit constraint risks creating a version conflict if the project's pin diverges from FastAPI's.
 
-### Recommended setup for Jelly Swipe
+**Do NOT add `starlette` explicitly.** FastAPI 0.136.1 pins Starlette 1.0.0. Adding a separate explicit dep creates the same conflict risk.
 
-```python
-from flask_session import Session
-from cachelib.file import FileSystemCache
+### Packages to ADD (dev/test)
 
-# Server-side session storage — tokens never leave the server
-app.config.update(
-    SESSION_TYPE='cachelib',
-    SESSION_CACHELIB=FileSystemCache(
-        threshold=500,
-        cache_dir=os.path.join(os.path.dirname(DB_PATH), 'sessions'),
-    ),
-    SESSION_PERMANENT=False,               # Ephemeral — cleared when browser closes
-    SESSION_USE_SIGNER=True,               # Sign session ID cookie with Flask secret_key
-    SESSION_KEY_PREFIX='jswipe:',          # Namespace for session keys in store
-    SESSION_COOKIE_HTTPONLY=True,           # Already Flask default — JS cannot read
-    SESSION_COOKIE_SAMESITE='Lax',          # Already Flask default — CSRF mitigation
-    SESSION_COOKIE_SECURE=False,            # LAN users often on HTTP; set True if behind HTTPS proxy
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),  # Max session age for cleanup
-)
-Session(app)
-```
+| Package | Latest Verified | Purpose | Why |
+|---------|----------------|---------|-----|
+| `httpx` | **>=0.28.1** | TestClient transport | FastAPI's `TestClient` is Starlette's `TestClient` re-exported. It is backed by `httpx`, which is NOT included in `fastapi` or `fastapi[standard]` — it must be installed explicitly. Without it, `from fastapi.testclient import TestClient` raises `RuntimeError: httpx is not installed`. |
 
-### What changes in the session flow
+**anyio** is not needed explicitly — it is a hard transitive dep of both `httpx` and `starlette`.
 
-**Before (current):** Client stores Jellyfin token in `localStorage` → sends it via `Authorization` header on every request → server extracts token → resolves user ID.
+### Packages to REMOVE
 
-**After (v2.0):** Client authenticates once → server stores token in server-side session → client gets opaque HttpOnly cookie → on subsequent requests, server reads token from session store (no client-supplied identity).
+| Package | Why |
+|---------|-----|
+| `flask` | Replaced by `fastapi` |
+| `gunicorn` | Replaced by `uvicorn` |
+| `gevent` | No longer needed — uvicorn handles async concurrency natively via asyncio |
+| `werkzeug` | Was only a direct dep because Flask required it. No longer used. |
 
-### Session data shape (server-side)
+---
 
-After login, the session dict will contain:
+## Package Versions (verified 2026-05-01)
 
-```python
-session = {
-    "jf_token": "<jellyfin_access_token>",   # Stored server-side only
-    "jf_user_id": "<jellyfin_user_uuid>",    # Resolved once at login
-    "active_room": "<pairing_code>",          # Room participation
-    "my_user_id": "host_<hex>"|"guest_<hex>", # In-room identity
-    "solo_mode": False,                       # Solo mode flag
-}
-```
+| Package | Pinned Constraint | Latest on PyPI | Python compat | Confidence |
+|---------|------------------|----------------|---------------|------------|
+| `fastapi` | `>=0.136.1` | 0.136.1 | >=3.10 | HIGH |
+| `uvicorn[standard]` | `>=0.46.0` | 0.46.0 | >=3.10 | HIGH |
+| `itsdangerous` | `>=2.2.0` | 2.2.0 | >=3.8 | HIGH |
+| `jinja2` | `>=3.1.6` | 3.1.6 | >=3.7 | HIGH |
+| `python-multipart` | `>=0.0.18` | (latest) | >=3.8 | HIGH |
+| `httpx` (dev) | `>=0.28.1` | 0.28.1 | >=3.8 | HIGH |
+| *(transitive) pydantic* | >=2.9.0 via fastapi | 2.13.3 | >=3.9 | HIGH |
+| *(transitive) starlette* | 1.0.0 via fastapi 0.136.1 | 1.0.0 | >=3.10 | HIGH |
 
-The client never sees `jf_token` or `jf_user_id` — they live in the filesystem session store.
-
-## SSE + Session Compatibility
-
-**Key insight:** EventSource (SSE) automatically sends cookies with each request. With Flask-Session:
-
-1. Client opens `EventSource('/room/stream')` → browser sends session cookie
-2. Flask-Session middleware loads session data from filesystem at request start
-3. SSE generator runs with full session access (room code, user identity)
-4. Long-lived SSE stream holds the response open — session was already loaded
-
-**No conflict with gevent workers:**
-- Session filesystem I/O happens at request start (cooperative, fast)
-- SSE polling loop (`time.sleep(1.5)`) already works under gevent monkey patching
-- Multiple concurrent SSE connections each get their own session lookup
-
-## RESTful Endpoint Restructuring
-
-No new libraries required. This is Flask URL pattern changes using built-in `<variable>` converters:
-
-| Current Pattern | RESTful Pattern | HTTP Method | Notes |
-|----------------|-----------------|-------------|-------|
-| `/room/create` | `/rooms` | POST | Collection pattern |
-| `/room/join` | `/rooms/{code}/join` | POST | Action on specific room |
-| `/room/go-solo` | `/rooms/{code}/solo` | POST | Action on specific room |
-| `/room/swipe` | `/rooms/{code}/swipes` | POST | Sub-collection pattern |
-| `/room/status` | `/rooms/{code}` | GET | Resource read |
-| `/room/stream` | `/rooms/{code}/stream` | GET | SSE stream |
-| `/room/quit` | `/rooms/{code}` | DELETE | Resource deletion |
-| `/matches` | `/rooms/{code}/matches` | GET | Sub-resource |
-| `/matches/delete` | `/rooms/{code}/matches/{movie_id}` | DELETE | Specific match |
-| `/undo` | `/rooms/{code}/swipes/{movie_id}` | DELETE | Undo last swipe |
-| `/movies` | `/rooms/{code}/movies` | GET | Room's deck |
-| `/genres` | `/genres` | GET | Static — no room context |
-
-**Implementation:** Flask's built-in `<string:code>` URL converter. No additional library needed.
-
-```python
-@app.route('/rooms/<string:code>/swipes', methods=['POST'])
-def create_swipe(code):
-    # code comes from URL, not session
-    # session provides user identity
-    ...
-```
-
-**Identity from session, room from URL:** The room code moves out of session and into the URL path. The session cookie carries only identity (token + user_id). This eliminates the need for `session["active_room"]` in most routes.
-
-## Installation
-
-```bash
-# Add Flask-Session to runtime dependencies
-uv add flask-session>=0.8.0
-
-# That's it — cachelib and msgspec come as transitive dependencies
-# No other new packages needed
-```
-
-### pyproject.toml change
+### pyproject.toml delta
 
 ```toml
-dependencies = [
-    "flask>=3.1.3",
-    "flask-session>=0.8.0",     # NEW: server-side session storage
-    "gevent>=24.10",
-    "gunicorn>=25.3.0",
-    "python-dotenv>=1.2.2",
-    "requests>=2.33.1",
-    "werkzeug>=3.1.8",
-]
+# REMOVE these lines:
+#   "flask>=3.1.3",
+#   "gevent>=24.10",
+#   "gunicorn>=25.3.0",
+#   "werkzeug>=3.1.8",
+
+# ADD these lines (runtime):
+#   "fastapi>=0.136.1",
+#   "uvicorn[standard]>=0.46.0",
+#   "itsdangerous>=2.2.0",
+#   "jinja2>=3.1.6",
+#   "python-multipart>=0.0.18",
+
+# ADD to [project.optional-dependencies] dev section:
+#   "httpx>=0.28.1",
 ```
 
-## Alternatives Considered
+### Dockerfile CMD delta
 
-| Recommended | Alternative | Why Not |
-|-------------|-------------|---------|
-| **Flask-Session (cachelib/filesystem)** | Flask default cookie session | Cookie session stores data client-side (base64-readable even if signed). Jellyfin tokens would be exposed in the cookie payload. Server-side storage keeps tokens on the server. |
-| **Flask-Session (cachelib/filesystem)** | Flask-Session with Redis backend | Redis is overkill for a single-server self-hosted Docker app. Adds an external service dependency that operators must manage. Filesystem backend is zero-config. |
-| **Flask-Session (cachelib/filesystem)** | Flask-Session with SQLAlchemy backend | Would require adding Flask-SQLAlchemy as a dependency. The existing codebase uses raw `sqlite3` — adding an ORM layer for session storage alone is unnecessary complexity. |
-| **Flask-Session (cachelib/filesystem)** | Custom SQLite session table | Would work but requires implementing serialization, expiry, cleanup, and cookie management from scratch. Flask-Session is a ~100-line config that handles all of this. |
-| **Flask-Session** | Flask-Login | Flask-Login manages user authentication flows (login/logout/remember-me) with a User model. Jelly Swipe doesn't have a User model — identity comes from Jellyfin. The app just needs session storage, not a full auth framework. |
-| **Flask-Session** | itsdangerous URL-safe serializer | Could sign tokens and store them in cookies, but this still sends token data to the client. Server-side storage is the goal. |
+```dockerfile
+# REMOVE:
+CMD ["/app/.venv/bin/gunicorn", "-b", "0.0.0.0:5005", "-k", "gevent", "--worker-connections", "1000", "jellyswipe:app"]
 
-## What NOT to Use
-
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| **Flask-SQLAlchemy** | Adds ORM dependency for a codebase that uses raw sqlite3. Only needed if Flask-Session's SQLAlchemy backend is chosen. | Raw sqlite3 (existing) + Flask-Session cachelib/filesystem backend |
-| **Redis** | External service that Docker operators must manage. Not justified for a self-hosted single-server app with ~2 concurrent users. | Filesystem session storage via cachelib |
-| **Flask-SocketIO** | Would replace SSE with WebSocket. SSE already works with gevent workers. Switching adds a dependency and breaks the existing SSE architecture for no functional benefit. | Keep existing SSE with EventSource |
-| **Flask-Login** | Requires a User model and login/logout flow. Jelly Swipe identity comes from Jellyfin — there's no local user table to manage. | Store Jellyfin identity directly in Flask-Session |
-| **JWT tokens** | Moving tokens from localStorage to JWT cookies adds complexity (signing, expiry, refresh). Flask-Session's server-side storage is simpler and more secure — tokens never leave the server. | Flask-Session server-side storage |
-| **Flask-Session `filesystem` backend** | Deprecated since Flask-Session 0.7.0, will be removed in 1.0.0. | `SESSION_TYPE='cachelib'` with `FileSystemCache` — identical behavior, supported future |
-
-## Stack Patterns by Variant
-
-**If running behind an HTTPS reverse proxy (Traefik, Caddy, nginx):**
-- Set `SESSION_COOKIE_SECURE=True` via env var
-- Add `proxy_set_header X-Forwarded-Proto $scheme` in nginx config
-- Flask's `ProxyFix` already handles `X-Forwarded-Proto`
-
-**If running on HTTP (LAN, Unraid default):**
-- Keep `SESSION_COOKIE_SECURE=False` (default) — otherwise cookies won't be sent
-- The signed session cookie still provides tamper protection
-- Tokens are server-side only, so HTTP exposure is limited to the session ID
-
-**If scaling to multiple gunicorn workers:**
-- Filesystem sessions break across workers if each worker has its own filesystem view
-- For Docker single-worker (`--workers 1`), this is not an issue
-- If multi-worker needed, switch to `SESSION_TYPE='sqlalchemy'` with the existing SQLite DB
-
-## Version Compatibility
-
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| Flask-Session 0.8.0 | Flask >=2.2, Python 3.13 | Verified via pip dry-run. Uses msgspec for serialization (fast, no pickle). |
-| cachelib 0.13.0 | Flask-Session >=0.7.0 | Transitive dependency of Flask-Session 0.8.0. Provides `FileSystemCache`. |
-| msgspec >=0.18.6 | Python 3.13 | Transitive dependency of Flask-Session 0.8.0. Fast JSON/msgpack serialization for session data. |
-| gevent >=24.10 | Flask-Session filesystem backend | Filesystem I/O is cooperative under gevent monkey patching. No conflicts. |
-| gunicorn gevent worker | Flask-Session | Session lookup at request start, before SSE streaming begins. No thread-local conflicts. |
-
-## Docker Considerations
-
-**Session storage location:** `/app/data/sessions/` — alongside the existing SQLite database at `/app/data/jellyswipe.db`. Both should be volume-mounted for persistence:
-
-```yaml
-volumes:
-  - ./data:/app/data  # Contains jellyswipe.db AND sessions/
+# REPLACE WITH:
+CMD ["/app/.venv/bin/uvicorn", "jellyswipe:app", "--host", "0.0.0.0", "--port", "5005"]
 ```
 
-**Session cleanup:** Flask-Session supports `SESSION_CLEANUP_N_REQUESTS` for non-TTL backends. For filesystem sessions with `SESSION_PERMANENT=False`, expired sessions are cleaned up on each request when the threshold is reached. Alternatively, run `flask session_cleanup` periodically.
+The ASGI app entry point becomes `jellyswipe:app` where `app` is the `FastAPI()` instance returned by `create_app()`. The `jellyswipe/__init__.py` module-level `app = create_app()` pattern is preserved — same import path, different object type.
+
+---
+
+## Migration Mapping: Flask → FastAPI Equivalents
+
+| Flask concept | FastAPI equivalent | Notes |
+|---------------|--------------------|-------|
+| `Flask(__name__)` | `FastAPI()` | Same factory pattern, same `create_app()` wrapper |
+| `@app.route('/path', methods=['GET'])` | `@router.get('/path')` | Use `APIRouter` per domain; mount with `app.include_router()` |
+| `flask.request` | `Request` parameter in route function | Pass `request: Request` explicitly |
+| `flask.session` | `request.session` via `SessionMiddleware` | Starlette `SessionMiddleware` with `itsdangerous` signing |
+| `flask.jsonify(data)` | `return data` (dict/Pydantic model) | FastAPI auto-serializes dicts and Pydantic models to JSON |
+| `flask.g` | FastAPI `Depends()` | Move `g.user_id`, `g.jf_token` into a `get_current_user()` dependency |
+| `@login_required` decorator | `current_user: User = Depends(get_current_user)` | Dependency injection replaces decorator pattern |
+| `Response(generate(), mimetype='text/event-stream')` | `StreamingResponse(generate(), media_type='text/event-stream')` | The SSE generator can stay synchronous; FastAPI runs it in a thread pool via `anyio.to_thread.run_sync` |
+| `render_template('index.html')` | `templates.TemplateResponse('index.html', {'request': request})` | Requires `Jinja2Templates` instance and `jinja2` installed |
+| `send_from_directory('static', path)` | `app.mount('/static', StaticFiles(directory=...))` | Mount once at app init; removes need for explicit static routes |
+| `app.wsgi_app = ProxyFix(...)` | `app.add_middleware(ProxyHeadersMiddleware, trusted_hosts='*')` | `uvicorn.middleware.proxy_headers.ProxyHeadersMiddleware` handles X-Forwarded-* |
+| `@app.after_request` CSP header | `@app.middleware('http')` | Standard Starlette-style HTTP middleware |
+| `flask.abort(403)` | `raise HTTPException(status_code=403)` | FastAPI's `HTTPException` |
+| `app.config['KEY']` | Module-level variable or `lifespan` state | FastAPI has no `app.config`; use `app.state` or pass config through DI |
+
+---
+
+## SSE-Specific Notes
+
+The existing SSE generator in `room_stream()` is a **synchronous** generator using `time.sleep()`. FastAPI/Uvicorn handle this correctly:
+
+- `StreamingResponse` accepts both sync and async iterables.
+- When given a sync generator, FastAPI runs it in a thread pool via `anyio`, so it does not block the event loop.
+- `gevent_sleep` is used in the current code only as a fallback to `time.sleep` — both can be removed in favor of plain `time.sleep()`, since the thread pool isolation makes it safe.
+- The `asyncio.sleep()` alternative is only necessary if the generator is converted to `async def` — not required for the initial migration.
+
+**Do NOT add `sse-starlette`** (PyPI: `sse-starlette 3.4.1`). It is a third-party wrapper providing `EventSourceResponse`. FastAPI 0.136.x has native `EventSourceResponse` in `fastapi.sse`. The existing `StreamingResponse` with `media_type='text/event-stream'` is sufficient and already matches the behavior of the current Flask `Response(generate(), mimetype='text/event-stream')`.
+
+---
+
+## Test Suite Migration
+
+The current test infrastructure patches `dotenv.load_dotenv` and `Flask` at the session level. After migration:
+
+- The `app` fixture in `conftest.py` calls `create_app()` — this will return a `FastAPI()` instance instead of `Flask()`. The fixture shape is identical; only the import and object type change.
+- `app.test_client()` (Flask) → `TestClient(app)` from `fastapi.testclient` — same synchronous HTTP interface, backed by `httpx`.
+- `client.session_transaction()` context manager (Flask test client only) → does not exist in FastAPI's `TestClient`. Session manipulation in tests must use the `SessionMiddleware` cookie approach: set cookies directly on `TestClient` requests, or use an override dependency for `get_current_user()`.
+- `monkeypatch.setattr(jellyswipe_module, '_provider_singleton', fake_provider)` — works unchanged; the singleton pattern is framework-agnostic.
+
+**The biggest test migration effort** is replacing `with client.session_transaction() as sess: sess[...] = ...` (used in SSE and route tests) with FastAPI-compatible session seeding. The standard pattern is to override the `get_current_user` dependency in tests using `app.dependency_overrides[get_current_user] = lambda: fake_user`.
+
+---
+
+## What NOT to Add
+
+| Package | Why to avoid |
+|---------|-------------|
+| `sse-starlette` | Redundant — FastAPI 0.136 has `fastapi.sse.EventSourceResponse` natively. The existing `StreamingResponse` approach also works fine. |
+| `pydantic` (explicit) | FastAPI pins it. Explicit constraint risks divergence conflict. |
+| `starlette` (explicit) | Same reason as pydantic — FastAPI pins Starlette 1.0.0 exactly. |
+| `anyio` (explicit) | Transitive dep of starlette and httpx. Adding it explicitly is noise. |
+| `flask` / `gunicorn` / `gevent` | Being removed; do not carry them forward as optional deps. |
+| `aiohttp` | Not needed. `requests` continues to serve sync Jellyfin/TMDB API calls. No reason to introduce an async HTTP client. |
+| `sqlalchemy` / `databases` | Project uses raw `sqlite3`. No ORM is needed or desired. |
+| `fastapi-users` | Overkill. Auth is Jellyfin-delegated. No local user table. |
+| `slowapi` | Rate limiting is already implemented in `jellyswipe/rate_limiter.py`. Do not replace it with a new library. |
+| `uvloop` (explicit) | Included in `uvicorn[standard]` already. |
+| `httptools` (explicit) | Same — included in `uvicorn[standard]`. |
+
+---
 
 ## Sources
 
-- **Flask-Session 0.8.0** (/pallets-eco/flask-session via Context7) — cachelib backend configuration, filesystem session setup, SESSION_USE_SIGNER, cleanup options (HIGH confidence)
-- **Flask** (/pallets/palletsprojects.com via Context7) — SESSION_COOKIE_HTTPONLY defaults to True, SESSION_COOKIE_SAMESITE defaults to 'Lax', cookie security configuration (HIGH confidence)
-- **Flask-Session pip dry-run** — Verified cachelib 0.13.0 and msgspec are transitive dependencies of flask-session 0.8.0 (HIGH confidence)
-- **Gevent** (/gevent/gevent via Context7) — monkey patching, cooperative I/O, filesystem compatibility (HIGH confidence)
-- **Flask-Session config reference** (github.com/pallets-eco/flask-session) — `filesystem` backend deprecated since 0.7.0, use `cachelib` backend with `FileSystemCache` instead (HIGH confidence)
-
----
-*Stack research for: Jelly Swipe v2.0 — Architecture Tier Fix (server-side identity, session tokens, RESTful endpoints)*
-*Researched: 2026-04-26*
+- FastAPI 0.136.1 on PyPI — version, Python requirements, Starlette 1.0.0 and python-multipart >=0.0.18 dependency (HIGH confidence, verified 2026-05-01)
+- Uvicorn 0.46.0 on PyPI — version, Python requirements, `[standard]` extras (HIGH confidence, verified 2026-05-01)
+- Starlette 1.0.0 on PyPI — `itsdangerous` required for `SessionMiddleware` (HIGH confidence, verified 2026-05-01)
+- Pydantic 2.13.3 on PyPI — latest version, Python >=3.9 (HIGH confidence, verified 2026-05-01)
+- Jinja2 3.1.6 on PyPI — latest version (HIGH confidence, verified 2026-05-01)
+- itsdangerous 2.2.0 on PyPI — latest version (HIGH confidence, verified 2026-05-01)
+- httpx 0.28.1 on PyPI — latest version, required for TestClient (HIGH confidence, verified 2026-05-01)
+- FastAPI release notes (fastapi.tiangolo.com/release-notes) — 0.136.1 upgrades Starlette to 1.0.0; 0.135.2 bumps Pydantic lower bound to >=2.9.0 (HIGH confidence)
+- FastAPI docs: TestClient (fastapi.tiangolo.com/tutorial/testing) — requires httpx, not bundled (HIGH confidence)
+- FastAPI docs: SSE / StreamingResponse (fastapi.tiangolo.com/tutorial/server-sent-events, reference/responses) — native EventSourceResponse in fastapi.sse; StreamingResponse accepts sync generators (HIGH confidence)
+- FastAPI docs: SessionMiddleware inherited from Starlette (fastapi.tiangolo.com/features) — HIGH confidence
+- Context7 /fastapi/fastapi — TestClient, SessionMiddleware, StreamingResponse, Depends() patterns (HIGH confidence)
+- Context7 /websites/uvicorn_dev — CLI options, --host/--port, proxy headers middleware (HIGH confidence)
+- GitHub discussion fastapi/fastapi #11958 — httpx not bundled since FastAPI 0.112.0, must install separately (HIGH confidence)

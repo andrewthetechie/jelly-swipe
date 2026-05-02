@@ -1,331 +1,242 @@
-# Feature Research: Architecture Tier Separation (v2.0)
+# Features Research: Flask → FastAPI + MVC Migration (v2.0)
 
-**Domain:** Client/server responsibility boundaries in a collaborative swipe-matching app
-**Researched:** 2026-04-26
-**Confidence:** HIGH
+**Domain:** Framework migration — Flask WSGI to FastAPI ASGI, with MVC split
+**Researched:** 2026-05-01
+**Confidence:** HIGH (all patterns verified against FastAPI 0.136.1 docs via Context7)
 
-## Executive Summary
+---
 
-Jelly Swipe v2.0 addresses 7 specific tier responsibility violations where client code performs work that belongs to the server, or where server and client duplicate the same logic. In properly-tiered swipe-matching apps, the server is the single source of truth for identity, deck composition/order, match detection, and deep link generation. The client owns only animation, optimistic UI updates, and rendering.
+## Migration Scope
 
-Research confirms that Jellyfin Web uses **hash-based routing** (`createHashRouter`) with item detail pages at the `details` path, accepting `?id={itemId}` as a query parameter. The correct deep link format is `{JELLYFIN_URL}/web/#/details?id={itemId}` — the server already has `JELLYFIN_URL` as an env var, so it must generate these links rather than delegating URL construction to the client.
+This is a **framework migration**, not a product feature release. "Features" are migration
+capabilities — each one is a migration task that must be complete before v2.0 ships. The
+end-user experience is identical; the internal structure and runtime change entirely.
 
-Flask's built-in `session` (signed cookies backed by `app.secret_key`) is sufficient for server-owned identity. No additional library is needed — `Flask-Login` would add unnecessary abstraction for a system with two identity modes (delegate server identity vs. user-supplied credentials).
+The source is a 840-line `jellyswipe/__init__.py` Flask monolith with:
+- 22 route handlers spanning auth, rooms, media, proxy, and static
+- `auth.py` with hard Flask imports (`flask.session`, `flask.g`, `flask.jsonify`)
+- A synchronous SSE generator using `time.sleep()` and `gevent` fallback
+- 130+ test functions spread across 10 test files, ~40 usages of
+  `client.session_transaction()`, 100 usages of `response.get_json()`, and 15 usages of
+  `response.data`
 
-## Table Stakes (Users Expect These)
+---
 
-Features users assume exist. Missing these = product feels broken or insecure.
+## Table Stakes (Must Migrate — Blocking v2.0 Ship)
 
-| # | Feature | Why Expected | Complexity | Current Violation | Notes |
-|---|---------|--------------|------------|-------------------|-------|
-| 1 | **Server-owned user identity** | Users expect a single consistent identity across sessions, not parallel IDs | MEDIUM | Violation #1: Server generates `host_xxx`/`guest_xxx` IDs in session while client sends Jellyfin user_id via headers — two parallel identity systems | Store `user_id` in Flask session after auth; remove client-supplied identity headers from all API calls. Server resolves identity once at login, persists in `session['user_id']`. |
-| 2 | **Server-side token storage (HttpOnly)** | Modern apps don't expose auth tokens to client JavaScript | MEDIUM | Violation #3: Client computes `Authorization: MediaBrowser ...` headers and persists tokens in `localStorage` | After `/auth/jellyfin-login` or delegate bootstrap, store the Jellyfin token server-side in `session['jf_token']` (Flask signed cookie). Client never sees the token. Return `session` cookie (already HttpOnly by default with `app.secret_key`). |
-| 3 | **Server-owned deck composition + order** | Deck content must be deterministic; all participants see the same cards | LOW | Violation #5: Server returns shuffled deck but client can re-fetch `/movies` and get a different shuffle | Server stores deck JSON blob in `rooms.movie_data` (already does this). Client must not re-fetch or re-shuffle. Genre changes trigger server-side deck regeneration only. |
-| 4 | **Single-channel match notification** | Match events should arrive from exactly one source | MEDIUM | Violation #4: Client decides match UX from `/room/swipe` response AND SSE pushes `last_match` — duplicate notification paths | `/room/swipe` should return `{matched: true/false}` without triggering a popup. The match popup should only fire from SSE `last_match` events. This eliminates race conditions and ensures both host and guest see matches. |
-| 5 | **Correct Jellyfin deep links** | "Open in Jellyfin" must actually open the movie | LOW | Violation #2: Client computes Plex deep links (`https://app.plex.tv/desktop/#!/server/...`) — completely wrong for Jellyfin | Server generates `{JELLYFIN_URL}/web/#/details?id={movie_id}` and includes it in match/deck responses. Client just uses `href` from server data. |
-| 6 | **Match cards with full metadata** | Users expect to see rating, duration, and year on matched movies | LOW | Violation #7: `get_matches()` returns `title, thumb, movie_id` only, but UI tries to render `rating`, `duration`, `year` badges (rendering empty) | Server-side join: `get_matches()` should return all card fields by re-querying Jellyfin or storing them in the `matches` table. |
-| 7 | **RESTful swipe endpoint** | Standard REST semantics for swipe actions | LOW | Violation (general): `/room/swipe` is a generic endpoint without room context in URL | Refactor to `POST /room/{code}/swipe` with body `{movie_id, direction}` only. Session provides identity; URL provides room context. |
-| 8 | **Solo mode as user property** | Solo mode is about how one person swipes, not a room property | MEDIUM | Violation #6: `go-solo` sets `rooms.solo_mode=1` which means both users in the room are forced into solo mode | Solo mode should be a session/user-level flag, not a room-level flag. `session['solo_mode'] = True` for the requesting user only. Match logic checks the swiping user's solo flag, not the room's. |
+Every item here is required for behavior parity. Missing any = v2.0 is not shippable.
 
-## Differentiators (Beyond Basic Expectations)
+| # | Migration Task | Requirement ID | Complexity | Notes |
+|---|---------------|----------------|------------|-------|
+| 1 | **FastAPI app factory replaces Flask** | FAPI-01 | LOW | `create_app()` returns `FastAPI()` instead of `Flask()`. Module-level `app = create_app()` preserved for `uvicorn jellyswipe:app`. `ProxyFix` → `ProxyHeadersMiddleware`. `app.json = _XSSSafeJSONProvider` → `@app.middleware('http')` post-processing response bodies. |
+| 2 | **Uvicorn replaces Gunicorn+gevent** | FAPI-01, DEP-01 | LOW | Dockerfile CMD changes from `gunicorn -k gevent` to `uvicorn`. `gevent` import in `__init__.py` removed. `_gevent_sleep` fallback removed. `time.sleep()` is safe in Uvicorn thread pool. |
+| 3 | **All HTTP endpoints retain identical paths and behavior** | FAPI-02 | MEDIUM | 22 routes must produce identical URL paths, HTTP methods, status codes, JSON shapes, and headers. All existing route tests must pass without assertion changes. |
+| 4 | **SSE endpoint migrated to StreamingResponse** | FAPI-03 | MEDIUM | `Response(generate(), mimetype='text/event-stream')` → `StreamingResponse(generate(), media_type='text/event-stream')`. Synchronous generator is preserved; Uvicorn runs it in anyio thread pool. `_gevent_sleep` removed. `Cache-Control` and `X-Accel-Buffering` headers preserved via `headers=` dict on `StreamingResponse`. |
+| 5 | **Session management migrated to SessionMiddleware** | FAPI-04 | MEDIUM | `flask.session` → `request.session` via Starlette `SessionMiddleware`. Env var `FLASK_SECRET` renamed to `SECRET_KEY` (or kept as `FLASK_SECRET` but read for `SessionMiddleware`). `SESSION_COOKIE_SECURE` env var continues to control cookie security. `SESSION_COOKIE_SAMESITE` preserved. `app.secret_key` → `SessionMiddleware(app, secret_key=...)`. |
+| 6 | **`auth.py` de-Flaskified** | ARCH-01, ARCH-03 | MEDIUM | `auth.py` imports `from flask import session, g, jsonify`. These must become: `session` → function parameter `request: Request` with `request.session`; `g` (for `g.user_id`, `g.jf_token`) → FastAPI `Depends()` returning a `CurrentUser` object; `jsonify` → removed (FastAPI auto-serializes dicts). The `@login_required` decorator pattern becomes a `Depends(get_current_user)` dependency. |
+| 7 | **Domain routers extracted from `__init__.py`** | ARCH-01 | MEDIUM | 22 routes split into 5 `APIRouter` modules: `routers/auth.py` (auth/provider, login, logout, server-identity), `routers/rooms.py` (create, join, solo, swipe, deck, genre, status, quit, undo, matches), `routers/media.py` (trailer, cast, watchlist, genres, me, jellyfin-server-info), `routers/proxy.py` (image proxy), `routers/static.py` (index, manifest, sw.js, favicon, static files). `__init__.py` becomes the thin factory that imports and mounts routers. |
+| 8 | **Pydantic models for all request bodies** | ARCH-02 | LOW | Every route that reads `request.json` or `request.form` gets a Pydantic `BaseModel`. Identified request body models: `JellyfinLoginRequest`, `SwipeRequest`, `GenreRequest`, `WatchlistRequest`, `DeleteMatchRequest`, `UndoSwipeRequest`. FastAPI validates and deserializes automatically; routes receive typed model instances. |
+| 9 | **Pydantic models for significant response shapes** | ARCH-02 | LOW | Response models document the API contract. Candidates: `AuthResponse`, `RoomResponse`, `DeckItemResponse`, `MatchResponse`, `RoomStatusResponse`, `MeResponse`. Optional but strongly recommended for OpenAPI documentation and type safety. |
+| 10 | **`dependencies.py` extracts shared logic** | ARCH-03 | MEDIUM | Shared per-request logic moved out of route handlers: `get_db()` connection as a dependency with `yield` (auto-close), `get_current_user()` replacing `@login_required`, `get_provider()` singleton accessor, `get_request_id()` from request state. `flask.g` is eliminated; values flow through dependency injection. |
+| 11 | **`__init__.py` becomes thin app factory** | ARCH-04 | LOW | After router extraction, `__init__.py` contains only: imports, env validation, `create_app()` factory (creates `FastAPI()`, adds middleware, includes routers, calls `init_db()`), and `app = create_app()`. Target: under 60 lines. |
+| 12 | **TestClient replaces Flask test client** | TST-01 | HIGH | `from fastapi.testclient import TestClient` replaces `app.test_client()`. `client.get_json()` → `response.json()`. `response.data` → `response.content` (bytes) or `response.text` (str). `response.content_type` → `response.headers['content-type']`. The 40 `client.session_transaction()` usages require a new pattern (see Key Dependencies). |
+| 13 | **conftest.py updated for FastAPI** | TST-01 | MEDIUM | `FLASK_SECRET` env var keeps supporting test setup but `create_app()` returns `FastAPI()`. `app` fixture wraps `TestClient(create_app(...))`. `FakeProvider` mock pattern unchanged (monkeypatching the singleton). Rate limiter reset unchanged. Token cache clear unchanged. |
+| 14 | **Dockerfile CMD uses Uvicorn** | DEP-01 | LOW | Single-line change: replace `gunicorn -b 0.0.0.0:5005 -k gevent --worker-connections 1000 jellyswipe:app` with `uvicorn jellyswipe:app --host 0.0.0.0 --port 5005`. |
+| 15 | **All 48 unit tests pass** | TST-01 | — | The 48 pre-existing tests in `test_db.py` and `test_jellyfin_library.py` are framework-agnostic and require no changes. Route tests require the TestClient migration in item 12 above. |
 
-Features that set the app apart from a naive implementation. Not required, but valuable.
+---
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **ADR documenting tier responsibilities** | Prevents future violations by codifying which tier owns what | LOW | Single markdown file: "Server owns: identity, deck, matches, deep links, tokens. Client owns: animation, DOM, optimistic UI." Future developers reference this. |
-| **Server-side deck cursor** | Prevents clients from seeing cards out of order or skipping ahead | MEDIUM | Store per-user position in deck (which card index each user is on). Server returns only the next card(s) rather than the full deck. Prevents client-side deck manipulation. |
-| **Idempotent swipe processing** | Prevents duplicate swipes from network retries | LOW | Add `UNIQUE(room_code, movie_id, user_id)` constraint on `swipes` table (already exists on `matches`). Use `INSERT OR IGNORE` pattern. |
+## Optional Enhancements (Post-v2.0, Do Not Block Ship)
 
-## Anti-Features (Commonly Requested, Often Problematic)
+These improve the migration result but are not required for behavior parity.
 
-Features to explicitly NOT build.
+| Enhancement | Value | Complexity | When |
+|-------------|-------|------------|------|
+| **`async def` route handlers** | Lower latency under load; full asyncio coroutine | HIGH | After v2.0 ships. Requires `aiosqlite` or `asyncpg` to avoid blocking the event loop on DB calls. Do not do half-async (sync DB + async routes). |
+| **`EventSourceResponse` from `fastapi.sse`** | Cleaner SSE API; automatic keep-alive pings every 15s | LOW | Optional upgrade after SSE tests pass. Native `StreamingResponse` already works. `EventSourceResponse` adds automatic `Cache-Control: no-cache` and ping interval. |
+| **OpenAPI docs at `/docs`** | FastAPI generates Swagger UI automatically from Pydantic models | NONE (free) | Ships with v2.0 at no extra cost. Consider whether to disable for production via `docs_url=None` in `FastAPI()`. |
+| **`pytest-anyio` for async tests** | Enables testing `async def` route handlers directly | LOW | Only needed if routes are converted to `async def`. Not needed for sync handlers tested via `TestClient`. |
+| **HTML/XML coverage reports** | `pytest-cov --cov-report=html` | LOW | Deferred from v1.3 (ADV-01). Trivial to add once migration is complete. |
 
-| Anti-Feature | Why Requested | Why Problematic | What to Do Instead |
-|--------------|---------------|-----------------|-------------------|
-| **Client-side deck shuffling** | Feels faster to shuffle locally without waiting for server | Creates divergent decks between users; defeats collaborative matching | Server owns deck order. Client requests cards from server. |
-| **localStorage token persistence** | Survives page refresh; seems convenient | Tokens accessible to XSS (even with CSP); violates defense-in-depth; `session` cookie already handles persistence | Use Flask `session` (signed, HttpOnly by default). Set `session.permanent = True` for persistence across browser close. |
-| **Client-computed deep links** | Avoids a server round-trip | Ties client to specific media server URL formats (Plex vs Jellyfin); client doesn't know server base URL | Server generates `{JELLYFIN_URL}/web/#/details?id={itemId}`. Client just navigates to the `href`. |
-| **Dual notification path (SSE + HTTP response)** | Instant feedback on own swipe + partner notification | Race conditions; duplicate popups; divergent state between users | Single channel: SSE for ALL match notifications. HTTP response returns only `{matched: bool}` for the swiping user's optimistic UI. |
-| **Room-level solo mode flag** | Simplest implementation | Forces all participants into solo mode when only one user wanted it; couples a user preference to room state | Session-level solo flag: `session['solo_mode'] = True`. Match logic checks the individual user's flag. |
+---
 
-## Feature Dependencies
+## Migration Sequence
+
+The tasks have hard dependencies. This is the only viable linear order:
+
+### Phase A: Infrastructure (zero route changes)
+1. **Update `pyproject.toml`** — Add `fastapi`, `uvicorn[standard]`, `itsdangerous`, `jinja2`, `python-multipart`; remove `flask`, `gunicorn`, `gevent`, `werkzeug`. Add `httpx` to dev deps.
+2. **Update `Dockerfile` CMD** — Swap Gunicorn for Uvicorn.
+3. **Verify `uv sync` resolves cleanly** — Confirm no dependency conflicts before touching application code.
+
+### Phase B: App Factory (touches `__init__.py`, zero route logic changes)
+4. **Replace `Flask()` with `FastAPI()` in `create_app()`** — Wire `SessionMiddleware`, `ProxyHeadersMiddleware`, CSP middleware, request-ID middleware. Verify the app boots with Uvicorn.
+5. **Port all 22 routes directly into the new FastAPI app** — No structure change yet; just syntax conversion (decorators, `request.json` → body param, `jsonify()` → dict return, `abort()` → `HTTPException`). Smoke test with `TestClient`.
+
+### Phase C: `auth.py` De-Flaskification
+6. **Rewrite `auth.py`** — Remove `flask.session`, `flask.g`, `flask.jsonify`. Replace with `request: Request` parameter and `request.session`. Change `@login_required` decorator to a `get_current_user()` Depends function. This is the highest-risk single-file change.
+
+### Phase D: Router Extraction (MVC split)
+7. **Extract `routers/auth.py`** — Move 4 auth routes out of `__init__.py`.
+8. **Extract `routers/rooms.py`** — Move 11 room-management routes.
+9. **Extract `routers/media.py`** — Move 5 media/provider routes.
+10. **Extract `routers/proxy.py`** — Move image proxy route.
+11. **Extract `routers/static.py`** — Move 5 static-file routes or mount `StaticFiles`.
+12. **Thin `__init__.py`** — Should be under 60 lines after all routers extracted.
+
+### Phase E: Pydantic Models + Dependencies
+13. **Add `routers/models.py`** (or `models.py`) — Define all request/response Pydantic models.
+14. **Wire Pydantic models into routes** — Route functions receive typed model instances instead of parsing `request.json` manually.
+15. **Create `dependencies.py`** — `get_db()`, `get_current_user()`, `get_provider()`, `get_request_id()`. Update all routes to use `Depends()`.
+
+### Phase F: Test Migration
+16. **Update `conftest.py`** — `create_app()` → `TestClient(create_app(...))`. Replace `app.test_client()` with `TestClient(app)`.
+17. **Replace `session_transaction()` usages** — Implement `dependency_overrides[get_current_user]` pattern for auth seeding (see Key Dependencies).
+18. **Fix response API differences** — `response.get_json()` → `response.json()`, `response.data` → `response.content`/`response.text`, `response.content_type` → `response.headers['content-type']`.
+19. **Run full test suite** — All tests must pass.
+
+### Phase G: Validation
+20. **End-to-end smoke test** — Browser session, swipe, SSE stream, match, proxy all work.
+21. **Docker build** — `docker build` succeeds; container starts with Uvicorn.
+
+---
+
+## Key Dependencies Between Tasks
 
 ```
-[Server-Owned Identity (Feature 1)]
-    └──requires──> [Server-Side Token Storage (Feature 2)]
-    └──enables──> [RESTful Swipe Endpoint (Feature 7)]
-                       └──requires──> [Session user_id, not client headers]
+[Phase A: pyproject.toml update]
+    └──blocks──> [All subsequent phases] (nothing can run without deps installed)
 
-[Solo Mode as User Property (Feature 8)]
-    └──requires──> [Server-Owned Identity (Feature 1)]
-    └──requires──> [Session-level solo flag]
+[Phase B: FastAPI app factory]
+    └──requires──> [Phase A complete]
+    └──blocks──> [Phase C: auth.py] (auth.py uses request context from FastAPI app)
+    └──blocks──> [Phase D: router extraction] (routers mount into the app)
 
-[Single-Channel Match Notification (Feature 4)]
-    └──requires──> [SSE-only match display logic]
-    └──requires──> [Swipe response returns matched:bool only]
+[Phase C: auth.py de-Flaskification]
+    └──requires──> [Phase B: FastAPI app factory]
+    └──blocks──> [Phase D: routers/auth.py] (auth router uses get_current_user from auth.py)
+    └──blocks──> [Phase E: dependencies.py] (dependencies.py wraps auth.py functions)
 
-[Correct Jellyfin Deep Links (Feature 5)]
-    └──requires──> [Server knows JELLYFIN_URL (already has env var)]
-    └──enables──> [Match cards with full metadata (Feature 6)]
+[Phase D: router extraction]
+    └──requires──> [Phase B complete, Phase C complete]
+    └──blocks──> [Phase E: Pydantic wiring] (models slot into extracted router signatures)
 
-[Match Cards with Full Metadata (Feature 6)]
-    └──requires──> [Correct Jellyfin Deep Links (Feature 5)] — deep link is part of metadata
-    └──requires──> [Store rating/duration/year in matches table or server-side join]
+[Phase E: Pydantic models + dependencies.py]
+    └──requires──> [Phase D complete]
+    └──can proceed independently of Phase F]
 
-[Server-Owned Deck (Feature 3)]
-    └──conflicts──> [Client-side re-fetch of /movies]
-    └──requires──> [Remove client shuffle logic]
+[Phase F: test migration]
+    └──requires──> [Phase B (TestClient needs FastAPI app)]
+    └──can partially proceed in parallel with Phases D and E]
+    └──session_transaction() replacement requires dependency_overrides]
+         └──requires──> [get_current_user Depends defined in Phase C/E]
+
+[Phase G: validation]
+    └──requires──> [All phases complete and test suite passing]
 ```
 
-### Dependency Notes
+### Critical Dependency: `session_transaction()` Replacement
 
-- **Feature 1 requires Feature 2:** Identity resolution depends on the server holding the Jellyfin token. If the token is in `localStorage`, the client must send it on every request — which means the client controls identity. Moving the token server-side into `session` is a prerequisite for server-owned identity.
+The 40 usages of `client.session_transaction()` are the **single largest migration effort**
+in the test suite. Flask's `session_transaction()` context manager does not exist in
+Starlette's `TestClient`.
 
-- **Feature 7 requires Feature 1:** The RESTful swipe endpoint (`POST /room/{code}/swipe`) needs the user identity from session, not from client headers. This can't work until identity is session-based.
+The replacement pattern uses `app.dependency_overrides`:
 
-- **Feature 8 requires Feature 1:** Solo mode must be per-user, which requires per-user session identity. With room-level solo mode, you can't have one user in solo and another in collaborative mode.
-
-- **Feature 4 is independent of others but affects client behavior:** The SSE-only notification pattern is a client-side refactoring that removes the match popup trigger from the swipe response handler. It doesn't require identity or deck changes, but it's cleaner to do after the swipe endpoint is simplified.
-
-- **Feature 5 is independent:** Deep link generation only needs `JELLYFIN_URL` (already available) and `movie_id`. No dependency on identity or deck changes.
-
-- **Feature 6 depends on Feature 5:** Match metadata should include the deep link URL. If we're already augmenting the matches response, include all fields at once.
-
-## MVP Definition
-
-### Launch With (v2.0)
-
-Minimum tier separation fixes — what's needed to eliminate all 7 violations.
-
-- [ ] **Feature 2: Server-side token storage** — After auth (delegate or login), store Jellyfin token in `session['jf_token']`; clear `localStorage` tokens; set `session.permanent = True`
-- [ ] **Feature 1: Server-owned identity** — On auth, resolve `user_id` from token and store in `session['user_id']`; remove all client identity headers from API calls; remove `X-Provider-User-Id` / `X-Jellyfin-User-Id` header support
-- [ ] **Feature 7: RESTful swipe endpoint** — Refactor to `POST /room/{code}/swipe` with `{movie_id, direction}` body only; identity from session
-- [ ] **Feature 3: Server-owned deck** — Remove client-side re-fetch/shuffle; client uses deck from server only; genre changes go through server
-- [ ] **Feature 4: Single-channel match notification** — Remove match popup trigger from swipe response; match display comes only from SSE events
-- [ ] **Feature 5: Correct Jellyfin deep links** — Server generates `{JELLYFIN_URL}/web/#/details?id={itemId}` in match/deck responses; remove Plex URL construction from client
-- [ ] **Feature 6: Full match metadata** — Augment `get_matches()` to return `rating`, `duration`, `year`, and `deep_link` for each match
-- [ ] **Feature 8: Solo mode as user property** — Move `solo_mode` from `rooms` table to `session` scope; match logic checks `session['solo_mode']`
-- [ ] **ADR documenting tier responsibilities** — Codify which tier owns what
-
-### Add After Validation (v2.1)
-
-Features to add once core tier separation is verified.
-
-- [ ] **Server-side deck cursor** — Per-user card position; prevents deck manipulation
-- [ ] **Idempotent swipe processing** — `UNIQUE` constraint on `swipes` table; `INSERT OR IGNORE`
-- [ ] **Rate limiting on swipe endpoint** — Prevent rapid-fire automated swipes
-
-### Future Consideration (v3+)
-
-Features to defer until architecture is stable.
-
-- [ ] **WebSocket upgrade** — Replace SSE polling with WebSocket for lower latency
-- [ ] **Multi-device session support** — Same user from multiple browsers
-- [ ] **Playback status integration** — Track which matched movies have been watched
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority | Addresses Violation |
-|---------|------------|---------------------|----------|---------------------|
-| Server-side token storage | HIGH (security) | MEDIUM | P1 | #3 |
-| Server-owned identity | HIGH (correctness) | MEDIUM | P1 | #1 |
-| RESTful swipe endpoint | MEDIUM (clean API) | LOW | P1 | General |
-| Server-owned deck | MEDIUM (consistency) | LOW | P1 | #5 |
-| Single-channel match notification | HIGH (UX reliability) | MEDIUM | P1 | #4 |
-| Correct Jellyfin deep links | HIGH (core functionality) | LOW | P1 | #2 |
-| Full match metadata | MEDIUM (UX completeness) | LOW | P1 | #7 |
-| Solo mode as user property | MEDIUM (multi-user correctness) | MEDIUM | P1 | #6 |
-| ADR document | LOW (maintainability) | LOW | P1 | All |
-| Server-side deck cursor | LOW (anti-cheat) | MEDIUM | P2 | — |
-| Idempotent swipes | MEDIUM (reliability) | LOW | P2 | — |
-
-**Priority key:**
-- P1: Must have for v2.0 (eliminates all 7 violations)
-- P2: Should have, add when possible (hardening)
-
-## Responsibility Area Deep Dives
-
-### Area 1: Identity (Violations #1, #3)
-
-**Current state:** Two parallel identity systems operate simultaneously:
-- Server: `session['my_user_id'] = 'host_' + secrets.token_hex(8)` — random, not tied to Jellyfin
-- Client: `localStorage['provider_user_id']` — Jellyfin user_id, sent via `X-Provider-User-Id` header
-
-**Correct behavior:** After authentication (either delegate or login), the server resolves the Jellyfin `user_id` from the token and stores it in `session['user_id']`. All subsequent endpoints read identity from `session['user_id']`. The token is stored in `session['jf_token']` (server-side, signed cookie). Client never sees or sends the token.
-
-**Implementation pattern (Flask session, verified via Context7):**
 ```python
-@app.route('/auth/jellyfin-login', methods=['POST'])
-def jellyfin_login():
-    # ... validate credentials ...
-    out = get_provider().authenticate_user_session(username, password)
-    session['user_id'] = out['user_id']
-    session['jf_token'] = out['token']
-    session.permanent = True
-    return jsonify({'status': 'ok'})  # No token in response
+# Flask pattern (REMOVE):
+with client.session_transaction() as sess:
+    sess["session_id"] = "test-session-123"
+    sess["active_room"] = "TEST1"
 
-@app.route('/auth/jellyfin-use-server-identity', methods=['POST'])
-def jellyfin_use_server_identity():
-    # ... resolve server identity ...
-    session['user_id'] = uid
-    session['jf_token'] = get_provider().server_access_token_for_delegate()
-    session['jf_delegate_server_identity'] = True
-    session.permanent = True
-    return jsonify({'status': 'ok'})
+# FastAPI pattern (REPLACE WITH):
+def override_get_current_user():
+    return CurrentUser(user_id="verified-user", jf_token="valid-token")
+
+app.dependency_overrides[get_current_user] = override_get_current_user
+# ... run test ...
+app.dependency_overrides.clear()
 ```
 
-**Client changes:** Remove `providerIdentityHeaders()`, `providerToken()`, `providerUserId()`, `jellyfinAuthorizationHeader()`. All API calls become simple `fetch('/endpoint')` with `credentials: 'same-origin'` (session cookie). Remove `localStorage` token storage entirely.
+For session state that is not authentication (e.g., `active_room`, `solo_mode`), routes
+must either:
+1. Accept these as route parameters or query params (preferred — cleaner API)
+2. Accept them via a separate `get_session_state()` dependency that can also be overridden
 
-### Area 2: Deep Links (Violation #2)
+This means some route signatures may need to change to accept `active_room` explicitly
+rather than reading `session.get('active_room')` directly. **Audit each
+`session_transaction()` call to determine whether it is seeding auth or non-auth state.**
 
-**Current state:** Client constructs Plex URLs:
-```javascript
-// index.html line 629
-const plexLink = `https://app.plex.tv/desktop/#!/server/${serverId}/details?key=%2Flibrary%2Fmetadata%2F${m.movie_id}`;
-```
-This produces URLs like `https://app.plex.tv/desktop/#!/server/abc123/details?key=/library/metadata/xyz789` — completely non-functional for Jellyfin.
+### Critical Dependency: `response.get_json()` → `response.json()`
 
-**Correct behavior (verified from jellyfin-web source):**
-- Jellyfin Web uses `createHashRouter` from react-router-dom (confirmed in `src/RootAppRouter.tsx`)
-- Item detail pages use the route path `details` (confirmed in both `src/apps/stable/routes/legacyRoutes/user.ts` and `src/apps/experimental/routes/legacyRoutes/user.ts`)
-- The item ID is passed as `?id={itemId}` query parameter
-- The `BangRedirect` component handles deprecated `!/details?id=` URLs with a warning
+Flask `TestResponse.get_json()` → Starlette/httpx `Response.json()`. This affects ~100 test
+assertions. The change is mechanical but must be done before the test suite passes.
 
-**Correct URL format:**
-```
-{JELLYFIN_URL}/web/#/details?id={itemId}
-```
-Example: `http://192.168.1.100:8096/web/#/details?id=a1b2c3d4e5f6...`
+### Critical Dependency: `response.data` → `response.content` or `response.text`
 
-**Server-side generation:**
-```python
-def _jellyfin_deep_link(movie_id: str) -> str:
-    return f"{JELLYFIN_URL}/web/#/details?id={movie_id}"
-```
+Flask `TestResponse.data` (bytes) → `response.content` (bytes) in httpx. For SSE tests that
+call `response.data.decode()`, replace with `response.text`. Affects 15 test lines, mostly
+in `test_routes_sse.py`.
 
-The server already has `JELLYFIN_URL` as a module-level constant. Include `deep_link` in deck items and match responses.
+### Critical Dependency: `response.content_type` → `response.headers['content-type']`
 
-### Area 3: Match Notification (Violation #4)
+Affects only 2 test assertions (`test_routes_auth.py:33`, `test_routes_proxy.py:60`).
+Note: FastAPI content-type headers include charset suffix (e.g.,
+`application/json; charset=utf-8`), so assertions like `== "application/json"` become
+`startswith("application/json")` or use `"application/json" in response.headers['content-type']`.
 
-**Current state:** Two paths trigger match popups:
-1. **HTTP response path:** `/room/swipe` returns `{match: true, title: "...", thumb: "..."}` → client immediately shows match overlay (index.html lines 934-949)
-2. **SSE path:** `/room/stream` emits `last_match` event → client also shows match overlay (index.html lines 1015-1025)
+### SSE Test Complexity
 
-This creates race conditions and duplicate popups. The swiping user sees the match from the HTTP response, then again from SSE. The partner only sees it from SSE.
+The SSE tests (`test_routes_sse.py`) have the highest migration complexity:
+- `TestClient` from Starlette buffers the entire streaming response before returning it,
+  so `response.text` contains all SSE events concatenated — this matches how
+  `response.data.decode()` works in Flask's sync test client. No structural change needed.
+- `client.session_transaction()` usages in `_set_session_room()` and `_set_session_xss()`
+  helper functions must be replaced with `dependency_overrides`.
+- The `threading.Thread` test (`test_stream_generator_exit`) works identically with
+  `TestClient` since both are synchronous.
+- `monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)` — this attribute disappears
+  after migration. Remove the monkeypatch calls; `_gevent_sleep` no longer exists.
 
-**Correct behavior:**
-- `/room/swipe` returns `{matched: true/false}` — a simple boolean for optimistic UI (e.g., green glow on swipe)
-- Match popup/overlay is triggered **only** from SSE `last_match` events
-- This ensures both users see the match at the same time (via SSE) and avoids duplicate notifications
+### `test_auth.py` Complete Rewrite
 
-**Implementation:** Remove match overlay logic from the swipe `fetch().then()` handler. Keep only the SSE handler for match display. The swipe response still returns `matched: bool` for the animation layer (green/red glow feedback).
+`test_auth.py` creates a bare `Flask(__name__)` app with test routes to exercise `auth.py`
+in isolation. After `auth.py` is de-Flaskified, these tests must create a minimal FastAPI
+app instead. This is a self-contained test file rewrite with no effect on other tests.
 
-### Area 4: Deck Management (Violation #5)
+---
 
-**Current state:** Server stores shuffled deck in `rooms.movie_data`. Client fetches `/movies` and gets the server deck. But:
-- Client can re-fetch `/movies` at any time, getting the same stored deck
-- Genre change triggers `GET /movies?genre=X` which regenerates the deck server-side but also re-shuffles
-- Client's `selectGenre()` function re-fetches and overwrites local `movieStack`
+## Anti-Features (Do Not Build During This Migration)
 
-**Correct behavior:**
-- Server stores deck in `rooms.movie_data` on create (already does this)
-- Client fetches deck once when game starts
-- Genre changes go through server: `POST /room/{code}/genre` → server regenerates deck → SSE notifies with `genre` change → both clients fetch the new deck
-- Client never triggers deck regeneration independently
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **Async SQLite** | `aiosqlite` requires rewriting all db.py callers; out of scope for migration | Keep `sqlite3` synchronous. Uvicorn's thread pool handles it correctly. |
+| **Redis/message broker** | Out of scope per PROJECT.md constraints | Keep SQLite SSE polling pattern unchanged |
+| **`sse-starlette` library** | Redundant; FastAPI 0.136 has native `fastapi.sse.EventSourceResponse` | Use existing `StreamingResponse` or native `EventSourceResponse` |
+| **`fastapi-users`** | Overkill; auth is Jellyfin-delegated | Keep existing vault-based auth pattern |
+| **`slowapi` rate limiting** | `jellyswipe/rate_limiter.py` already exists | Keep existing rate limiter; wire into FastAPI via Depends |
+| **`sqlalchemy`/`databases`** | Project uses raw `sqlite3` by design | No ORM |
+| **Plex references restoration** | All Plex code removed in v1.2/v1.6 | Do not re-introduce |
+| **Converting routes to `async def`** | Requires async DB layer to be safe; otherwise blocks event loop | Keep sync handlers; Uvicorn/anyio runs them in thread pool |
 
-**Key change:** Remove `selectGenre()` client-side re-fetch logic. Genre selection should be a server-side operation that updates `rooms.movie_data` and notifies via SSE.
-
-### Area 5: Solo Mode (Violation #6)
-
-**Current state:** `go-solo` sets `rooms.solo_mode = 1` in the database. This is a room-level flag, so when the host goes solo, the guest is also forced into solo mode. The match logic checks `room['solo_mode']` to decide if right-swipes create immediate matches.
-
-**Correct behavior:** Solo mode is a per-user preference stored in session:
-```python
-@app.route('/room/go-solo', methods=['POST'])
-def go_solo():
-    session['solo_mode'] = True
-    return jsonify({'status': 'solo'})
-```
-
-Match logic checks the swiping user's session, not the room:
-```python
-is_solo = session.get('solo_mode', False)
-if is_solo and direction == 'right':
-    # Create match for this user only
-```
-
-This allows one user to be in solo mode while another swipes collaboratively (or both in solo mode independently).
-
-### Area 6: Match Metadata (Violation #7)
-
-**Current state:** `get_matches()` SQL:
-```sql
-SELECT title, thumb, movie_id FROM matches WHERE ...
-```
-
-Client UI tries to render `m.rating`, `m.duration`, `m.year` (index.html lines 608-625) — these are `undefined`, producing empty badge spans.
-
-**Correct behavior:** Two approaches:
-1. **Store metadata in matches table:** Add `rating`, `duration`, `year` columns to `matches` and populate them when creating matches (preferred — avoids re-querying Jellyfin for every match list fetch)
-2. **Server-side join at query time:** Re-resolve items from Jellyfin when fetching matches (expensive, slow)
-
-**Recommended approach:** Store all card fields when creating the match. The `resolve_item_for_tmdb()` method already exists. Extend the match creation to store `rating`, `duration`, `year`, `deep_link` alongside `title` and `thumb`.
-
-## Tier Responsibility Matrix
-
-Clear ownership for each responsibility area.
-
-| Responsibility | Server Owns | Client Owns |
-|---------------|-------------|-------------|
-| **User identity** | Resolves Jellyfin user_id from token; stores in session | Sends credentials once at login; receives session cookie |
-| **Auth tokens** | Stores Jellyfin token in session (HttpOnly) | Never sees token |
-| **Deck composition** | Fetches from Jellyfin, shuffles, stores in DB | Receives deck via API; renders cards |
-| **Deck order** | Determines and persists order | Respects server order; no re-shuffle |
-| **Match detection** | Queries swipes table for mutual right-swipes | Receives match notification via SSE |
-| **Match notification** | Pushes via SSE `last_match` event | Displays overlay when SSE event arrives |
-| **Deep link generation** | Constructs `{JELLYFIN_URL}/web/#/details?id={id}` | Navigates to `href` from server data |
-| **Swipe recording** | Validates identity from session; inserts into DB | Sends `{movie_id, direction}` only |
-| **Solo mode** | Stores per-user in session; checks per-user for match logic | Toggles UI; sends request to server |
-| **Match metadata** | Stores/enriches with rating, duration, year, deep_link | Renders badges from server data |
-| **Animation/UX** | — | Card drag, flip, glow effects, swipe animations |
-| **Optimistic UI** | Returns `{matched: bool}` | Shows green/red glow based on response |
-
-## Competitor Feature Analysis
-
-| Feature | Tinder (reference app) | Typical Swipe Apps | Jelly Swipe Approach |
-|---------|----------------------|--------------------|---------------------|
-| Identity | Server-owned (OAuth/Facebook) | Server-owned session | Server-owned session via Jellyfin token |
-| Deck | Server-shuffled, paginated | Server-owned cursor | Server-owned, stored in SQLite |
-| Match detection | Server-side background job | Server-side on swipe | Server-side on swipe (immediate) |
-| Match notification | Push notification or in-app | WebSocket or SSE | SSE (polling-based generator) |
-| Deep link | N/A (in-app) | N/A (in-app) | Server-generated Jellyfin URL |
+---
 
 ## Sources
 
-**Jellyfin Web Source Code (HIGH confidence):**
-- `src/RootAppRouter.tsx`: Confirms `createHashRouter` — hash-based routing (`/web/#/path`)
-- `src/apps/stable/routes/legacyRoutes/user.ts`: `path: 'details'` for item detail pages
-- `src/apps/experimental/routes/legacyRoutes/user.ts`: Same `path: 'details'` in experimental layout
-- `src/components/router/BangRedirect.tsx`: Handles deprecated `!/details` URLs, confirms hash-based routing
-
-**Flask Documentation (HIGH confidence via Context7):**
-- `session` object: Cryptographically signed cookies, `session.permanent = True` for persistence
-- `app.secret_key`: Required for session signing (already configured in Jelly Swipe)
-- Session is dict-like: `session['user_id'] = value` / `session.pop('key', None)`
-
-**Jellyfin API (HIGH confidence via Context7):**
-- `AuthenticationResult` schema: Returns `AccessToken` and `User.Id` — confirms token+user_id pattern
-- `/Users/AuthenticateByName`: Standard auth endpoint for user login
-- `/Users/Me`: Returns current user info from token — used for token-to-user-id resolution
-
-**Direct Code Analysis (HIGH confidence):**
-- `jellyswipe/__init__.py`: Current route handlers, identity resolution, session usage
-- `jellyswipe/templates/index.html`: Client-side identity headers, Plex deep link construction, match popup triggers
-- `jellyswipe/jellyfin_library.py`: Provider with auth, deck fetch, item resolution
-- `jellyswipe/db.py`: Schema with `rooms`, `swipes`, `matches` tables
-- `jellyswipe/base.py`: Abstract `LibraryMediaProvider` contract
+- FastAPI 0.136.1 docs via Context7 (`/fastapi/fastapi`): `APIRouter`, `include_router`,
+  `Depends`, `dependency_overrides`, `TestClient`, `StreamingResponse`, `SessionMiddleware`,
+  Pydantic `BaseModel` request/response patterns (HIGH confidence, verified 2026-05-01)
+- FastAPI docs: `fastapi.sse.EventSourceResponse` native in FastAPI 0.136 (HIGH confidence)
+- FastAPI docs: TestClient backed by httpx; `response.json()` not `response.get_json()`
+  (HIGH confidence)
+- Starlette docs: `SessionMiddleware` requires `itsdangerous`; `request.session` dict
+  interface (HIGH confidence)
+- Direct code analysis: `jellyswipe/__init__.py` (840 lines, 22 routes), `jellyswipe/auth.py`
+  (99 lines, Flask-coupled), `tests/conftest.py` (229 lines), all 10 test files (HIGH confidence)
+- STACK.md research (this repo, 2026-05-01): package versions, SSE thread pool behavior,
+  `gevent` removal rationale (HIGH confidence)
 
 ---
-*Feature research for: Architecture Tier Separation in Jelly Swipe v2.0*
-*Researched: 2026-04-26*
+
+*Feature research for: Flask → FastAPI + MVC Migration (v2.0)*
+*Researched: 2026-05-01*
