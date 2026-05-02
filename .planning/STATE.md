@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Flask → FastAPI + MVC Refactor
-status: planning
+status: ready_to_plan
 last_updated: "2026-05-01T00:00:00.000Z"
-last_activity: 2026-05-01 — Milestone v2.0 started
+last_activity: 2026-05-01 — v2.0 roadmap created (Phases 30–35)
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,26 +16,28 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Flask → FastAPI + MVC Refactor
-**Phase:** Not started (defining requirements)
-**Status:** Defining requirements
+**Phase:** Phase 30 of 35 (Package and Deployment Infrastructure)
+**Status:** Ready to plan
 **Progress:** [░░░░░░░░░░] 0%
 
 ---
 
 ## Project Reference
 
+See: .planning/PROJECT.md (updated 2026-05-01)
+
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-**Current focus:** v2.0 — Migrating from Flask to FastAPI with MVC split
+**Current focus:** v2.0 — Phase 30: Package and Deployment Infrastructure
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-01 — Milestone v2.0 started
+Phase: 30 of 35 (Package and Deployment Infrastructure)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-05-01 — v2.0 roadmap created; all 9 requirements mapped to Phases 30–35
 
 ---
 
@@ -47,7 +49,7 @@ Last activity: 2026-05-01 — Milestone v2.0 started
 - v1.1 (Rename): No numbered phases
 - v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 completed
 - v1.3 (Unit Tests): Phases 14–17 completed
-- v1.4 (Authorization Hardening): Phases 1–18 completed
+- v1.4 (Authorization Hardening): Phase 18 completed
 - v1.5 (XSS Security Fix): Phases 19–22 completed
 - v1.6 (Plex Reference Cleanup): Phases 23–26 completed
 - v1.7 (SSE/SQLite Architecture Fix): Phases 27–29 completed ✅
@@ -55,8 +57,8 @@ Last activity: 2026-05-01 — Milestone v2.0 started
 
 **Current Milestone Metrics:**
 
-- Phases planned: TBD
-- Requirements: 10 (defining)
+- Phases planned: 6 (Phases 30–35)
+- Requirements: 9 (all mapped)
 - Plans: 0
 
 ---
@@ -68,9 +70,12 @@ Last activity: 2026-05-01 — Milestone v2.0 started
 **v2.0 Architecture Direction:**
 - Flask → FastAPI (user prefers FastAPI; proof of concept is ready to mature)
 - Gunicorn+gevent → Uvicorn (ASGI, native async support)
-- MVC split: domain routers + Pydantic models + dependency injection
+- MVC split: domain routers + dependency injection (Pydantic models deferred to v2.1)
 - Behavior parity required: all existing endpoints work identically after migration
-- All tests must pass after migration
+- All 48 tests must pass after migration
+- Keep route handlers as sync `def` — only the SSE generator should be `async def`
+- Preserve `FLASK_SECRET` env var name for operator backward compatibility
+- `XSSSafeJSONResponse` custom class required (XSS defense from v1.5 must be preserved)
 
 ### Pending Todos
 
@@ -78,7 +83,9 @@ None.
 
 ### Blockers/Concerns
 
-None — milestone just started.
+- Phase 32 (auth rewrite) is highest-coupling change — require_auth() must be tested before any router work begins
+- Phase 34 (SSE) requires soak test for disconnect/connection leak before marking complete
+- Phase 35 (test migration): ~40 session_transaction() replacements are the largest single effort
 
 ---
 
@@ -88,22 +95,21 @@ None — milestone just started.
 2026-05-01
 
 **Resume with:**
-v2.0 milestone started. Run `/gsd-plan-phase 30` to begin planning.
+v2.0 roadmap created. Run `/gsd-plan-phase 30` to begin planning Phase 30.
 
 ---
 
 ## Quick Reference
 
 **Key Files:**
-
 - Project context: `.planning/PROJECT.md`
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
 - Current app: `jellyswipe/__init__.py` (839 lines — Flask monolith to be split)
 - DB layer: `jellyswipe/db.py`
-- Jellyfin provider: `jellyswipe/jellyfin_library.py`
-- Tests: `tests/` (17 test files)
+- Auth layer: `jellyswipe/auth.py` (Flask-coupled — Phase 32 target)
+- Tests: `tests/` (10 test files, 48 tests)
 
 ---
 *State created: 2026-05-01*
-*Last updated: 2026-05-01 (v2.0 milestone started)*
+*Last updated: 2026-05-01 (v2.0 roadmap initialized — ready for Phase 30 planning)*

@@ -44,25 +44,23 @@
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FAPI-01 | TBD | Pending |
-| FAPI-02 | TBD | Pending |
-| FAPI-03 | TBD | Pending |
-| FAPI-04 | TBD | Pending |
-| ARCH-01 | TBD | Pending |
-| ARCH-03 | TBD | Pending |
-| ARCH-04 | TBD | Pending |
-| DEP-01 | TBD | Pending |
-| TST-01 | TBD | Pending |
+| DEP-01 | Phase 30 | Pending |
+| FAPI-01 | Phase 31, Phase 35 | Pending |
+| FAPI-04 | Phase 31 | Pending |
+| ARCH-04 | Phase 31 | Pending |
+| ARCH-03 | Phase 32 | Pending |
+| ARCH-01 | Phase 33 | Pending |
+| FAPI-02 | Phase 33 | Pending |
+| FAPI-03 | Phase 34 | Pending |
+| TST-01 | Phase 35 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 9 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 9 (resolve after roadmap)
+- Mapped to phases: 9 (100% coverage)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 after initial definition*
+*Last updated: 2026-05-01 after v2.0 roadmap creation — all 9 requirements mapped*
