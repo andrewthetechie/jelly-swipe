@@ -1,74 +1,68 @@
 # Requirements: Jelly Swipe
 
-**Defined:** 2026-04-29
-**Milestone:** v1.7 SSE/SQLite Architecture Fix
+**Defined:** 2026-05-02
+**Milestone:** v2.0 Flask → FastAPI + MVC Refactor
 **Core Value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-## v1.7 Requirements
+## v2.0 Requirements
 
-Fix the SQLite contention and SSE reliability problems that collapse the app under load when multiple rooms have connected browsers.
+### Framework Migration
 
-### SQLite Performance (DB)
+- [ ] **FAPI-01**: FastAPI replaces Flask as the web framework; Uvicorn replaces Gunicorn+gevent as the ASGI server
+- [ ] **FAPI-02**: All existing HTTP endpoints retain identical URL paths, methods, and response shapes after migration
+- [ ] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse` with an async generator using `await asyncio.sleep()` — `time.sleep()` must not be used in the event loop path
+- [ ] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
 
-- [x] **DB-01**: SQLite runs in WAL mode with `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` set at database initialization
-- [x] **DB-02**: SSE generator holds one SQLite connection per client session instead of opening and closing a connection every 1.5-second poll cycle
+### Architecture
 
-### SSE Reliability (SSE)
+- [ ] **ARCH-01**: Route handlers split from `jellyswipe/__init__.py` into domain-specific routers: auth, rooms, media, proxy, and static
+- [ ] **ARCH-03**: Shared logic (auth checking, provider access, DB connection) extracted into `jellyswipe/dependencies.py` using FastAPI's `Depends()` pattern
+- [ ] **ARCH-04**: `jellyswipe/__init__.py` becomes the thin app factory — imports and mounts routers, configures middleware
 
-- [x] **SSE-01**: Poll interval includes random jitter (0–0.5s) to desynchronize concurrent thundering-herd queries
-- [x] **SSE-02**: SSE stream sends heartbeat comment (`: ping\n\n`) every ~15 seconds to prevent reverse proxy connection reaping
-- [x] **SSE-03**: SSE stream handles room disappearance gracefully — exits immediately when the room record is gone, rather than waiting for the next poll tick
+### Deployment
 
-### Acceptance (ACC)
+- [ ] **DEP-01**: `Dockerfile` CMD updated to run Uvicorn; `pyproject.toml` updated: Flask, Gunicorn, gevent, Werkzeug removed; `fastapi>=0.136.1`, `uvicorn[standard]>=0.46.0`, `itsdangerous>=2.2.0`, `jinja2>=3.1.6`, `python-multipart>=0.0.18` added; `httpx>=0.28.1` added as dev dependency
 
-- [x] **ACC-01**: All existing tests (48+) continue to pass after all architecture changes (250 pass; 8 pre-existing rate limiting failures from EPIC-04 are unrelated to v1.7)
+### Testing
 
-## v2 Requirements
+- [ ] **TST-01**: All 48 existing tests updated to use FastAPI's `TestClient`; full test suite passes with no modifications to test logic (only API surface changes)
 
-Deferred to future milestones.
+## v2.1 Requirements (Deferred)
 
-### Existing Deferred Candidates
+### Pydantic Models
 
-- **ARC-02**: Formal Plex regression matrix closure in archived v1.0 verification artifacts.
-- **OPS-01 / PRD-01**: Neutral DB column naming and multi-library selection.
-- **ADV-01**: Coverage thresholds enforced in CI to prevent regression.
-- **ADV-02**: Multiple coverage reports (HTML for local, XML for CI).
-
-### Architecture Improvements (Future)
-
-- **ARCH-01**: Replace room-state-as-message-bus pattern with a proper event notification mechanism (e.g., server-sent events triggered by writes, or a pub/sub layer) to prevent `last_match_data` overwrites when multiple matches occur within one poll cycle.
-- **ARCH-02**: Migrate `/movies` endpoint to serve movie data from a cached/optimized path instead of reading a multi-KB blob from SQLite on every room join.
+- **ARCH-02**: Pydantic v2 models cover all request bodies and significant response shapes; all route handlers use typed request/response contracts
 
 ## Out of Scope
 
-Explicitly excluded from v1.7.
-
 | Feature | Reason |
 |---------|--------|
-| WebSocket migration | SSE works — this milestone fixes the existing pattern, not replaces it |
-| Postgres/Redis data store | SQLite is appropriate for the app's scale; WAL fixes the contention |
-| Message bus architecture | Out of scope for this fix; `last_match_data` overwrite is a known limitation to address later |
-| Rate limiting on SSE endpoint | Not the root cause; may be added later |
-| Replacing gevent workers | gevent is appropriate for SSE; the problem is SQLite access patterns |
+| New end-user features | Pure migration — behavior parity is the goal, not new capabilities |
+| WebSocket upgrade | SSE is sufficient; WebSocket adds complexity without clear benefit now |
+| Database schema changes | v2.0 is framework-only; no data model changes |
+| Plex support | Removed in v1.2; application is Jellyfin-only |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DB-01 | Phase 27 | Complete |
-| DB-02 | Phase 27 | Complete |
-| SSE-01 | Phase 28 | Complete |
-| SSE-02 | Phase 28 | Complete |
-| SSE-03 | Phase 28 | Complete |
-| ACC-01 | Phase 29 | Complete |
+| FAPI-01 | TBD | Pending |
+| FAPI-02 | TBD | Pending |
+| FAPI-03 | TBD | Pending |
+| FAPI-04 | TBD | Pending |
+| ARCH-01 | TBD | Pending |
+| ARCH-03 | TBD | Pending |
+| ARCH-04 | TBD | Pending |
+| DEP-01 | TBD | Pending |
+| TST-01 | TBD | Pending |
 
 **Coverage:**
-- v1.7 requirements: 6 total
-- Mapped to phases: 6
-- Unmapped: 0 ✓
+- v2.0 requirements: 9 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 9 (resolve after roadmap)
 
 ---
-*Requirements defined: 2026-04-29*
-*Last updated: 2026-04-30 (v1.7 milestone complete — all requirements validated)*
+*Requirements defined: 2026-05-02*
+*Last updated: 2026-05-02 after initial definition*
