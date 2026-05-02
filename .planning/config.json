@@ -4,7 +4,7 @@
   "parallelization": true,
   "search_gitignored": false,
   "brave_search": false,
-  "firecrawl": false,
+  "firecrawl": true,
   "exa_search": false,
   "git": {
     "branching_strategy": "none",
