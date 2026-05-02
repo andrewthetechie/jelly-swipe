@@ -4,7 +4,10 @@ Server-side identity resolution: session cookie → vault lookup.
 This module is the core building block for Phase 24's route refactoring.
 """
 
-from flask import session, g, jsonify
+try:
+    from flask import session, g, jsonify
+except ImportError:
+    pass
 from functools import wraps
 from typing import Optional, Tuple
 import secrets
