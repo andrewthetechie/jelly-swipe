@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, and **v1.3** added comprehensive unit tests with 48 tests and CI workflow.
+Jelly Swipe is a **FastAPI** app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, **v1.3** added comprehensive unit tests, and **v2.0** migrated from Flask to FastAPI with a clean MVC architecture split.
 
 **v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
 
@@ -14,16 +14,16 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 **Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
 
-## Current Milestone: v1.7 — SSE/SQLite Architecture Fix
+## Current Milestone: v2.0 — Flask → FastAPI + MVC Refactor
 
-**Goal:** Fix the SQLite contention and SSE reliability problems that collapse the app under load when multiple rooms have connected browsers.
+**Goal:** Replace Flask with FastAPI, preserving all existing behavior while splitting the monolithic `jellyswipe/__init__.py` into a clean model/router/dependency architecture.
 
 **Target features:**
-- Enable WAL mode and NORMAL synchronous in `init_db` to eliminate file-lock contention
-- Refactor SSE generator to hold one DB connection per client instead of opening/closing every 1.5s
-- Add jitter to SSE poll interval to avoid synchronized thundering-herd queries
-- Add SSE heartbeat (`: ping\n\n`) every ~15s to prevent proxy connection reaping
-- Improve SSE error handling for room disappearance and connection drops
+- Replace Flask with FastAPI; Gunicorn+gevent → Uvicorn ASGI
+- Split `jellyswipe/__init__.py` into domain routers (auth, rooms, media, proxy, static)
+- Introduce Pydantic models for all request/response shapes
+- Extract shared logic into FastAPI dependency injection (`dependencies.py`)
+- Update test suite to use FastAPI's TestClient; all tests pass
 
 ## Requirements
 
@@ -54,11 +54,16 @@ Jelly Swipe is a small Flask app for shared "Tinder for movies" sessions: a host
 
 ### Active
 
-- [ ] **DB-01**: SQLite runs in WAL mode with `synchronous=NORMAL` set in `init_db`
-- [ ] **DB-02**: SSE generator holds one DB connection per client (not per-poll-cycle)
-- [ ] **SSE-01**: Poll interval includes random jitter to desynchronize thundering-herd queries
-- [ ] **SSE-02**: SSE stream sends heartbeat comment (`: ping\n\n`) every ~15s to prevent proxy reaping
-- [ ] **SSE-03**: SSE handles room disappearance gracefully (immediate exit, not next-tick-only)
+- [ ] **FAPI-01**: FastAPI replaces Flask as the web framework; Uvicorn replaces Gunicorn+gevent as the ASGI server
+- [ ] **FAPI-02**: All existing HTTP endpoints retain identical URL paths, methods, and behavior
+- [ ] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse`
+- [ ] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
+- [ ] **ARCH-01**: Route handlers split from `__init__.py` into domain-specific routers (auth, rooms, media, proxy, static)
+- [ ] **ARCH-02**: Pydantic models cover all request bodies and significant response shapes
+- [ ] **ARCH-03**: Shared logic (auth checking, provider access, DB connection, request ID) extracted to `dependencies.py`
+- [ ] **ARCH-04**: `jellyswipe/__init__.py` becomes the thin app factory (imports routers, configures middleware)
+- [ ] **TST-01**: All tests updated to use FastAPI's `TestClient`; full test suite passes
+- [ ] **DEP-01**: Dockerfile updated to run Uvicorn; entry point and docs reflect new ASGI setup
 
 ### Validated (v1.6+)
 
@@ -146,4 +151,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 after v1.7 milestone started*
+*Last updated: 2026-05-01 after v2.0 milestone started*
