@@ -3,7 +3,7 @@
 **Milestone:** v2.0 Flask → FastAPI + MVC Refactor
 **Granularity:** Standard (5-8 phases)
 **Current Phase:** 30 - Package and Deployment Infrastructure (Not started)
-**Last Updated:** 2026-05-01
+**Last Updated:** 2026-05-02
 
 ---
 
@@ -67,7 +67,10 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
   2. `docker build` succeeds and the resulting container starts with the Uvicorn CMD without errors
   3. No application logic has changed — existing test files import cleanly (framework-agnostic tests still pass)
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 30-01-PLAN.md — Update pyproject.toml, regenerate uv.lock, update Dockerfile CMD, add Flask import guard
 
 ---
 
@@ -169,7 +172,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 30. Package and Deployment Infrastructure | 0/TBD | Not started | - |
+| 30. Package and Deployment Infrastructure | 0/1 | Not started | - |
 | 31. FastAPI App Factory and Session Middleware | 0/TBD | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 0/TBD | Not started | - |
 | 33. Router Extraction and Endpoint Parity | 0/TBD | Not started | - |
@@ -195,4 +198,4 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-01 (v2.0 roadmap initialized)*
+*Last updated: 2026-05-02 (Phase 30 planned — 1 plan)*
