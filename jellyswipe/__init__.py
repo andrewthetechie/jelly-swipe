@@ -7,9 +7,12 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort, g
-from flask.json.provider import DefaultJSONProvider
-from werkzeug.middleware.proxy_fix import ProxyFix
+try:
+    from flask import Flask, send_from_directory, jsonify, request, session, Response, render_template, abort, g
+    from flask.json.provider import DefaultJSONProvider
+    from werkzeug.middleware.proxy_fix import ProxyFix
+except ImportError:
+    pass
 from typing import Dict, Optional, Tuple
 import hashlib
 import logging
@@ -39,7 +42,7 @@ def generate_request_id() -> str:
     return f"req_{int(time.time())}_{secrets.token_hex(4)}"
 
 
-def _check_rate_limit(endpoint: str) -> Optional[Tuple[Response, int]]:
+def _check_rate_limit(endpoint: str) -> "Optional[Tuple[Response, int]]":
     allowed, retry_after = _rate_limiter.check(endpoint, request.remote_addr, _RATE_LIMITS[endpoint])
     if not allowed:
         _logger.warning("rate_limit_exceeded", extra={
@@ -99,20 +102,23 @@ IDENTITY_ALIAS_HEADERS = (
 from jellyswipe.auth import create_session, login_required, destroy_session
 
 
-class _XSSSafeJSONProvider(DefaultJSONProvider):
-    """JSON provider that escapes HTML-sensitive characters for XSS defense.
+try:
+    class _XSSSafeJSONProvider(DefaultJSONProvider):
+        """JSON provider that escapes HTML-sensitive characters for XSS defense.
 
-    Per OWASP recommendation, < > & are encoded as \\u003c \\u003e \\u0026
-    in JSON output so that raw HTTP bodies cannot contain executable HTML tags.
-    JSON parsers correctly decode these back to the original characters.
-    """
+        Per OWASP recommendation, < > & are encoded as \\u003c \\u003e \\u0026
+        in JSON output so that raw HTTP bodies cannot contain executable HTML tags.
+        JSON parsers correctly decode these back to the original characters.
+        """
 
-    def dumps(self, obj, **kwargs):
-        result = super().dumps(obj, **kwargs)
-        return (result
-                .replace("<", "\\u003c")
-                .replace(">", "\\u003e")
-                .replace("&", "\\u0026"))
+        def dumps(self, obj, **kwargs):
+            result = super().dumps(obj, **kwargs)
+            return (result
+                    .replace("<", "\\u003c")
+                    .replace(">", "\\u003e")
+                    .replace("&", "\\u0026"))
+except NameError:
+    _XSSSafeJSONProvider = None
 
 
 def _get_cursor(conn, code, user_id):
@@ -835,5 +841,8 @@ def create_app(test_config=None):
 
 
 # Create global app instance for backwards compatibility
-# Dockerfile CMD uses: gunicorn jellyswipe:app
-app = create_app()
+# Dockerfile CMD uses: uvicorn jellyswipe:app
+try:
+    app = create_app()
+except NameError:
+    app = None
