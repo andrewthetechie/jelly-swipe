@@ -1,35 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-25T16:43:48.552Z",
-  "phase": 14,
-  "phase_name": "Test Infrastructure Setup",
+  "timestamp": "2026-05-01T00:00:00.000Z",
+  "phase": null,
+  "phase_name": null,
   "phase_dir": null,
-  "plan": 0,
-  "task": 0,
-  "total_tasks": 0,
-  "status": "ready_to_plan",
-  "completed_tasks": [],
-  "remaining_tasks": [],
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "context": "new-milestone",
+  "milestone": "v2.0",
+  "milestone_name": "Flask → FastAPI + MVC Refactor",
+  "workflow": "gsd-new-milestone",
+  "workflow_step": "research-decision",
+  "completed_tasks": [
+    {"id": 1, "name": "Confirmed milestone v2.0 Flask → FastAPI + MVC Refactor", "status": "done", "commit": "0ac0a67"},
+    {"id": 2, "name": "Updated PROJECT.md with v2.0 Current Milestone + Active requirements", "status": "done", "commit": "0ac0a67"},
+    {"id": 3, "name": "Reset STATE.md for v2.0 milestone", "status": "done", "commit": "0ac0a67"}
+  ],
+  "remaining_tasks": [
+    {"id": 4, "name": "Answer research decision (skip or research first)", "status": "not_started"},
+    {"id": 5, "name": "Define requirements and create REQUIREMENTS.md", "status": "not_started"},
+    {"id": 6, "name": "Spawn gsd-roadmapper to create ROADMAP.md", "status": "not_started"},
+    {"id": 7, "name": "Approve roadmap and commit all artifacts", "status": "not_started"}
+  ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {
-      "decision": "Framework-agnostic testing approach",
-      "rationale": "Test modules directly (db.py, jellyfin_library.py) without Flask coupling to enable future framework changes",
-      "phase": "milestone_v1.3"
-    },
-    {
-      "decision": "pytest framework with pytest-mock and responses",
-      "rationale": "Industry standard for Python testing with excellent Python 3.13 compatibility",
-      "phase": "milestone_v1.3"
-    },
-    {
-      "decision": "In-memory SQLite with tmp_path for database testing",
-      "rationale": "Complete test isolation prevents state leakage between tests",
-      "phase": "milestone_v1.3"
-    }
+    {"decision": "Flask → FastAPI migration as v2.0", "rationale": "Framework replacement is a major version bump; user prefers FastAPI", "phase": null},
+    {"decision": "Gunicorn+gevent → Uvicorn ASGI", "rationale": "FastAPI is ASGI-native; uvicorn is the standard ASGI server", "phase": null},
+    {"decision": "MVC split: domain routers + Pydantic models + dependencies.py", "rationale": "Decompose 839-line __init__.py monolith into auth, rooms, media, proxy, static routers", "phase": null},
+    {"decision": "Phase numbering continues from 29 → Phase 30 starts v2.0", "rationale": "No --reset-phase-numbers flag used", "phase": null}
   ],
   "uncommitted_files": [],
-  "next_action": "Execute /gsd-discuss-phase 14 to begin Phase 14 planning",
-  "context_notes": "Milestone v1.3 initialization complete. Research conducted on Stack, Features, Architecture, and Pitfalls. Requirements defined with 12 requirements across 4 categories (Infrastructure, Database, API, Coverage/CI). Roadmap created with 4 phases (14-17). Ready to begin Phase 14: Test Infrastructure Setup. This phase covers INFRA-01 through INFRA-04: pytest framework setup, conftest.py with fixtures, framework-agnostic test structure, and pytest configuration in pyproject.toml."
+  "next_action": "Run /gsd-new-milestone and continue from the research decision — skip research (user is already FastAPI-familiar) then proceed to define requirements and create ROADMAP.md",
+  "context_notes": "User invoked /gsd-new-milestone mid-session then paused at the research question. PROJECT.md and STATE.md are already committed. The 10 active requirements are already drafted in PROJECT.md. The roadmapper should start phases at 30."
 }
