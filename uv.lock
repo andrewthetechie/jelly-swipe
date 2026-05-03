@@ -232,6 +232,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "requests" },
+    { name = "sse-starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -243,6 +244,13 @@ dev = [
     { name = "pytest-mock" },
     { name = "pytest-timeout" },
     { name = "responses" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
 ]
 
 [package.metadata]
@@ -259,9 +267,17 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.18" },
     { name = "requests", specifier = ">=2.33.1" },
     { name = "responses", marker = "extra == 'dev'", specifier = ">=0.25.0" },
+    { name = "sse-starlette", specifier = ">=3.4.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.46.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+]
 
 [[package]]
 name = "jinja2"
@@ -490,6 +506,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9f/b4/b7e040379838cc71bf5aabdb26998dfbe5ee73904c92c1c161faf5de8866/responses-0.26.0.tar.gz", hash = "sha256:c7f6923e6343ef3682816ba421c006626777893cb0d5e1434f674b649bac9eb4", size = 81303, upload_time = "2026-02-19T14:38:05.574Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/04/7f73d05b556da048923e31a0cc878f03be7c5425ed1f268082255c75d872/responses-0.26.0-py3-none-any.whl", hash = "sha256:03ec4409088cd5c66b71ecbbbd27fe2c58ddfad801c66203457b3e6a04868c37", size = 35099, upload_time = "2026-02-19T14:38:03.847Z" },
+]
+
+[[package]]
+name = "sse-starlette"
+version = "3.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "starlette" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e1/9a/f35932a8c0eb6b2287b66fa65a0321df8c84e4e355a659c1841a37c39fdb/sse_starlette-3.4.1.tar.gz", hash = "sha256:f780bebcf6c8997fe514e3bd8e8c648d8284976b391c8bed0bcb1f611632b555", size = 35127, upload_time = "2026-04-26T13:32:32.292Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/07/45c21ed03d708c477367305726b89919b020a3a2a01f72aaf5ad941caf35/sse_starlette-3.4.1-py3-none-any.whl", hash = "sha256:6b43cf21f1d574d582a6e1b0cfbde1c94dc86a32a701a7168c99c4475c6bd1d0", size = 16487, upload_time = "2026-04-26T13:32:30.819Z" },
 ]
 
 [[package]]

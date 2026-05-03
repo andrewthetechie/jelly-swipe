@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.18",
     "requests>=2.33.1",
+    "sse-starlette>=3.4.1",
     "uvicorn[standard]>=0.46.0",
 ]
 
@@ -34,3 +35,10 @@ dev = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short --cov=jellyswipe --cov-report=term-missing"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
