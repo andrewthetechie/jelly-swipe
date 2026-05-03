@@ -16,7 +16,7 @@
 ### Architecture
 
 - [ ] **ARCH-01**: Route handlers split from `jellyswipe/__init__.py` into domain-specific routers: auth, rooms, media, proxy, and static
-- [ ] **ARCH-03**: Shared logic (auth checking, provider access, DB connection) extracted into `jellyswipe/dependencies.py` using FastAPI's `Depends()` pattern
+- [x] **ARCH-03**: Shared logic (auth checking, provider access, DB connection) extracted into `jellyswipe/dependencies.py` using FastAPI's `Depends()` pattern
 - [ ] **ARCH-04**: `jellyswipe/__init__.py` becomes the thin app factory — imports and mounts routers, configures middleware
 
 ### Deployment
@@ -50,7 +50,7 @@
 | FAPI-01 | Phase 31, Phase 35 | Pending |
 | FAPI-04 | Phase 31 | Pending |
 | ARCH-04 | Phase 31 | Pending |
-| ARCH-03 | Phase 32 | Pending |
+| ARCH-03 | Phase 32 | Completed | 32-01 |
 | ARCH-01 | Phase 33 | Pending |
 | FAPI-02 | Phase 33 | Pending |
 | FAPI-03 | Phase 34 | Pending |
