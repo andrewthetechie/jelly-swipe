@@ -603,36 +603,38 @@ def create_app(test_config=None):
             _logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
         with get_db_closing() as conn:
-            conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
-                         (code, mid, request.state.user_id, data.get('direction'), request.session.get('session_id')))
+            # Use BEGIN IMMEDIATE for proper transaction isolation and to prevent race conditions
+            conn.execute('BEGIN IMMEDIATE')
+            try:
+                # Insert swipe record
+                conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
+                             (code, mid, request.state.user_id, data.get('direction'), request.session.get('session_id')))
 
-            current_pos = _get_cursor(conn, code, request.state.user_id)
-            _set_cursor(conn, code, request.state.user_id, current_pos + 1)
+                # Update cursor position
+                current_pos = _get_cursor(conn, code, request.state.user_id)
+                _set_cursor(conn, code, request.state.user_id, current_pos + 1)
 
-            if data.get('direction') == 'right':
-                if title is not None and thumb is not None:
-                    room = conn.execute('SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+                if data.get('direction') == 'right':
+                    if title is not None and thumb is not None:
+                        room = conn.execute('SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
 
-                    meta = _resolve_movie_meta(room['movie_data'], mid) if room else {'rating': '', 'duration': '', 'year': ''}
-                    deep_link = f"{JELLYFIN_URL}/web/#/details?id={mid}" if JELLYFIN_URL else ''
+                        meta = _resolve_movie_meta(room['movie_data'], mid) if room else {'rating': '', 'duration': '', 'year': ''}
+                        deep_link = f"{JELLYFIN_URL}/web/#/details?id={mid}" if JELLYFIN_URL else ''
 
-                    if room and room['solo_mode']:
-                        conn.execute(
-                            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
-                            (code, mid, title, thumb, request.state.user_id, deep_link, meta['rating'], meta['duration'], meta['year'])
-                        )
-                        match_data = json.dumps({
-                            'type': 'match', 'title': title, 'thumb': thumb,
-                            'movie_id': mid, 'rating': meta['rating'],
-                            'duration': meta['duration'], 'year': meta['year'],
-                            'deep_link': deep_link, 'ts': time.time()
-                        })
-                        conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
-                    else:
-                        conn.commit()
-
-                        conn.execute('BEGIN IMMEDIATE')
-                        try:
+                        if room and room['solo_mode']:
+                            conn.execute(
+                                'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+                                (code, mid, title, thumb, request.state.user_id, deep_link, meta['rating'], meta['duration'], meta['year'])
+                            )
+                            match_data = json.dumps({
+                                'type': 'match', 'title': title, 'thumb': thumb,
+                                'movie_id': mid, 'rating': meta['rating'],
+                                'duration': meta['duration'], 'year': meta['year'],
+                                'deep_link': deep_link, 'ts': time.time()
+                            })
+                            conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+                        else:
+                            # Multi-user mode: check for other user's swipe with proper locking
                             other_swipe = conn.execute('SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND session_id != ?',
                                                      (code, mid, request.session.get('session_id'))).fetchone()
 
@@ -656,10 +658,10 @@ def create_app(test_config=None):
                                 })
                                 conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
 
-                            conn.execute('COMMIT')
-                        except Exception:
-                            conn.execute('ROLLBACK')
-                            raise
+                conn.execute('COMMIT')
+            except Exception:
+                conn.execute('ROLLBACK')
+                raise
 
         return {'accepted': True}
 
