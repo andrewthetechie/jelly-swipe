@@ -3,7 +3,7 @@
 **Milestone:** v2.0 Flask → FastAPI + MVC Refactor
 **Granularity:** Standard (5-8 phases)
 **Current Phase:** 30 - Package and Deployment Infrastructure (Not started)
-**Last Updated:** 2026-05-02
+**Last Updated:** 2026-05-03
 
 ---
 
@@ -152,7 +152,11 @@ Plans:
   3. Closing a browser tab while an SSE stream is active causes the SQLite connection held by that generator to close — verified by `try/finally` connection cleanup in the async generator
   4. SSE events (match notifications, room-full signal, room-closed signal, heartbeat) arrive at the browser in the same format as before migration
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 34-01-PLAN.md — Add sse-starlette>=3.4.1 to pyproject.toml and regenerate uv.lock
+- [ ] 34-02-PLAN.md — Add async SSE route to rooms.py and remove inline SSE block from __init__.py
 
 ---
 
@@ -185,7 +189,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | 31. FastAPI App Factory and Session Middleware | 0/1 | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 1/1 | Complete   | 2026-05-03 |
 | 33. Router Extraction and Endpoint Parity | 2/2 | Complete    | 2026-05-03 |
-| 34. SSE Route Migration | 0/TBD | Not started | - |
+| 34. SSE Route Migration | 0/2 | Not started | - |
 | 35. Test Suite Migration and Full Validation | 0/TBD | Not started | - |
 
 ---
@@ -207,4 +211,4 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-03 (Phase 33 planned — 2 plans)*
+*Last updated: 2026-05-03 (Phase 34 planned — 2 plans)*
