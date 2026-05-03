@@ -734,7 +734,10 @@ def create_app(test_config=None):
     @app.get('/room/{code}/deck')
     def get_deck(code: str, request: Request):
         _require_login(request)
-        page = int(request.query_params.get('page', 1))
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except (ValueError, TypeError):
+            return XSSSafeJSONResponse(content={'error': 'Invalid page parameter'}, status_code=400)
         page_size = 20
         with get_db_closing() as conn:
             cursor_pos = _get_cursor(conn, code, request.state.user_id)
