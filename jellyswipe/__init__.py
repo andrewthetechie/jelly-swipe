@@ -69,6 +69,9 @@ if missing:
 # SSRF protection: validate JELLYFIN_URL at boot (per D-06)
 validate_jellyfin_url(os.getenv("JELLYFIN_URL"))
 
+# Capture validated URL for use in create_app()
+_JELLYFIN_URL: str = os.getenv("JELLYFIN_URL", "").rstrip("/")
+
 # Direct Jellyfin provider instantiation (no factory pattern)
 from .jellyfin_library import JellyfinLibraryProvider
 
@@ -213,7 +216,7 @@ def create_app(test_config=None):
     app.add_middleware(ProxyHeadersMiddleware)
 
     # Config (accessible via module-level variables)
-    JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
+    JELLYFIN_URL = _JELLYFIN_URL  # Use validated URL from module level
     TMDB_AUTH_HEADERS = {"Authorization": f"Bearer {os.getenv('TMDB_ACCESS_TOKEN')}"}
 
     # Test config override
