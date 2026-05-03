@@ -203,7 +203,9 @@ def _provider_user_id_from_request(request: Request):
 async def lifespan(app: FastAPI):
     # Startup
     import jellyswipe.db
-    jellyswipe.db.DB_PATH = DB_PATH  # set before init
+    # Only set DB_PATH if it hasn't been set yet (e.g., by test_config)
+    if jellyswipe.db.DB_PATH is None:
+        jellyswipe.db.DB_PATH = DB_PATH
     from .db import init_db
     init_db()
     _logger.info("jellyswipe_startup")

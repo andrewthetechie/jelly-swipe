@@ -188,7 +188,7 @@ class FakeProvider:
 
     def resolve_item_for_tmdb(self, movie_id):
         from types import SimpleNamespace
-        return SimpleNamespace(title=f"Movie {movie_id}", year=2026)
+        return SimpleNamespace(title=f"Movie {movie_id}", year=2026, thumb=f"/proxy?path=jellyfin/{movie_id}/Primary")
 
     def fetch_library_image(self, path):
         return (b"", "image/jpeg")
@@ -212,6 +212,10 @@ def app(tmp_path, monkeypatch):
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import require_auth, get_provider, AuthUser
+
+    # Set provider singleton before creating app to prevent HTTP requests during init
+    import jellyswipe
+    jellyswipe._provider_singleton = FakeProvider()
 
     db_file = str(tmp_path / "test_route.db")
     test_config = {
@@ -245,8 +249,10 @@ def client(app):
 
     Depends on the app fixture for proper isolation.
     Cookies persist between calls within the same client instance.
+    Uses context manager to ensure lifespan startup/shutdown events are triggered.
     """
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture
@@ -281,4 +287,5 @@ def app_real_auth(tmp_path, monkeypatch):
 @pytest.fixture
 def client_real_auth(app_real_auth):
     """TestClient backed by real require_auth — for auth integration tests only."""
-    return TestClient(app_real_auth)
+    with TestClient(app_real_auth) as test_client:
+        yield test_client
