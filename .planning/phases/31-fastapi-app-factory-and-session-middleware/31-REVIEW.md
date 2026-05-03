@@ -7,10 +7,10 @@ files_reviewed_list:
   - jellyswipe/__init__.py
   - jellyswipe/auth.py
 findings:
-  critical: 3
-  warning: 4
-  info: 2
-  total: 9
+  critical: 5
+  warning: 6
+  info: 0
+  total: 11
 status: issues_found
 ---
 
@@ -23,28 +23,96 @@ status: issues_found
 
 ## Summary
 
-Reviewed the FastAPI app factory (`jellyswipe/__init__.py`) and the session/auth module (`jellyswipe/auth.py`). The overall structure is sound and the security-oriented design choices (XSS-safe JSON, CSP header, SSRF validation, request IDs) are correct. However, three critical defects were found: a path traversal vulnerability on the static file route, a pervasive database connection leak caused by using `get_db()` where `get_db_closing()` is required, and a broken transaction sequence in the multi-user swipe handler that creates a window for a phantom match. Four warnings cover a missing input validation gap on the watchlist endpoint, an insecure pairing-code space, a silent exception swallow in `_jellyfin_user_token_from_request`, and a `conn.commit()` call issued against a connection managed by `get_db()`'s context protocol.
+Reviewed the FastAPI app factory (`jellyswipe/__init__.py`) and the session/auth module (`jellyswipe/auth.py`). The middleware wiring, `XSSSafeJSONResponse` class, lifespan pattern, CSP/request-ID middleware, and proxy header ordering are structurally correct. Five blocker-level defects were found: a pervasive database connection leak caused by misusing `get_db()` as a context manager (every route leaks), a 14-day session cookie paired with a 24-hour vault TTL that silently logs users out every day, `str(None)` being stored as a literal movie ID when request bodies omit `movie_id`, a path traversal vulnerability on the static file route, and a broken manual transaction nested inside a context-managed connection in the swipe handler. Six warnings cover direct `JSONResponse` usage bypassing XSS escaping, unencoded user data in TMDB URLs, an unhandled `ValueError` on the `page` parameter, unauthenticated room status and SSE stream endpoints, a non-collision-checked guessable pairing code, and a re-read of `JELLYFIN_URL` inside `create_app()` that can bypass boot-time SSRF validation.
 
 ---
 
 ## Critical Issues
 
-### CR-01: Path Traversal on Static File Route
+### CR-01: Database connection leak — `get_db()` used as context manager never closes the connection
 
-**File:** `jellyswipe/__init__.py:874`
-**Issue:** The `path` parameter from the URL is joined directly onto `_APP_ROOT/static/` with no sanitization. A request like `GET /static/../../auth.py` resolves outside the static directory and returns arbitrary application source files, including `auth.py`, `db.py`, or any file readable by the process. `os.path.join` does not strip `..` segments.
+**File:** `jellyswipe/__init__.py:282, 508, 536, 550, 566, 598, 665, 675, 691, 703, 721, 743` and `jellyswipe/auth.py:33, 59, 79`
+
+**Issue:** `get_db()` (defined in `db.py:11-16`) returns a raw `sqlite3.Connection` object. SQLite's built-in context manager protocol (`__enter__`/`__exit__`) commits on success and rolls back on exception, but **does not close the connection**. Every `with get_db() as conn:` block throughout both files opens a new connection and leaks it — the connection is never closed. Over time, under any real load, this exhausts OS file descriptors. The correct helper that closes connections is `get_db_closing()`, which wraps `with conn:` inside a `finally: conn.close()`. This affects all 13 call sites in `__init__.py` and all 3 in `auth.py`.
+
+**Fix:** Replace every `with get_db() as conn:` with `with get_db_closing() as conn:`. `get_db_closing()` is already imported at line 234 of `__init__.py`; `auth.py` must add it to its import.
 
 ```python
-# VULNERABLE — current code
+# auth.py — change import
+from jellyswipe.db import get_db_closing, cleanup_expired_tokens
+
+# auth.py and __init__.py — every with block
+with get_db_closing() as conn:
+    conn.execute(...)
+```
+
+---
+
+### CR-02: Session vault expires tokens after 24 hours; cookie lives 14 days — silent auth failure
+
+**File:** `jellyswipe/__init__.py:205` / `jellyswipe/db.py:101-113` / `jellyswipe/auth.py:30`
+
+**Issue:** `SessionMiddleware` is configured with `max_age=14 * 24 * 60 * 60` (14 days, line 205). The browser retains the cookie for 14 days. However, `cleanup_expired_tokens()` in `db.py` deletes vault rows older than 24 hours, and `create_session()` in `auth.py` calls this cleanup on every new login. A user who logs in and returns on day 2 will have a valid session cookie but `_require_login` will find no matching vault row and return 401. The user is silently logged out every ~24 hours with no feedback.
+
+**Fix:** Either extend the vault TTL to match the cookie `max_age`:
+
+```python
+# db.py: cleanup_expired_tokens
+cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+```
+
+Or reduce the cookie `max_age` to 24 hours (`max_age=24 * 60 * 60`). The two values must agree.
+
+---
+
+### CR-03: `str(None)` stores the literal string `"None"` as `movie_id` when body omits the field
+
+**File:** `jellyswipe/__init__.py:587, 690, 702`
+
+**Issue:** All three handlers (`swipe`, `delete_match`, `undo_swipe`) do:
+
+```python
+mid = str(data.get('movie_id'))
+```
+
+When `movie_id` is absent from the request body, `data.get('movie_id')` returns `None`, and `str(None)` returns the string `"None"`. This value is then inserted into the `swipes` table or used in `DELETE` statements as a valid-looking movie ID. A client that accidentally omits `movie_id` will corrupt the database with `"None"` rows, and a targeted `DELETE` with `movie_id = "None"` could destroy every such row across users.
+
+**Fix:** Validate that `movie_id` is present and non-None before proceeding:
+
+```python
+mid = data.get('movie_id')
+if not mid:
+    return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+mid = str(mid)
+```
+
+---
+
+### CR-04: Path traversal in static file route — arbitrary file read
+
+**File:** `jellyswipe/__init__.py:873-874`
+
+**Issue:**
+
+```python
+@app.get('/static/{path:path}')
 def serve_static_route(path: str, request: Request):
     return FileResponse(path=os.path.join(_APP_ROOT, 'static', path))
 ```
 
-**Fix:** Resolve and assert the target stays inside the static root before serving.
+`os.path.join` does not sanitise `..` segments. A request to `/static/../../jellyswipe/auth.py` or `/static/../.env` resolves outside the `static/` directory and serves arbitrary files readable by the process. Starlette's `StaticFiles` mount handles this safely; bare `FileResponse` with a user-supplied path does not.
+
+**Fix:** Use Starlette's `StaticFiles` mount, or add explicit path-containment validation:
+
+```python
+from starlette.staticfiles import StaticFiles
+app.mount('/static', StaticFiles(directory=os.path.join(_APP_ROOT, 'static')), name='static')
+```
+
+If a manual route is required:
 
 ```python
 import pathlib
-
 _STATIC_ROOT = pathlib.Path(_APP_ROOT, 'static').resolve()
 
 def serve_static_route(path: str, request: Request):
@@ -58,46 +126,23 @@ def serve_static_route(path: str, request: Request):
 
 ---
 
-### CR-02: Database Connection Leak — `get_db()` Does Not Close Connections
-
-**File:** `jellyswipe/__init__.py:282, 508, 536, 550, 566, 598, 665, 675, 691, 703, 721, 743` and `jellyswipe/auth.py:33, 59, 79`
-**Issue:** `get_db()` (defined in `db.py` lines 11-17) returns a bare `sqlite3.Connection`. Using it as `with get_db() as conn:` invokes `sqlite3.Connection.__enter__`/`__exit__`, which manages the transaction (commit/rollback) but **never closes the connection**. Every one of the ~15 call sites leaks an open file descriptor and SQLite connection for the lifetime of the process. Under load this will exhaust OS file descriptor limits and corrupt WAL state. `get_db_closing()` (also in `db.py`) is the correct context manager that calls `conn.close()` in its `finally` block.
-
-**Fix:** Replace every `with get_db() as conn:` with `with get_db_closing() as conn:`. Both `__init__.py` and `auth.py` are affected. `get_db_closing()` is already imported in `__init__.py` at line 234; `auth.py` needs to add it to its import.
-
-```python
-# auth.py — change import
-from jellyswipe.db import get_db_closing, cleanup_expired_tokens
-
-# auth.py — change every with block
-with get_db_closing() as conn:
-    conn.execute(...)
-```
-
-```python
-# __init__.py — every route handler
-with get_db_closing() as conn:
-    ...
-```
-
----
-
-### CR-03: Broken Transaction in Multi-User Swipe — `conn.commit()` Releases Implicit Transaction Before `BEGIN IMMEDIATE`
+### CR-05: Broken manual transaction nested inside `with get_db() as conn:` in swipe endpoint
 
 **File:** `jellyswipe/__init__.py:625-655`
-**Issue:** The multi-user swipe path explicitly calls `conn.commit()` (line 625) while the connection is managed by `with get_db() as conn:` (which drives the transaction via the context manager). After that commit the code immediately issues `conn.execute('BEGIN IMMEDIATE')` (line 627). This sequence is wrong in two ways:
 
-1. `conn.commit()` inside a `with conn:` block commits the outer implicit transaction early; `conn.__exit__` will then attempt a second commit on an already-committed (or now-empty) transaction — behaviour that varies by SQLite version.
-2. More critically: between `conn.commit()` (line 625) and `conn.execute('BEGIN IMMEDIATE')` (line 627) there is a gap with no lock held. A concurrent swipe from the other user can insert its row in that gap, causing the `other_swipe` query to miss it. This is the exact race condition `BEGIN IMMEDIATE` was supposed to prevent.
+**Issue:** The multi-user match path calls `conn.commit()` at line 625 while inside the outer `with get_db() as conn:` block, then immediately issues `conn.execute('BEGIN IMMEDIATE')` at line 627. This is incorrect:
 
-**Fix:** Remove the early `conn.commit()`. Structure the entire swipe operation as a single `BEGIN IMMEDIATE` block from the start of the handler, or use `get_db_closing()` and manage the transaction explicitly without relying on the context manager's auto-commit.
+1. `conn.commit()` inside a `with conn:` block commits and closes the implicit transaction; `conn.__exit__` will then commit again on an already-committed transaction, whose behaviour is version-dependent.
+2. More critically: there is an unprotected gap between `conn.commit()` (line 625) and `conn.execute('BEGIN IMMEDIATE')` (line 627) where no lock is held. A concurrent swipe from the second user can insert its `swipes` row in that gap, causing the `other_swipe` query at line 629 to miss it and silently skip match detection.
+
+**Fix:** Remove the early `conn.commit()` and structure the entire handler as a single `BEGIN IMMEDIATE` block using `get_db_closing()`:
 
 ```python
-# Correct pattern — one atomic block
 with get_db_closing() as conn:
     conn.execute('BEGIN IMMEDIATE')
     try:
-        # Insert swipe, update cursor, check for match — all here
+        conn.execute('INSERT INTO swipes ...')
+        # cursor update, match detection — all here
         conn.execute('COMMIT')
     except Exception:
         conn.execute('ROLLBACK')
@@ -108,109 +153,134 @@ with get_db_closing() as conn:
 
 ## Warnings
 
-### WR-01: `add_to_watchlist` Accepts Unauthenticated Body — No `movie_id` Validation
+### WR-01: Direct `JSONResponse` in `make_error_response` and rate-limit returns bypasses XSS escaping
 
-**File:** `jellyswipe/__init__.py:451-462`
-**Issue:** The endpoint signature is `def add_to_watchlist(request: Request, body: dict = None)`. FastAPI does not parse a plain `dict` body automatically for a synchronous route — the `body` parameter will always be `None` in practice, so `movie_id` is always `None`. Even if it were populated, there is no validation that `movie_id` is a non-empty string before it is passed to `add_to_user_favorites`. Passing `None` to the provider likely causes an unhandled exception that leaks a 500.
+**File:** `jellyswipe/__init__.py:259, 373, 411, 455, 489, 529, 578, 741, 839, 855`
 
-**Fix:** Use `async def`, read the body explicitly (as done in other endpoints), and validate `movie_id` before use.
+**Issue:** `make_error_response()` at line 259 constructs a plain `JSONResponse` instead of `XSSSafeJSONResponse`. Error messages can contain reflected data (the `message` parameter comes from call sites), so these responses bypass the XSS defence the class was designed to provide. Rate limit responses (lines 373, 411, 455, 839) and several inline responses have the same problem.
+
+**Note:** Python's `json.dumps` with `ensure_ascii=True` (the default) already encodes `<`, `>`, `&` as Unicode escapes, which means `XSSSafeJSONResponse.render` as written is currently a no-op (the `bytes.replace` calls target literal `b"<"` which `json.dumps` never emits). However, correctness here means using the designated class consistently so the intent is enforced regardless of serializer behaviour.
+
+**Fix:**
 
 ```python
-@app.post('/watchlist/add')
-async def add_to_watchlist(request: Request):
-    _require_login(request)
-    rl = _check_rate_limit('watchlist/add', request)
-    if rl:
-        return JSONResponse(content=rl[0], status_code=rl[1])
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    movie_id = str(data.get('movie_id') or '').strip()
-    if not movie_id:
-        return make_error_response('movie_id required', 400, request)
-    try:
-        get_provider().add_to_user_favorites(request.state.jf_token, movie_id)
-        return {'status': 'success'}
-    except Exception as e:
-        log_exception(e, request)
-        return make_error_response('Internal server error', 500, request)
+# make_error_response (line 259)
+return XSSSafeJSONResponse(content=body, status_code=status_code)
+
+# Rate limit and inline responses
+return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
 ```
 
 ---
 
-### WR-02: Pairing Code Is a 4-Digit Number — Trivially Guessable
+### WR-02: User-controlled `item.title` and `item.year` interpolated unencoded into TMDB URL
+
+**File:** `jellyswipe/__init__.py:376, 414`
+
+**Issue:**
+
+```python
+search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
+```
+
+`item.title` comes from Jellyfin library data and is not URL-encoded. A movie title containing `&`, `=`, `#`, or `?` (e.g., `"Q&A"`, `"Spider-Man: No Way Home"`) will produce a malformed URL, corrupting the query or truncating the year parameter, causing missed trailers and cast data.
+
+**Fix:**
+
+```python
+from urllib.parse import urlencode
+params = urlencode({'query': item.title, 'year': item.year})
+search_url = f"https://api.themoviedb.org/3/search/movie?{params}"
+```
+
+---
+
+### WR-03: `page` query parameter parsed with `int()` — unhandled `ValueError` on non-numeric input
+
+**File:** `jellyswipe/__init__.py:719`
+
+**Issue:**
+
+```python
+page = int(request.query_params.get('page', 1))
+```
+
+If a client sends `?page=abc` or `?page=`, `int()` raises `ValueError`, which propagates as an unhandled exception and produces a 500 Internal Server Error instead of a 400 Bad Request.
+
+**Fix:**
+
+```python
+try:
+    page = max(1, int(request.query_params.get('page', 1)))
+except (ValueError, TypeError):
+    return JSONResponse(content={'error': 'Invalid page parameter'}, status_code=400)
+```
+
+---
+
+### WR-04: `GET /room/{code}/status` and `GET /room/{code}/stream` have no authentication
+
+**File:** `jellyswipe/__init__.py:756-762, 765-833`
+
+**Issue:** Both `room_status` and `room_stream` routes are missing `_require_login(request)`. Any unauthenticated client who can guess or brute-force a 4-digit pairing code (only 9,000 possibilities) can poll the SSE stream or status endpoint and receive match data, genre changes, and ready state without being a room participant. The SSE stream also exposes `last_match_data` including movie titles, thumbnails, and deep links.
+
+**Fix:** Add `_require_login(request)` as the first statement of both handlers:
+
+```python
+def room_status(code: str, request: Request):
+    _require_login(request)
+    ...
+
+def room_stream(code: str, request: Request):
+    _require_login(request)
+    ...
+```
+
+---
+
+### WR-05: Room pairing code uses `random.randint` with no uniqueness check — collision and predictability
 
 **File:** `jellyswipe/__init__.py:534, 548`
-**Issue:** Room pairing codes are generated with `random.randint(1000, 9999)`, producing only 9000 possible values. An attacker with a valid session can enumerate all codes in a trivial loop and join another user's active room, accessing their movie deck and swiping on their behalf. `random` is not cryptographically secure.
 
-**Fix:** Use `secrets` to generate a longer, unguessable code.
+**Issue:** `pairing_code = str(random.randint(1000, 9999))` has two problems. First, `random.randint` is not cryptographically secure — an attacker can guess codes with high probability across the 9,000-value space. Second, there is no uniqueness check before `INSERT INTO rooms`. If a code collision occurs, the INSERT fails with a PRIMARY KEY constraint violation, producing an unhandled exception (500 response) and no room created.
 
-```python
-import secrets
-pairing_code = secrets.token_hex(4)  # 8 hex chars, 2^32 space
-```
-
-Alternatively, use a 6-digit numeric code (`secrets.randbelow(900000) + 100000`) if a numeric UI is required.
-
----
-
-### WR-03: Silent Exception Swallow in `_jellyfin_user_token_from_request`
-
-**File:** `jellyswipe/__init__.py:292-306`
-**Issue:** The `except Exception: token = None` block (lines 304-305) silently discards all errors from `extract_media_browser_token`, including programming errors, import failures, and unexpected exceptions from the provider. This makes authentication failures completely invisible in logs and is a maintenance hazard.
-
-**Fix:** Log the exception at debug or warning level before suppressing it.
+**Fix:** Use `secrets` and check for collisions before inserting:
 
 ```python
-except Exception as exc:
-    _logger.debug("extract_media_browser_token failed: %s", exc)
-    token = None
+for _ in range(10):
+    pairing_code = str(secrets.randbelow(9000) + 1000)
+    existing = conn.execute(
+        'SELECT 1 FROM rooms WHERE pairing_code = ?', (pairing_code,)
+    ).fetchone()
+    if not existing:
+        break
+else:
+    return JSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
 ```
 
 ---
 
-### WR-04: `XSSSafeJSONResponse.render` Double-Encodes Already-Escaped Content
+### WR-06: `JELLYFIN_URL` re-read from env inside `create_app()` — SSRF validation bypass possible in tests
 
-**File:** `jellyswipe/__init__.py:93-98`
-**Issue:** `super().render(content)` calls the standard `JSONResponse.render`, which uses `json.dumps` with `ensure_ascii=True` (the default). Python's `json.dumps` already encodes `<`, `>`, and `&` as `<`, `>`, `&` by default when `ensure_ascii=True`. The subsequent `bytes.replace` calls in `render` then attempt to replace the literal byte sequences `b"<"`, `b">"`, `b"&"` — which will never appear in the output of `json.dumps` with `ensure_ascii=True`. The XSS defence is a no-op for strings passed as Python objects. However, if any pre-serialized raw bytes containing `<` or `>` are ever passed, or if `ensure_ascii` changes in a future Python version, the encoding would double-encode already-escaped sequences.
+**File:** `jellyswipe/__init__.py:68, 214`
 
-**Fix:** Either rely on `json.dumps`'s built-in escaping (Python does this by default and it is sufficient for JSON-in-HTML contexts) and remove the custom class, or explicitly pass `ensure_ascii=False` to expose the raw characters so the `replace` calls actually do work:
+**Issue:** At module load time, `validate_jellyfin_url(os.getenv("JELLYFIN_URL"))` (line 68) validates the URL against SSRF rules. Inside `create_app()`, the URL is independently re-read:
 
 ```python
-import json as _json
-
-class XSSSafeJSONResponse(JSONResponse):
-    def render(self, content: typing.Any) -> bytes:
-        # Explicit escape of HTML-sensitive chars — works with ensure_ascii=False
-        text = _json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-        )
-        text = text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-        return text.encode("utf-8")
+JELLYFIN_URL = os.getenv("JELLYFIN_URL", "").rstrip("/")
 ```
 
----
+If test code mutates `os.environ["JELLYFIN_URL"]` before calling `create_app()` (a standard test pattern), the new value is never validated. A test could inject a `JELLYFIN_URL` pointing to an internal network address and the SSRF guard would not fire.
 
-## Info
+**Fix:** Capture the validated value at module level and reuse it inside `create_app()`:
 
-### IN-01: Module-Level Environment Variable Validation Runs at Import Time
+```python
+# Module level (after validate_jellyfin_url call, line ~69)
+_JELLYFIN_URL: str = os.getenv("JELLYFIN_URL", "").rstrip("/")
 
-**File:** `jellyswipe/__init__.py:48-65`
-**Issue:** The `missing` variable check and the `raise RuntimeError` execute when the module is first imported, not inside `create_app()`. This makes it impossible to import the module in test environments without setting all required environment variables, even for unit tests that mock the provider. It also runs before `load_dotenv` has had a chance to be validated by any test harness.
-
-**Fix:** Move the environment validation block inside `create_app()`, where it runs only when an actual application instance is being created.
-
----
-
-### IN-02: `cleanup_expired_tokens` Uses ISO 8601 String Comparison for Expiry
-
-**File:** `jellyswipe/auth.py:30` (calls `db.cleanup_expired_tokens`)
-**Issue:** The expiry logic in `db.py:108` compares `created_at < cutoff` as ISO 8601 strings. This works correctly only if all `created_at` values use the same timezone representation. `datetime.now(timezone.utc).isoformat()` produces `+00:00`-suffixed strings (e.g. `2026-05-02T10:00:00+00:00`). SQLite lexicographic string comparison on these values is correct only because `+00:00` sorts consistently. If any legacy row was inserted with a `Z`-suffix or a naive datetime, it would compare incorrectly and never expire. This is fragile; a note or assertion would prevent future breakage.
-
-**Fix:** Store `created_at` as a Unix timestamp (integer) or ensure the insert always uses the same `isoformat()` format with an explicit `timezone.utc` argument (already done in `auth.py:27`). Add a comment in `cleanup_expired_tokens` documenting the format invariant.
+# Inside create_app()
+JELLYFIN_URL = _JELLYFIN_URL
+```
 
 ---
 
