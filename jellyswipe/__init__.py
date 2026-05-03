@@ -238,10 +238,16 @@ def create_app(test_config=None):
     # Add 1st: RequestIdMiddleware (innermost in request processing)
     app.add_middleware(RequestIdMiddleware)
 
+    # Determine session secret — test_config overrides env var (D-07)
+    if test_config and "SECRET_KEY" in test_config:
+        session_secret = test_config["SECRET_KEY"]
+    else:
+        session_secret = os.environ["FLASK_SECRET"]
+
     # Add 2nd: SessionMiddleware
     app.add_middleware(
         SessionMiddleware,
-        secret_key=os.environ["FLASK_SECRET"],
+        secret_key=session_secret,
         max_age=14 * 24 * 60 * 60,  # 14 days per D-05
         same_site="lax",
         https_only=os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true',
