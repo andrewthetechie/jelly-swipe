@@ -173,27 +173,24 @@ class TestBootValidation:
     """Verify TMDB_ACCESS_TOKEN is in boot validation loop."""
 
     def test_tmdb_access_token_in_boot_validation(self):
-        init_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "jellyswipe",
-            "__init__.py",
-        )
-        with open(init_path, "r") as f:
-            source = f.read()
+        # Phase 33 moved boot validation from __init__.py to config.py.
+        # Check config.py first, fall back to __init__.py for backwards compat.
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        config_path = os.path.join(base_dir, "jellyswipe", "config.py")
+        init_path = os.path.join(base_dir, "jellyswipe", "__init__.py")
 
-        assert "TMDB_ACCESS_TOKEN" in source, (
-            "TMDB_ACCESS_TOKEN must appear in jellyswipe/__init__.py"
-        )
+        for source_path in (config_path, init_path):
+            with open(source_path, "r") as f:
+                source = f.read()
+            if "TMDB_ACCESS_TOKEN" in source:
+                tree = ast.parse(source)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                        if node.value == "TMDB_ACCESS_TOKEN":
+                            return  # found — test passes
+                break
 
-        tree = ast.parse(source)
-
-        boot_validation_found = False
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                if node.value == "TMDB_ACCESS_TOKEN":
-                    boot_validation_found = True
-                    break
-
-        assert boot_validation_found, (
-            "TMDB_ACCESS_TOKEN string constant must exist in boot validation"
+        raise AssertionError(
+            "TMDB_ACCESS_TOKEN string constant must exist in boot validation "
+            "(jellyswipe/config.py or jellyswipe/__init__.py)"
         )
