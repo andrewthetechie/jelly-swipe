@@ -55,15 +55,18 @@ Jelly Swipe is a **FastAPI** app for shared "Tinder for movies" sessions: a host
 ### Active
 
 - [ ] **FAPI-01**: FastAPI replaces Flask as the web framework; Uvicorn replaces Gunicorn+gevent as the ASGI server
-- [ ] **FAPI-02**: All existing HTTP endpoints retain identical URL paths, methods, and behavior
 - [ ] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse`
 - [ ] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
-- [ ] **ARCH-01**: Route handlers split from `__init__.py` into domain-specific routers (auth, rooms, media, proxy, static)
 - [ ] **ARCH-02**: Pydantic models cover all request bodies and significant response shapes
 - [ ] **ARCH-03**: Shared logic (auth checking, provider access, DB connection, request ID) extracted to `dependencies.py`
-- [ ] **ARCH-04**: `jellyswipe/__init__.py` becomes the thin app factory (imports routers, configures middleware)
 - [ ] **TST-01**: All tests updated to use FastAPI's `TestClient`; full test suite passes
 - [ ] **DEP-01**: Dockerfile updated to run Uvicorn; entry point and docs reflect new ASGI setup
+
+### Validated (v2.0)
+
+- ✓ **FAPI-02** — All existing HTTP endpoints retain identical URL paths, methods, and behavior. *Validated in Phase 33 (v2.0).*
+- ✓ **ARCH-01** — Route handlers split into domain routers: auth, rooms, media, proxy, static. *Validated in Phase 33 (v2.0).*
+- ✓ **ARCH-04** — `jellyswipe/__init__.py` is a thin app factory mounting all 5 domain routers. *Validated in Phase 33 (v2.0).*
 
 ### Validated (v1.6+)
 
@@ -151,4 +154,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-01 after v2.0 milestone started*
+*Last updated: 2026-05-03 after Phase 33 complete — FAPI-02, ARCH-01, ARCH-04 validated*
