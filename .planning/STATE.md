@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Flask → FastAPI + MVC Refactor
-status: executing
-last_updated: "2026-05-03T02:04:27.821Z"
-last_activity: 2026-05-03 -- Phase 31 execution started
+status: planning
+last_updated: "2026-05-03T02:30:00.000Z"
+last_activity: 2026-05-03 -- Phase 31 complete
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 2
-  completed_plans: 1
-  percent: 50
+  completed_plans: 2
+  percent: 33
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Flask → FastAPI + MVC Refactor
-**Phase:** 31 of 35 (fastapi app factory and session middleware)
-**Status:** Executing Phase 31
-**Progress:** [░░░░░░░░░░] 0%
+**Phase:** 32 of 35 (auth rewrite and dependency injection layer)
+**Status:** Phase 31 complete — ready for Phase 32
+**Progress:** [██░░░░░░░░] 33%
 
 ---
 
@@ -28,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-05-01)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
 
-**Current focus:** Phase 31 — fastapi-app-factory-and-session-middleware
+**Current focus:** Phase 32 — auth-rewrite-and-dependency-injection-layer
 
 ---
 
 ## Current Position
 
-Phase: 31 (fastapi-app-factory-and-session-middleware) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 31
-Last activity: 2026-05-03 -- Phase 31 execution started
+Phase: 32 (auth-rewrite-and-dependency-injection-layer) — READY
+Plan: —
+Status: Phase 31 complete ✓ — ready to discuss/plan Phase 32
+Last activity: 2026-05-03 -- Phase 31 complete
 
 ---
 

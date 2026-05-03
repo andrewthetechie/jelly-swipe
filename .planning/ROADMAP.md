@@ -44,7 +44,7 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
 **Milestone Goal:** Replace Flask with FastAPI and Uvicorn, split the 839-line monolith into domain routers with dependency injection, and migrate all 48 tests to FastAPI's TestClient — with zero change to endpoint behavior.
 
 - [x] **Phase 30: Package and Deployment Infrastructure** — Swap Flask/Gunicorn/gevent for FastAPI/Uvicorn in pyproject.toml; update Dockerfile CMD; zero logic changes (completed 2026-05-02)
-- [ ] **Phase 31: FastAPI App Factory and Session Middleware** — Create the FastAPI app factory with SessionMiddleware, security headers, XSS-safe JSON response class, and lifespan DB initialization
+- [x] **Phase 31: FastAPI App Factory and Session Middleware** — Create the FastAPI app factory with SessionMiddleware, security headers, XSS-safe JSON response class, and lifespan DB initialization (completed 2026-05-03)
 - [ ] **Phase 32: Auth Rewrite and Dependency Injection Layer** — De-Flaskify auth.py; create dependencies.py with require_auth(), get_db_dep(), get_provider()
 - [ ] **Phase 33: Router Extraction and Endpoint Parity** — Split all 21 non-SSE routes from the monolith into five domain APIRouter modules; every original URL path works
 - [ ] **Phase 34: SSE Route Migration** — Migrate the SSE stream endpoint to an async generator with await asyncio.sleep() and try/finally connection cleanup
@@ -91,7 +91,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 31-01-PLAN.md — Rewrite Flask monolith to FastAPI app factory with middleware stack, XSS-safe JSON, and all 29 routes converted
+- [x] 31-01-PLAN.md — Rewrite Flask monolith to FastAPI app factory with middleware stack, XSS-safe JSON, and all 29 routes converted
 
 ---
 
