@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, FileResponse, Res
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.templating import Jinja2Templates
+from starlette.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from contextlib import asynccontextmanager
 from typing import Dict, Optional, Tuple
@@ -222,6 +223,9 @@ def create_app(test_config=None):
 
     # Templates
     templates = Jinja2Templates(directory=os.path.join(_APP_ROOT, 'templates'))
+
+    # Static files mount (prevents path traversal vulnerabilities)
+    app.mount('/static', StaticFiles(directory=os.path.join(_APP_ROOT, 'static')), name='static')
 
     # Provider factory (module-level singleton stays)
     def get_provider() -> JellyfinLibraryProvider:
@@ -877,10 +881,6 @@ def create_app(test_config=None):
             path=os.path.join(_APP_ROOT, 'static', 'sw.js'),
             media_type='application/javascript'
         )
-
-    @app.get('/static/{path:path}')
-    def serve_static_route(path: str, request: Request):
-        return FileResponse(path=os.path.join(_APP_ROOT, 'static', path))
 
     @app.get('/favicon.ico')
     def serve_favicon(request: Request):
