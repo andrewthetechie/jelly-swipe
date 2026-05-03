@@ -584,7 +584,10 @@ def create_app(test_config=None):
             data = await request.json()
         except Exception:
             data = {}
-        mid = str(data.get('movie_id'))
+        mid = data.get('movie_id')
+        if not mid:
+            return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+        mid = str(mid)
 
         title = None
         thumb = None
@@ -687,7 +690,10 @@ def create_app(test_config=None):
             data = await request.json()
         except Exception:
             data = {}
-        mid = str(data.get('movie_id'))
+        mid = data.get('movie_id')
+        if not mid:
+            return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+        mid = str(mid)
         with get_db_closing() as conn:
             conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, request.state.user_id))
         return {'status': 'deleted'}
@@ -699,7 +705,10 @@ def create_app(test_config=None):
             data = await request.json()
         except Exception:
             data = {}
-        mid = str(data.get('movie_id'))
+        mid = data.get('movie_id')
+        if not mid:
+            return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+        mid = str(mid)
         with get_db_closing() as conn:
             conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND session_id = ?', (code, mid, request.session.get('session_id')))
             conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, request.state.user_id))
