@@ -279,7 +279,7 @@ def create_app(test_config=None):
         sid = request.session.get('session_id')
         if not sid:
             raise HTTPException(status_code=401, detail='Authentication required')
-        with get_db() as conn:
+        with get_db_closing() as conn:
             row = conn.execute(
                 'SELECT jellyfin_token, jellyfin_user_id FROM user_tokens WHERE session_id = ?',
                 (sid,)
@@ -505,7 +505,7 @@ def create_app(test_config=None):
         _require_login(request)
         active_room = request.session.get('active_room')
         if active_room:
-            with get_db() as conn:
+            with get_db_closing() as conn:
                 row = conn.execute('SELECT 1 FROM rooms WHERE pairing_code = ?', (active_room,)).fetchone()
             if not row:
                 request.session.pop('active_room', None)
@@ -533,7 +533,7 @@ def create_app(test_config=None):
         _require_login(request)
         pairing_code = str(random.randint(1000, 9999))
         movie_list = get_provider().fetch_deck()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
                          (pairing_code, json.dumps(movie_list), 0, 'All', 0))
             conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
@@ -547,7 +547,7 @@ def create_app(test_config=None):
         _require_login(request)
         pairing_code = str(random.randint(1000, 9999))
         movie_list = get_provider().fetch_deck()
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute(
                 'INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
                 (pairing_code, json.dumps(movie_list), 1, 'All', 1)
@@ -563,7 +563,7 @@ def create_app(test_config=None):
     @app.post('/room/{code}/join')
     def join_room(code: str, request: Request):
         _require_login(request)
-        with get_db() as conn:
+        with get_db_closing() as conn:
             room = conn.execute('SELECT * FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room:
                 conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
@@ -595,7 +595,7 @@ def create_app(test_config=None):
         except RuntimeError as exc:
             _logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
                          (code, mid, request.state.user_id, data.get('direction'), request.session.get('session_id')))
 
@@ -662,7 +662,7 @@ def create_app(test_config=None):
         code = request.session.get('active_room')
         view = request.query_params.get('view')
 
-        with get_db() as conn:
+        with get_db_closing() as conn:
             if view == 'history':
                 rows = conn.execute('SELECT title, thumb, movie_id, deep_link, rating, duration, year FROM matches WHERE status = "archived" AND user_id = ?', (request.state.user_id,)).fetchall()
             else:
@@ -672,7 +672,7 @@ def create_app(test_config=None):
     @app.post('/room/{code}/quit')
     def quit_room(code: str, request: Request):
         _require_login(request)
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
             conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
             conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
@@ -688,7 +688,7 @@ def create_app(test_config=None):
         except Exception:
             data = {}
         mid = str(data.get('movie_id'))
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM matches WHERE movie_id = ? AND user_id = ?', (mid, request.state.user_id))
         return {'status': 'deleted'}
 
@@ -700,7 +700,7 @@ def create_app(test_config=None):
         except Exception:
             data = {}
         mid = str(data.get('movie_id'))
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM swipes WHERE room_code = ? AND movie_id = ? AND session_id = ?', (code, mid, request.session.get('session_id')))
             conn.execute('DELETE FROM matches WHERE room_code = ? AND movie_id = ? AND status = "active" AND user_id = ?', (code, mid, request.state.user_id))
         return {'status': 'undone'}
@@ -718,7 +718,7 @@ def create_app(test_config=None):
         _require_login(request)
         page = int(request.query_params.get('page', 1))
         page_size = 20
-        with get_db() as conn:
+        with get_db_closing() as conn:
             cursor_pos = _get_cursor(conn, code, request.state.user_id)
             room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if not room:
@@ -740,7 +740,7 @@ def create_app(test_config=None):
         if not genre:
             return JSONResponse(content={'error': 'Genre required'}, status_code=400)
         new_list = get_provider().fetch_deck(genre)
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('UPDATE rooms SET movie_data = ?, deck_position = ?, current_genre = ? WHERE pairing_code = ?',
                          (json.dumps(new_list), json.dumps({}), genre, code))
         return new_list

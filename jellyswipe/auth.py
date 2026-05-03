@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 import secrets
 from datetime import datetime, timezone
 
-from jellyswipe.db import get_db, cleanup_expired_tokens
+from jellyswipe.db import get_db_closing, cleanup_expired_tokens
 
 
 def create_session(jf_token: str, jf_user_id: str, session_dict: dict) -> str:
@@ -30,7 +30,7 @@ def create_session(jf_token: str, jf_user_id: str, session_dict: dict) -> str:
     cleanup_expired_tokens()
 
     # Insert into user_tokens
-    with get_db() as conn:
+    with get_db_closing() as conn:
         conn.execute(
             'INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) '
             'VALUES (?, ?, ?, ?)',
@@ -56,7 +56,7 @@ def get_current_token(session_dict: dict) -> Optional[Tuple[str, str]]:
     if sid is None:
         return None
 
-    with get_db() as conn:
+    with get_db_closing() as conn:
         row = conn.execute(
             'SELECT jellyfin_token, jellyfin_user_id FROM user_tokens WHERE session_id = ?',
             (sid,)
@@ -76,6 +76,6 @@ def destroy_session(session_dict: dict) -> None:
     """
     sid = session_dict.get('session_id')
     if sid:
-        with get_db() as conn:
+        with get_db_closing() as conn:
             conn.execute('DELETE FROM user_tokens WHERE session_id = ?', (sid,))
         session_dict.pop('session_id', None)
