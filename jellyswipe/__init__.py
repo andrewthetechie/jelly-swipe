@@ -538,34 +538,48 @@ def create_app(test_config=None):
     @app.post('/room')
     def create_room(request: Request):
         _require_login(request)
-        pairing_code = str(random.randint(1000, 9999))
-        movie_list = get_provider().fetch_deck()
-        with get_db_closing() as conn:
-            conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
-                         (pairing_code, json.dumps(movie_list), 0, 'All', 0))
-            conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
-                         (json.dumps({request.state.user_id: 0}), pairing_code))
-        request.session['active_room'] = pairing_code
-        request.session['solo_mode'] = False
-        return {'pairing_code': pairing_code}
+        # Generate cryptographically secure pairing code with collision detection
+        for _ in range(10):
+            pairing_code = str(secrets.randbelow(9000) + 1000)
+            with get_db_closing() as conn:
+                existing = conn.execute(
+                    'SELECT 1 FROM rooms WHERE pairing_code = ?', (pairing_code,)
+                ).fetchone()
+                if not existing:
+                    movie_list = get_provider().fetch_deck()
+                    conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
+                                 (pairing_code, json.dumps(movie_list), 0, 'All', 0))
+                    conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+                                 (json.dumps({request.state.user_id: 0}), pairing_code))
+                    request.session['active_room'] = pairing_code
+                    request.session['solo_mode'] = False
+                    return {'pairing_code': pairing_code}
+        return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
 
     @app.post('/room/solo')
     def create_solo_room(request: Request):
         _require_login(request)
-        pairing_code = str(random.randint(1000, 9999))
-        movie_list = get_provider().fetch_deck()
-        with get_db_closing() as conn:
-            conn.execute(
-                'INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
-                (pairing_code, json.dumps(movie_list), 1, 'All', 1)
-            )
-            conn.execute(
-                'UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
-                (json.dumps({request.state.user_id: 0}), pairing_code)
-            )
-        request.session['active_room'] = pairing_code
-        request.session['solo_mode'] = True
-        return {'pairing_code': pairing_code}
+        # Generate cryptographically secure pairing code with collision detection
+        for _ in range(10):
+            pairing_code = str(secrets.randbelow(9000) + 1000)
+            with get_db_closing() as conn:
+                existing = conn.execute(
+                    'SELECT 1 FROM rooms WHERE pairing_code = ?', (pairing_code,)
+                ).fetchone()
+                if not existing:
+                    movie_list = get_provider().fetch_deck()
+                    conn.execute(
+                        'INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
+                        (pairing_code, json.dumps(movie_list), 1, 'All', 1)
+                    )
+                    conn.execute(
+                        'UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+                        (json.dumps({request.state.user_id: 0}), pairing_code)
+                    )
+                    request.session['active_room'] = pairing_code
+                    request.session['solo_mode'] = True
+                    return {'pairing_code': pairing_code}
+        return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
 
     @app.post('/room/{code}/join')
     def join_room(code: str, request: Request):
