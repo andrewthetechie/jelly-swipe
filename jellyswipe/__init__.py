@@ -775,6 +775,7 @@ def create_app(test_config=None):
 
     @app.get('/room/{code}/status')
     def room_status(code: str, request: Request):
+        _require_login(request)
         with get_db_closing() as conn:
             room = conn.execute('SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
             if room:
@@ -784,6 +785,7 @@ def create_app(test_config=None):
 
     @app.get('/room/{code}/stream')
     def room_stream(code: str, request: Request):
+        _require_login(request)
         def generate():
             last_genre = None
             last_ready = None
