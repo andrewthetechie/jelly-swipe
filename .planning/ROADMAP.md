@@ -109,7 +109,10 @@ Plans:
   3. `jellyswipe/dependencies.py` exists and exports `get_db_dep()`, `get_provider()`, `require_auth()`, and `check_rate_limit()` — each working as a standalone FastAPI dependency
   4. Unit tests for `auth.py` pass using a minimal FastAPI test app (no Flask app required)
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 32-01-PLAN.md — Create dependencies.py with all DI callables; rewrite test_auth.py with FastAPI TestClient
 
 ---
 
@@ -176,7 +179,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 |-------|----------------|--------|-----------|
 | 30. Package and Deployment Infrastructure | 1/1 | Complete    | 2026-05-02 |
 | 31. FastAPI App Factory and Session Middleware | 0/1 | Not started | - |
-| 32. Auth Rewrite and Dependency Injection Layer | 0/TBD | Not started | - |
+| 32. Auth Rewrite and Dependency Injection Layer | 0/1 | Not started | - |
 | 33. Router Extraction and Endpoint Parity | 0/TBD | Not started | - |
 | 34. SSE Route Migration | 0/TBD | Not started | - |
 | 35. Test Suite Migration and Full Validation | 0/TBD | Not started | - |
@@ -200,4 +203,4 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-02 (Phase 31 planned — 1 plan)*
+*Last updated: 2026-05-03 (Phase 32 planned — 1 plan)*
