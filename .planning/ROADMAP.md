@@ -46,7 +46,7 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
 - [x] **Phase 30: Package and Deployment Infrastructure** — Swap Flask/Gunicorn/gevent for FastAPI/Uvicorn in pyproject.toml; update Dockerfile CMD; zero logic changes (completed 2026-05-02)
 - [x] **Phase 31: FastAPI App Factory and Session Middleware** — Create the FastAPI app factory with SessionMiddleware, security headers, XSS-safe JSON response class, and lifespan DB initialization (completed 2026-05-03)
 - [x] **Phase 32: Auth Rewrite and Dependency Injection Layer** — De-Flaskify auth.py; create dependencies.py with require_auth(), get_db_dep(), get_provider() (completed 2026-05-03)
-- [ ] **Phase 33: Router Extraction and Endpoint Parity** — Split all 21 non-SSE routes from the monolith into five domain APIRouter modules; every original URL path works
+- [x] **Phase 33: Router Extraction and Endpoint Parity** — Split all 21 non-SSE routes from the monolith into five domain APIRouter modules; every original URL path works (completed 2026-05-03)
 - [ ] **Phase 34: SSE Route Migration** — Migrate the SSE stream endpoint to an async generator with await asyncio.sleep() and try/finally connection cleanup
 - [ ] **Phase 35: Test Suite Migration and Full Validation** — Replace Flask test client with FastAPI TestClient; all 48 tests pass; Docker build starts with Uvicorn
 
@@ -134,7 +134,7 @@ Plans:
 
 Plans:
 - [x] 33-01-PLAN.md — Create config.py foundation and extract 4 simpler routers (auth, static, media, proxy)
-- [ ] 33-02-PLAN.md — Extract rooms router (swipe transaction) and refactor __init__.py into thin app factory
+- [x] 33-02-PLAN.md — Extract rooms router (swipe transaction) and refactor __init__.py into thin app factory
 
 ---
 
@@ -184,7 +184,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | 30. Package and Deployment Infrastructure | 1/1 | Complete    | 2026-05-02 |
 | 31. FastAPI App Factory and Session Middleware | 0/1 | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 1/1 | Complete   | 2026-05-03 |
-| 33. Router Extraction and Endpoint Parity | 1/2 | In Progress|  |
+| 33. Router Extraction and Endpoint Parity | 2/2 | Complete   | 2026-05-03 |
 | 34. SSE Route Migration | 0/TBD | Not started | - |
 | 35. Test Suite Migration and Full Validation | 0/TBD | Not started | - |
 
