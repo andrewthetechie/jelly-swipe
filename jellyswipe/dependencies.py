@@ -30,8 +30,11 @@ def require_auth(request: Request) -> AuthUser:
 
     Returns AuthUser if session is valid, raises HTTPException(401) otherwise.
     """
-    # Stub implementation - will fail tests
-    raise NotImplementedError("require_auth not implemented")
+    result = auth.get_current_token(request.session)
+    if result is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    jf_token, user_id = result
+    return AuthUser(jf_token=jf_token, user_id=user_id)
 
 
 def get_db_dep():
@@ -39,8 +42,8 @@ def get_db_dep():
 
     Wraps get_db_closing() to provide a connection that auto-closes.
     """
-    # Stub implementation - will fail tests
-    raise NotImplementedError("get_db_dep not implemented")
+    with get_db_closing() as conn:
+        yield conn
 
 
 DBConn = Annotated[sqlite3.Connection, Depends(get_db_dep)]
@@ -60,8 +63,10 @@ def _infer_endpoint_key(path: str) -> Optional[str]:
     Returns the first key from _RATE_LIMITS that is contained in the path.
     Returns None if no match found.
     """
-    # Stub implementation - will fail tests
-    raise NotImplementedError("_infer_endpoint_key not implemented")
+    for key in _RATE_LIMITS:
+        if key in path:
+            return key
+    return None
 
 
 def check_rate_limit(request: Request) -> None:
@@ -69,8 +74,15 @@ def check_rate_limit(request: Request) -> None:
 
     Raises HTTPException(429) if limit exceeded, passes through otherwise.
     """
-    # Stub implementation - will fail tests
-    raise NotImplementedError("check_rate_limit not implemented")
+    key = _infer_endpoint_key(request.url.path)
+    if key is None:
+        return  # No limit for this path
+
+    ip = request.client.host if request.client else "unknown"
+    allowed, _retry_after = rate_limiter.check(key, ip, _RATE_LIMITS[key])
+
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
 
 def destroy_session_dep(request: Request) -> None:
@@ -78,8 +90,7 @@ def destroy_session_dep(request: Request) -> None:
 
     Calls auth.destroy_session(request.session).
     """
-    # Stub implementation - will fail tests
-    raise NotImplementedError("destroy_session_dep not implemented")
+    auth.destroy_session(request.session)
 
 
 def get_provider():
@@ -87,8 +98,14 @@ def get_provider():
 
     Uses lazy import to avoid circular dependency with __init__.py.
     """
-    # Stub implementation - will fail tests
-    raise NotImplementedError("get_provider not implemented")
+    # Lazy import to avoid circular import with __init__.py
+    import jellyswipe as _app
+
+    if _app._provider_singleton is None:
+        from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+        _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
+
+    return _app._provider_singleton
 
 
 __all__ = [

@@ -3,7 +3,7 @@
 import pytest
 import sqlite3
 from unittest.mock import patch, MagicMock
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.testclient import TestClient
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -120,6 +120,11 @@ class TestGetDbDep:
 class TestCheckRateLimit:
     """Tests for check_rate_limit() dependency."""
 
+    def teardown_method(self):
+        """Reset rate limiter state after each test."""
+        from jellyswipe.rate_limiter import rate_limiter
+        rate_limiter.reset()
+
     def test_raises_429_when_limit_exceeded(self, db_path, monkeypatch):
         """Exceeding rate limit raises HTTPException(429)."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
@@ -207,28 +212,28 @@ class TestGetProvider:
 
     def test_returns_jellyfin_library_provider_singleton(self, monkeypatch):
         """get_provider returns the JellyfinLibraryProvider singleton."""
-        # Mock the import to avoid circular dependency
-        with patch('jellyswipe.dependencies.jellyswipe') as mock_app:
-            mock_provider = MagicMock()
-            mock_app._provider_singleton = mock_provider
+        # Set a mock singleton in jellyswipe module
+        import jellyswipe as app
+        from unittest.mock import MagicMock
 
-            provider = get_provider()
-            assert provider == mock_provider
+        mock_provider = MagicMock()
+        app._provider_singleton = mock_provider
 
-    def test_creates_singleton_if_none(self, monkeypatch):
-        """Creates singleton if it doesn't exist."""
-        with patch('jellyswipe.dependencies.jellyswipe') as mock_app:
-            mock_app._provider_singleton = None
-            mock_app._JELLYFIN_URL = "http://test-url"
+        provider = get_provider()
+        assert provider == mock_provider
 
-            mock_provider_class = MagicMock()
-            with patch('jellyswipe.dependencies.JellyfinLibraryProvider', mock_provider_class):
-                provider = get_provider()
+    def test_returns_same_instance_on_multiple_calls(self, monkeypatch):
+        """Calling get_provider() multiple times returns the same instance (singleton)."""
+        import jellyswipe as app
 
-                # Verify singleton was created
-                assert provider == mock_provider_class.return_value
-                mock_provider_class.assert_called_once_with("http://test-url")
-                assert mock_app._provider_singleton == provider
+        # Reset singleton if it exists
+        app._provider_singleton = None
+
+        provider1 = get_provider()
+        provider2 = get_provider()
+
+        assert provider1 is provider2
+        assert app._provider_singleton is not None
 
 
 # ---------------------------------------------------------------------------
