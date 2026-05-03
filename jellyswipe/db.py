@@ -98,14 +98,14 @@ def init_db():
 
 
 def cleanup_expired_tokens():
-    """Delete rows from user_tokens older than 24 hours.
+    """Delete rows from user_tokens older than 14 days.
 
     Called automatically on app startup (via init_db) and should also be
     called on every new session creation in Phase 24 (per D-03).
 
     Uses ISO 8601 string comparison for created_at timestamps.
     """
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
     with get_db() as conn:
         conn.execute(
             'DELETE FROM user_tokens WHERE created_at < ?',
