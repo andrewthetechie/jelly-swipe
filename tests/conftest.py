@@ -1,8 +1,12 @@
 import os
 import secrets
+import json
+from base64 import b64encode
 from unittest.mock import MagicMock, patch
 
 import pytest
+import itsdangerous
+from fastapi.testclient import TestClient
 
 # Set required environment variables at module level to satisfy jellyswipe/__init__.py
 # This must happen before any imports that trigger __init__.py validation
@@ -11,6 +15,21 @@ os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
 os.environ.setdefault("TMDB_ACCESS_TOKEN", "test-tmdb-token")
 os.environ.setdefault("FLASK_SECRET", "test-secret-key")
 os.environ.setdefault("ALLOW_PRIVATE_JELLYFIN", "1")
+
+
+def set_session_cookie(client, data: dict, secret_key: str) -> None:
+    """Inject session state into a FastAPI TestClient's cookie jar.
+
+    Replicates Starlette 1.0.0 SessionMiddleware signing format exactly:
+      base64(json_bytes).timestamp.signature via itsdangerous.TimestampSigner.
+
+    VERIFIED against starlette.middleware.sessions source code.
+    Do NOT use URLSafeTimedSerializer — that is Flask's format, not Starlette's.
+    """
+    signer = itsdangerous.TimestampSigner(str(secret_key))
+    payload = b64encode(json.dumps(data).encode("utf-8"))
+    signed = signer.sign(payload)
+    client.cookies.set("session", signed.decode("utf-8"))
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -180,49 +199,86 @@ class FakeProvider:
 
 @pytest.fixture
 def app(tmp_path, monkeypatch):
-    """Create a fresh Flask app instance for route testing.
+    """Create a fresh FastAPI app instance for route testing.
 
     Each test gets its own isolated app with:
     - Temp SQLite database (via tmp_path)
-    - TESTING mode enabled (D-10)
-    - Unique secret key to prevent session leakage (D-11)
-    - FakeProvider mock for provider singleton (D-05)
-    - Clean token cache (no stale entries)
+    - TESTING mode enabled
+    - SECRET_KEY matching FLASK_SECRET env var (so set_session_cookie cookies are accepted)
+    - dependency_overrides for require_auth (D-01) and get_provider (D-05)
+    - Clean rate limiter state
 
-    Route tests use the `client` fixture. Direct DB tests continue
-    using the existing `db_connection` fixture (D-04).
+    Teardown clears dependency_overrides to prevent state leakage (D-01 success criterion 3).
     """
-    import jellyswipe as jellyswipe_module
     from jellyswipe import create_app
+    from jellyswipe.dependencies import require_auth, get_provider, AuthUser
 
     db_file = str(tmp_path / "test_route.db")
     test_config = {
         "DB_PATH": db_file,
         "TESTING": True,
-        "SECRET_KEY": secrets.token_hex(16),
+        "SECRET_KEY": os.environ["FLASK_SECRET"],
     }
+    fast_app = create_app(test_config=test_config)
 
-    flask_app = create_app(test_config=test_config)
-
-    # Patch provider singleton with FakeProvider (D-05)
-    # monkeypatch auto-restores after test
-    fake_provider = FakeProvider()
-    monkeypatch.setattr(
-        jellyswipe_module, "_provider_singleton", fake_provider, raising=False
+    # Override auth — no DB vault needed (D-01)
+    # Default identity matches FakeProvider's user_id/token (D-03)
+    fast_app.dependency_overrides[require_auth] = lambda: AuthUser(
+        jf_token="valid-token", user_id="verified-user"
     )
-    jellyswipe_module._token_user_id_cache.clear()
 
-    # Reset rate limiter buckets so tests don't accumulate state
+    # Override provider — replaces monkeypatch of _provider_singleton (D-05)
+    fake_provider = FakeProvider()
+    fast_app.dependency_overrides[get_provider] = lambda: fake_provider
+
     from jellyswipe.rate_limiter import rate_limiter as _rl
     _rl.reset()
 
-    yield flask_app
+    yield fast_app
+
+    fast_app.dependency_overrides.clear()   # CRITICAL: prevents override state leakage
 
 
 @pytest.fixture
 def client(app):
-    """Provide a Flask test client for HTTP requests.
+    """Provide a FastAPI TestClient for HTTP requests.
 
     Depends on the app fixture for proper isolation.
+    Cookies persist between calls within the same client instance.
     """
-    return app.test_client()
+    return TestClient(app)
+
+
+@pytest.fixture
+def app_real_auth(tmp_path, monkeypatch):
+    """FastAPI app with real require_auth — for auth integration tests only.
+
+    Does NOT set dependency_overrides[require_auth]. Auth goes through
+    real require_auth -> auth.get_current_token() -> DB lookup.
+    Used by: test_routes_auth.py and test_route_authorization.py (D-02).
+    """
+    from jellyswipe import create_app
+    from jellyswipe.dependencies import get_provider
+
+    db_file = str(tmp_path / "test_route.db")
+    test_config = {
+        "DB_PATH": db_file,
+        "TESTING": True,
+        "SECRET_KEY": os.environ["FLASK_SECRET"],
+    }
+    fast_app = create_app(test_config=test_config)
+    # NOTE: NO dependency_overrides[require_auth] — real auth path (D-02)
+    fake_provider = FakeProvider()
+    fast_app.dependency_overrides[get_provider] = lambda: fake_provider
+
+    from jellyswipe.rate_limiter import rate_limiter as _rl
+    _rl.reset()
+
+    yield fast_app
+    fast_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_real_auth(app_real_auth):
+    """TestClient backed by real require_auth — for auth integration tests only."""
+    return TestClient(app_real_auth)
