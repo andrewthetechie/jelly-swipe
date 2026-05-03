@@ -253,14 +253,14 @@ def create_app(test_config=None):
             return {'error': 'Rate limit exceeded', 'request_id': getattr(req.state, 'request_id', 'unknown')}, 429
         return None
 
-    def make_error_response(message: str, status_code: int, request: Request, extra_fields: dict = None) -> JSONResponse:
+    def make_error_response(message: str, status_code: int, request: Request, extra_fields: dict = None) -> XSSSafeJSONResponse:
         if status_code >= 500:
             message = 'Internal server error'
         body = {'error': message}
         body['request_id'] = getattr(request.state, 'request_id', 'unknown')
         if extra_fields:
             body.update(extra_fields)
-        return JSONResponse(content=body, status_code=status_code)
+        return XSSSafeJSONResponse(content=body, status_code=status_code)
 
     def log_exception(exc: Exception, request: Request, context: dict = None) -> None:
         log_data = {
@@ -374,7 +374,7 @@ def create_app(test_config=None):
     def get_trailer(movie_id: str, request: Request):
         rl = _check_rate_limit('get-trailer', request)
         if rl:
-            return JSONResponse(content=rl[0], status_code=rl[1])
+            return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
             search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
@@ -412,7 +412,7 @@ def create_app(test_config=None):
     def get_cast(movie_id: str, request: Request):
         rl = _check_rate_limit('cast', request)
         if rl:
-            return JSONResponse(content=rl[0], status_code=rl[1])
+            return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
             search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
@@ -456,7 +456,7 @@ def create_app(test_config=None):
         _require_login(request)
         rl = _check_rate_limit('watchlist/add', request)
         if rl:
-            return JSONResponse(content=rl[0], status_code=rl[1])
+            return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
         try:
             movie_id = (body or {}).get('movie_id')
             get_provider().add_to_user_favorites(request.state.jf_token, movie_id)
@@ -490,7 +490,7 @@ def create_app(test_config=None):
         username = (data.get("username") or "").strip()
         password = (data.get("password") or "").strip()
         if not username or not password:
-            return JSONResponse(content={"error": "Username and password are required"}, status_code=400)
+            return XSSSafeJSONResponse(content={"error": "Username and password are required"}, status_code=400)
         try:
             out = get_provider().authenticate_user_session(username, password)
             create_session(out["token"], out["user_id"], request.session)
@@ -530,7 +530,7 @@ def create_app(test_config=None):
             info = get_provider().server_info()
             return {"baseUrl": info.get("machineIdentifier", ""), "webUrl": info.get("webUrl", "")}
         except Exception:
-            return JSONResponse(content={"baseUrl": "", "webUrl": ""}, status_code=200)
+            return XSSSafeJSONResponse(content={"baseUrl": "", "webUrl": ""}, status_code=200)
 
     @app.post('/room')
     def create_room(request: Request):
@@ -579,7 +579,7 @@ def create_app(test_config=None):
                 request.session['active_room'] = code
                 request.session['solo_mode'] = False
                 return {'status': 'success'}
-        return JSONResponse(content={'error': 'Invalid Code'}, status_code=404)
+        return XSSSafeJSONResponse(content={'error': 'Invalid Code'}, status_code=404)
 
     @app.post('/room/{code}/swipe')
     async def swipe(code: str, request: Request):
@@ -753,7 +753,7 @@ def create_app(test_config=None):
             data = {}
         genre = data.get('genre')
         if not genre:
-            return JSONResponse(content={'error': 'Genre required'}, status_code=400)
+            return XSSSafeJSONResponse(content={'error': 'Genre required'}, status_code=400)
         new_list = get_provider().fetch_deck(genre)
         with get_db_closing() as conn:
             conn.execute('UPDATE rooms SET movie_data = ?, deck_position = ?, current_genre = ? WHERE pairing_code = ?',
@@ -851,7 +851,7 @@ def create_app(test_config=None):
     def proxy(request: Request):
         rl = _check_rate_limit('proxy', request)
         if rl:
-            return JSONResponse(content=rl[0], status_code=rl[1])
+            return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
         path = request.query_params.get('path')
         if not path:
             raise HTTPException(status_code=403)
@@ -867,7 +867,7 @@ def create_app(test_config=None):
             raise HTTPException(status_code=404)
         except requests.exceptions.RequestException as exc:
             _logger.warning("proxy: upstream error fetching %s: %s", path, exc)
-            return JSONResponse(content={"error": "Upstream server error"}, status_code=502)
+            return XSSSafeJSONResponse(content={"error": "Upstream server error"}, status_code=502)
         return Response(content=body, media_type=content_type)
 
     @app.get('/manifest.json')
