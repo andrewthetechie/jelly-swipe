@@ -133,7 +133,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 33-01-PLAN.md — Create config.py foundation and extract 4 simpler routers (auth, static, media, proxy)
+- [x] 33-01-PLAN.md — Create config.py foundation and extract 4 simpler routers (auth, static, media, proxy)
 - [ ] 33-02-PLAN.md — Extract rooms router (swipe transaction) and refactor __init__.py into thin app factory
 
 ---
@@ -184,7 +184,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | 30. Package and Deployment Infrastructure | 1/1 | Complete    | 2026-05-02 |
 | 31. FastAPI App Factory and Session Middleware | 0/1 | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 1/1 | Complete   | 2026-05-03 |
-| 33. Router Extraction and Endpoint Parity | 0/2 | Not started | - |
+| 33. Router Extraction and Endpoint Parity | 1/2 | In Progress|  |
 | 34. SSE Route Migration | 0/TBD | Not started | - |
 | 35. Test Suite Migration and Full Validation | 0/TBD | Not started | - |
 
