@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
@@ -271,79 +271,6 @@ def create_app(test_config=None):
     app.include_router(media_router)
     app.include_router(proxy_router)
     app.include_router(static_router)
-
-    # SSE route — stays inline per D-15; Phase 34 migrates it
-    @app.get('/room/{code}/stream')
-    def room_stream(code: str, request: Request):
-        _require_login(request)
-        def generate():
-            last_genre = None
-            last_ready = None
-            last_match_ts = None
-            POLL = 1.5
-            TIMEOUT = 3600
-            _last_event_time = time.time()
-
-            # Per DB-02: Hold one persistent connection for the entire
-            # stream lifetime instead of opening/closing per poll cycle.
-            # WAL mode (set in init_db) eliminates file-lock contention
-            # so concurrent readers don't block this connection.
-            import jellyswipe.db
-            conn = sqlite3.connect(jellyswipe.db.DB_PATH)
-            conn.row_factory = sqlite3.Row
-            try:
-                deadline = time.time() + TIMEOUT
-                while time.time() < deadline:
-                    try:
-                        row = conn.execute(
-                            'SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?',
-                            (code,)
-                        ).fetchone()
-
-                        if row is None:
-                            yield f"data: {json.dumps({'closed': True})}\n\n"
-                            return
-
-                        ready = bool(row['ready'])
-                        genre = row['current_genre']
-                        solo = bool(row['solo_mode'])
-                        last_match = json.loads(row['last_match_data']) if row['last_match_data'] else None
-                        match_ts = last_match['ts'] if last_match else None
-
-                        payload = {}
-                        if ready != last_ready:
-                            payload['ready'] = ready
-                            payload['solo'] = solo
-                            last_ready = ready
-                        if genre != last_genre:
-                            payload['genre'] = genre
-                            last_genre = genre
-                        if match_ts and match_ts != last_match_ts:
-                            payload['last_match'] = last_match
-                            last_match_ts = match_ts
-
-                        if payload:
-                            yield f"data: {json.dumps(payload)}\n\n"
-                            _last_event_time = time.time()
-                        elif time.time() - _last_event_time >= 15:
-                            yield ": ping\n\n"
-                            _last_event_time = time.time()
-
-                        delay = POLL + random.uniform(0, 0.5)
-                        time.sleep(delay)
-                    except GeneratorExit:
-                        return
-                    except Exception:
-                        delay = POLL + random.uniform(0, 0.5)
-                        time.sleep(delay)
-            finally:
-                conn.close()
-
-        return StreamingResponse(
-            generate(),
-            media_type='text/event-stream',
-            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
-        )
 
     return app
 
