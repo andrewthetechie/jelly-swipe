@@ -19,6 +19,7 @@ import logging
 import traceback
 import sqlite3, os, random, re, json, secrets, time
 import requests
+from urllib.parse import urlencode
 
 from jellyswipe.http_client import make_http_request
 from jellyswipe.rate_limiter import rate_limiter as _rate_limiter
@@ -377,7 +378,8 @@ def create_app(test_config=None):
             return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
-            search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
+            params = urlencode({'query': item.title, 'year': item.year})
+            search_url = f"https://api.themoviedb.org/3/search/movie?{params}"
             search_response = make_http_request(
                 method='GET',
                 url=search_url,
@@ -415,7 +417,8 @@ def create_app(test_config=None):
             return XSSSafeJSONResponse(content=rl[0], status_code=rl[1])
         try:
             item = get_provider().resolve_item_for_tmdb(movie_id)
-            search_url = f"https://api.themoviedb.org/3/search/movie?query={item.title}&year={item.year}"
+            params = urlencode({'query': item.title, 'year': item.year})
+            search_url = f"https://api.themoviedb.org/3/search/movie?{params}"
             search_response = make_http_request(
                 method='GET',
                 url=search_url,
