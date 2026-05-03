@@ -10,7 +10,7 @@
 
 - [ ] **FAPI-01**: FastAPI replaces Flask as the web framework; Uvicorn replaces Gunicorn+gevent as the ASGI server
 - [x] **FAPI-02**: All existing HTTP endpoints retain identical URL paths, methods, and response shapes after migration
-- [ ] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse` with an async generator using `await asyncio.sleep()` — `time.sleep()` must not be used in the event loop path
+- [x] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse` with an async generator using `await asyncio.sleep()` — `time.sleep()` must not be used in the event loop path
 - [ ] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
 
 ### Architecture
@@ -53,7 +53,7 @@
 | ARCH-03 | Phase 32 | Completed | 32-01 |
 | ARCH-01 | Phase 33 | Complete |
 | FAPI-02 | Phase 33 | Complete |
-| FAPI-03 | Phase 34 | Pending |
+| FAPI-03 | Phase 34 | Complete |
 | TST-01 | Phase 35 | Pending |
 
 **Coverage:**

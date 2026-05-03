@@ -47,7 +47,7 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
 - [x] **Phase 31: FastAPI App Factory and Session Middleware** — Create the FastAPI app factory with SessionMiddleware, security headers, XSS-safe JSON response class, and lifespan DB initialization (completed 2026-05-03)
 - [x] **Phase 32: Auth Rewrite and Dependency Injection Layer** — De-Flaskify auth.py; create dependencies.py with require_auth(), get_db_dep(), get_provider() (completed 2026-05-03)
 - [x] **Phase 33: Router Extraction and Endpoint Parity** — Split all 21 non-SSE routes from the monolith into five domain APIRouter modules; every original URL path works (completed 2026-05-03)
-- [ ] **Phase 34: SSE Route Migration** — Migrate the SSE stream endpoint to an async generator with await asyncio.sleep() and try/finally connection cleanup
+- [x] **Phase 34: SSE Route Migration** — Migrate the SSE stream endpoint to an async generator with await asyncio.sleep() and try/finally connection cleanup (completed 2026-05-03)
 - [ ] **Phase 35: Test Suite Migration and Full Validation** — Replace Flask test client with FastAPI TestClient; all 48 tests pass; Docker build starts with Uvicorn
 
 ---
@@ -155,8 +155,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 34-01-PLAN.md — Add sse-starlette>=3.4.1 to pyproject.toml and regenerate uv.lock
-- [ ] 34-02-PLAN.md — Add async SSE route to rooms.py and remove inline SSE block from __init__.py
+- [x] 34-01-PLAN.md — Add sse-starlette>=3.4.1 to pyproject.toml and regenerate uv.lock
+- [x] 34-02-PLAN.md — Add async SSE route to rooms.py and remove inline SSE block from __init__.py
 
 ---
 
@@ -189,7 +189,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | 31. FastAPI App Factory and Session Middleware | 0/1 | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 1/1 | Complete   | 2026-05-03 |
 | 33. Router Extraction and Endpoint Parity | 2/2 | Complete    | 2026-05-03 |
-| 34. SSE Route Migration | 0/2 | Not started | - |
+| 34. SSE Route Migration | 2/2 | Complete   | 2026-05-03 |
 | 35. Test Suite Migration and Full Validation | 0/TBD | Not started | - |
 
 ---
