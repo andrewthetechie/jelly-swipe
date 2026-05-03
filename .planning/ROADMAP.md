@@ -88,8 +88,10 @@ Plans:
   3. JSON responses from the app escape `<`, `>`, and `&` — the XSS-safe serialization behavior from v1.5 is preserved
   4. The `X-Request-Id` and `Content-Security-Policy` headers are present on responses, matching the v1.7 behavior
 
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 1 plan
+
+Plans:
+- [ ] 31-01-PLAN.md — Rewrite Flask monolith to FastAPI app factory with middleware stack, XSS-safe JSON, and all 29 routes converted
 
 ---
 
@@ -173,7 +175,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 30. Package and Deployment Infrastructure | 1/1 | Complete    | 2026-05-02 |
-| 31. FastAPI App Factory and Session Middleware | 0/TBD | Not started | - |
+| 31. FastAPI App Factory and Session Middleware | 0/1 | Not started | - |
 | 32. Auth Rewrite and Dependency Injection Layer | 0/TBD | Not started | - |
 | 33. Router Extraction and Endpoint Parity | 0/TBD | Not started | - |
 | 34. SSE Route Migration | 0/TBD | Not started | - |
@@ -198,4 +200,4 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 ---
 
 *Roadmap created: 2026-05-01*
-*Last updated: 2026-05-02 (Phase 30 planned — 1 plan)*
+*Last updated: 2026-05-02 (Phase 31 planned — 1 plan)*
