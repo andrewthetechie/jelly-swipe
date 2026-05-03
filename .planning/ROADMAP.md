@@ -177,11 +177,18 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
+**Wave 1**
 - [ ] 35-01-PLAN.md — Rewrite conftest.py with FastAPI TestClient fixtures; wire SECRET_KEY in create_app()
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 35-02-PLAN.md — Migrate test_routes_room.py and test_routes_xss.py
 - [ ] 35-03-PLAN.md — Migrate test_route_authorization.py and test_routes_auth.py (real-auth path)
 - [ ] 35-04-PLAN.md — Migrate test_routes_sse.py
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 35-05-PLAN.md — Migrate test_routes_proxy.py and test_error_handling.py
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 35-06-PLAN.md — Full suite run, REQUIREMENTS.md update, Docker build verification
 
 ---

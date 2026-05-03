@@ -492,17 +492,19 @@ def create_app(test_config=None):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Pre-existing test failures in scope?**
    - What we know: 3 test_db.py tests and potentially 1 test_dependencies.py test fail before Phase 35 changes begin, for reasons unrelated to Flask→FastAPI migration
    - What's unclear: Does the success criterion "all 324 tests pass" require fixing these pre-existing failures, or only the migration-caused failures?
    - Recommendation: Planner should treat these as pre-existing and note them in the plan. If the user's success criterion is literally 324/324, the db.py cleanup threshold mismatch (24h vs 14d) will need a separate fix.
+   - **RESOLVED:** Pre-existing failures documented in Plan 06 Task 1; do not count against Phase 35 success criterion. The success criterion is "all migration-caused failures fixed"; pre-existing failures are noted and excluded.
 
 2. **`test_routes_proxy.py`: `client.application.config["JELLYFIN_URL"] = ""`**
    - What we know: This test mutates the Flask app config to simulate a missing JELLYFIN_URL. There is no equivalent on `TestClient`.
    - What's unclear: The JELLYFIN_URL config value is read from `jellyswipe.config._JELLYFIN_URL` by the proxy router. Monkeypatching it in the test would work.
    - Recommendation: Replace `client.application.config["JELLYFIN_URL"] = ""` with `monkeypatch.setattr(jellyswipe.config, "_JELLYFIN_URL", "")` — this is a one-line change and does not modify test logic.
+   - **RESOLVED:** Plan 05 Task 1 Fix 3 implements `monkeypatch.setattr(jellyswipe.config, "_JELLYFIN_URL", "")` as the replacement.
 
 ---
 
