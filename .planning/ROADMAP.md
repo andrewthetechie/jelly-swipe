@@ -186,7 +186,7 @@ Plans:
 - [x] 35-04-PLAN.md — Migrate test_routes_sse.py
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 35-05-PLAN.md — Migrate test_routes_proxy.py and test_error_handling.py
+- [x] 35-05-PLAN.md — Migrate test_routes_proxy.py and test_error_handling.py
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 35-06-PLAN.md — Full suite run, REQUIREMENTS.md update, Docker build verification
@@ -205,7 +205,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | 32. Auth Rewrite and Dependency Injection Layer | 1/1 | Complete   | 2026-05-03 |
 | 33. Router Extraction and Endpoint Parity | 2/2 | Complete    | 2026-05-03 |
 | 34. SSE Route Migration | 2/2 | Complete   | 2026-05-03 |
-| 35. Test Suite Migration and Full Validation | 4/6 | In Progress|  |
+| 35. Test Suite Migration and Full Validation | 5/6 | In Progress|  |
 
 ---
 
