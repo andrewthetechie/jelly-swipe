@@ -10,55 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
-from tests.conftest import set_session_cookie
-
-
-class FakeProvider:
-    """Minimal provider stub for auth route tests."""
-
-    def __init__(self, user_id: str = "verified-user", token: str = "valid-token"):
-        self._user_id = user_id
-        self._token = token
-        self.favorites_added = []
-
-    def server_primary_user_id_for_delegate(self) -> str:
-        return self._user_id
-
-    def server_access_token_for_delegate(self) -> str:
-        return self._token
-
-    def extract_media_browser_token(self, auth_header: str) -> str:
-        marker = 'Token="'
-        if marker in auth_header and auth_header.endswith('"'):
-            return auth_header.split(marker, 1)[1][:-1]
-        return ""
-
-    def resolve_user_id_from_token(self, token: str) -> Optional[str]:
-        if token == self._token:
-            return self._user_id
-        return None
-
-    def authenticate_user_session(self, username: str, password: str) -> dict:
-        return {"token": self._token, "user_id": self._user_id}
-
-    def add_to_user_favorites(self, user_token: str, movie_id: str) -> None:
-        self.favorites_added.append((user_token, movie_id))
-
-    def resolve_item_for_tmdb(self, movie_id: str):
-        from types import SimpleNamespace
-        return SimpleNamespace(title=f"Movie-{movie_id}", year=2025)
-
-    def fetch_deck(self, genre_name=None):
-        """Return a list of 25 fake movie cards for deck testing."""
-        return [
-            {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
-             "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
-             "rating": 7.0, "duration": "1h 30m", "year": 2024}
-            for i in range(25)
-        ]
-
-    def server_info(self) -> dict:
-        return {"machineIdentifier": "test-server-id", "name": "TestServer"}
+from tests.conftest import FakeProvider, set_session_cookie
 
 
 def _set_session(client, db_connection, secret_key, *, active_room: str = "ROOM1", authenticated: bool = True):
