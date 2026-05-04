@@ -296,6 +296,15 @@ def create_app(test_config=None):
     return app
 
 
-# Create global app instance for backwards compatibility
-# Dockerfile CMD uses: uvicorn jellyswipe:app
+# Module-level app instance — required for deployment.
+# Uvicorn is invoked as `uvicorn jellyswipe:app` (not --factory), so this
+# module-level call is necessary. Removing it would break the Dockerfile CMD.
+#
+# SIDE EFFECT: importing jellyswipe for ANY reason (tests, IDE indexing, etc.)
+# triggers create_app(), which reads os.environ["FLASK_SECRET"] and runs
+# config.validate_jellyfin_url(). The test suite works around this by setting
+# env vars at conftest module level before any jellyswipe imports.
+#
+# Future improvement: switch Uvicorn to --factory mode with
+# `uvicorn jellyswipe:create_app --factory` and remove this line.
 app = create_app()
