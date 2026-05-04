@@ -57,10 +57,23 @@ class XSSSafeJSONResponse(JSONResponse):
     Per OWASP recommendation, < > & are encoded as \\u003c \\u003e \\u0026
     in JSON output so that raw HTTP bodies cannot contain executable HTML tags.
     JSON parsers correctly decode these back to the original characters.
+
+    TRADEOFF (v1.5 security decision): This is applied as the default_response_class
+    for the entire FastAPI app. All JSON string values containing & will appear as
+    \\u0026 in the raw HTTP wire format (e.g., "Dungeons & Dragons" becomes
+    "Dungeons \\u0026 Dragons"). JSON.parse() handles this transparently, but any
+    client doing raw string matching on the response body must account for it.
+    This is an intentional defense-in-depth measure — do NOT remove without a
+    security review. See also: proxy_router returns plain Response for binary
+    image data, bypassing this escaping.
     """
 
     def render(self, content: typing.Any) -> bytes:
         result = super().render(content)
+        # NOTE: Replacement order matters. & is replaced LAST so that the
+        # \u003c and \u003e sequences inserted above are not double-escaped
+        # (they contain no & character). Pre-existing & in JSON values
+        # (e.g., "Tom & Jerry") will be escaped to \u0026.
         return (result
                 .replace(b"<", b"\\u003c")
                 .replace(b">", b"\\u003e")
