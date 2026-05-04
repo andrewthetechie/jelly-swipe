@@ -44,7 +44,7 @@ def test_proxy_returns_image_data_from_provider(client, monkeypatch):
     )
     response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
     assert response.status_code == 200
-    assert response.data == b"\x89PNG\r\n"
+    assert response.content == b"\x89PNG\r\n"
 
 
 def test_proxy_content_type_matches_provider(client, monkeypatch):
@@ -57,7 +57,7 @@ def test_proxy_content_type_matches_provider(client, monkeypatch):
     )
     response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
     assert response.status_code == 200
-    assert response.content_type == "image/webp"
+    assert response.headers["content-type"] == "image/webp"
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ def test_proxy_encoded_path_traversal_returns_403(client):
 
 def test_proxy_no_jellyfin_url_returns_503(client, monkeypatch):
     """Empty JELLYFIN_URL config returns 503."""
-    client.application.config["JELLYFIN_URL"] = ""
+    monkeypatch.setattr(jellyswipe.config, "JELLYFIN_URL", "")
     response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
     assert response.status_code == 503
 

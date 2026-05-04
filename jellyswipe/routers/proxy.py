@@ -12,7 +12,7 @@ from fastapi.responses import Response
 from jellyswipe import XSSSafeJSONResponse
 
 from jellyswipe.dependencies import check_rate_limit, get_provider
-from jellyswipe.config import JELLYFIN_URL
+from jellyswipe import config
 
 import requests
 
@@ -28,7 +28,7 @@ def proxy(request: Request, _: None = Depends(check_rate_limit)):
     path = request.query_params.get('path')
     if not path:
         raise HTTPException(status_code=403)
-    if not JELLYFIN_URL:
+    if not config.JELLYFIN_URL:
         raise HTTPException(status_code=503)
     if not re.match(r"^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$", path):
         raise HTTPException(status_code=403)
