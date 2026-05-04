@@ -178,17 +178,23 @@ class FakeProvider:
         self.favorites_added.append((user_token, movie_id))
 
     def fetch_deck(self, genre=None):
-        return []
+        """Return a list of 25 fake movie cards for deck testing."""
+        return [
+            {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
+             "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
+             "rating": 7.0, "duration": "1h 30m", "year": 2024}
+            for i in range(25)
+        ]
 
     def list_genres(self):
         return ["All", "Action", "Comedy"]
 
     def server_info(self):
-        return {"server_name": "Test Server"}
+        return {"machineIdentifier": "test-server-id", "name": "TestServer", "webUrl": ""}
 
     def resolve_item_for_tmdb(self, movie_id):
         from types import SimpleNamespace
-        return SimpleNamespace(title=f"Movie {movie_id}", year=2026, thumb=f"/proxy?path=jellyfin/{movie_id}/Primary")
+        return SimpleNamespace(title=f"Movie-{movie_id}", year=2026, thumb=f"/proxy?path=jellyfin/{movie_id}/Primary")
 
     def fetch_library_image(self, path):
         return (b"", "image/jpeg")
@@ -215,7 +221,9 @@ def app(tmp_path, monkeypatch):
     import jellyswipe.config
 
     # Set provider singleton before creating app (matches app_real_auth fix)
-    jellyswipe.config._provider_singleton = FakeProvider()
+    import jellyswipe as app_module
+    fake_provider = FakeProvider()
+    app_module._provider_singleton = fake_provider
 
     db_file = str(tmp_path / "test_route.db")
     test_config = {
@@ -232,7 +240,6 @@ def app(tmp_path, monkeypatch):
     )
 
     # Override provider — replaces monkeypatch of _provider_singleton (D-05)
-    fake_provider = FakeProvider()
     fast_app.dependency_overrides[get_provider] = lambda: fake_provider
 
     from jellyswipe.rate_limiter import rate_limiter as _rl
@@ -242,7 +249,7 @@ def app(tmp_path, monkeypatch):
 
     fast_app.dependency_overrides.clear()   # CRITICAL: prevents override state leakage
     # Clear provider singleton on teardown
-    jellyswipe.config._provider_singleton = None
+    app_module._provider_singleton = None
 
 
 @pytest.fixture
@@ -277,7 +284,9 @@ def app_real_auth(db_path, monkeypatch):
     jellyswipe.db.init_db()
 
     # Set provider singleton BEFORE creating app (fixes Plan 03 bug)
-    jellyswipe.config._provider_singleton = FakeProvider()
+    import jellyswipe as app_module
+    fake_provider = FakeProvider()
+    app_module._provider_singleton = fake_provider
 
     test_config = {
         "DB_PATH": db_path,
@@ -286,7 +295,6 @@ def app_real_auth(db_path, monkeypatch):
     }
     fast_app = create_app(test_config=test_config)
     # NOTE: NO dependency_overrides[require_auth] — real auth path (D-02)
-    fake_provider = FakeProvider()
     fast_app.dependency_overrides[get_provider] = lambda: fake_provider
 
     from jellyswipe.rate_limiter import rate_limiter as _rl
@@ -295,7 +303,8 @@ def app_real_auth(db_path, monkeypatch):
     yield fast_app
     fast_app.dependency_overrides.clear()
     # Clear provider singleton on teardown
-    jellyswipe.config._provider_singleton = None
+    import jellyswipe as app_module
+    app_module._provider_singleton = None
 
 
 @pytest.fixture
