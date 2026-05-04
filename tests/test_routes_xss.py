@@ -7,12 +7,14 @@ that non-JSON paths (proxy) are also safe.
 """
 
 import json
+import os
 import secrets
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import jellyswipe.db
 import pytest
+from tests.conftest import set_session_cookie
 
 # ---------------------------------------------------------------------------
 # Module-level XSS payload constants (per D-03, D-04, D-05, D-06, D-07)
@@ -30,24 +32,18 @@ XSS_PERCENT = "%3Cscript%3E"
 XSS_HEX_ENCODED = "&#x3C;script&#x3E;"
 
 
-def _setup_vault_session(client, user_id="user_abc123", active_room="TEST123"):
-    """Seed the token vault and set session cookie for authenticated testing."""
-    session_id = "xss-test-" + secrets.token_hex(8)
-    conn = jellyswipe.db.get_db()
-    conn.execute(
-        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-        (session_id, "test-token", user_id, datetime.now(timezone.utc).isoformat())
-    )
-    conn.commit()
-    conn.close()
-    with client.session_transaction() as sess:
-        sess["session_id"] = session_id
-        sess["active_room"] = active_room
+def _setup_vault_session(client, secret_key, user_id="user_abc123", active_room="TEST123"):
+    """Inject session state for XSS tests.
+
+    Auth is handled by app.dependency_overrides[require_auth] in the app fixture.
+    Only active_room (and optionally solo_mode) goes into the session cookie.
+    """
+    set_session_cookie(client, {"active_room": active_room}, secret_key)
 
 
 class TestLayer1ServerSideValidation:
 
-    def test_swipe_ignores_client_supplied_title_thumb(self, client, monkeypatch):
+    def test_swipe_ignores_client_supplied_title_thumb(self, client, app, monkeypatch):
         import jellyswipe
 
         with jellyswipe.db.get_db() as conn:
@@ -56,9 +52,8 @@ class TestLayer1ServerSideValidation:
                 ("TEST123", 1)
             )
 
-        _setup_vault_session(client, user_id="user_abc123", active_room="TEST123")
-        with client.session_transaction() as sess:
-            sess['solo_mode'] = True
+        _setup_vault_session(client, os.environ["FLASK_SECRET"], user_id="user_abc123", active_room="TEST123")
+        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
 
         mock_provider = MagicMock()
         mock_item = MagicMock()
@@ -77,7 +72,7 @@ class TestLayer1ServerSideValidation:
         )
 
         assert response.status_code == 200
-        response_data = json.loads(response.data)
+        response_data = response.json()
         assert response_data == {'accepted': True}
 
         mock_provider.resolve_item_for_tmdb.assert_called_once_with('movie123')
@@ -94,7 +89,7 @@ class TestLayer1ServerSideValidation:
             assert match['thumb'] == "/proxy?path=jellyfin/movie123/Primary"
             assert match['thumb'] != '<img src=x onerror=alert("XSS")>'
 
-    def test_swipe_ignores_client_params_silently(self, client, monkeypatch):
+    def test_swipe_ignores_client_params_silently(self, client, app, monkeypatch):
         import jellyswipe
 
         with jellyswipe.db.get_db() as conn:
@@ -103,9 +98,8 @@ class TestLayer1ServerSideValidation:
                 ("TEST456", 1)
             )
 
-        _setup_vault_session(client, user_id="user_xyz789", active_room="TEST456")
-        with client.session_transaction() as sess:
-            sess['solo_mode'] = True
+        _setup_vault_session(client, os.environ["FLASK_SECRET"], user_id="user_xyz789", active_room="TEST456")
+        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
 
         mock_provider = MagicMock()
         mock_item = MagicMock()
@@ -125,7 +119,7 @@ class TestLayer1ServerSideValidation:
 
         assert response.status_code == 200
 
-        response_data = json.loads(response.data)
+        response_data = response.json()
         assert response_data == {'accepted': True}
 
         with jellyswipe.db.get_db() as conn:
@@ -166,7 +160,7 @@ class TestLayer3CSPHeader:
 
 class TestEndToEndXSSBlocking:
 
-    def test_xss_blocked_three_layer_defense(self, client, monkeypatch):
+    def test_xss_blocked_three_layer_defense(self, client, app, monkeypatch):
         import jellyswipe
 
         with jellyswipe.db.get_db() as conn:
@@ -175,9 +169,8 @@ class TestEndToEndXSSBlocking:
                 ("E2E123", 1)
             )
 
-        _setup_vault_session(client, user_id="user_e2e", active_room="E2E123")
-        with client.session_transaction() as sess:
-            sess['solo_mode'] = True
+        _setup_vault_session(client, os.environ["FLASK_SECRET"], user_id="user_e2e", active_room="E2E123")
+        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
 
         mock_provider = MagicMock()
         mock_item = MagicMock()
@@ -196,7 +189,7 @@ class TestEndToEndXSSBlocking:
         )
 
         assert response.status_code == 200
-        response_data = json.loads(response.data)
+        response_data = response.json()
         assert response_data == {'accepted': True}
 
         assert 'Content-Security-Policy' in response.headers
@@ -214,7 +207,7 @@ class TestEndToEndXSSBlocking:
             assert '<script>' not in match['title']
             assert match['thumb'] == "/proxy?path=jellyfin/movie_e2e/Primary"
 
-    def test_swipe_handles_jellyfin_failure_gracefully(self, client, monkeypatch, caplog):
+    def test_swipe_handles_jellyfin_failure_gracefully(self, client, app, monkeypatch, caplog):
         import jellyswipe
 
         with jellyswipe.db.get_db() as conn:
@@ -223,9 +216,8 @@ class TestEndToEndXSSBlocking:
                 ("FAIL789", 1)
             )
 
-        _setup_vault_session(client, user_id="user_fail", active_room="FAIL789")
-        with client.session_transaction() as sess:
-            sess['solo_mode'] = True
+        _setup_vault_session(client, os.environ["FLASK_SECRET"], user_id="user_fail", active_room="FAIL789")
+        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
 
         mock_provider = MagicMock()
         mock_provider.resolve_item_for_tmdb.side_effect = RuntimeError("Jellyfin item lookup failed")
@@ -242,7 +234,7 @@ class TestEndToEndXSSBlocking:
             )
 
             assert response.status_code == 200
-            response_data = json.loads(response.data)
+            response_data = response.json()
             assert response_data.get('accepted') is True or 'accepted' not in response_data
 
             error_logs = [
@@ -273,24 +265,17 @@ class TestEndToEndXSSBlocking:
 # ---------------------------------------------------------------------------
 
 
-def _set_session(client, *, active_room="ROOM1", user_id="verified-user", authenticated=True, solo_mode=False):
-    """Set up session with vault-based authentication for swipe XSS tests."""
-    with client.session_transaction() as sess:
-        if active_room is not None:
-            sess["active_room"] = active_room
-        sess["solo_mode"] = solo_mode
+def _set_session(client, secret_key, *, active_room="ROOM1", solo_mode=False):
+    """Inject session state for XSS swipe tests.
 
-    if authenticated:
-        session_id = "xss-swipe-" + secrets.token_hex(8)
-        conn = jellyswipe.db.get_db()
-        conn.execute(
-            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-            (session_id, "valid-token", user_id, datetime.now(timezone.utc).isoformat())
-        )
-        conn.commit()
-        conn.close()
-        with client.session_transaction() as sess:
-            sess["session_id"] = session_id
+    Auth is handled by app.dependency_overrides[require_auth] in the app fixture.
+    Only active_room and solo_mode need to be in the session cookie.
+    """
+    data = {"solo_mode": solo_mode}
+    if active_room is not None:
+        data["active_room"] = active_room
+    if data:
+        set_session_cookie(client, data, secret_key)
 
 
 def _seed_solo_room(db_path, room_code="ROOM1"):
@@ -309,7 +294,7 @@ def _seed_solo_room(db_path, room_code="ROOM1"):
 
 def _setup_solo_swipe_session(client):
     """Prepare a solo-mode room with vault-based auth for swipe XSS tests."""
-    _set_session(client, solo_mode=True)
+    _set_session(client, os.environ["FLASK_SECRET"], solo_mode=True)
     _seed_solo_room(None)
 
 
@@ -339,9 +324,9 @@ def test_swipe_xss_title_escaped_in_match_response(client, monkeypatch):
     )
 
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.json()
     assert data == {"accepted": True}
-    assert "<script>" not in response.get_data(as_text=True)
+    assert "<script>" not in response.text
 
 
 def test_swipe_xss_thumb_escaped_in_match_response(client, monkeypatch):
@@ -365,9 +350,9 @@ def test_swipe_xss_thumb_escaped_in_match_response(client, monkeypatch):
     )
 
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.json()
     assert data == {"accepted": True}
-    assert "<img" not in response.get_data(as_text=True)
+    assert "<img" not in response.text
 
 
 def test_stored_xss_matches_endpoint(client, monkeypatch):
@@ -393,7 +378,7 @@ def test_stored_xss_matches_endpoint(client, monkeypatch):
     response = client.get("/matches")
 
     assert response.status_code == 200
-    body_text = response.get_data(as_text=True)
+    body_text = response.text
     assert "<script>" not in body_text
     assert "<img" not in body_text
 
@@ -419,9 +404,9 @@ def test_swipe_xss_img_tag_escaped(client, monkeypatch):
     )
 
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.json()
     assert data == {"accepted": True}
-    assert "<img" not in response.get_data(as_text=True)
+    assert "<img" not in response.text
 
 
 def test_swipe_xss_event_handler_escaped(client, monkeypatch):
@@ -445,9 +430,9 @@ def test_swipe_xss_event_handler_escaped(client, monkeypatch):
     )
 
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.json()
     assert data == {"accepted": True}
-    assert XSS_EVENT_HANDLER_DQ not in response.get_data(as_text=True)
+    assert XSS_EVENT_HANDLER_DQ not in response.text
 
 
 # ---------------------------------------------------------------------------
@@ -478,13 +463,13 @@ def test_proxy_html_in_path_rejected(client):
 def test_proxy_valid_uuid_path_accepted(client):
     response = client.get("/proxy?path=jellyfin/00000000000000000000000000000000/Primary")
     assert response.status_code == 200
-    assert "image" in response.content_type
+    assert "image" in response.headers.get("content-type", "")
 
 
 def test_proxy_valid_uuid_with_dashes_accepted(client):
     response = client.get("/proxy?path=jellyfin/00000000-0000-0000-0000-000000000000/Primary")
     assert response.status_code == 200
-    assert "image" in response.content_type
+    assert "image" in response.headers.get("content-type", "")
 
 
 # ---------------------------------------------------------------------------
@@ -498,17 +483,17 @@ def test_login_xss_username_not_echoed(client):
         json={"username": XSS_SCRIPT_TAG, "password": "testpass"},
     )
 
-    body_text = response.get_data(as_text=True)
+    body_text = response.text
     assert "<script>" not in body_text
     assert response.status_code in (200, 401)
 
 
 def test_join_room_xss_code_not_echoed(client):
-    _setup_vault_session(client, user_id="xss-user", active_room="ROOM1")
+    _setup_vault_session(client, os.environ["FLASK_SECRET"], user_id="xss-user", active_room="ROOM1")
     response = client.post(
         f"/room/{XSS_SCRIPT_TAG}/join",
     )
 
-    body_text = response.get_data(as_text=True)
+    body_text = response.text
     assert "<script>" not in body_text
     assert response.status_code == 404

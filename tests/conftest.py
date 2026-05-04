@@ -212,10 +212,10 @@ def app(tmp_path, monkeypatch):
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import require_auth, get_provider, AuthUser
+    import jellyswipe.config
 
-    # Set provider singleton before creating app to prevent HTTP requests during init
-    import jellyswipe
-    jellyswipe._provider_singleton = FakeProvider()
+    # Set provider singleton before creating app (matches app_real_auth fix)
+    jellyswipe.config._provider_singleton = FakeProvider()
 
     db_file = str(tmp_path / "test_route.db")
     test_config = {
@@ -241,6 +241,8 @@ def app(tmp_path, monkeypatch):
     yield fast_app
 
     fast_app.dependency_overrides.clear()   # CRITICAL: prevents override state leakage
+    # Clear provider singleton on teardown
+    jellyswipe.config._provider_singleton = None
 
 
 @pytest.fixture
@@ -256,19 +258,29 @@ def client(app):
 
 
 @pytest.fixture
-def app_real_auth(tmp_path, monkeypatch):
+def app_real_auth(db_path, monkeypatch):
     """FastAPI app with real require_auth — for auth integration tests only.
 
     Does NOT set dependency_overrides[require_auth]. Auth goes through
     real require_auth -> auth.get_current_token() -> DB lookup.
     Used by: test_routes_auth.py and test_route_authorization.py (D-02).
+
+    Uses db_path fixture to align database with db_connection (Plan 03 fix).
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
+    import jellyswipe.config
 
-    db_file = str(tmp_path / "test_route.db")
+    # Initialize database schema
+    import jellyswipe.db
+    jellyswipe.db.DB_PATH = db_path
+    jellyswipe.db.init_db()
+
+    # Set provider singleton BEFORE creating app (fixes Plan 03 bug)
+    jellyswipe.config._provider_singleton = FakeProvider()
+
     test_config = {
-        "DB_PATH": db_file,
+        "DB_PATH": db_path,
         "TESTING": True,
         "SECRET_KEY": os.environ["FLASK_SECRET"],
     }
@@ -282,6 +294,8 @@ def app_real_auth(tmp_path, monkeypatch):
 
     yield fast_app
     fast_app.dependency_overrides.clear()
+    # Clear provider singleton on teardown
+    jellyswipe.config._provider_singleton = None
 
 
 @pytest.fixture
