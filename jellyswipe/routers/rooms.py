@@ -232,9 +232,16 @@ async def swipe(
                     })
                     conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
                 else:
-                    # Multi-user mode: check for other user's swipe with proper locking
-                    other_swipe = conn.execute('SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND session_id != ?',
-                                             (code, mid, request.session.get('session_id'))).fetchone()
+                    # Multi-user mode: check for other user's swipe with proper locking.
+                    # Use (? IS NULL OR session_id != ?) to handle NULL session_id correctly:
+                    # SQLite's != NULL always evaluates to NULL (never true), so without this
+                    # guard the match query returns nothing when the current session has no
+                    # session_id set (e.g., sessions injected by tests or joined without swiping).
+                    _session_id = request.session.get('session_id')
+                    other_swipe = conn.execute(
+                        'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (? IS NULL OR session_id != ?)',
+                        (code, mid, _session_id, _session_id)
+                    ).fetchone()
 
                     if other_swipe:
                         conn.execute(

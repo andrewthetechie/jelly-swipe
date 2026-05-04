@@ -5,6 +5,7 @@ room closure on missing room, stable state deduplication, and GeneratorExit hand
 Satisfies TEST-ROUTE-05.
 """
 
+import asyncio
 import json
 import os
 import secrets
@@ -62,22 +63,73 @@ def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", l
         conn.close()
 
 
+# Pre-generator time.time() call overhead in FastAPI TestClient context.
+# During client.get(), the following call time.time() BEFORE the SSE generator runs:
+# ~2 from httpx/starlette request timing, ~2 from cookie jar, ~1 from RequestIdMiddleware.
+# All _make_time_mock thresholds must be >= this overhead + pre-loop setup (2 calls)
+# to ensure deadline = real_start + 3600 (not real_start + 7300 which never expires).
+_PRE_GENERATOR_OVERHEAD = 6
+
+
 def _make_time_mock(iterations_before_timeout):
     """Create a time.time mock that advances past deadline after N calls.
 
-    Returns a closure that returns real time for the first `iterations_before_timeout`
-    calls, then returns real_time + 3700 (past the 3600s deadline) to exit the loop.
+    Returns a closure that returns real time for the first
+    (iterations_before_timeout + _PRE_GENERATOR_OVERHEAD) calls, then returns
+    real_time + 3700 (past the 3600s deadline) to exit the SSE polling loop.
+
+    The overhead accounts for time.time() calls from httpx timing, cookies, and
+    middleware that fire BEFORE the generator's deadline calculation.
     """
+    # Add overhead so the deadline calculation runs BEFORE the mock triggers
+    total_calls = iterations_before_timeout + _PRE_GENERATOR_OVERHEAD
     call_count = 0
     real_start = time.time()
 
     def _mock_time():
         nonlocal call_count
         call_count += 1
-        if call_count > iterations_before_timeout:
+        if call_count > total_calls:
             return real_start + 3700
         return real_start
     return _mock_time
+
+
+def _make_sse_sleep_mock(on_sleep_callback=None):
+    """Create a selective asyncio.sleep mock for SSE generator testing.
+
+    The SSE generator calls asyncio.sleep(delay) where delay is in [1.5, 2.0]
+    (POLL=1.5 + random jitter 0–0.5). sse_starlette's _ping task uses exactly 15.0,
+    and anyio/starlette internal checkpoints use 0 or 0.5.
+
+    Strategy: intercept ONLY the generator's sleep range [1.4, 2.1] and yield control
+    instantly (via asyncio.sleep(0)). This lets _ping run at its natural 15s interval,
+    and task-group cancellation interrupts _ping after _stream_response completes.
+
+    Passing through the _ping's 15s sleep means tests complete in at most one ping
+    interval (15s) after the generator finishes — acceptable versus hanging indefinitely.
+
+    Args:
+        on_sleep_callback: Optional sync callable(delay) called when generator sleep is
+                           intercepted. Sync only (called before yielding to event loop).
+    """
+    original_sleep = asyncio.sleep
+
+    sleep_calls = []
+
+    async def _selective_sleep(delay):
+        if 1.4 <= delay <= 2.1:
+            # Generator poll sleep in expected range — record and yield briefly
+            sleep_calls.append(delay)
+            if on_sleep_callback is not None:
+                on_sleep_callback(delay)
+            # Yield control without blocking, allowing task group to process cancellation
+            await original_sleep(0)
+        else:
+            # _ping (15s), anyio checkpoints (0, 0.5) — keep real behavior
+            await original_sleep(delay)
+
+    return _selective_sleep, sleep_calls
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +154,11 @@ def test_stream_response_headers(client, monkeypatch):
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
+
+    # Selective asyncio.sleep mock: skips SSE generator polls (>= 1.5s),
+    # passes through internal anyio/sse_starlette sleeps (< 1.5s).
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
 
     # Mock time to exit the generator loop after a few iterations
     monkeypatch.setattr(time, "sleep", lambda _: None)
@@ -147,6 +204,9 @@ def test_stream_initial_state_events(client, monkeypatch):
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
     # deadline calc + init + loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
@@ -168,6 +228,9 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
+
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
 
     # deadline calc + init + loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
@@ -203,6 +266,9 @@ def test_stream_match_event(client, monkeypatch):
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
     # deadline + 2 iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
@@ -223,10 +289,12 @@ def test_stream_ready_state_change(client, monkeypatch):
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
-    # Use a custom sleep side-effect that updates the DB on first call
+    # Use a sleep callback that updates DB on first generator poll sleep.
+    # The SSE generator uses asyncio.sleep() — _make_sse_sleep_mock intercepts
+    # those calls and invokes on_sleep_callback.
     sleep_call_count = 0
 
-    def _sleep_with_db_update(_):
+    def _on_sleep(delay):
         nonlocal sleep_call_count
         sleep_call_count += 1
         if sleep_call_count == 1:
@@ -241,8 +309,10 @@ def test_stream_ready_state_change(client, monkeypatch):
             finally:
                 conn.close()
 
+    mock_sleep, _ = _make_sse_sleep_mock(on_sleep_callback=_on_sleep)
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
     # deadline + loop iterations (with state changes) then exit
-    monkeypatch.setattr(time, "sleep", _sleep_with_db_update)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(12))
 
     response = client.get("/room/TEST1/stream")
@@ -266,6 +336,9 @@ def test_stream_generator_exit(client, monkeypatch):
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
+
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
 
     result = {}
     error_holder = {}
@@ -307,15 +380,14 @@ def test_stream_jitter_applied(client, monkeypatch):
     _seed_stream_room("JITTER1")
     _set_session_room(client, os.environ["FLASK_SECRET"], "JITTER1")
 
-    # Force gevent sleep fallback path so we can capture time.sleep calls
+    # Force gevent sleep fallback path so we can capture asyncio.sleep calls
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
-    sleep_calls = []
-    def capture_sleep(duration):
-        sleep_calls.append(duration)
-
-    monkeypatch.setattr(time, "sleep", capture_sleep)
+    # Use _make_sse_sleep_mock to intercept SSE generator sleeps and capture durations
+    mock_sleep, sleep_calls = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
     response = client.get("/room/JITTER1/stream")
@@ -335,25 +407,28 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
     # Create time mock that advances past 15 seconds between polls to trigger heartbeat.
-    # The generator calls time.time() multiple times per loop iteration:
+    # Thresholds account for _PRE_GENERATOR_OVERHEAD pre-generator calls PLUS:
     #   - _last_event_time init (1 call)
     #   - deadline calculation (1 call)
-    #   - while time.time() < deadline (1+ calls per iteration)
-    #   - _last_event_time = time.time() after data event (if payload)
-    #   - elif time.time() - _last_event_time >= 15 check (if no payload)
-    # Strategy: first iteration sends data (calls 1-5), second iteration detects idle
-    # time (calls 6-7 advance past 15s), heartbeat is sent (call 8), then exit.
+    #   - while time.time() < deadline (1 call)
+    #   - inside first iteration: heartbeat check + event time (2 calls)
+    # After first iteration: 16s gap triggers heartbeat; after second iteration: exit.
     call_count = 0
     real_start = time.time()
+    # offset accounts for pre-generator overhead so deadline = real_start + 3600
+    offset = _PRE_GENERATOR_OVERHEAD
 
     def _time_with_gap():
         nonlocal call_count
         call_count += 1
-        if call_count <= 5:
-            # Init + first iteration: real time (data event emitted)
+        if call_count <= offset + 5:
+            # Pre-generator overhead + init + first iteration: real time
             return real_start
-        elif call_count <= 7:
+        elif call_count <= offset + 7:
             # Second iteration: advance 16 seconds to trigger heartbeat
             return real_start + 16
         else:
@@ -366,7 +441,8 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
     response = client.get("/room/HB1/stream")
     data = response.text
 
-    assert ": ping\n\n" in data, f"Expected heartbeat ': ping\\n\\n' in SSE stream, got: {repr(data)}"
+    # SSE uses \r\n separators per spec (EventSourceResponse DEFAULT_SEPARATOR = "\r\n")
+    assert ": ping" in data, f"Expected heartbeat ping in SSE stream, got: {repr(data)}"
 
 
 def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
@@ -377,6 +453,9 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
     # Force gevent sleep fallback path
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
+
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
 
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
@@ -399,9 +478,10 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
-    # Mock sleep to delete the room on first call, simulating disappearance between polls
+    # Use a sleep callback that deletes the room on first generator poll sleep.
     sleep_count = 0
-    def _sleep_and_delete(_):
+
+    def _on_sleep_delete(delay):
         nonlocal sleep_count
         sleep_count += 1
         if sleep_count == 1:
@@ -413,7 +493,9 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
             finally:
                 conn.close()
 
-    monkeypatch.setattr(time, "sleep", _sleep_and_delete)
+    mock_sleep, _ = _make_sse_sleep_mock(on_sleep_callback=_on_sleep_delete)
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
     response = client.get("/room/VANISH1/stream")

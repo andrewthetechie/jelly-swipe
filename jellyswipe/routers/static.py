@@ -26,7 +26,10 @@ templates = Jinja2Templates(directory=os.path.join(_APP_ROOT, 'templates'))
 @static_router.get('/')
 def index(request: Request):
     """Serve the main index.html page."""
-    return templates.TemplateResponse('index.html', {"request": request, "media_provider": "jellyfin"})
+    # Starlette 1.0.0 changed TemplateResponse signature to (request, name, context=None).
+    # Old API: TemplateResponse(name, {"request": req, ...})
+    # New API: TemplateResponse(request, name, context={...})
+    return templates.TemplateResponse(request, 'index.html', {"media_provider": "jellyfin"})
 
 
 @static_router.get('/manifest.json')
