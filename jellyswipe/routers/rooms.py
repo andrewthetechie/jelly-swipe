@@ -453,6 +453,7 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
                     # Do NOT swallow CancelledError — it is the asyncio disconnect signal.
                     if isinstance(exc, asyncio.CancelledError):
                         raise
+                    _logger.warning("SSE poll error for room %s: %s", code, exc)
                     delay = POLL + random.uniform(0, 0.5)
                     await asyncio.sleep(delay)  # SSE-2: non-blocking even in error path
         finally:
