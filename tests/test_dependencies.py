@@ -226,13 +226,19 @@ class TestGetProvider:
         """Calling get_provider() multiple times returns the same instance (singleton)."""
         import jellyswipe as app
 
-        # Reset singleton if it exists
+        # Reset singleton so the lazy-init path runs
         app._provider_singleton = None
 
-        provider1 = get_provider()
-        provider2 = get_provider()
+        mock_instance = MagicMock()
+        with patch(
+            "jellyswipe.jellyfin_library.JellyfinLibraryProvider",
+            return_value=mock_instance,
+        ):
+            provider1 = get_provider()
+            provider2 = get_provider()
 
         assert provider1 is provider2
+        assert provider1 is mock_instance
         assert app._provider_singleton is not None
 
 
