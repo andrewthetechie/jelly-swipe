@@ -13,9 +13,13 @@ from typing import Annotated, Optional
 import sqlite3
 from fastapi import Depends, HTTPException, Request
 
+import threading
+
 import jellyswipe.auth as auth
 from jellyswipe.db import get_db_closing
 from jellyswipe.rate_limiter import rate_limiter
+
+_provider_lock = threading.Lock()
 
 
 @dataclass
@@ -108,8 +112,11 @@ def get_provider():
     import jellyswipe as _app
 
     if _app._provider_singleton is None:
-        from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-        _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
+        with _provider_lock:
+            # Double-check after acquiring lock
+            if _app._provider_singleton is None:
+                from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+                _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
 
     return _app._provider_singleton
 
