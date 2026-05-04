@@ -1,8 +1,7 @@
-"""Jelly Swipe app factory — thin factory mounting all 5 domain routers.
+"""Jelly Swipe app factory -- thin factory mounting all 5 domain routers.
 
 Per D-15: __init__.py is a thin app factory. All domain routes live in routers/*.
-The SSE route (/room/{code}/stream) stays inline until Phase 34 migrates it.
-The /plex/server-info route is deleted per D-10.
+SSE route migrated to rooms_router in Phase 34.
 """
 
 import json
