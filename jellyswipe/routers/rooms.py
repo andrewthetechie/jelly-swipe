@@ -208,6 +208,16 @@ async def swipe(
     # Use BEGIN IMMEDIATE for proper transaction isolation and to prevent race conditions
     conn.execute('BEGIN IMMEDIATE')
     try:
+        # Validate room exists before inserting swipe
+        room_check = conn.execute(
+            'SELECT 1 FROM rooms WHERE pairing_code = ?', (code,)
+        ).fetchone()
+        if not room_check:
+            conn.execute('ROLLBACK')
+            return XSSSafeJSONResponse(
+                content={'error': 'Room not found'}, status_code=404
+            )
+
         # Insert swipe record
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
                      (code, mid, user.user_id, data.get('direction'), request.session.get('session_id')))
