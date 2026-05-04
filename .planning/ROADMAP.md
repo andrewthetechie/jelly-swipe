@@ -181,9 +181,9 @@ Plans:
 - [x] 35-01-PLAN.md — Rewrite conftest.py with FastAPI TestClient fixtures; wire SECRET_KEY in create_app()
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 35-02-PLAN.md — Migrate test_routes_room.py and test_routes_xss.py
-- [ ] 35-03-PLAN.md — Migrate test_route_authorization.py and test_routes_auth.py (real-auth path)
-- [ ] 35-04-PLAN.md — Migrate test_routes_sse.py
+- [x] 35-02-PLAN.md — Migrate test_routes_room.py and test_routes_xss.py
+- [x] 35-03-PLAN.md — Migrate test_route_authorization.py and test_routes_auth.py (real-auth path)
+- [x] 35-04-PLAN.md — Migrate test_routes_sse.py
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 35-05-PLAN.md — Migrate test_routes_proxy.py and test_error_handling.py
@@ -205,7 +205,7 @@ Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35
 | 32. Auth Rewrite and Dependency Injection Layer | 1/1 | Complete   | 2026-05-03 |
 | 33. Router Extraction and Endpoint Parity | 2/2 | Complete    | 2026-05-03 |
 | 34. SSE Route Migration | 2/2 | Complete   | 2026-05-03 |
-| 35. Test Suite Migration and Full Validation | 1/6 | In Progress|  |
+| 35. Test Suite Migration and Full Validation | 4/6 | In Progress|  |
 
 ---
 
