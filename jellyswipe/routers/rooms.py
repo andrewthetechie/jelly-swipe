@@ -253,8 +253,8 @@ async def swipe(
                     # session_id set (e.g., sessions injected by tests or joined without swiping).
                     _session_id = request.session.get('session_id')
                     other_swipe = conn.execute(
-                        'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (? IS NULL OR session_id != ?)',
-                        (code, mid, _session_id, _session_id)
+                        'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ? AND (? IS NULL OR session_id != ?)',
+                        (code, mid, user.user_id, _session_id, _session_id)
                     ).fetchone()
 
                     if other_swipe:
