@@ -58,14 +58,20 @@ _RATE_LIMITS = {
 
 
 def _infer_endpoint_key(path: str) -> Optional[str]:
-    """Infer rate limit key from request path.
+    """Infer rate limit key from request path using prefix segment matching.
 
-    Returns the first key from _RATE_LIMITS that is contained in the path.
+    Checks compound keys (e.g. 'watchlist/add') first, then single-segment keys.
     Returns None if no match found.
     """
-    for key in _RATE_LIMITS:
-        if key in path:
-            return key
+    parts = path.lstrip("/").split("/", 2)
+    # Check compound key first (e.g. 'watchlist/add')
+    if len(parts) >= 2:
+        compound = f"{parts[0]}/{parts[1]}"
+        if compound in _RATE_LIMITS:
+            return compound
+    # Check single-segment key
+    if parts and parts[0] in _RATE_LIMITS:
+        return parts[0]
     return None
 
 
