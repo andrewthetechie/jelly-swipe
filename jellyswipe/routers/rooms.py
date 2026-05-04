@@ -232,7 +232,7 @@ async def swipe(
                         'type': 'match', 'title': title, 'thumb': thumb,
                         'movie_id': mid, 'rating': meta['rating'],
                         'duration': meta['duration'], 'year': meta['year'],
-                        'deep_link': deep_link, 'ts': __import__('time').time()
+                        'deep_link': deep_link, 'ts': time.time()
                     })
                     conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
                 else:
@@ -263,7 +263,7 @@ async def swipe(
                                 'type': 'match', 'title': title, 'thumb': thumb,
                                 'movie_id': mid, 'rating': meta['rating'],
                                 'duration': meta['duration'], 'year': meta['year'],
-                                'deep_link': deep_link, 'ts': __import__('time').time()
+                                'deep_link': deep_link, 'ts': time.time()
                             })
                             conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
 
