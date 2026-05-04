@@ -120,6 +120,11 @@ class TestGetDbDep:
 class TestCheckRateLimit:
     """Tests for check_rate_limit() dependency."""
 
+    def setup_method(self):
+        """Reset rate limiter state before each test."""
+        from jellyswipe.rate_limiter import rate_limiter
+        rate_limiter.reset()
+
     def teardown_method(self):
         """Reset rate limiter state after each test."""
         from jellyswipe.rate_limiter import rate_limiter
@@ -128,6 +133,9 @@ class TestCheckRateLimit:
     def test_raises_429_when_limit_exceeded(self, db_path, monkeypatch):
         """Exceeding rate limit raises HTTPException(429)."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
+        # Use a low limit to avoid token-bucket refill during the request loop
+        import jellyswipe.dependencies as deps
+        monkeypatch.setattr(deps, '_RATE_LIMITS', {'get-trailer': 5})
 
         from fastapi import FastAPI
         app = FastAPI()
@@ -139,11 +147,11 @@ class TestCheckRateLimit:
 
         client = TestClient(app)
 
-        # Exhaust the rate limit (200 requests allowed)
-        for _ in range(200):
+        # Exhaust the rate limit (5 requests allowed)
+        for _ in range(5):
             client.get("/get-trailer/test")
 
-        # 201st request should get 429
+        # 6th request should get 429
         resp = client.get("/get-trailer/test")
         assert resp.status_code == 429
         assert resp.json()["detail"] == "Rate limit exceeded"
