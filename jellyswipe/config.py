@@ -72,14 +72,6 @@ IDENTITY_ALIAS_HEADERS = (
 # Client identifier for Jellyfin API
 CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'
 
-# Rate limit configuration (shared across routers)
-_RATE_LIMITS = {
-    'get-trailer': 200,
-    'cast': 200,
-    'watchlist/add': 300,
-    'proxy': 200,
-}
-
 # JellyfinLibraryProvider singleton (lazy initialization)
 # Use TYPE_CHECKING to avoid circular import with jellyfin_library.py
 if False:  # TYPE_CHECKING
