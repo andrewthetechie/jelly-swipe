@@ -110,19 +110,27 @@ class TestErrorSanitization:
         assert 'SECRET_API_KEY_LEAKED' not in str(data)
         assert data.get('error') == 'Internal server error'
 
-    def test_watchlist_500_no_exception_details(self, client, monkeypatch):
+    def test_watchlist_500_no_exception_details(self, app_real_auth, monkeypatch):
+        from jellyswipe.dependencies import require_auth, AuthUser
+        # Override auth for this test — we're testing error sanitization, not auth
+        app_real_auth.dependency_overrides[require_auth] = lambda: AuthUser(
+            jf_token="test-token", user_id="test-user"
+        )
+        auth_client = TestClient(app_real_auth, raise_server_exceptions=False)
         mock_prov = MagicMock()
         mock_prov.resolve_user_id_from_token.return_value = "test-user"
         mock_prov.extract_media_browser_token.return_value = "test-token"
         mock_prov.add_to_user_favorites.side_effect = Exception("SECRET_WATCHLIST_ERROR")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.post('/watchlist/add',
+        resp = auth_client.post('/watchlist/add',
                            json={'movie_id': 'test-id'},
                            headers={'Authorization': 'MediaBrowser Token="test-token"'})
         data = resp.json()
         assert resp.status_code == 500
         assert 'SECRET_WATCHLIST_ERROR' not in str(data)
         assert data.get('error') == 'Internal server error'
+        # Clean up the override
+        app_real_auth.dependency_overrides.pop(require_auth, None)
 
     def test_server_info_500_no_exception_details(self, client, monkeypatch):
         mock_prov = MagicMock()
