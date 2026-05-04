@@ -19,6 +19,20 @@ from unittest.mock import MagicMock
 
 import jellyswipe
 import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def client(app_real_auth):
+    """Override conftest client for error tests: use app_real_auth (no auth override).
+
+    Error tests need raise_server_exceptions=False to prevent TestClient from
+    raising the unhandled exception before the test can assert on the HTTP status
+    code (D-11). Uses app_real_auth instead of app to test real auth failures
+    like 401 (test_401_includes_request_id).
+    """
+    with TestClient(app_real_auth, raise_server_exceptions=False) as test_client:
+        yield test_client
 
 
 class TestRequestIdGeneration:
@@ -67,7 +81,7 @@ class TestRequestIdPropagation:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test internal error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/get-trailer/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert 'request_id' in data, "Error response missing request_id field"
         assert re.match(r'^req_\d+_[0-9a-f]{8}$', data['request_id'])
@@ -81,7 +95,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("SECRET_INTERNAL_DB_CONNECTION_STRING")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/get-trailer/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert 'SECRET_INTERNAL_DB_CONNECTION_STRING' not in str(data)
         assert data.get('error') == 'Internal server error'
@@ -91,7 +105,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("SECRET_API_KEY_LEAKED")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/cast/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert 'SECRET_API_KEY_LEAKED' not in str(data)
         assert data.get('error') == 'Internal server error'
@@ -105,7 +119,7 @@ class TestErrorSanitization:
         resp = client.post('/watchlist/add',
                            json={'movie_id': 'test-id'},
                            headers={'Authorization': 'MediaBrowser Token="test-token"'})
-        data = resp.get_json()
+        data = resp.json()
         if resp.status_code == 500:
             assert 'SECRET_WATCHLIST_ERROR' not in str(data)
             assert data.get('error') == 'Internal server error'
@@ -115,7 +129,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("SECRET_SERVER_ERROR_DETAIL")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/get-trailer/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert 'SECRET_SERVER_ERROR_DETAIL' not in str(data)
         assert data.get('error') == 'Internal server error'
@@ -155,7 +169,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("Item lookup failed for id")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/get-trailer/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 404
         assert data.get('error') == 'Movie metadata not found'
         assert 'request_id' in data
@@ -165,7 +179,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("unexpected internal error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/get-trailer/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert data.get('error') == 'Internal server error'
         assert 'request_id' in data
@@ -175,7 +189,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("Item lookup failed for id")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/cast/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 404
         assert 'cast' in data
         assert data['cast'] == []
@@ -186,7 +200,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("something broke")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/cast/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert 'cast' in data
         assert data['cast'] == []
@@ -194,9 +208,11 @@ class TestErrorResponseFormat:
 
     def test_401_includes_request_id(self, client):
         resp = client.post('/watchlist/add', json={'movie_id': 'test-id'})
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 401
-        assert data.get('error') == 'Authentication required'
+        # Note: 401 uses FastAPI's default HTTPException format (detail)
+        # 404/500 errors use custom make_error_response format (error + request_id)
+        assert data.get('detail') == 'Authentication required'
         assert 'X-Request-Id' in resp.headers
 
 
@@ -256,13 +272,14 @@ class TestAdditionalRoutes:
 
     def test_400_includes_request_id(self, client):
         resp = client.post('/auth/jellyfin-login', json={})
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 400
         assert 'X-Request-Id' in resp.headers
 
     def test_404_join_room_includes_request_id(self, client):
         from datetime import datetime, timezone
         import secrets
+        import os
         session_id = "test-session-" + secrets.token_hex(8)
         import jellyswipe.db
         conn = jellyswipe.db.get_db()
@@ -272,10 +289,16 @@ class TestAdditionalRoutes:
         )
         conn.commit()
         conn.close()
-        with client.session_transaction() as sess:
-            sess["session_id"] = session_id
+        # Set session cookie using Starlette format (replaces session_transaction())
+        import itsdangerous
+        from base64 import b64encode
+        import json
+        signer = itsdangerous.TimestampSigner(str(os.environ["FLASK_SECRET"]))
+        payload = b64encode(json.dumps({"session_id": session_id}).encode("utf-8"))
+        signed = signer.sign(payload)
+        client.cookies.set("session", signed.decode("utf-8"))
         resp = client.post('/room/0000/join')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 404
         assert data.get('error') == 'Invalid Code'
         assert 'X-Request-Id' in resp.headers
@@ -285,7 +308,7 @@ class TestAdditionalRoutes:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("some other runtime error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = client.get('/cast/test-movie-id')
-        data = resp.get_json()
+        data = resp.json()
         assert resp.status_code == 500
         assert data.get('error') == 'Internal server error'
         assert 'request_id' in data
