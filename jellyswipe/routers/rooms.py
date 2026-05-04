@@ -16,15 +16,13 @@ import secrets
 import sqlite3
 import time
 import traceback
-import typing
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import JELLYFIN_URL
-from jellyswipe.dependencies import AuthUser, DBConn, check_rate_limit, get_db_dep, get_provider, require_auth
+from jellyswipe.dependencies import AuthUser, DBConn, get_provider, require_auth
 from jellyswipe.db import get_db_closing
 
 rooms_router = APIRouter()
