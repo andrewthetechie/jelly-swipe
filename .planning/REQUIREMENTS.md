@@ -11,13 +11,13 @@
 - [x] **FAPI-01**: FastAPI replaces Flask as the web framework; Uvicorn replaces Gunicorn+gevent as the ASGI server
 - [x] **FAPI-02**: All existing HTTP endpoints retain identical URL paths, methods, and response shapes after migration
 - [x] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse` with an async generator using `await asyncio.sleep()` — `time.sleep()` must not be used in the event loop path
-- [ ] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
+- [x] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
 
 ### Architecture
 
 - [x] **ARCH-01**: Route handlers split from `jellyswipe/__init__.py` into domain-specific routers: auth, rooms, media, proxy, and static
 - [x] **ARCH-03**: Shared logic (auth checking, provider access, DB connection) extracted into `jellyswipe/dependencies.py` using FastAPI's `Depends()` pattern
-- [ ] **ARCH-04**: `jellyswipe/__init__.py` becomes the thin app factory — imports and mounts routers, configures middleware
+- [x] **ARCH-04**: `jellyswipe/__init__.py` becomes the thin app factory — imports and mounts routers, configures middleware
 
 ### Deployment
 
@@ -48,8 +48,8 @@
 |-------------|-------|--------|
 | DEP-01 | Phase 30 | Complete |
 | FAPI-01 | Phase 31, Phase 35 | Complete |
-| FAPI-04 | Phase 31 | Pending |
-| ARCH-04 | Phase 31 | Pending |
+| FAPI-04 | Phase 31 | Complete |
+| ARCH-04 | Phase 31 | Complete |
 | ARCH-03 | Phase 32 | Completed | 32-01 |
 | ARCH-01 | Phase 33 | Complete |
 | FAPI-02 | Phase 33 | Complete |
