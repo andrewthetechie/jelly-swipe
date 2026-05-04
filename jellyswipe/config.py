@@ -74,10 +74,8 @@ CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'
 
 # JellyfinLibraryProvider singleton (lazy initialization)
 # Use TYPE_CHECKING to avoid circular import with jellyfin_library.py
-if False:  # TYPE_CHECKING
-    from typing import TYPE_CHECKING
-    if TYPE_CHECKING:
-        from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-        _provider_singleton: Optional[JellyfinLibraryProvider] = None
-else:
-    _provider_singleton: Optional['JellyfinLibraryProvider'] = None
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+
+_provider_singleton: Optional['JellyfinLibraryProvider'] = None
