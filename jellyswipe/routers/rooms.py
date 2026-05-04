@@ -201,6 +201,10 @@ async def swipe(
     except RuntimeError as exc:
         _logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
+    # Switch to autocommit mode so that explicit BEGIN IMMEDIATE does not conflict
+    # with the implicit transaction started by get_db_closing()'s `with conn:` wrapper.
+    # Without this, SQLite raises "cannot start a transaction within a transaction".
+    conn.isolation_level = None
     # Use BEGIN IMMEDIATE for proper transaction isolation and to prevent race conditions
     conn.execute('BEGIN IMMEDIATE')
     try:
