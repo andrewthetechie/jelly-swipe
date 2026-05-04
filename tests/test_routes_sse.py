@@ -6,6 +6,7 @@ Satisfies TEST-ROUTE-05.
 """
 
 import json
+import os
 import secrets
 import threading
 import time
@@ -13,6 +14,7 @@ from datetime import datetime, timezone
 
 import jellyswipe.db
 import pytest
+from tests.conftest import set_session_cookie
 
 
 # ---------------------------------------------------------------------------
@@ -20,28 +22,21 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _set_session_room(client, room_code, user_id=None):
-    """Set session with active_room and vault-based authentication for SSE stream tests.
+def _set_session_room(client, secret_key, room_code, user_id=None):
+    """Inject session state for SSE stream tests.
 
-    Creates a vault entry in user_tokens and sets session_id in addition to
-    the session variables, so @login_required passes.
+    Auth is handled by app.dependency_overrides[require_auth] in the app fixture.
+    Session cookie carries active_room + my_user_id for SSE route to read.
     """
     if user_id is None:
         user_id = f"test-user-{secrets.token_hex(4)}"
-    session_id = "test-session-" + secrets.token_hex(8)
-    conn = jellyswipe.db.get_db()
-    conn.execute(
-        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-        (session_id, "valid-token", user_id, datetime.now(timezone.utc).isoformat())
-    )
-    conn.commit()
-    conn.close()
-    with client.session_transaction() as sess:
-        sess["active_room"] = room_code
-        sess["my_user_id"] = user_id
-        sess["jf_delegate_server_identity"] = True
-        sess["solo_mode"] = False
-        sess["session_id"] = session_id
+    set_session_cookie(client, {
+        "active_room": room_code,
+        "my_user_id": user_id,
+        "jf_delegate_server_identity": True,
+        "solo_mode": False,
+    }, secret_key)
+    # AUTH: handled by dependency_overrides[require_auth] — no vault INSERT needed
 
 
 def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None):
@@ -95,18 +90,18 @@ def test_stream_no_active_room(client):
     response = client.get("/room/TEST1/stream")
 
     assert response.status_code == 200
-    assert response.content_type.startswith("text/event-stream")
-    assert '"closed": true' in response.data.decode()
+    assert response.headers.get("content-type", "").startswith("text/event-stream")
+    assert '"closed": true' in response.text
 
 
 def test_stream_response_headers(client, monkeypatch):
     """GET /room/stream returns correct SSE content-type and cache headers."""
     _seed_stream_room("TEST1")
-    _set_session_room(client, "TEST1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Mock time to exit the generator loop after a few iterations
     monkeypatch.setattr(time, "sleep", lambda _: None)
@@ -114,9 +109,9 @@ def test_stream_response_headers(client, monkeypatch):
 
     response = client.get("/room/TEST1/stream")
     # Consume data while monkeypatch is active (generator runs lazily)
-    _ = response.data
+    _ = response.content
 
-    assert response.content_type.startswith("text/event-stream")
+    assert response.headers.get("content-type", "").startswith("text/event-stream")
     assert response.headers["Cache-Control"] == "no-cache"
     assert response.headers["X-Accel-Buffering"] == "no"
 
@@ -146,18 +141,18 @@ def test_stream_room_not_found(client, monkeypatch):
 def test_stream_initial_state_events(client, monkeypatch):
     """Stream sends initial ready, solo, and genre events on first poll."""
     _seed_stream_room("TEST1", ready=0, current_genre="All", solo_mode=0)
-    _set_session_room(client, "TEST1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # deadline calc + init + loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
 
     response = client.get("/room/TEST1/stream")
-    data = response.data.decode()
+    data = response.text
 
     # Initial event: ready=False (0 -> bool -> False != None -> sends), solo=False, genre="All"
     assert '"ready": false' in data
@@ -168,18 +163,18 @@ def test_stream_initial_state_events(client, monkeypatch):
 def test_stream_stable_state_no_repeat(client, monkeypatch):
     """Stream does not repeat events when state hasn't changed between polls."""
     _seed_stream_room("TEST1", ready=0, current_genre="All")
-    _set_session_room(client, "TEST1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # deadline calc + init + loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
     response = client.get("/room/TEST1/stream")
-    data = response.data.decode()
+    data = response.text
 
     # Parse SSE events
     events = [e.strip() for e in data.split("\n\n") if e.strip()]
@@ -202,18 +197,18 @@ def test_stream_match_event(client, monkeypatch):
     """Stream sends last_match event when room has match data with a timestamp."""
     match_data = json.dumps({"title": "Test Movie", "ts": "2026-04-26T12:00:00Z"})
     _seed_stream_room("TEST1", ready=1, last_match_data=match_data)
-    _set_session_room(client, "TEST1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # deadline + 2 iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
 
     response = client.get("/room/TEST1/stream")
-    data = response.data.decode()
+    data = response.text
 
     assert '"last_match"' in data
     assert '"title": "Test Movie"' in data
@@ -222,11 +217,11 @@ def test_stream_match_event(client, monkeypatch):
 def test_stream_ready_state_change(client, monkeypatch):
     """Stream detects ready-state change between polling iterations."""
     _seed_stream_room("TEST1", ready=0)
-    _set_session_room(client, "TEST1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Use a custom sleep side-effect that updates the DB on first call
     sleep_call_count = 0
@@ -251,7 +246,7 @@ def test_stream_ready_state_change(client, monkeypatch):
     monkeypatch.setattr(time, "time", _make_time_mock(12))
 
     response = client.get("/room/TEST1/stream")
-    data = response.data.decode()
+    data = response.text
 
     # Should have both initial ready=false and subsequent ready=true
     assert '"ready": false' in data, f"Missing initial ready=false in: {data}"
@@ -266,11 +261,11 @@ def test_stream_ready_state_change(client, monkeypatch):
 def test_stream_generator_exit(client, monkeypatch):
     """GeneratorExit is handled gracefully — no exception propagated on client disconnect."""
     _seed_stream_room("TEST1")
-    _set_session_room(client, "TEST1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     result = {}
     error_holder = {}
@@ -279,9 +274,9 @@ def test_stream_generator_exit(client, monkeypatch):
         try:
             resp = client.get("/room/TEST1/stream")
             # Consume data while monkeypatch is active
-            result["data"] = resp.data.decode()
+            result["data"] = resp.text
             result["status"] = resp.status_code
-            result["content_type"] = resp.content_type
+            result["content_type"] = resp.headers.get("content-type", "")
         except Exception as exc:
             error_holder["error"] = exc
 
@@ -310,11 +305,11 @@ def test_stream_generator_exit(client, monkeypatch):
 def test_stream_jitter_applied(client, monkeypatch):
     """Poll interval includes random jitter between 0 and 0.5 seconds."""
     _seed_stream_room("JITTER1")
-    _set_session_room(client, "JITTER1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "JITTER1")
 
     # Force gevent sleep fallback path so we can capture time.sleep calls
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     sleep_calls = []
     def capture_sleep(duration):
@@ -324,7 +319,7 @@ def test_stream_jitter_applied(client, monkeypatch):
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
     response = client.get("/room/JITTER1/stream")
-    _ = response.data  # consume generator
+    _ = response.content  # consume generator
 
     assert len(sleep_calls) >= 1, f"Expected at least 1 sleep call, got {len(sleep_calls)}"
     for duration in sleep_calls:
@@ -334,11 +329,11 @@ def test_stream_jitter_applied(client, monkeypatch):
 def test_stream_heartbeat_on_idle(client, monkeypatch):
     """SSE stream sends : ping heartbeat when no data event for ~15 seconds."""
     _seed_stream_room("HB1", ready=0, current_genre="All")
-    _set_session_room(client, "HB1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "HB1")
 
     # Force gevent sleep fallback path
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Create time mock that advances past 15 seconds between polls to trigger heartbeat.
     # The generator calls time.time() multiple times per loop iteration:
@@ -369,7 +364,7 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
     monkeypatch.setattr(time, "time", _time_with_gap)
 
     response = client.get("/room/HB1/stream")
-    data = response.data.decode()
+    data = response.text
 
     assert ": ping\n\n" in data, f"Expected heartbeat ': ping\\n\\n' in SSE stream, got: {repr(data)}"
 
@@ -377,17 +372,17 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
 def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
     """Heartbeat is NOT sent when data events are emitted within 15 seconds."""
     _seed_stream_room("NHB1", ready=0, current_genre="All")
-    _set_session_room(client, "NHB1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "NHB1")
 
     # Force gevent sleep fallback path
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
     response = client.get("/room/NHB1/stream")
-    data = response.data.decode()
+    data = response.text
 
     # With rapid polls (mocked time advances quickly), state changes produce data events
     # and no heartbeat should appear since _last_event_time is reset on data emission
@@ -398,11 +393,11 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
 def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
     """SSE generator exits immediately when room record disappears from database (SSE-03)."""
     _seed_stream_room("VANISH1")
-    _set_session_room(client, "VANISH1")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "VANISH1")
 
     # Force gevent sleep fallback path
     import jellyswipe
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None)
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Mock sleep to delete the room on first call, simulating disappearance between polls
     sleep_count = 0
@@ -422,6 +417,6 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
     response = client.get("/room/VANISH1/stream")
-    data = response.data.decode()
+    data = response.text
 
     assert '"closed": true' in data, f"Expected closed:true event in SSE stream, got: {repr(data)}"
