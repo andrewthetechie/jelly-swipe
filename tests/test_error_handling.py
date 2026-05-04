@@ -120,9 +120,9 @@ class TestErrorSanitization:
                            json={'movie_id': 'test-id'},
                            headers={'Authorization': 'MediaBrowser Token="test-token"'})
         data = resp.json()
-        if resp.status_code == 500:
-            assert 'SECRET_WATCHLIST_ERROR' not in str(data)
-            assert data.get('error') == 'Internal server error'
+        assert resp.status_code == 500
+        assert 'SECRET_WATCHLIST_ERROR' not in str(data)
+        assert data.get('error') == 'Internal server error'
 
     def test_server_info_500_no_exception_details(self, client, monkeypatch):
         mock_prov = MagicMock()
