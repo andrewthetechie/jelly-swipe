@@ -30,17 +30,11 @@ from jellyswipe.dependencies import (
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def db_path(tmp_path, monkeypatch):
-    """Provide a temp database path and patch jellyswipe.db.DB_PATH."""
-    path = str(tmp_path / "test.db")
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", path)
-    jellyswipe.db.init_db()
-    return path
-
-
-@pytest.fixture
 def auth_app(db_path, monkeypatch):
     """Create a minimal FastAPI test app with session middleware and auth test routes."""
+    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    jellyswipe.db.init_db()
+
     app = FastAPI()
     app.add_middleware(SessionMiddleware, secret_key="test-secret-key")
 
