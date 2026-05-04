@@ -178,7 +178,7 @@ def test_stream_response_headers(client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Flask test client does not properly consume SSE generator; verified manually")
+@pytest.mark.skip(reason="Superseded by test_stream_no_active_room (line 140) which covers the same case with FastAPI TestClient")
 def test_stream_room_not_found(client, monkeypatch):
     """Stream for nonexistent room sends closed event and stops."""
     _set_session_room(client, "FAKE")
