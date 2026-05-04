@@ -5,19 +5,15 @@ The SSE route (/room/{code}/stream) stays inline until Phase 34 migrates it.
 The /plex/server-info route is deleted per D-10.
 """
 
-import hashlib
 import json
 import logging
 import os
-import random
 import secrets
-import sqlite3
 import time
 import typing
 from contextlib import asynccontextmanager
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -102,110 +98,6 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         response.headers['X-Request-Id'] = request.state.request_id
         response.headers['Content-Security-Policy'] = self.CSP_POLICY
         return response
-
-
-# ============================================================================
-# SSE route helpers — kept inline for Phase 34 migration (D-15)
-# ============================================================================
-
-def _require_login(request: Request):
-    """Phase 31 bridge: replaces @login_required. Phase 34 replaces with Depends(require_auth)."""
-    from jellyswipe.db import get_db_closing
-    sid = request.session.get('session_id')
-    if not sid:
-        raise HTTPException(status_code=401, detail='Authentication required')
-    with get_db_closing() as conn:
-        row = conn.execute(
-            'SELECT jellyfin_token, jellyfin_user_id FROM user_tokens WHERE session_id = ?',
-            (sid,)
-        ).fetchone()
-    if not row:
-        raise HTTPException(status_code=401, detail='Authentication required')
-    request.state.jf_token = row['jellyfin_token']
-    request.state.user_id = row['jellyfin_user_id']
-
-
-def _jellyfin_user_token_from_request(request: Request) -> str:
-    from jellyswipe.dependencies import get_provider
-    if request.session.get("jf_delegate_server_identity"):
-        prov = get_provider()
-        try:
-            return prov.server_access_token_for_delegate()
-        except RuntimeError:
-            return ""
-    auth_header = request.headers.get("Authorization", "")
-    token = None
-    if auth_header:
-        try:
-            token = get_provider().extract_media_browser_token(auth_header)
-        except Exception:
-            token = None
-    return token or ""
-
-
-def _request_has_identity_alias_headers(request: Request) -> bool:
-    for header in IDENTITY_ALIAS_HEADERS:
-        if request.headers.get(header):
-            return True
-    return False
-
-
-def _set_identity_rejection_reason(request: Request, reason: str) -> None:
-    request.state.identity_rejected = reason
-
-
-def _identity_rejection_reason(request: Request) -> Optional[str]:
-    value = getattr(request.state, "identity_rejected", None)
-    return str(value) if value else None
-
-
-def _token_cache_key(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _resolve_user_id_from_token_cached(token: str) -> Optional[str]:
-    from jellyswipe.dependencies import get_provider
-    now = time.time()
-    cache_key = _token_cache_key(token)
-    cached = _token_user_id_cache.get(cache_key)
-    if cached:
-        user_id, expires_at = cached
-        if expires_at > now:
-            return user_id
-        _token_user_id_cache.pop(cache_key, None)
-
-    try:
-        user_id = get_provider().resolve_user_id_from_token(token)
-    except Exception:
-        return None
-
-    _token_user_id_cache[cache_key] = (
-        user_id,
-        now + TOKEN_USER_ID_CACHE_TTL_SECONDS,
-    )
-    return user_id
-
-
-def _provider_user_id_from_request(request: Request):
-    from jellyswipe.dependencies import get_provider
-    if request.session.get("jf_delegate_server_identity"):
-        prov = get_provider()
-        try:
-            return prov.server_primary_user_id_for_delegate()
-        except RuntimeError:
-            pass
-    if _request_has_identity_alias_headers(request):
-        _set_identity_rejection_reason(request, "spoofed_alias_header")
-        return None
-
-    token = _jellyfin_user_token_from_request(request)
-    if not token:
-        return None
-    user_id = _resolve_user_id_from_token_cached(token)
-    if user_id:
-        return user_id
-    _set_identity_rejection_reason(request, "token_resolution_failed")
-    return None
 
 
 # ============================================================================
