@@ -6,9 +6,12 @@ These tests verify:
 - conftest.py fixtures work correctly (INFRA-02)
 - Modules can be imported without Flask app initialization (INFRA-03)
 - pytest configuration provides appropriate output (INFRA-04)
+- pyproject.toml declares FastAPI stack and excludes Flask stack (DEP-01)
+- Dockerfile CMD uses Uvicorn on port 5005 and excludes Gunicorn/gevent (DEP-01)
 """
 
 import os
+import pathlib
 
 def test_module_import():
     """
@@ -46,3 +49,77 @@ def test_env_vars_set():
     assert os.getenv("JELLYFIN_URL") == "http://test.jellyfin.local"
     assert os.getenv("TMDB_ACCESS_TOKEN") == "test-tmdb-token"
     assert os.getenv("FLASK_SECRET") == "test-secret-key"
+
+
+def test_pyproject_declares_fastapi_stack_and_excludes_flask_stack():
+    """
+    DEP-01: pyproject.toml must contain FastAPI/Uvicorn runtime dependencies and
+    must NOT contain Flask/Gunicorn/gevent/Werkzeug.
+
+    Reads pyproject.toml as raw text and checks:
+    - Required packages: fastapi, uvicorn, itsdangerous, jinja2, python-multipart
+    - Forbidden packages: flask, gunicorn, gevent, werkzeug
+    """
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+    pyproject_path = repo_root / "pyproject.toml"
+    assert pyproject_path.exists(), f"pyproject.toml not found at {pyproject_path}"
+
+    content = pyproject_path.read_text()
+
+    # Required FastAPI stack packages must be present in the dependencies block.
+    # We check the [project.dependencies] section specifically to avoid matching
+    # comments or unrelated text. A simple substring check on the file is
+    # sufficient because these names are unique within pyproject.toml.
+    required = ["fastapi", "uvicorn", "itsdangerous", "jinja2", "python-multipart"]
+    for pkg in required:
+        assert pkg in content, (
+            f"DEP-01 FAIL: required package '{pkg}' not found in pyproject.toml"
+        )
+
+    # Forbidden legacy packages must be completely absent from pyproject.toml.
+    # They should appear in zero positions — not in dependencies, not in comments.
+    # We check case-insensitively to catch variants like Flask, FLASK, flask.
+    content_lower = content.lower()
+    forbidden = ["flask", "gunicorn", "gevent", "werkzeug"]
+    for pkg in forbidden:
+        assert pkg not in content_lower, (
+            f"DEP-01 FAIL: forbidden package '{pkg}' found in pyproject.toml"
+        )
+
+
+def test_dockerfile_cmd_uses_uvicorn_on_port_5005():
+    """
+    DEP-01: The Dockerfile CMD must launch Uvicorn on port 5005 as a single
+    process, with no Gunicorn or gevent present.
+
+    Reads Dockerfile as raw text and checks the CMD line for:
+    - uvicorn present
+    - port 5005 present
+    - gunicorn absent
+    - gevent absent
+    """
+    repo_root = pathlib.Path(__file__).resolve().parent.parent
+    dockerfile_path = repo_root / "Dockerfile"
+    assert dockerfile_path.exists(), f"Dockerfile not found at {dockerfile_path}"
+
+    content = dockerfile_path.read_text()
+
+    # Extract the CMD line(s) for targeted assertions.
+    cmd_lines = [line for line in content.splitlines() if line.strip().startswith("CMD")]
+    assert len(cmd_lines) == 1, (
+        f"DEP-01 FAIL: expected exactly 1 CMD line in Dockerfile, found {len(cmd_lines)}: {cmd_lines}"
+    )
+    cmd_line = cmd_lines[0]
+
+    assert "uvicorn" in cmd_line, (
+        f"DEP-01 FAIL: CMD line does not reference uvicorn. CMD: {cmd_line!r}"
+    )
+    assert "5005" in cmd_line, (
+        f"DEP-01 FAIL: CMD line does not specify port 5005. CMD: {cmd_line!r}"
+    )
+    assert "gunicorn" not in cmd_line.lower(), (
+        f"DEP-01 FAIL: CMD line contains forbidden 'gunicorn'. CMD: {cmd_line!r}"
+    )
+    assert "gevent" not in cmd_line.lower(), (
+        f"DEP-01 FAIL: CMD line contains forbidden 'gevent'. CMD: {cmd_line!r}"
+    )
