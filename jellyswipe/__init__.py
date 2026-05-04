@@ -269,7 +269,8 @@ def create_app(test_config=None):
     )
 
     # Add 3rd: ProxyHeadersMiddleware (outermost) per D-04
-    app.add_middleware(ProxyHeadersMiddleware)
+    trusted = os.getenv('TRUSTED_PROXY_IPS', '127.0.0.1')
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
 
     # Test config override
     if test_config:
