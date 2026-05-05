@@ -9,7 +9,7 @@
 
 **Jelly Swipe** is a FastAPI web app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a movie deck pulled from a Jellyfin home media server, and matches surface when two people swipe right on the same title. Trailers and cast info come from TMDB.
 
-**v2.0 replaced the entire web framework** — migrating from Flask (WSGI, Gunicorn+gevent) to FastAPI (ASGI, Uvicorn) — while splitting an 839-line monolithic `jellyswipe/__init__.py` into a clean model/router/dependency architecture. Every existing endpoint, session behavior, and security header was preserved. All 321 tests pass against the new stack.
+**v2.0 replaced the entire web framework** — migrating from Flask (WSGI, Gunicorn+gevent) to FastAPI (ASGI, Uvicorn) — while splitting an 839-line monolithic `jellyswipe/__init__.py` into a clean model/router/dependency architecture. Every existing endpoint, session behavior, and security header was preserved. All 327 tests pass against the new stack.
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original implementation.
 
@@ -89,7 +89,7 @@ jellyswipe/
 | 32 | Auth Rewrite & Dependency Injection | 1 | Created `dependencies.py` with 7 DI exports; rewrote auth tests |
 | 33 | Router Extraction & Endpoint Parity | 2 | Split routes into 5 domain routers; `__init__.py` down to 353 lines |
 | 34 | SSE Route Migration | 2 | Async SSE generator with disconnect detection and guaranteed cleanup |
-| 35 | Test Suite Migration & Full Validation | 6 | All 321 tests on FastAPI TestClient; Docker verified with Uvicorn |
+| 35 | Test Suite Migration & Full Validation | 6 | All 327 tests on FastAPI TestClient; Docker verified with Uvicorn |
 
 **Total plans executed:** 13
 
@@ -107,7 +107,7 @@ All 9 v2.0 requirements met:
 - **ARCH-03**: Shared logic in `dependencies.py` using `Depends()` pattern
 - **ARCH-04**: `__init__.py` is thin app factory mounting routers and configuring middleware
 - **DEP-01**: Dockerfile CMD runs Uvicorn; pyproject.toml has correct FastAPI stack
-- **TST-01**: All 321 tests pass on FastAPI TestClient (317 pass, 3 pre-existing failures, 1 skip)
+- **TST-01**: All 327 tests pass on FastAPI TestClient with zero failures and zero skips
 
 ### Deferred to v2.1
 
@@ -140,7 +140,7 @@ All 9 v2.0 requirements met:
 ## 6. Tech Debt & Deferred Items
 
 ### Known Issues
-- **3 pre-existing test failures** — `TestCleanupExpiredTokens` (3 tests): `cleanup_expired_tokens()` uses a 14-day threshold but tests expect 24 hours. Pre-dates v2.0; not a migration regression.
+- **No failing or skipped tests** — `cleanup_expired_tokens()` tests now match the 14-day session vault TTL, and the previously skipped SSE room-not-found case runs against FastAPI TestClient.
 - **Phase 31 tracking anomaly** — ROADMAP progress table shows Phase 31 as "0/1 Not started" despite the phase being complete. Display-only issue.
 
 ### Deferred to v2.1+
@@ -176,7 +176,7 @@ uv run uvicorn jellyswipe:app --host 0.0.0.0 --port 5005 --reload
 
 ```bash
 uv run pytest tests/ --no-cov -q
-# Expected: 317 passed, 3 failed (pre-existing), 1 skipped
+# Expected: 327 passed
 ```
 
 ### Docker
@@ -196,7 +196,7 @@ jellyswipe/           # Application package
   auth.py             # Session-based auth logic
   db.py               # SQLite operations
   routers/            # Domain routers (auth, rooms, media, proxy, static)
-tests/                # 321 tests (pytest + FastAPI TestClient)
+tests/                # 327 tests (pytest + FastAPI TestClient)
   conftest.py         # Fixtures, set_session_cookie() helper, FakeProvider
 .planning/            # GSD planning artifacts
 ```
@@ -217,7 +217,7 @@ tests/                # 321 tests (pytest + FastAPI TestClient)
 - **Commits:** 87
 - **Files changed:** 81 (+14,175 / -1,847)
 - **Requirements:** 9/9 met (1 deferred to v2.1)
-- **Tests:** 321 collected, 317 passing
+- **Tests:** 327 collected, 327 passing
 - **Contributors:** Andrew Herrington
 
 ---

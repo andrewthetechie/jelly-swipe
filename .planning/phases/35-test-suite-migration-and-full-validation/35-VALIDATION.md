@@ -39,7 +39,7 @@ Retroactive Nyquist validation for the FastAPI TestClient migration and final v2
 | 35-03-01 | 03 | 3 | TST-01 | T-auth-leak | Real-auth route tests use `client_real_auth`, vault-backed sessions, and no Flask session transaction helper. | integration | `uv run pytest tests/test_route_authorization.py tests/test_routes_auth.py --no-cov -q` | yes | green |
 | 35-04-01 | 04 | 4 | TST-01 | - | SSE and supporting route tests use FastAPI `TestClient` request/stream patterns. | integration | `uv run pytest tests/test_routes_sse.py --no-cov -q` | yes | green |
 | 35-05-01 | 05 | 5 | TST-01 | - | Proxy and error-handling tests use FastAPI response APIs and `raise_server_exceptions=False` where needed. | integration | `uv run pytest tests/test_routes_proxy.py tests/test_error_handling.py --no-cov -q` | yes | green |
-| 35-06-01 | 06 | 6 | TST-01 | - | Full migrated suite collects and runs under pytest with only documented pre-existing cleanup-expiry failures. | suite | `uv run pytest tests/ --no-cov -q` | yes | green with documented pre-existing failures |
+| 35-06-01 | 06 | 6 | TST-01 | - | Full migrated suite collects and runs under pytest with zero failures and zero skips. | suite | `uv run pytest tests/ --no-cov -q` | yes | green |
 | 35-06-02 | 06 | 6 | TST-01 | - | No active test code uses Flask client APIs. | structural | `rg -n "session_transaction\\(|\\.get_json\\(|response\\.data\\b|from flask\\b|app\\.test_client\\(" tests` | yes | green |
 | 35-06-03 | 06 | 6 | FAPI-01 | - | Docker image builds and starts Uvicorn on port 5005. | smoke | `docker build -t jelly-swipe-test .` plus short `docker run` startup log check | yes | green |
 
@@ -47,7 +47,7 @@ Retroactive Nyquist validation for the FastAPI TestClient migration and final v2
 
 | Requirement | Coverage | Evidence |
 |-------------|----------|----------|
-| TST-01 | COVERED | Current collection is 327 tests. `uv run pytest tests/ --no-cov -q` returned 323 passed, 3 failed, 1 skipped. The failures are the already documented `TestCleanupExpiredTokens` threshold mismatch, not FastAPI migration failures. Legacy Flask test-client pattern scan found one comment mentioning `session_transaction`, with no active code matches. |
+| TST-01 | COVERED | Current collection is 327 tests. `uv run pytest tests/ --no-cov -q` returned 327 passed with zero failures and zero skips. Legacy Flask test-client pattern scan found one comment mentioning `session_transaction`, with no active code matches. |
 | FAPI-01 | COVERED | `pyproject.toml` declares FastAPI/Uvicorn and excludes Flask/Gunicorn/gevent/Werkzeug. `Dockerfile` uses Uvicorn on port 5005. Docker build completed successfully and container logs showed Uvicorn running on `http://0.0.0.0:5005`. |
 
 ## Wave 0 Requirements
@@ -77,13 +77,7 @@ Full pytest command:
 uv run pytest tests/ --no-cov -q
 ```
 
-Result on 2026-05-05: 327 collected; 323 passed, 3 failed, 1 skipped. The 3 failures were:
-
-- `tests/test_db.py::TestCleanupExpiredTokens::test_expired_tokens_are_deleted`
-- `tests/test_db.py::TestCleanupExpiredTokens::test_boundary_token_at_exactly_24_hours_is_deleted`
-- `tests/test_db.py::TestCleanupExpiredTokens::test_cleanup_called_during_init_db`
-
-These match the documented pre-existing cleanup threshold mismatch.
+Result on 2026-05-05: 327 collected; 327 passed; 0 failed; 0 skipped.
 
 Legacy-pattern scan:
 

@@ -3,13 +3,13 @@
 **Milestone:** v2.0 Flask → FastAPI + MVC Refactor
 **Granularity:** Standard (5-8 phases)
 **Current Phase:** 35 - Test Suite Migration and Full Validation (Complete)
-**Last Updated:** 2026-05-04
+**Last Updated:** 2026-05-05
 
 ---
 
 ## Overview
 
-v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with a FastAPI ASGI application — domain routers, a dependency injection layer, and a thin app factory — while preserving 100% of existing endpoint behavior and keeping all 324 tests green. The migration runs in dependency order: infrastructure first, then the app factory skeleton, then auth (the highest-coupling file that every router depends on), then router extraction, then the highest-risk SSE async generator, and finally test suite migration as the validation gate.
+v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with a FastAPI ASGI application — domain routers, a dependency injection layer, and a thin app factory — while preserving 100% of existing endpoint behavior and keeping all 327 tests green. The migration runs in dependency order: infrastructure first, then the app factory skeleton, then auth (the highest-coupling file that every router depends on), then router extraction, then the highest-risk SSE async generator, and finally test suite migration as the validation gate.
 
 **Phases:** 6
 **Requirements:** 9 (FAPI-01, FAPI-02, FAPI-03, FAPI-04, ARCH-01, ARCH-03, ARCH-04, DEP-01, TST-01)
@@ -41,14 +41,14 @@ v2.0 replaces the 839-line Flask WSGI monolith in `jellyswipe/__init__.py` with 
 
 ### v2.0 Flask → FastAPI + MVC Refactor (Phases 30–35)
 
-**Milestone Goal:** Replace Flask with FastAPI and Uvicorn, split the 839-line monolith into domain routers with dependency injection, and migrate all 324 tests to FastAPI's TestClient — with zero change to endpoint behavior.
+**Milestone Goal:** Replace Flask with FastAPI and Uvicorn, split the 839-line monolith into domain routers with dependency injection, and migrate all 327 tests to FastAPI's TestClient — with zero change to endpoint behavior.
 
 - [x] **Phase 30: Package and Deployment Infrastructure** — Swap Flask/Gunicorn/gevent for FastAPI/Uvicorn in pyproject.toml; update Dockerfile CMD; zero logic changes (completed 2026-05-02)
 - [x] **Phase 31: FastAPI App Factory and Session Middleware** — Create the FastAPI app factory with SessionMiddleware, security headers, XSS-safe JSON response class, and lifespan DB initialization (completed 2026-05-03)
 - [x] **Phase 32: Auth Rewrite and Dependency Injection Layer** — De-Flaskify auth.py; create dependencies.py with require_auth(), get_db_dep(), get_provider() (completed 2026-05-03)
 - [x] **Phase 33: Router Extraction and Endpoint Parity** — Split all 21 non-SSE routes from the monolith into five domain APIRouter modules; every original URL path works (completed 2026-05-03)
 - [x] **Phase 34: SSE Route Migration** — Migrate the SSE stream endpoint to an async generator with await asyncio.sleep() and try/finally connection cleanup (completed 2026-05-03)
-- [x] **Phase 35: Test Suite Migration and Full Validation** — Replace Flask test client with FastAPI TestClient; all 321 tests pass (317 pass, 3 pre-existing failures, 1 skip); Docker build starts with Uvicorn (completed 2026-05-04)
+- [x] **Phase 35: Test Suite Migration and Full Validation** — Replace Flask test client with FastAPI TestClient; all 327 tests pass with zero failures and zero skips; Docker build starts with Uvicorn (completed 2026-05-04)
 
 ---
 
@@ -162,14 +162,14 @@ Plans:
 
 ### Phase 35: Test Suite Migration and Full Validation
 
-**Goal**: All 324 tests run against the FastAPI app using TestClient — the session_transaction() pattern is replaced throughout, and the full suite passes — confirming behavioral parity with the pre-migration Flask app.
+**Goal**: All 327 tests run against the FastAPI app using TestClient — the session_transaction() pattern is replaced throughout, and the full suite passes — confirming behavioral parity with the pre-migration Flask app.
 
 **Depends on**: Phase 34
 
 **Requirements**: TST-01, FAPI-01
 
 **Success Criteria** (what must be TRUE):
-  1. All 324 tests pass with `uv run pytest` — zero failures (max 4 pre-existing failures documented)
+  1. All 327 tests pass with `uv run pytest` — zero failures and zero skips
   2. No test file contains `session_transaction()`, `response.get_json()`, `response.data`, or `from flask` — all Flask test client patterns replaced with FastAPI equivalents
   3. `app.dependency_overrides` cleanup is managed through fixtures with teardown — no override state leaks between test functions
   4. `docker build` succeeds and `docker run` starts the container with Uvicorn serving on port 5005

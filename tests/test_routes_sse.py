@@ -178,18 +178,17 @@ def test_stream_response_headers(client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Superseded by test_stream_no_active_room (line 140) which covers the same case with FastAPI TestClient")
 def test_stream_room_not_found(client, monkeypatch):
     """Stream for nonexistent room sends closed event and stops."""
-    _set_session_room(client, "FAKE")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "FAKE")
 
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(3))
 
-    with client.get("/room/TEST1/stream") as response:
-        data = response.get_data(as_text=True)
+    response = client.get("/room/TEST1/stream")
+    data = response.text
 
-    assert 'data: {"closed": true}\n\n' in data
+    assert 'data: {"closed": true}' in data
 
     events = [e for e in data.split("\n\n") if e.strip()]
     assert len(events) == 1
