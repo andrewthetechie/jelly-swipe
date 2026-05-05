@@ -15,9 +15,9 @@ progress:
 
 # State — Jelly Swipe
 
-**Milestone:** v2.0 Flask → FastAPI + MVC Refactor
-**Status:** Complete
-**Progress:** [██████████] 100%
+**Milestone:** v2.1 Alembic + Async SQLAlchemy Persistence
+**Status:** Planning
+**Progress:** [░░░░░░░░░░] 0%
 
 ---
 
@@ -27,23 +27,23 @@ See: `.planning/PROJECT.md` (updated 2026-05-05)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-**Current focus:** Planning next milestone.
+**Current focus:** Phase 36 — Alembic Baseline and SQLAlchemy Models.
 
 ---
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 36 — Alembic Baseline and SQLAlchemy Models
 Plan: —
 Status: Ready to discuss Phase 36
 Last activity: 2026-05-05 — Milestone v2.1 roadmap created
 
 ## Performance Metrics
 
-- v2.0 phases: 6 (Phases 30–35)
-- v2.0 plans: 13
-- v2.0 tasks: 24
-- Final local verification after PR fixes: 328 tests passed
+- v2.1 planned phases: 5 (Phases 36–40)
+- v2.1 requirements: 24
+- v2.1 requirements mapped: 24/24
+- Baseline before implementation: 328 tests passed after v2.0 close
 
 ---
 
@@ -57,6 +57,9 @@ Last activity: 2026-05-05 — Milestone v2.1 roadmap created
 - `FLASK_SECRET` remains the session-secret env var for backward compatibility.
 - Pydantic request/response models are deferred.
 - Browser session ID is the participant identity for room matching when present.
+- v2.1 will use Alembic for migrations and SQLAlchemy declarative models for schema.
+- SQLModel is explicitly out of scope for v2.1.
+- All application database interactions must become async and fit the existing FastAPI MVC/router organization.
 
 ### Deferred Items
 
@@ -82,4 +85,4 @@ Last activity: 2026-05-05 — Milestone v2.1 roadmap created
 - Tests: `tests/`
 
 ---
-*Last updated: 2026-05-05 after v2.0 milestone completion*
+*Last updated: 2026-05-05 after v2.1 roadmap creation*
