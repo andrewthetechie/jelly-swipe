@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Flask → FastAPI + MVC Refactor
-status: completed
-last_updated: "2026-05-05T17:09:00.283Z"
+milestone: v2.1
+milestone_name: Alembic + Async SQLAlchemy Persistence
+status: planning
+last_updated: "2026-05-05T17:52:50.769Z"
 last_activity: 2026-05-05
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State — Jelly Swipe
@@ -33,11 +33,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-05)
 
 ## Current Position
 
-v2.0 is archived. Requirements for the next milestone have not been defined yet.
-
-Next command: `$gsd-new-milestone`
-
----
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-05 — Milestone v2.1 started
 
 ## Performance Metrics
 
