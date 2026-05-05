@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Alembic + Async SQLAlchemy Persistence
 status: planning
-last_updated: "2026-05-05T22:46:29.920Z"
-last_activity: 2026-05-05 — Phase 36 context gathered
+last_updated: "2026-05-05T23:24:49.596Z"
+last_activity: 2026-05-05 — Phase 37 context gathered
 progress:
   total_phases: 5
   completed_phases: 0
@@ -16,7 +16,7 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v2.1 Alembic + Async SQLAlchemy Persistence
-**Status:** Ready to plan Phase 36
+**Status:** Ready to plan Phase 37
 **Progress:** [░░░░░░░░░░] 0%
 
 ---
@@ -27,16 +27,16 @@ See: `.planning/PROJECT.md` (updated 2026-05-05)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-**Current focus:** Phase 36 — Alembic Baseline and SQLAlchemy Models (ready for planning)
+**Current focus:** Phase 37 — Async Database Infrastructure (ready for planning)
 
 ---
 
 ## Current Position
 
-Phase: 36 — Alembic Baseline and SQLAlchemy Models
+Phase: 37 — Async Database Infrastructure
 Plan: —
 Status: Ready to discuss Phase 36
-Last activity: 2026-05-05 — Phase 36 context gathered
+Last activity: 2026-05-05 — Phase 37 context gathered
 
 ## Performance Metrics
 
