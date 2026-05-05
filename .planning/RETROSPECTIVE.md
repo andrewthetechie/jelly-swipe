@@ -118,6 +118,50 @@ Not tracked in-repo.
 
 ---
 
+## Milestone: v2.0 — Flask → FastAPI + MVC Refactor
+
+**Shipped:** 2026-05-05
+**Phases:** 30–35 | **Plans:** 13 | **Theme:** Framework migration, router split, async SSE, and FastAPI test migration.
+
+### What was built
+
+- FastAPI/Uvicorn runtime stack with Docker CMD updated from Gunicorn/gevent.
+- Thin FastAPI app factory plus domain routers for auth, rooms, media, proxy, and static files.
+- Shared dependency layer for auth, DB connections, provider access, and rate limiting.
+- Async SSE route with non-blocking sleeps and connection cleanup.
+- FastAPI `TestClient` suite with final post-PR verification at 328 passing tests.
+
+### What worked
+
+- Infrastructure-first ordering kept later router/test work unblocked.
+- Real-auth route tests caught session-cookie and vault-path regressions.
+- Nyquist validation passes after implementation found gaps that regular summaries missed.
+
+### What was inefficient
+
+- The pre-close milestone audit became stale after later validation and PR fixes, so it had to be archived as historical evidence rather than treated as final truth.
+- Some generated accomplishment extraction pulled noisy SUMMARY text into `MILESTONES.md`, requiring manual cleanup.
+- Provider access is still partly direct-call based, which keeps some dependency override patterns less pure than ideal.
+
+### Patterns established
+
+- FastAPI app factory plus domain-router split for all HTTP surfaces.
+- Starlette signed-session cookie helper for test session injection.
+- Browser `session_id` as the room participant identity when matching two browser sessions that share a Jellyfin user.
+
+### Key lessons
+
+1. Treat browser session identity separately from Jellyfin account identity in collaborative room flows.
+2. Re-run or supersede milestone audits after late validation/fix commits; otherwise the archived audit is only a historical snapshot.
+3. Route-level real-auth tests are worth keeping even when dependency overrides make unit tests easier.
+
+### Cost observations
+
+- Cost tracking is not recorded in-repo.
+- High rework areas were test migration and post-PR behavioral fixes, not the basic framework swap.
+
+---
+
 ## Cross-Milestone Trends
 
 | Milestone | Verification style | Open parity gaps |
@@ -125,3 +169,4 @@ Not tracked in-repo.
 | v1.0 | Native phase VERIFICATION + VALIDATION + audit | ARC-02 (Plex), partial J\* traceability rows |
 | v1.1 | Requirements checklist + in-tree review (no phase VERIFICATION dirs) | Same v1.0 parity gaps unchanged |
 | v1.5 | SUMMARY.md per phase + `audit-open` clear | None — all requirements validated |
+| v2.0 | SUMMARY + validation artifacts + archived milestone audit + full suite | Pydantic models and provider DI purity deferred |

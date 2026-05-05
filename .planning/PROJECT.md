@@ -2,156 +2,80 @@
 
 ## What This Is
 
-Jelly Swipe is a **FastAPI** app for shared "Tinder for movies" sessions: a host creates a room, guests join, everyone swipes on a deck pulled from a home media server, and matches surface when two people swipe right on the same title. Trailers and cast come from TMDB. **v1.0 shipped** a first-class **Jellyfin** backend, **v1.1** renamed the project to Jelly Swipe, **v1.2** migrated to uv dependency management and removed all Plex support, **v1.3** added comprehensive unit tests, and **v2.0** migrated from Flask to FastAPI with a clean MVC architecture split.
-
-**v1.1** shipped the public rename from **Kino Swipe** (default database filename, Docker image, UI titles, Plex client id, and maintainer-facing docs). Upstream attribution lives only in `README.md` and `LICENSE` (see fork link there); Unraid template includes a one-line fork note.
-
-**v1.2** shipped **uv** dependency management with **Python 3.13** lockfile, **`jellyswipe/`** package layout with all code under a single importable package, multi-stage Docker build using uv, and comprehensive maintainer documentation. Plex support was removed to become Jellyfin-only.
-
-**v1.3** shipped comprehensive unit tests with 48 tests covering database and Jellyfin provider modules, pytest-cov terminal coverage reporting, and GitHub Actions workflow for automated testing on every push/PR.
+Jelly Swipe is a FastAPI app for shared "Tinder for movies" sessions backed by Jellyfin. A host creates a room, guests join, everyone swipes on a Jellyfin movie deck, and matches appear when participants swipe right on the same title. Trailers and cast metadata continue to come from TMDB.
 
 ## Core Value
 
-**Users can run a swipe session backed by Jellyfin**, with library browsing and deck behavior equivalent to the original Plex path.
+Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-## Current Milestone: v2.0 — Flask → FastAPI + MVC Refactor
+## Current State
 
-**Goal:** Replace Flask with FastAPI, preserving all existing behavior while splitting the monolithic `jellyswipe/__init__.py` into a clean model/router/dependency architecture.
+**Shipped:** v2.0 Flask → FastAPI + MVC Refactor on 2026-05-05.
 
-**Target features:**
-- Replace Flask with FastAPI; Gunicorn+gevent → Uvicorn ASGI
-- Split `jellyswipe/__init__.py` into domain routers (auth, rooms, media, proxy, static)
-- Introduce Pydantic models for all request/response shapes
-- Extract shared logic into FastAPI dependency injection (`dependencies.py`)
-- Update test suite to use FastAPI's TestClient; all tests pass
+The app now runs as FastAPI on Uvicorn, with `jellyswipe/__init__.py` reduced to an app factory that mounts domain routers for auth, rooms, media, proxy, and static assets. Shared request logic lives in `jellyswipe/dependencies.py`, session state uses Starlette `SessionMiddleware`, and the test suite uses FastAPI `TestClient`.
 
-## Requirements
+**Current verification:** 328 tests pass locally after the final PR fixes. The milestone archive records the earlier audit gaps and later closure artifacts.
 
-### Validated
+## Validated Requirements
 
-- ✓ **Jellyfin server auth** — Configure base URL and credentials (or API key per server policy); obtain and reuse an access token for server API calls. *Phases 3–5 (v1.0).*
-- ✓ **Jellyfin library parity** — Build the same in-app movie list shape the front end expects (`id`, `title`, `summary`, `thumb`, `rating`, `duration`, `year`) from Jellyfin movies; genre filtering and a “Recently Added”–style sort where the API allows. *Phases 4–5 (v1.0).*
-- ✓ **Images** — Serve Jellyfin artwork through the app (extend or complement `/proxy` so thumbs work without exposing secrets in the browser). *Phases 4–5 (v1.0).*
-- ✓ **User-scoped parity (within reason)** — Per-user match/history/undo and “add to list” behavior work in Jellyfin mode using Jellyfin identity (not Plex headers). Exact UX may use Jellyfin login/token headers instead of Plex pin, but outcomes should mirror Plex mode. *Phase 5 (v1.0).*
-- ✓ **Milestone evidence and validation closure** — Jellyfin-forward operator E2E narrative, Nyquist-aligned `01–05` validation artifacts, and re-audit inputs consolidated for `/gsd-audit-milestone`. *Phase 8 (v1.0).*
-- ✓ **Jellyfin browser delegate path** — When env credentials are configured, the SPA can bind to the server session without exposing API tokens in JSON; stale `localStorage` tokens cleared on success. *Phase 9 (v1.0).*
-- ✓ **Poster containment** — Main deck, mini-posters, and match popup use `object-fit: contain` with black backing so wide one-sheets are not cropped. *Phase 9 (v1.0).*
-- ✓ **Jelly Swipe branding & packaging (v1.1)** — BRAND-01–04: UI titles and PWA manifest; README/LICENSE fork policy; Unraid `jelly-swipe.html`; default DB path and Docker/CI image `andrewthetechie/jelly-swipe`; Jellyfin client identifier as Jelly Swipe. *v1.1.*
-- ✓ **UV-01** — uv is the canonical dependency workflow; `pyproject.toml` + committed `uv.lock`; root `requirements.txt` explicitly non-canonical for local dev. *Validated in Phase 10 (v1.2).*
-- ✓ **UV-02** — Tooling targets **Python 3.13** (`requires-python = ">=3.13,<3.14"`, `.python-version`). *Validated in Phase 10 (v1.2).*
-- ✓ **DEP-01** — Direct runtime dependencies resolved to **newest 3.13-compatible** versions; `uv sync` and `py_compile` smoke pass. *Validated in Phase 10 (v1.2).*
-- ✓ **PKG-01** — Application modules (Flask routes/DB/SSE and media provider) live under **`jellyswipe/`** with coherent imports. *Validated in Phase 11 (v1.2).*
-- ✓ **PKG-02** — Gunicorn CMD (and documented local command) load the WSGI app from the **`jellyswipe`** package (`jellyswipe:app`). *Validated in Phase 11 (v1.2).*
-- ✓ **DOCK-01** — `Dockerfile` installs dependencies via **uv** and runs the packaged application; behavior parity for operators (port, data dir, env contract). *Validated in Phase 12 (v1.2).*
-- ✓ **DOC-01** — README (and compose snippets if present) describe **uv**-based setup for contributors/maintainers. *Validated in Phase 12 (v1.2).*
-- ✓ **PLEX-REM-01** — Plex implementation code (plex_library.py, factory.py) removed; JellyfinLibraryProvider used directly. *Validated in Phase 13 (v1.2).*
-- ✓ **PLEX-REM-02** — plexapi dependency removed; database schema updated (plex_id → user_id); documentation updated. *Validated in Phase 13 (v1.2).*
-- ✓ **PLEX-REM-03** — Application verified to work with Jellyfin-only configuration; Docker image builds successfully. *Validated in Phase 13 (v1.2).*
-- ✓ **TEST-01** — Unit test suite for existing codebase with framework-agnostic approach. *Validated in Phase 14 (v1.3).*
-- ✓ **TEST-02** — Modern pytest methods with fixtures and parametrize. *Validated in Phase 14 (v1.3).*
-- ✓ **TEST-03** — Test coverage for core modules (db.py, jellyfin_library.py) — 48 tests total, 87% db.py coverage, 95%+ jellyfin_library.py coverage. *Validated in Phases 15-16 (v1.3).*
-- ✓ **TEST-04** — Test configuration and CI integration — pytest-cov terminal output, GitHub Actions workflow on push/PR. *Validated in Phase 17 (v1.3).*
+### v2.0
 
-### Active
+- ✓ **FAPI-01** — FastAPI replaces Flask; Uvicorn replaces Gunicorn+gevent. *Validated in Phases 31 and 35.*
+- ✓ **FAPI-02** — Existing HTTP endpoints retain URL paths, methods, status codes, and response shapes. *Validated in Phase 33.*
+- ✓ **FAPI-03** — `/room/{code}/stream` runs as an async SSE path using non-blocking sleep and connection cleanup. *Validated in Phase 34.*
+- ✓ **FAPI-04** — Session management uses Starlette `SessionMiddleware` with the existing `FLASK_SECRET` operator env var. *Validated in Phase 31.*
+- ✓ **ARCH-01** — Route handlers split into auth, rooms, media, proxy, and static routers. *Validated in Phase 33.*
+- ✓ **ARCH-03** — Auth, DB, provider access, and rate limiting shared through FastAPI dependency helpers. *Validated in Phase 32.*
+- ✓ **ARCH-04** — `jellyswipe/__init__.py` is a thin app factory. *Validated in Phase 33.*
+- ✓ **DEP-01** — Dependencies and Docker CMD updated for FastAPI/Uvicorn. *Validated in Phase 30.*
+- ✓ **TST-01** — Tests migrated to FastAPI `TestClient`; full suite passes. *Validated in Phase 35 and post-PR fixes.*
 
-- [ ] **FAPI-01**: FastAPI replaces Flask as the web framework; Uvicorn replaces Gunicorn+gevent as the ASGI server
-- [ ] **FAPI-03**: SSE endpoint (`/room/<code>/stream`) works via FastAPI `StreamingResponse`
-- [ ] **FAPI-04**: Session management migrated from Flask sessions to Starlette `SessionMiddleware`
-- [ ] **ARCH-02**: Pydantic models cover all request bodies and significant response shapes
-- [ ] **ARCH-03**: Shared logic (auth checking, provider access, DB connection, request ID) extracted to `dependencies.py`
-- [ ] **TST-01**: All tests updated to use FastAPI's `TestClient`; full test suite passes
-- [ ] **DEP-01**: Dockerfile updated to run Uvicorn; entry point and docs reflect new ASGI setup
+### Previous Milestones
 
-### Validated (v2.0)
+Validated requirements from v1.0–v1.7 are archived under `.planning/milestones/`.
 
-- ✓ **FAPI-02** — All existing HTTP endpoints retain identical URL paths, methods, and behavior. *Validated in Phase 33 (v2.0).*
-- ✓ **ARCH-01** — Route handlers split into domain routers: auth, rooms, media, proxy, static. *Validated in Phase 33 (v2.0).*
-- ✓ **ARCH-04** — `jellyswipe/__init__.py` is a thin app factory mounting all 5 domain routers. *Validated in Phase 33 (v2.0).*
+## Active Requirements
 
-### Validated (v1.6+)
+No active requirements are defined. Use `$gsd-new-milestone` to define the next milestone requirements.
 
-- ✓ **CLN-01** — `/plex/server-info` route deleted from `jellyswipe/__init__.py`. *Validated in Phase 23 (v1.6).*
-- ✓ **CLN-02** — `plex_id` references removed from `jellyswipe/db.py`. *Validated in Phase 23 (v1.6).*
-- ✓ **CLN-03** — All Plex CSS/JS/localStorage/URLs/copy removed from `templates/index.html`. *Validated in Phase 24 (v1.6).*
-- ✓ **CLN-04** — Manifest descriptions updated to "Jellyfin only". *Validated in Phase 25 (v1.6).*
-- ✓ **CLN-05** — Dead `data/index.html` deleted. *Validated in Phase 25 (v1.6).*
-- ✓ **CLN-06** — Plex env block removed from Unraid template. *Validated in Phase 25 (v1.6).*
-- ✓ **CLN-07** — `requirements.txt` deleted. *Validated in Phase 25 (v1.6).*
-- ✓ **CLN-08** — `base.py` docstring references Jellyfin API path. *Validated in Phase 23 (v1.6).*
-- ✓ **CLN-09** — `rg -i 'plex'` returns zero matches in source (complete cleanup). *Validated in Phase 26 (v1.6).*
+## Deferred
 
-### Out of Scope
+- **ARCH-02** — Pydantic v2 models for request bodies and significant response shapes. Deferred from v2.0 to a future milestone.
+- Provider dependency purity — Some route handlers still call `get_provider()` directly instead of declaring `Depends(get_provider)`. This is functional but worth revisiting if dependency override/testing ergonomics matter.
+- Naming cleanup — `FLASK_SECRET` remains the session-secret env var for backward compatibility, but the name is now historically misleading.
+- Router utility duplication — Error/logging helpers are duplicated across routers and can be consolidated later.
 
-- **Plex support** — Explicit product decision: removed in v1.2, application is Jellyfin-only.
-- **Replacing TMDB** — Trailers/cast stay on TMDB; no requirement to use Jellyfin plugins for trailers in v1.
-- **TV shows / music** — Movies library only, matching current Plex `Movies` section assumption.
-- **PyPI distribution (v1.2)** — The `jellyswipe` package is for repo layout and Docker/runtime imports only; no publishing to PyPI or `pip install jellyswipe` product story.
-- **Flask route integration tests** — Framework-agnostic approach required for v1.3; can be added in future as integration tests.
-- **Real Jellyfin/TMDB API calls in tests** — Unit tests should be isolated from external dependencies.
-- **Parallel test execution (pytest-xdist)** — Not needed for initial test suite; can be added when test count grows.
-- **Property-based testing (Hypothesis)** — Nice to have, not critical for v1.3.
-- **End-to-end integration tests** — Separate concern from unit testing; can be added in v2+.
+## Out of Scope
 
-## Current state
-
-- **Shipped:** **v1.0** (Jellyfin), **v1.1** (rename), **v1.2** (uv + package layout + Plex removal), **v1.3** (unit tests), **v1.4** (authorization hardening), **v1.5** (XSS fix), and **v1.6** (Plex cleanup) tagged; archives under `.planning/milestones/v1.0-*` through `v1.6-*`.
-- **Completed:** **v1.6 Plex Reference Cleanup** (EPIC-08, Issue #11) — all Plex references removed from source code; zero stale references.
-- **Current problem:** `/room/stream` opens a per-client SSE generator that polls SQLite every 1.5s with a new connection per cycle; combined with no WAL mode, no jitter, no heartbeat, and poor room-disappearance handling, this collapses under concurrent load.
-- **Runtime:** Flask + SQLite + SSE; `JellyfinLibraryProvider` under `jellyswipe/` package; Python 3.13 with uv dependency management; gunicorn with gevent workers (1000 connections).
-- **UI:** Single-page `jellyswipe/templates/index.html`; product string **Jelly-Swipe** / **JellySwipe** throughout defaults.
-- **Publish:** Docker Hub `andrewthetechie/jelly-swipe:latest` (push to `main`); GHCR `ghcr.io/andrewthetechie/jelly-swipe` on GitHub Release.
-- **Tests:** 48 tests across 3 test files; pytest framework; GitHub Actions workflow on push/PR; pytest-cov terminal coverage.
+- **Plex support** — Removed in v1.2; Jelly Swipe is Jellyfin-only.
+- **Replacing TMDB** — Trailers and cast stay on TMDB.
+- **TV shows / music** — Movies library only.
+- **PyPI distribution** — Docker/runtime repository package only.
+- **WebSocket upgrade** — SSE remains sufficient until product needs change.
 
 ## Context
 
-- Flask app lives under `jellyswipe/` package with `jellyswipe/__init__.py` (main app), `jellyswipe/db.py` (database), and `jellyswipe/jellyfin_library.py` (media provider); SQLite for rooms/swipes/matches; SSE for room updates (see `.planning/codebase/ARCHITECTURE.md`).
-- Dependency management via uv with `pyproject.toml` and `uv.lock`; Python 3.13 required; multi-stage Docker build uses `uv sync --frozen` for reproducible installs.
-- Application is Jellyfin-only; all Plex code, dependencies, and configuration removed in v1.2.
-- Jellyfin exposes a documented REST API ([api.jellyfin.org](https://api.jellyfin.org/)); auth is token-based with a recommended `Authorization: MediaBrowser ...` header; legacy `X-Emby-Token` may be disabled on some servers — implementation should follow current server expectations and test against target versions.
-- Test suite uses pytest with framework-agnostic imports (monkeypatching load_dotenv and Flask in conftest.py); all HTTP calls mocked in tests; function-scoped fixtures ensure complete test isolation.
-
-## Constraints
-
-- **Compatibility**: Support recent stable Jellyfin (10.8+) unless research proves a narrower window; call out version assumptions in README.
-- **Security**: Do not log tokens; prefer headers over query-string API keys; HTTPS assumed for remote servers.
-- **Minimal churn**: Prefer surgical fixes over rewriting; keep diffs reviewable.
-- **Test isolation**: All unit tests must be framework-agnostic and mock external dependencies to ensure fast, reliable execution in CI.
-- **No architecture rewrites**: This milestone fixes the existing SSE/SQLite pattern — not replacing it with Redis, Postgres, or a message broker.
+- Runtime: Python 3.13, uv, FastAPI, Uvicorn, SQLite, SSE, Jellyfin, TMDB.
+- Main package: `jellyswipe/`.
+- Planning archives: `.planning/milestones/`.
+- Current roadmap: `.planning/ROADMAP.md`.
+- Fresh requirements file is intentionally absent after v2.0 close; the next milestone should create one.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Keep TMDB for trailers/cast | Already works from title/year; Jellyfin metadata is optional enhancement later. | Adopted |
-| Jellyfin delegate browser auth | Remove redundant browser password collection when server env auth exists; session-only token resolution server-side. | Shipped v1.0 Phase 9 |
-| Jelly Swipe rename (v1.1) | Public fork under AndrewTheTechie; single upstream link in README/LICENSE. | Shipped v1.1 |
-| uv + package layout (v1.2) | Faster reproducible installs; clearer module boundaries; Docker remains the operator-facing artifact. | Shipped v1.2 |
-| Multi-stage Docker build (v1.2) | Smaller final images, layer caching optimization, reproducible builds from frozen lockfile. | Shipped v1.2 |
-| Remove Plex support (v1.2) | Simplify codebase, remove maintenance burden, focus on Jellyfin as single backend. | Shipped v1.2 |
-| Gunicorn gevent workers (v1.2) | Enable stable SSE streaming without SystemExit errors; standard solution for async I/O with Gunicorn. | Shipped v1.2 |
-| pytest with framework-agnostic imports (v1.3) | Test modules directly without Flask app side effects; monkeypatch load_dotenv and Flask for clean imports. | Shipped v1.3 Phase 14 |
-| Terminal-only coverage reporting (v1.3) | Simple, meets COV-01, no extra files or directories; HTML/XML deferred to v2. | Shipped v1.3 Phase 17 |
-| Independent test CI workflow (v1.3) | Tests run on every PR for code review quality; Docker workflow focuses on deployment; no workflow coupling. | Shipped v1.3 Phase 17 |
-| No coverage threshold in v1.3 (v1.3) | ADV-01 is v2 requirement; track coverage in reports but don't fail builds. | Shipped v1.3 Phase 17 |
+| Keep Jellyfin as the only media backend | Plex was removed in v1.2 to reduce scope and maintenance burden. | Adopted |
+| Keep TMDB for trailers/cast | Existing title/year lookup works and avoids expanding Jellyfin plugin assumptions. | Adopted |
+| Use uv and Python 3.13 | Reproducible dependency management and current Python target. | Shipped v1.2 |
+| Migrate Flask to FastAPI | Cleaner async/SSE story, dependency injection, and current proof-of-concept hardening. | Shipped v2.0 |
+| Preserve `FLASK_SECRET` env var | Avoid breaking existing deployments during framework migration. | Shipped v2.0; revisit naming later |
+| Defer Pydantic models | Keep v2.0 focused on behavior parity and framework migration. | Deferred to future milestone |
+| Use browser session identity for room participants | Two windows using the same Jellyfin account should still be able to match. | Shipped post-v2.0 PR fix |
 
 ## Evolution
 
-This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd-transition`):
-
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. “What This Is” still accurate? → Update if drifted
-
-**After each milestone** (via `/gsd-complete-milestone`):
-
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+This document is updated at milestone boundaries. Historical requirement detail now lives in milestone archives so the active context stays small.
 
 ---
-*Last updated: 2026-05-03 after Phase 33 complete — FAPI-02, ARCH-01, ARCH-04 validated*
+*Last updated: 2026-05-05 after v2.0 milestone completion*

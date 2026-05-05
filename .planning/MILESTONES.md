@@ -1,5 +1,32 @@
 # Milestones — Jelly Swipe
 
+## v2.0 Flask → FastAPI + MVC Refactor (Shipped: 2026-05-05)
+
+**Phases completed:** 6 phases, 13 plans, 24 tasks
+
+**Archives:**
+
+- [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md) — full phase roadmap snapshot
+- [v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) — v2.0 requirement list and traceability at close
+- [v2.0-MILESTONE-AUDIT.md](milestones/v2.0-MILESTONE-AUDIT.md) — pre-close audit, preserved with process-gap findings
+
+**Deliverables (high level):** Flask was replaced by FastAPI, Gunicorn+gevent was replaced by Uvicorn, the monolithic app was split into domain routers, shared request logic moved into FastAPI dependency helpers, SSE was migrated to an async generator, and the test suite moved to FastAPI `TestClient`.
+
+**Key accomplishments:**
+
+- FastAPI/Uvicorn dependency and Docker runtime stack shipped.
+- FastAPI app factory, session middleware, security headers, XSS-safe JSON, and lifespan DB initialization shipped.
+- Auth, DB, provider, and rate-limiting helpers moved into `jellyswipe/dependencies.py`.
+- Auth, rooms, media, proxy, and static routes extracted into domain routers with endpoint parity.
+- SSE route migrated to non-blocking async streaming with disconnect cleanup.
+- Test suite migrated to FastAPI `TestClient`; final local verification after PR fixes: 328 passed, 0 failed, 0 skipped.
+
+**Known gaps at close:** Process/documentation gaps preserved in the archived milestone audit; no open artifact blockers remained at close.
+
+**Deferred items at milestone close:** Pydantic models, provider dependency purity cleanup, `FLASK_SECRET` naming cleanup, and router helper consolidation.
+
+---
+
 Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`.
 
 ---
@@ -12,6 +39,7 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 **Severity:** High
 
 **Problems:**
+
 - No timeout on requests.get(...) for TMDB calls
 - TMDB API key in URL query string (logged by proxies)
 - Raw exception-message leak to clients
@@ -20,6 +48,7 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 - server_info() fallback with limited error handling
 
 **Fix Outline:**
+
 - Centralize outbound HTTP through one helper with timeouts
 - Replace TMDB v3 URL-key with v4 bearer token
 - Replace str(e) exposure with RequestId + structured log
@@ -28,6 +57,7 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 
 **Requirements:** 20 (16 high, 4 medium)
 **Acceptance:**
+
 - All requests.* calls have timeouts
 - TMDB key never appears in URL strings
 - 5xx responses contain request id, not upstream exception
@@ -52,6 +82,7 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 **Stats:** 4 phases, 5 plans, 13 requirements, 6 tests, all requirements satisfied
 
 **Key accomplishments:**
+
 1. Server-Side Validation — Modified `/room/swipe` endpoint to ignore client-supplied title/thumb parameters and resolve metadata server-side via `JellyfinLibraryProvider.resolve_item_for_tmdb()`
 2. Safe DOM Rendering — Refactored all innerHTML usage to safe DOM construction (textContent, createElement, setAttribute) in templates
 3. Content Security Policy — Implemented strict CSP header via `@app.after_request` hook blocking inline scripts and restricting external resources
@@ -79,6 +110,7 @@ Living log of shipped versions. For current planning, see `.planning/ROADMAP.md`
 **Stats:** 4 phases, 9 plans, 19 tasks, 48 tests, 27 files changed, 4,096 insertions, 2 deletions, ~1 hour execution time
 
 **Key accomplishments:**
+
 1. pytest Testing Framework Setup — Installed pytest 9.0.3, pytest-cov, pytest-mock, responses, pytest-timeout; configured test discovery and output; generated frozen uv.lock
 2. Framework-Agnostic Test Infrastructure — Created conftest.py with environment fixtures and monkeypatching to import modules directly without Flask app initialization
 3. Database Module Testing — Created 17 tests for db.py with tmp_path fixture, function-scoped isolation, and 87% coverage

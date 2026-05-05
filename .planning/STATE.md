@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Flask → FastAPI + MVC Refactor
-status: complete
-last_updated: "2026-05-04T16:00:00.000Z"
-last_activity: 2026-05-04
+status: completed
+last_updated: "2026-05-05T17:09:00.283Z"
+last_activity: 2026-05-05
 progress:
   total_phases: 6
   completed_phases: 6
@@ -16,7 +16,6 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v2.0 Flask → FastAPI + MVC Refactor
-**Phase:** 35 of 35 (test suite migration and full validation)
 **Status:** Complete
 **Progress:** [██████████] 100%
 
@@ -24,42 +23,28 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-01)
+See: `.planning/PROJECT.md` (updated 2026-05-05)
 
-**Core value:** Users can run a swipe session backed by Jellyfin, with library browsing and deck behavior equivalent to the original Plex path.
+**Core value:** Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-**Current focus:** Phase 35 — test-suite-migration-and-full-validation
+**Current focus:** Planning next milestone.
 
 ---
 
 ## Current Position
 
-Phase: 35 (test-suite-migration-and-full-validation) — COMPLETE
-Plan: 6 of 6
-Status: Milestone v2.0 complete
-Last activity: 2026-05-04
+v2.0 is archived. Requirements for the next milestone have not been defined yet.
+
+Next command: `$gsd-new-milestone`
 
 ---
 
 ## Performance Metrics
 
-**Phase History:**
-
-- v1.0 (Jellyfin support): Phases 1–9 completed
-- v1.1 (Rename): No numbered phases
-- v1.2 (uv + Package Layout + Plex Removal): Phases 10–13 completed
-- v1.3 (Unit Tests): Phases 14–17 completed
-- v1.4 (Authorization Hardening): Phase 18 completed
-- v1.5 (XSS Security Fix): Phases 19–22 completed
-- v1.6 (Plex Reference Cleanup): Phases 23–26 completed
-- v1.7 (SSE/SQLite Architecture Fix): Phases 27–29 completed ✅
-- v2.0 Flask → FastAPI + MVC Refactor: Starting at Phase 30
-
-**Current Milestone Metrics:**
-
-- Phases planned: 6 (Phases 30–35)
-- Requirements: 9 (all mapped)
-- Plans: 0
+- v2.0 phases: 6 (Phases 30–35)
+- v2.0 plans: 13
+- v2.0 tasks: 24
+- Final local verification after PR fixes: 328 tests passed
 
 ---
 
@@ -67,51 +52,35 @@ Last activity: 2026-05-04
 
 ### Decisions
 
-**v2.0 Architecture Direction:**
+- Flask → FastAPI and Gunicorn+gevent → Uvicorn are complete.
+- Domain routers now own auth, rooms, media, proxy, and static routes.
+- `dependencies.py` owns shared request helpers for auth, DB access, provider access, and rate limiting.
+- `FLASK_SECRET` remains the session-secret env var for backward compatibility.
+- Pydantic request/response models are deferred.
+- Browser session ID is the participant identity for room matching when present.
 
-- Flask → FastAPI (user prefers FastAPI; proof of concept is ready to mature)
-- Gunicorn+gevent → Uvicorn (ASGI, native async support)
-- MVC split: domain routers + dependency injection (Pydantic models deferred to v2.1)
-- Behavior parity required: all existing endpoints work identically after migration
-- All 48 tests must pass after migration
-- Keep route handlers as sync `def` — only the SSE generator should be `async def`
-- Preserve `FLASK_SECRET` env var name for operator backward compatibility
-- `XSSSafeJSONResponse` custom class required (XSS defense from v1.5 must be preserved)
+### Deferred Items
 
-### Pending Todos
+- ARCH-02: Pydantic v2 models for typed request/response contracts.
+- Provider access still has some direct `get_provider()` calls rather than route-level `Depends(get_provider)`.
+- `FLASK_SECRET` naming should eventually be clarified without breaking deployments.
+- Router error/log helper duplication can be consolidated.
 
-None.
+### Open Artifacts
 
-### Blockers/Concerns
-
-- Phase 32 (auth rewrite) is highest-coupling change — require_auth() must be tested before any router work begins
-- Phase 34 (SSE) requires soak test for disconnect/connection leak before marking complete
-- Phase 35 (test migration): ~40 session_transaction() replacements are the largest single effort
-
----
-
-## Session Continuity
-
-**Last Session:**
-2026-05-04T15:37:00Z
-
-**Resume with:**
-Phase 35 complete. All 6 plans executed. v2.0 milestone ready for validation.
+`gsd-sdk query audit-open` reported all artifact types clear at milestone close on 2026-05-05.
 
 ---
 
 ## Quick Reference
 
-**Key Files:**
-
 - Project context: `.planning/PROJECT.md`
-- Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
-- Current app: `jellyswipe/__init__.py` (839 lines — Flask monolith to be split)
-- DB layer: `jellyswipe/db.py`
-- Auth layer: `jellyswipe/auth.py` (Flask-coupled — Phase 32 target)
-- Tests: `tests/` (10 test files, 48 tests)
+- Milestone archives: `.planning/milestones/`
+- Current app factory: `jellyswipe/__init__.py`
+- Routers: `jellyswipe/routers/`
+- Dependencies: `jellyswipe/dependencies.py`
+- Tests: `tests/`
 
 ---
-*State created: 2026-05-01*
-*Last updated: 2026-05-01 (v2.0 roadmap initialized — ready for Phase 30 planning)*
+*Last updated: 2026-05-05 after v2.0 milestone completion*
