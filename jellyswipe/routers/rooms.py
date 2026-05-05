@@ -245,15 +245,20 @@ async def swipe(
                     conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
                 else:
                     # Multi-user mode: check for other user's swipe with proper locking.
-                    # Use (? IS NULL OR session_id != ?) to handle NULL session_id correctly:
-                    # SQLite's != NULL always evaluates to NULL (never true), so without this
-                    # guard the match query returns nothing when the current session has no
-                    # session_id set (e.g., sessions injected by tests or joined without swiping).
                     _session_id = request.session.get('session_id')
-                    other_swipe = conn.execute(
-                        'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ? AND (? IS NULL OR session_id != ?)',
-                        (code, mid, user.user_id, _session_id, _session_id)
-                    ).fetchone()
+                    if _session_id:
+                        # Browser sessions are the room participants. Two windows may
+                        # legitimately use the same Jellyfin user and still need to match.
+                        other_swipe = conn.execute(
+                            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (session_id IS NULL OR session_id != ?)',
+                            (code, mid, _session_id)
+                        ).fetchone()
+                    else:
+                        # Legacy/test fallback for requests without a session_id.
+                        other_swipe = conn.execute(
+                            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+                            (code, mid, user.user_id)
+                        ).fetchone()
 
                     if other_swipe:
                         conn.execute(
@@ -267,13 +272,13 @@ async def swipe(
                                 (code, mid, title, thumb, other_swipe['user_id'], deep_link, meta['rating'], meta['duration'], meta['year'])
                             )
 
-                            match_data = json.dumps({
-                                'type': 'match', 'title': title, 'thumb': thumb,
-                                'movie_id': mid, 'rating': meta['rating'],
-                                'duration': meta['duration'], 'year': meta['year'],
-                                'deep_link': deep_link, 'ts': time.time()
-                            })
-                            conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+                        match_data = json.dumps({
+                            'type': 'match', 'title': title, 'thumb': thumb,
+                            'movie_id': mid, 'rating': meta['rating'],
+                            'duration': meta['duration'], 'year': meta['year'],
+                            'deep_link': deep_link, 'ts': time.time()
+                        })
+                        conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
 
         conn.execute('COMMIT')
     except Exception:

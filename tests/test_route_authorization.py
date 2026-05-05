@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
+from fastapi.testclient import TestClient
 from tests.conftest import FakeProvider, set_session_cookie
 
 
@@ -575,6 +576,62 @@ class TestSSEMatchDelivery:
             ("ROOM1", "movie-1", "user-B"),
         ).fetchone()[0]
         assert user_b == 1
+
+    def test_same_jellyfin_user_separate_sessions_can_match(self, db_connection, client_real_auth):
+        """Two browser sessions for the same Jellyfin user still count as room participants."""
+        secret_key = os.environ["FLASK_SECRET"]
+
+        session_id_a = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+            user_id="verified-user",
+            token="token-A",
+        )
+        code = _create_room_with_auth(client_real_auth)
+
+        session_id_b = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+            user_id="verified-user",
+            token="token-B",
+        )
+
+        with TestClient(client_real_auth.app) as second_client:
+            set_session_cookie(second_client, {"session_id": session_id_b}, secret_key)
+            resp = second_client.post(f"/room/{code}/join")
+            assert resp.status_code == 200
+
+            set_session_cookie(
+                client_real_auth,
+                {"session_id": session_id_a, "active_room": code},
+                secret_key,
+            )
+            resp = client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"movie_id": "movie-1", "direction": "right"},
+            )
+            assert resp.status_code == 200
+
+            resp = second_client.post(
+                f"/room/{code}/swipe",
+                json={"movie_id": "movie-1", "direction": "right"},
+            )
+            assert resp.status_code == 200
+
+            rows = db_connection.execute(
+                "SELECT user_id FROM matches WHERE room_code = ? AND movie_id = ?",
+                (code, "movie-1"),
+            ).fetchall()
+            assert [row["user_id"] for row in rows] == ["verified-user"]
+
+            first_matches = client_real_auth.get("/matches")
+            second_matches = second_client.get("/matches")
+            assert first_matches.status_code == 200
+            assert second_matches.status_code == 200
+            assert len(first_matches.json()) == 1
+            assert len(second_matches.json()) == 1
 
 
 # --- GET /me Endpoint Tests ---
