@@ -13,9 +13,13 @@ from typing import Annotated, Optional
 import sqlite3
 from fastapi import Depends, HTTPException, Request
 
+import threading
+
 import jellyswipe.auth as auth
 from jellyswipe.db import get_db_closing
 from jellyswipe.rate_limiter import rate_limiter
+
+_provider_lock = threading.Lock()
 
 
 @dataclass
@@ -58,14 +62,20 @@ _RATE_LIMITS = {
 
 
 def _infer_endpoint_key(path: str) -> Optional[str]:
-    """Infer rate limit key from request path.
+    """Infer rate limit key from request path using prefix segment matching.
 
-    Returns the first key from _RATE_LIMITS that is contained in the path.
+    Checks compound keys (e.g. 'watchlist/add') first, then single-segment keys.
     Returns None if no match found.
     """
-    for key in _RATE_LIMITS:
-        if key in path:
-            return key
+    parts = path.lstrip("/").split("/", 2)
+    # Check compound key first (e.g. 'watchlist/add')
+    if len(parts) >= 2:
+        compound = f"{parts[0]}/{parts[1]}"
+        if compound in _RATE_LIMITS:
+            return compound
+    # Check single-segment key
+    if parts and parts[0] in _RATE_LIMITS:
+        return parts[0]
     return None
 
 
@@ -99,11 +109,21 @@ def get_provider():
     Uses lazy import to avoid circular dependency with __init__.py.
     """
     # Lazy import to avoid circular import with __init__.py
-    import jellyswipe as _app
+    try:
+        import jellyswipe as _app
+    except RuntimeError as exc:
+        raise RuntimeError(
+            "Cannot initialise JellyfinLibraryProvider: jellyswipe package "
+            "failed to load. Ensure JELLYFIN_URL, JELLYFIN_API_KEY, and "
+            "TMDB_ACCESS_TOKEN environment variables are set."
+        ) from exc
 
     if _app._provider_singleton is None:
-        from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-        _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
+        with _provider_lock:
+            # Double-check after acquiring lock
+            if _app._provider_singleton is None:
+                from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+                _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
 
     return _app._provider_singleton
 

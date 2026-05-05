@@ -302,9 +302,11 @@ def app_real_auth(db_path, monkeypatch):
 
     yield fast_app
     fast_app.dependency_overrides.clear()
-    # Clear provider singleton on teardown
-    import jellyswipe as app_module
+    # Clear provider singleton on teardown (reuse app_module from above, line 287)
     app_module._provider_singleton = None
+    # Reset rate limiter to prevent cross-test pollution (matches app fixture teardown)
+    from jellyswipe.rate_limiter import rate_limiter as _rl
+    _rl.reset()
 
 
 @pytest.fixture

@@ -106,7 +106,7 @@ def cleanup_expired_tokens():
     Uses ISO 8601 string comparison for created_at timestamps.
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
-    with get_db() as conn:
+    with get_db_closing() as conn:
         conn.execute(
             'DELETE FROM user_tokens WHERE created_at < ?',
             (cutoff,)

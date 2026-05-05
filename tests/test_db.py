@@ -380,19 +380,19 @@ class TestCleanupExpiredTokens:
     """Tests for cleanup_expired_tokens() function."""
 
     def test_expired_tokens_are_deleted(self, db_connection):
-        """Test that rows older than 24 hours are deleted."""
+        """Test that rows older than 14 days are deleted."""
         from datetime import datetime, timedelta, timezone
 
-        # Insert a token that's 25 hours old (expired)
-        expired_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        # Insert a token that's older than the 14-day session max_age.
+        expired_time = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
         db_connection.execute(
             "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
             "VALUES (?, ?, ?, ?)",
             ("expired-session", "expired-token", "user-1", expired_time)
         )
 
-        # Insert a fresh token (should be preserved)
-        fresh_time = datetime.now(timezone.utc).isoformat()
+        # Insert a token inside the 14-day window (should be preserved).
+        fresh_time = (datetime.now(timezone.utc) - timedelta(days=13)).isoformat()
         db_connection.execute(
             "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
             "VALUES (?, ?, ?, ?)",
@@ -424,12 +424,12 @@ class TestCleanupExpiredTokens:
         cursor = db_connection.execute("SELECT COUNT(*) FROM user_tokens")
         assert cursor.fetchone()[0] == 0
 
-    def test_boundary_token_at_exactly_24_hours_is_deleted(self, db_connection):
-        """Test that a token exactly at the 24-hour boundary is deleted (< comparison)."""
+    def test_boundary_token_at_exactly_14_days_is_deleted(self, db_connection):
+        """Test that a token at the 14-day boundary is deleted."""
         from datetime import datetime, timedelta, timezone
 
-        # Insert a token that's exactly 24 hours old
-        boundary_time = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        # Insert a token that's exactly at the 14-day session max_age boundary.
+        boundary_time = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
         db_connection.execute(
             "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
             "VALUES (?, ?, ?, ?)",
@@ -460,8 +460,8 @@ class TestCleanupExpiredTokens:
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
         jellyswipe.db.init_db()
 
-        # Insert an expired token directly
-        expired_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        # Insert an expired token directly.
+        expired_time = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
         with jellyswipe.db.get_db() as conn:
             conn.execute(
                 "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "

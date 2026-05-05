@@ -10,55 +10,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
-from tests.conftest import set_session_cookie
-
-
-class FakeProvider:
-    """Minimal provider stub for auth route tests."""
-
-    def __init__(self, user_id: str = "verified-user", token: str = "valid-token"):
-        self._user_id = user_id
-        self._token = token
-        self.favorites_added = []
-
-    def server_primary_user_id_for_delegate(self) -> str:
-        return self._user_id
-
-    def server_access_token_for_delegate(self) -> str:
-        return self._token
-
-    def extract_media_browser_token(self, auth_header: str) -> str:
-        marker = 'Token="'
-        if marker in auth_header and auth_header.endswith('"'):
-            return auth_header.split(marker, 1)[1][:-1]
-        return ""
-
-    def resolve_user_id_from_token(self, token: str) -> Optional[str]:
-        if token == self._token:
-            return self._user_id
-        return None
-
-    def authenticate_user_session(self, username: str, password: str) -> dict:
-        return {"token": self._token, "user_id": self._user_id}
-
-    def add_to_user_favorites(self, user_token: str, movie_id: str) -> None:
-        self.favorites_added.append((user_token, movie_id))
-
-    def resolve_item_for_tmdb(self, movie_id: str):
-        from types import SimpleNamespace
-        return SimpleNamespace(title=f"Movie-{movie_id}", year=2025)
-
-    def fetch_deck(self, genre_name=None):
-        """Return a list of 25 fake movie cards for deck testing."""
-        return [
-            {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
-             "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
-             "rating": 7.0, "duration": "1h 30m", "year": 2024}
-            for i in range(25)
-        ]
-
-    def server_info(self) -> dict:
-        return {"machineIdentifier": "test-server-id", "name": "TestServer"}
+from fastapi.testclient import TestClient
+from tests.conftest import FakeProvider, set_session_cookie
 
 
 def _set_session(client, db_connection, secret_key, *, active_room: str = "ROOM1", authenticated: bool = True):
@@ -623,6 +576,62 @@ class TestSSEMatchDelivery:
             ("ROOM1", "movie-1", "user-B"),
         ).fetchone()[0]
         assert user_b == 1
+
+    def test_same_jellyfin_user_separate_sessions_can_match(self, db_connection, client_real_auth):
+        """Two browser sessions for the same Jellyfin user still count as room participants."""
+        secret_key = os.environ["FLASK_SECRET"]
+
+        session_id_a = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+            user_id="verified-user",
+            token="token-A",
+        )
+        code = _create_room_with_auth(client_real_auth)
+
+        session_id_b = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+            user_id="verified-user",
+            token="token-B",
+        )
+
+        with TestClient(client_real_auth.app) as second_client:
+            set_session_cookie(second_client, {"session_id": session_id_b}, secret_key)
+            resp = second_client.post(f"/room/{code}/join")
+            assert resp.status_code == 200
+
+            set_session_cookie(
+                client_real_auth,
+                {"session_id": session_id_a, "active_room": code},
+                secret_key,
+            )
+            resp = client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"movie_id": "movie-1", "direction": "right"},
+            )
+            assert resp.status_code == 200
+
+            resp = second_client.post(
+                f"/room/{code}/swipe",
+                json={"movie_id": "movie-1", "direction": "right"},
+            )
+            assert resp.status_code == 200
+
+            rows = db_connection.execute(
+                "SELECT user_id FROM matches WHERE room_code = ? AND movie_id = ?",
+                (code, "movie-1"),
+            ).fetchall()
+            assert [row["user_id"] for row in rows] == ["verified-user"]
+
+            first_matches = client_real_auth.get("/matches")
+            second_matches = second_client.get("/matches")
+            assert first_matches.status_code == 200
+            assert second_matches.status_code == 200
+            assert len(first_matches.json()) == 1
+            assert len(second_matches.json()) == 1
 
 
 # --- GET /me Endpoint Tests ---

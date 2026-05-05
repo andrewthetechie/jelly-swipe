@@ -16,15 +16,13 @@ import secrets
 import sqlite3
 import time
 import traceback
-import typing
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import JELLYFIN_URL
-from jellyswipe.dependencies import AuthUser, DBConn, check_rate_limit, get_db_dep, get_provider, require_auth
+from jellyswipe.dependencies import AuthUser, DBConn, get_provider, require_auth
 from jellyswipe.db import get_db_closing
 
 rooms_router = APIRouter()
@@ -201,9 +199,23 @@ async def swipe(
     except RuntimeError as exc:
         _logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
+    # Switch to autocommit mode so that explicit BEGIN IMMEDIATE does not conflict
+    # with the implicit transaction started by get_db_closing()'s `with conn:` wrapper.
+    # Without this, SQLite raises "cannot start a transaction within a transaction".
+    conn.isolation_level = None
     # Use BEGIN IMMEDIATE for proper transaction isolation and to prevent race conditions
     conn.execute('BEGIN IMMEDIATE')
     try:
+        # Validate room exists before inserting swipe
+        room_check = conn.execute(
+            'SELECT 1 FROM rooms WHERE pairing_code = ?', (code,)
+        ).fetchone()
+        if not room_check:
+            conn.execute('ROLLBACK')
+            return XSSSafeJSONResponse(
+                content={'error': 'Room not found'}, status_code=404
+            )
+
         # Insert swipe record
         conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
                      (code, mid, user.user_id, data.get('direction'), request.session.get('session_id')))
@@ -228,20 +240,25 @@ async def swipe(
                         'type': 'match', 'title': title, 'thumb': thumb,
                         'movie_id': mid, 'rating': meta['rating'],
                         'duration': meta['duration'], 'year': meta['year'],
-                        'deep_link': deep_link, 'ts': __import__('time').time()
+                        'deep_link': deep_link, 'ts': time.time()
                     })
                     conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
                 else:
                     # Multi-user mode: check for other user's swipe with proper locking.
-                    # Use (? IS NULL OR session_id != ?) to handle NULL session_id correctly:
-                    # SQLite's != NULL always evaluates to NULL (never true), so without this
-                    # guard the match query returns nothing when the current session has no
-                    # session_id set (e.g., sessions injected by tests or joined without swiping).
                     _session_id = request.session.get('session_id')
-                    other_swipe = conn.execute(
-                        'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (? IS NULL OR session_id != ?)',
-                        (code, mid, _session_id, _session_id)
-                    ).fetchone()
+                    if _session_id:
+                        # Browser sessions are the room participants. Two windows may
+                        # legitimately use the same Jellyfin user and still need to match.
+                        other_swipe = conn.execute(
+                            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (session_id IS NULL OR session_id != ?)',
+                            (code, mid, _session_id)
+                        ).fetchone()
+                    else:
+                        # Legacy/test fallback for requests without a session_id.
+                        other_swipe = conn.execute(
+                            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+                            (code, mid, user.user_id)
+                        ).fetchone()
 
                     if other_swipe:
                         conn.execute(
@@ -255,13 +272,13 @@ async def swipe(
                                 (code, mid, title, thumb, other_swipe['user_id'], deep_link, meta['rating'], meta['duration'], meta['year'])
                             )
 
-                            match_data = json.dumps({
-                                'type': 'match', 'title': title, 'thumb': thumb,
-                                'movie_id': mid, 'rating': meta['rating'],
-                                'duration': meta['duration'], 'year': meta['year'],
-                                'deep_link': deep_link, 'ts': __import__('time').time()
-                            })
-                            conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+                        match_data = json.dumps({
+                            'type': 'match', 'title': title, 'thumb': thumb,
+                            'movie_id': mid, 'rating': meta['rating'],
+                            'duration': meta['duration'], 'year': meta['year'],
+                            'deep_link': deep_link, 'ts': time.time()
+                        })
+                        conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
 
         conn.execute('COMMIT')
     except Exception:
@@ -449,6 +466,7 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
                     # Do NOT swallow CancelledError — it is the asyncio disconnect signal.
                     if isinstance(exc, asyncio.CancelledError):
                         raise
+                    _logger.warning("SSE poll error for room %s: %s", code, exc)
                     delay = POLL + random.uniform(0, 0.5)
                     await asyncio.sleep(delay)  # SSE-2: non-blocking even in error path
         finally:
