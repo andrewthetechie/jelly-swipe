@@ -19,9 +19,9 @@ created: 2026-05-05
 |----------|-------|
 | **Framework** | `pytest 9.0.3` with AnyIO plugin |
 | **Config file** | `pyproject.toml` |
-| **Quick run command** | `./.venv/bin/pytest tests/test_auth.py tests/test_dependencies.py tests/test_route_authorization.py -q` |
+| **Quick run command** | `./.venv/bin/pytest tests/test_auth.py tests/test_dependencies.py -q` |
 | **Full suite command** | `./.venv/bin/pytest` |
-| **Estimated runtime** | ~35 seconds |
+| **Estimated runtime** | ~25 seconds |
 
 ---
 
@@ -30,7 +30,7 @@ created: 2026-05-05
 - **After every task commit:** Run `./.venv/bin/pytest tests/test_auth.py tests/test_dependencies.py -q`
 - **After every plan wave:** Run `./.venv/bin/pytest tests/test_auth.py tests/test_dependencies.py tests/test_route_authorization.py -q`
 - **Before `$gsd-verify-work`:** Full suite must be green
-- **Max feedback latency:** 35 seconds
+- **Max feedback latency:** 25 seconds
 
 ---
 
@@ -67,7 +67,7 @@ All phase behaviors have automated verification.
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Coverage ownership resolves the auth-service and session-clearing gaps from research
 - [ ] No watch-mode flags
-- [ ] Feedback latency < 35s
+- [ ] Feedback latency < 30s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
