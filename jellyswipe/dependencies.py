@@ -2,7 +2,7 @@
 
 Exports AuthUser dataclass and Depends()-compatible callables for:
 - Authentication (require_auth, destroy_session_dep)
-- Database access (get_db_dep, DBConn)
+- Database access (get_db_uow, DBUoW)
 - Rate limiting (check_rate_limit)
 - Jellyfin provider singleton (get_provider)
 """
@@ -10,13 +10,13 @@ Exports AuthUser dataclass and Depends()-compatible callables for:
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-import sqlite3
 from fastapi import Depends, HTTPException, Request
 
 import threading
 
 import jellyswipe.auth as auth
-from jellyswipe.db import get_db_closing
+from jellyswipe.db_runtime import get_sessionmaker
+from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.rate_limiter import rate_limiter
 
 _provider_lock = threading.Lock()
@@ -41,16 +41,20 @@ def require_auth(request: Request) -> AuthUser:
     return AuthUser(jf_token=jf_token, user_id=user_id)
 
 
-def get_db_dep():
-    """Yield dependency for database connections.
+async def get_db_uow():
+    """Yield a request-scoped async unit of work."""
+    session = get_sessionmaker()()
+    try:
+        yield DatabaseUnitOfWork(session)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
-    Wraps get_db_closing() to provide a connection that auto-closes.
-    """
-    with get_db_closing() as conn:
-        yield conn
 
-
-DBConn = Annotated[sqlite3.Connection, Depends(get_db_dep)]
+DBUoW = Annotated[DatabaseUnitOfWork, Depends(get_db_uow, scope="function")]
 
 
 _RATE_LIMITS = {
@@ -137,8 +141,8 @@ def get_provider():
 __all__ = [
     "AuthUser",
     "require_auth",
-    "get_db_dep",
-    "DBConn",
+    "get_db_uow",
+    "DBUoW",
     "check_rate_limit",
     "destroy_session_dep",
     "get_provider",

@@ -3,9 +3,9 @@
 This router handles all room-related routes including the critical swipe handler
 with BEGIN IMMEDIATE transaction for proper race condition prevention.
 
-Per D-12: The swipe handler's BEGIN IMMEDIATE transaction is verbatim preserved.
-Per D-13: Swipe handler uses DBConn dependency instead of direct get_db_closing()
-to fix connection leak (CR-01).
+Per D-12: The swipe handler's BEGIN IMMEDIATE transaction is preserved.
+Per D-13: Swipe handler uses the async DBUoW bridge instead of a direct sync
+request-scoped connection dependency.
 """
 
 import asyncio
@@ -13,16 +13,17 @@ import json
 import logging
 import random
 import secrets
-import sqlite3
 import time
 import traceback
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.engine import Connection
+from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import JELLYFIN_URL
-from jellyswipe.dependencies import AuthUser, DBConn, get_provider, require_auth
+from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
 from jellyswipe.db import get_db_closing
 
 rooms_router = APIRouter()
@@ -60,22 +61,34 @@ def log_exception(exc: Exception, request: Request, context: dict = None) -> Non
     logging.getLogger().error("unhandled_exception", extra=log_data)
 
 
-def _get_cursor(conn, code, user_id):
+def _fetchone(conn: Connection, query: str, params: tuple = ()) -> dict | None:
+    row = conn.exec_driver_sql(query, params).mappings().first()
+    return dict(row) if row is not None else None
+
+
+def _execute(conn: Connection, query: str, params: tuple = ()) -> None:
+    conn.exec_driver_sql(query, params)
+
+
+def _get_cursor(conn: Connection, code, user_id):
     """Get user's deck cursor position. Returns 0 if no position stored."""
-    room = conn.execute('SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+    room = _fetchone(conn, 'SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,))
     if room and room['deck_position']:
         positions = json.loads(room['deck_position'])
         return positions.get(user_id, 0)
     return 0
 
 
-def _set_cursor(conn, code, user_id, position):
+def _set_cursor(conn: Connection, code, user_id, position):
     """Set user's deck cursor position."""
-    room = conn.execute('SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
+    room = _fetchone(conn, 'SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,))
     positions = json.loads(room['deck_position']) if room and room['deck_position'] else {}
     positions[user_id] = position
-    conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
-                 (json.dumps(positions), code))
+    _execute(
+        conn,
+        'UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
+        (json.dumps(positions), code),
+    )
 
 
 def _resolve_movie_meta(movie_data_json, movie_id):
@@ -95,6 +108,112 @@ def _resolve_movie_meta(movie_data_json, movie_id):
     except (json.JSONDecodeError, TypeError):
         pass
     return {'rating': '', 'duration': '', 'year': ''}
+
+
+def _run_swipe_transaction(
+    sync_session: Session,
+    *,
+    code: str,
+    request_session: dict,
+    user_id: str,
+    movie_id: str,
+    direction: str | None,
+    title: str | None,
+    thumb: str | None,
+) -> tuple[dict, int] | None:
+    """Execute the legacy swipe SQL inside the async UoW-managed transaction.
+
+    The bridge explicitly begins a SQLite `BEGIN IMMEDIATE` transaction to keep
+    the existing lock behavior. It must not own the final COMMIT or ROLLBACK;
+    `get_db_uow()` remains the single transaction owner for the session.
+    """
+
+    conn = sync_session.connection()
+    raw_connection = conn.connection.driver_connection
+    raw_connection.isolation_level = None
+    conn.exec_driver_sql('BEGIN IMMEDIATE')
+
+    room_check = _fetchone(
+        conn,
+        'SELECT 1 FROM rooms WHERE pairing_code = ?',
+        (code,),
+    )
+    if not room_check:
+        return ({'error': 'Room not found'}, 404)
+
+    _execute(
+        conn,
+        'INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
+        (code, movie_id, user_id, direction, request_session.get('session_id')),
+    )
+
+    current_pos = _get_cursor(conn, code, user_id)
+    _set_cursor(conn, code, user_id, current_pos + 1)
+
+    if direction != 'right' or title is None or thumb is None:
+        return None
+
+    room = _fetchone(
+        conn,
+        'SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?',
+        (code,),
+    )
+    meta = _resolve_movie_meta(room['movie_data'], movie_id) if room else {'rating': '', 'duration': '', 'year': ''}
+    deep_link = f"{JELLYFIN_URL}/web/#/details?id={movie_id}" if JELLYFIN_URL else ''
+
+    if room and room['solo_mode']:
+        _execute(
+            conn,
+            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+            (code, movie_id, title, thumb, user_id, deep_link, meta['rating'], meta['duration'], meta['year']),
+        )
+        match_data = json.dumps({
+            'type': 'match', 'title': title, 'thumb': thumb,
+            'movie_id': movie_id, 'rating': meta['rating'],
+            'duration': meta['duration'], 'year': meta['year'],
+            'deep_link': deep_link, 'ts': time.time()
+        })
+        _execute(conn, 'UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+        return None
+
+    session_id = request_session.get('session_id')
+    if session_id:
+        other_swipe = _fetchone(
+            conn,
+            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (session_id IS NULL OR session_id != ?)',
+            (code, movie_id, session_id),
+        )
+    else:
+        other_swipe = _fetchone(
+            conn,
+            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
+            (code, movie_id, user_id),
+        )
+
+    if not other_swipe:
+        return None
+
+    _execute(
+        conn,
+        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+        (code, movie_id, title, thumb, user_id, deep_link, meta['rating'], meta['duration'], meta['year']),
+    )
+
+    if other_swipe['user_id'] and other_swipe['user_id'] != user_id:
+        _execute(
+            conn,
+            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+            (code, movie_id, title, thumb, other_swipe['user_id'], deep_link, meta['rating'], meta['duration'], meta['year']),
+        )
+
+    match_data = json.dumps({
+        'type': 'match', 'title': title, 'thumb': thumb,
+        'movie_id': movie_id, 'rating': meta['rating'],
+        'duration': meta['duration'], 'year': meta['year'],
+        'deep_link': deep_link, 'ts': time.time()
+    })
+    _execute(conn, 'UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
+    return None
 
 
 # ============================================================================
@@ -171,15 +290,13 @@ def join_room(code: str, request: Request, user: AuthUser = Depends(require_auth
 async def swipe(
     code: str,
     request: Request,
-    conn: DBConn,
+    uow: DBUoW,
     user: AuthUser = Depends(require_auth)
 ):
     """Swipe on a movie with BEGIN IMMEDIATE transaction.
 
-    CRITICAL: BEGIN IMMEDIATE transaction — verbatim from Phase 31 __init__.py. Do not refactor.
+    CRITICAL: BEGIN IMMEDIATE transaction is preserved through the async bridge.
     This prevents race conditions in match detection when multiple users swipe concurrently.
-
-    Per D-13: Uses DBConn dependency instead of get_db_closing() to fix connection leak (CR-01).
     """
     try:
         data = await request.json()
@@ -199,91 +316,19 @@ async def swipe(
     except RuntimeError as exc:
         logging.getLogger().warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
-    # Switch to autocommit mode so that explicit BEGIN IMMEDIATE does not conflict
-    # with the implicit transaction started by get_db_closing()'s `with conn:` wrapper.
-    # Without this, SQLite raises "cannot start a transaction within a transaction".
-    conn.isolation_level = None
-    # Use BEGIN IMMEDIATE for proper transaction isolation and to prevent race conditions
-    conn.execute('BEGIN IMMEDIATE')
-    try:
-        # Validate room exists before inserting swipe
-        room_check = conn.execute(
-            'SELECT 1 FROM rooms WHERE pairing_code = ?', (code,)
-        ).fetchone()
-        if not room_check:
-            conn.execute('ROLLBACK')
-            return XSSSafeJSONResponse(
-                content={'error': 'Room not found'}, status_code=404
-            )
-
-        # Insert swipe record
-        conn.execute('INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)',
-                     (code, mid, user.user_id, data.get('direction'), request.session.get('session_id')))
-
-        # Update cursor position
-        current_pos = _get_cursor(conn, code, user.user_id)
-        _set_cursor(conn, code, user.user_id, current_pos + 1)
-
-        if data.get('direction') == 'right':
-            if title is not None and thumb is not None:
-                room = conn.execute('SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-
-                meta = _resolve_movie_meta(room['movie_data'], mid) if room else {'rating': '', 'duration': '', 'year': ''}
-                deep_link = f"{JELLYFIN_URL}/web/#/details?id={mid}" if JELLYFIN_URL else ''
-
-                if room and room['solo_mode']:
-                    conn.execute(
-                        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
-                        (code, mid, title, thumb, user.user_id, deep_link, meta['rating'], meta['duration'], meta['year'])
-                    )
-                    match_data = json.dumps({
-                        'type': 'match', 'title': title, 'thumb': thumb,
-                        'movie_id': mid, 'rating': meta['rating'],
-                        'duration': meta['duration'], 'year': meta['year'],
-                        'deep_link': deep_link, 'ts': time.time()
-                    })
-                    conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
-                else:
-                    # Multi-user mode: check for other user's swipe with proper locking.
-                    _session_id = request.session.get('session_id')
-                    if _session_id:
-                        # Browser sessions are the room participants. Two windows may
-                        # legitimately use the same Jellyfin user and still need to match.
-                        other_swipe = conn.execute(
-                            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND (session_id IS NULL OR session_id != ?)',
-                            (code, mid, _session_id)
-                        ).fetchone()
-                    else:
-                        # Legacy/test fallback for requests without a session_id.
-                        other_swipe = conn.execute(
-                            'SELECT user_id, session_id FROM swipes WHERE room_code = ? AND movie_id = ? AND direction = "right" AND user_id != ?',
-                            (code, mid, user.user_id)
-                        ).fetchone()
-
-                    if other_swipe:
-                        conn.execute(
-                            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
-                            (code, mid, title, thumb, user.user_id, deep_link, meta['rating'], meta['duration'], meta['year'])
-                        )
-
-                        if other_swipe['user_id'] and other_swipe['user_id'] != user.user_id:
-                            conn.execute(
-                                'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
-                                (code, mid, title, thumb, other_swipe['user_id'], deep_link, meta['rating'], meta['duration'], meta['year'])
-                            )
-
-                        match_data = json.dumps({
-                            'type': 'match', 'title': title, 'thumb': thumb,
-                            'movie_id': mid, 'rating': meta['rating'],
-                            'duration': meta['duration'], 'year': meta['year'],
-                            'deep_link': deep_link, 'ts': time.time()
-                        })
-                        conn.execute('UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?', (match_data, code))
-
-        conn.execute('COMMIT')
-    except Exception:
-        conn.execute('ROLLBACK')
-        raise
+    result = await uow.run_sync(
+        _run_swipe_transaction,
+        code=code,
+        request_session=request.session,
+        user_id=user.user_id,
+        movie_id=mid,
+        direction=data.get('direction'),
+        title=title,
+        thumb=thumb,
+    )
+    if result is not None:
+        body, status_code = result
+        return XSSSafeJSONResponse(content=body, status_code=status_code)
 
     return {'accepted': True}
 
@@ -411,7 +456,7 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
         _last_event_time = time.time()
 
         # Per D-10, SQL-1: Direct connection scoped to stream lifetime.
-        # get_db_dep() is request-scoped and cannot serve a stream lasting up to 3600s.
+        # get_db_uow() is request-scoped and cannot serve a stream lasting up to 3600s.
         # check_same_thread=False: Uvicorn may resume the async generator on a
         # different thread than the one that created the connection.
         import jellyswipe.db

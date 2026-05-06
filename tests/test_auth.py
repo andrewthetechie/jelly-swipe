@@ -18,8 +18,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from jellyswipe.dependencies import (
     AuthUser,
     require_auth,
-    get_db_dep,
-    DBConn,
     check_rate_limit,
     destroy_session_dep,
 )
@@ -287,37 +285,6 @@ class TestRequireAuth:
         assert resp.status_code == 401
         data = resp.json()
         assert data['detail'] == 'Authentication required'
-
-
-# ---------------------------------------------------------------------------
-# TestGetDbDep
-# ---------------------------------------------------------------------------
-
-class TestGetDbDep:
-    """Tests for get_db_dep() dependency."""
-
-    def test_yields_connection_and_closes(self, db_path, monkeypatch):
-        """get_db_dep yields a sqlite3.Connection that is closed after context exits."""
-        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        upgrade_to_head(build_sqlite_url(db_path))
-
-        gen = get_db_dep()
-        conn = next(gen)
-        assert isinstance(conn, sqlite3.Connection)
-
-        # Connection should be usable
-        row = conn.execute("SELECT 1").fetchone()
-        assert row[0] == 1
-
-        # Exhaust the generator (trigger cleanup)
-        try:
-            next(gen)
-        except StopIteration:
-            pass
-
-        # After cleanup, connection should be closed
-        with pytest.raises(sqlite3.ProgrammingError):
-            conn.execute("SELECT 1")
 
 
 # ---------------------------------------------------------------------------
