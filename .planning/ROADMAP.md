@@ -31,7 +31,7 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 
 - [x] **Phase 36: Alembic Baseline and SQLAlchemy Models** — Introduce SQLAlchemy declarative schema and Alembic migration baseline without app import side effects. (completed 2026-05-06)
 - [x] **Phase 37: Async Database Infrastructure** — Add async engine/sessionmaker, FastAPI DB dependency, migration runner, and Alembic-backed test setup. (completed 2026-05-06)
-- [ ] **Phase 38: Auth Persistence Conversion** — Convert token vault CRUD and auth dependency behavior to async SQLAlchemy behind persistence boundaries.
+- [x] **Phase 38: Auth Persistence Conversion** — Convert token vault CRUD and auth dependency behavior to async SQLAlchemy behind persistence boundaries. (completed 2026-05-06)
 - [ ] **Phase 39: Room, Swipe, Match, and SSE Persistence Conversion** — Convert core room/session persistence to async SQLAlchemy while preserving transaction and stream behavior.
 - [ ] **Phase 40: Full Migration Validation and Sync DB Removal** — Prove migration parity, remove old sync DB paths, and verify the full suite.
 
@@ -87,14 +87,14 @@ Plans:
 
 **Depends on:** Phase 37
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 **Wave 1**
-- [ ] 38-01-PLAN.md — Convert auth vault CRUD and `require_auth` semantics onto the async repository/service and UoW seam.
+- [x] 38-01-PLAN.md — Convert auth vault CRUD and `require_auth` semantics onto the async repository/service and UoW seam.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 38-02-PLAN.md — Rewire the auth router to the async auth service and prove stale-session/logout route parity.
+- [x] 38-02-PLAN.md — Rewire the auth router to the async auth service and prove stale-session/logout route parity.
 
 **Success Criteria:**
 

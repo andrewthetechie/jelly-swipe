@@ -28,14 +28,14 @@
 
 ### MVC Persistence Boundaries
 
-- [ ] **MVC-01**: Auth token vault reads, writes, cleanup, and destroy operations live behind async persistence functions instead of route/controller SQL.
+- [x] **MVC-01**: Auth token vault reads, writes, cleanup, and destroy operations live behind async persistence functions instead of route/controller SQL.
 - [ ] **MVC-02**: Room creation, join, quit, deck cursor, genre, and status persistence live behind async room persistence functions.
 - [ ] **MVC-03**: Swipe, match creation, history, undo, and delete persistence live behind async swipe/match persistence functions.
 - [ ] **MVC-04**: Route handlers remain controller-level code that delegates database behavior to dependency-injected services or repositories.
 
 ### Behavior Parity
 
-- [ ] **PAR-01**: Existing auth/session behavior remains compatible, including `session_id` token vault lookup and 14-day token cleanup.
+- [x] **PAR-01**: Existing auth/session behavior remains compatible, including `session_id` token vault lookup and 14-day token cleanup.
 - [ ] **PAR-02**: Existing room lifecycle behavior remains compatible for multiplayer and solo rooms.
 - [ ] **PAR-03**: Existing swipe behavior remains compatible, including deck cursor advancement, undo, right-swipe match detection, and match metadata.
 - [ ] **PAR-04**: Swipe persistence preserves race protection equivalent to the current SQLite `BEGIN IMMEDIATE` behavior.
@@ -85,11 +85,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADB-02 | Phase 37 | Complete |
 | ADB-03 | Phase 40 | Pending |
 | ADB-04 | Phase 37 | Complete |
-| MVC-01 | Phase 38 | Pending |
+| MVC-01 | Phase 38 | Complete |
 | MVC-02 | Phase 39 | Pending |
 | MVC-03 | Phase 39 | Pending |
 | MVC-04 | Phase 39 | Pending |
-| PAR-01 | Phase 38 | Pending |
+| PAR-01 | Phase 38 | Complete |
 | PAR-02 | Phase 39 | Pending |
 | PAR-03 | Phase 39 | Pending |
 | PAR-04 | Phase 39 | Pending |
