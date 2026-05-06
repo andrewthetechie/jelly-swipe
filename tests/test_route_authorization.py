@@ -659,6 +659,20 @@ class TestGetMe:
         assert resp.status_code == 401
         assert resp.json() == {'detail': 'Authentication required'}
 
+    def test_get_me_clears_stale_session_cookie(self, db_connection, client_real_auth):
+        """GET /me clears stale local session state when the persisted auth row is missing."""
+        set_session_cookie(
+            client_real_auth,
+            {"session_id": "stale-session", "active_room": "ROOM1", "solo_mode": True},
+            os.environ["FLASK_SECRET"],
+        )
+
+        resp = client_real_auth.get("/me")
+
+        assert resp.status_code == 401
+        assert resp.json() == {"detail": "Authentication required"}
+        assert client_real_auth.cookies.get("session") is None
+
 
 # --- Solo Room Endpoint Tests ---
 
@@ -769,10 +783,13 @@ class TestLogout:
 
         resp = client_real_auth.post('/auth/logout')
         assert resp.status_code == 200
+        assert resp.json() == {"status": "logged_out"}
+        assert client_real_auth.cookies.get("session") is None
 
         # Verify session_id is cleared
         resp2 = client_real_auth.get('/me')
         assert resp2.status_code == 401
+        assert resp2.json() == {"detail": "Authentication required"}
 
     def test_logout_requires_auth(self, db_connection, client_real_auth):
         """POST /auth/logout without authentication returns 401."""
