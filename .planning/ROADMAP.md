@@ -60,6 +60,13 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 
 **Depends on:** Phase 36
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 37-01-PLAN.md — Add the async engine/sessionmaker runtime and replace `DBConn` with a unit-of-work dependency seam.
+- [ ] 37-02-PLAN.md — Move startup to a migration-first bootstrap wrapper and shift runtime maintenance onto the async path.
+- [ ] 37-03-PLAN.md — Rewire pytest fixtures and low-level auth tests to the Alembic + async runtime bootstrap flow.
+
 **Success Criteria:**
 
 1. The database module configures an async SQLAlchemy engine and `async_sessionmaker` for the project SQLite DB path.
