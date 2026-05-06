@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
+import jellyswipe.routers.auth as auth_routes
 from tests.conftest import FakeProvider, set_session_cookie
 
 
@@ -724,6 +725,25 @@ class TestSoloRoom:
 class TestLogout:
     """Tests for POST /auth/logout endpoint (CLNT-01)."""
 
+    def test_logout_delegates_destroy_to_auth_service(self, db_connection, client_real_auth, monkeypatch):
+        """POST /auth/logout delegates session destruction to the auth service seam."""
+        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        calls: list[str | None] = []
+
+        async def fake_destroy_session(session_dict, uow):
+            calls.append(session_dict.get("session_id"))
+            session_dict.clear()
+
+        monkeypatch.setattr(auth_routes, "destroy_session", fake_destroy_session, raising=False)
+
+        resp = client_real_auth.post("/auth/logout")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "logged_out"}
+        assert len(calls) == 1
+        assert calls[0] is not None
+        assert calls[0].startswith("test-session-")
+
     def test_logout_clears_vault(self, db_connection, client_real_auth):
         """POST /auth/logout removes session_id from auth_sessions vault."""
         _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
@@ -787,6 +807,24 @@ class TestGetMeActiveRoom:
         data = resp.json()
         assert 'activeRoom' in data
         assert data['activeRoom'] == 'ROOM1'
+
+    def test_me_delegates_active_room_resolution_to_auth_service(self, db_connection, client_real_auth, monkeypatch):
+        """GET /me uses the auth service helper for active-room compatibility."""
+        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _seed_room(db_connection, "ROOM1")
+        calls: list[dict[str, Any]] = []
+
+        async def fake_resolve_active_room(session_dict, uow):
+            calls.append(dict(session_dict))
+            return None
+
+        monkeypatch.setattr(auth_routes, "resolve_active_room", fake_resolve_active_room, raising=False)
+
+        resp = client_real_auth.get("/me")
+
+        assert resp.status_code == 200
+        assert resp.json()["activeRoom"] is None
+        assert calls and calls[0]["active_room"] == "ROOM1"
 
 
 # --- Go-Solo Route Removal Test ---
