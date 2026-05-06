@@ -108,9 +108,8 @@ def get_provider():
 
     Uses lazy import to avoid circular dependency with __init__.py.
     """
-    # Lazy import to avoid circular import with __init__.py
     try:
-        import jellyswipe as _app
+        import jellyswipe.config as _config
     except RuntimeError as exc:
         raise RuntimeError(
             "Cannot initialise JellyfinLibraryProvider: jellyswipe package "
@@ -118,14 +117,14 @@ def get_provider():
             "TMDB_ACCESS_TOKEN environment variables are set."
         ) from exc
 
-    if _app._provider_singleton is None:
+    if _config._provider_singleton is None:
         with _provider_lock:
             # Double-check after acquiring lock
-            if _app._provider_singleton is None:
+            if _config._provider_singleton is None:
                 from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-                _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
+                _config._provider_singleton = JellyfinLibraryProvider(_config._JELLYFIN_URL)
 
-    return _app._provider_singleton
+    return _config._provider_singleton
 
 
 __all__ = [
