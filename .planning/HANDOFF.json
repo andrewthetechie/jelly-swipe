@@ -1,38 +1,69 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-01T00:00:00.000Z",
-  "phase": null,
-  "phase_name": null,
-  "phase_dir": null,
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
+  "timestamp": "2026-05-06T19:38:04.508Z",
+  "phase": "39",
+  "phase_name": "Room, Swipe, Match, and SSE Persistence Conversion",
+  "phase_dir": ".planning/phases/39-room-swipe-match-and-sse-persistence-conversion",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
   "status": "paused",
-  "context": "new-milestone",
-  "milestone": "v2.0",
-  "milestone_name": "Flask → FastAPI + MVC Refactor",
-  "workflow": "gsd-new-milestone",
-  "workflow_step": "research-decision",
   "completed_tasks": [
-    {"id": 1, "name": "Confirmed milestone v2.0 Flask → FastAPI + MVC Refactor", "status": "done", "commit": "0ac0a67"},
-    {"id": 2, "name": "Updated PROJECT.md with v2.0 Current Milestone + Active requirements", "status": "done", "commit": "0ac0a67"},
-    {"id": 3, "name": "Reset STATE.md for v2.0 milestone", "status": "done", "commit": "0ac0a67"}
+    {
+      "id": 1,
+      "name": "Capture Phase 39 implementation decisions in CONTEXT.md and DISCUSSION-LOG.md",
+      "status": "done",
+      "commit": "889e523"
+    },
+    {
+      "id": 2,
+      "name": "Record Phase 39 context session in STATE.md",
+      "status": "done",
+      "commit": "b7081f1"
+    }
   ],
   "remaining_tasks": [
-    {"id": 4, "name": "Answer research decision (skip or research first)", "status": "not_started"},
-    {"id": 5, "name": "Define requirements and create REQUIREMENTS.md", "status": "not_started"},
-    {"id": 6, "name": "Spawn gsd-roadmapper to create ROADMAP.md", "status": "not_started"},
-    {"id": 7, "name": "Approve roadmap and commit all artifacts", "status": "not_started"}
+    {
+      "id": 3,
+      "name": "Create Phase 39 research and plan artifacts from the locked context",
+      "status": "not_started"
+    },
+    {
+      "id": 4,
+      "name": "Run Phase 39 planning verification and resolve any checker findings",
+      "status": "not_started"
+    },
+    {
+      "id": 5,
+      "name": "Execute Phase 39 after planning is approved",
+      "status": "not_started"
+    }
   ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Flask → FastAPI migration as v2.0", "rationale": "Framework replacement is a major version bump; user prefers FastAPI", "phase": null},
-    {"decision": "Gunicorn+gevent → Uvicorn ASGI", "rationale": "FastAPI is ASGI-native; uvicorn is the standard ASGI server", "phase": null},
-    {"decision": "MVC split: domain routers + Pydantic models + dependencies.py", "rationale": "Decompose 839-line __init__.py monolith into auth, rooms, media, proxy, static routers", "phase": null},
-    {"decision": "Phase numbering continues from 29 → Phase 30 starts v2.0", "rationale": "No --reset-phase-numbers flag used", "phase": null}
+    {
+      "decision": "Persisted room, swipe, and match records keep using the current browser/session identity as the participant key",
+      "rationale": "The user explicitly rejected introducing a new participant-id layer during the persistence conversion",
+      "phase": "39"
+    },
+    {
+      "decision": "Swipe write, cursor advance, match detection, and last_match update stay one atomic mutation with BEGIN IMMEDIATE-equivalent serialization",
+      "rationale": "The user wanted strict behavioral parity for race protection and visible match semantics",
+      "phase": "39"
+    },
+    {
+      "decision": "SSE stays snapshot-driven, post-commit, app-local, and replay-free",
+      "rationale": "The user kept Phase 39 scoped to persistence conversion rather than eventing redesign",
+      "phase": "39"
+    },
+    {
+      "decision": "Repositories split by room/swipe/match concern and services split into room lifecycle plus swipe/match orchestration",
+      "rationale": "The user wanted a real service/repository seam without another monolithic room-state component",
+      "phase": "39"
+    }
   ],
   "uncommitted_files": [],
-  "next_action": "Run /gsd-new-milestone and continue from the research decision — skip research (user is already FastAPI-familiar) then proceed to define requirements and create ROADMAP.md",
-  "context_notes": "User invoked /gsd-new-milestone mid-session then paused at the research question. PROJECT.md and STATE.md are already committed. The 10 active requirements are already drafted in PROJECT.md. The roadmapper should start phases at 30."
+  "next_action": "Run $gsd-plan-phase 39 to create research and plan artifacts from .planning/phases/39-room-swipe-match-and-sse-persistence-conversion/39-CONTEXT.md.",
+  "context_notes": "Phase 39 is paused immediately after discuss-phase completion. The phase directory contains 39-CONTEXT.md and 39-DISCUSSION-LOG.md only; no research, PLAN.md, or execution artifacts exist yet. STATE.md correctly says Phase 39 is ready to plan. The worktree is clean. Planning should start by reading the new context, then ROADMAP/REQUIREMENTS, then the current room route and SSE parity tests. An unrelated hygiene scan found placeholder/TBD text in older artifacts under phases 24, 26, 27, 33, 35, and 38; that is not blocking Phase 39."
 }
