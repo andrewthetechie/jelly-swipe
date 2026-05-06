@@ -13,6 +13,7 @@ import json
 import logging
 import random
 import secrets
+import sqlite3
 import time
 import traceback
 from fastapi import APIRouter, Depends, Request
@@ -61,13 +62,24 @@ def log_exception(exc: Exception, request: Request, context: dict = None) -> Non
     logging.getLogger().error("unhandled_exception", extra=log_data)
 
 
-def _fetchone(conn: Connection, query: str, params: tuple = ()) -> dict | None:
-    row = conn.exec_driver_sql(query, params).mappings().first()
-    return dict(row) if row is not None else None
+def _run_query(conn: Connection | sqlite3.Connection, query: str, params: tuple = ()):
+    if hasattr(conn, "exec_driver_sql"):
+        return conn.exec_driver_sql(query, params)
+    return conn.execute(query, params)
 
 
-def _execute(conn: Connection, query: str, params: tuple = ()) -> None:
-    conn.exec_driver_sql(query, params)
+def _fetchone(conn: Connection | sqlite3.Connection, query: str, params: tuple = ()) -> dict | None:
+    row = _run_query(conn, query, params)
+    if hasattr(row, "mappings"):
+        mapping = row.mappings().first()
+        return dict(mapping) if mapping is not None else None
+
+    record = row.fetchone()
+    return dict(record) if record is not None else None
+
+
+def _execute(conn: Connection | sqlite3.Connection, query: str, params: tuple = ()) -> None:
+    _run_query(conn, query, params)
 
 
 def _get_cursor(conn: Connection, code, user_id):
