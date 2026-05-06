@@ -7,11 +7,18 @@ Uses dependency injection for authentication (require_auth) and rate limiting.
 import logging
 import traceback
 
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends
 from jellyswipe import XSSSafeJSONResponse
 
-from jellyswipe.dependencies import require_auth, AuthUser, get_provider, check_rate_limit
-from jellyswipe.auth import create_session, destroy_session
+from jellyswipe.dependencies import (
+    AuthUser,
+    DBUoW,
+    check_rate_limit,
+    destroy_session_dep,
+    get_provider,
+    require_auth,
+)
+from jellyswipe.auth import create_session
 from jellyswipe.config import TMDB_AUTH_HEADERS
 
 _logger = logging.getLogger(__name__)
@@ -57,7 +64,7 @@ def auth_provider(request: Request):
 
 
 @auth_router.post("/auth/jellyfin-use-server-identity")
-def jellyfin_use_server_identity(request: Request):
+async def jellyfin_use_server_identity(request: Request, uow: DBUoW):
     """Authenticate using Jellyfin server delegate identity."""
     prov = get_provider()
     try:
@@ -65,12 +72,12 @@ def jellyfin_use_server_identity(request: Request):
         uid = prov.server_primary_user_id_for_delegate()
     except RuntimeError:
         return make_error_response("Jellyfin delegate unavailable", 401, request)
-    create_session(token, uid, request.session)
+    await create_session(token, uid, request.session, uow)
     return {"userId": uid}
 
 
 @auth_router.post('/auth/jellyfin-login')
-async def jellyfin_login(request: Request):
+async def jellyfin_login(request: Request, uow: DBUoW):
     """Authenticate user with Jellyfin username and password."""
     try:
         data = await request.json()
@@ -82,16 +89,16 @@ async def jellyfin_login(request: Request):
         return XSSSafeJSONResponse(content={"error": "Username and password are required"}, status_code=400)
     try:
         out = get_provider().authenticate_user_session(username, password)
-        create_session(out["token"], out["user_id"], request.session)
+        await create_session(out["token"], out["user_id"], request.session, uow)
         return {"userId": out["user_id"]}
     except Exception:
         return make_error_response("Jellyfin login failed", 401, request)
 
 
 @auth_router.post('/auth/logout')
-def logout(request: Request, user: AuthUser = Depends(require_auth)):
+async def logout(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Destroy the current user session."""
-    destroy_session(request.session)
+    await destroy_session_dep(request, uow)
     return {'status': 'logged_out'}
 
 

@@ -29,18 +29,6 @@ class AuthUser:
     user_id: str
 
 
-def require_auth(request: Request) -> AuthUser:
-    """FastAPI dependency that requires authentication.
-
-    Returns AuthUser if session is valid, raises HTTPException(401) otherwise.
-    """
-    result = auth.get_current_token(request.session)
-    if result is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    jf_token, user_id = result
-    return AuthUser(jf_token=jf_token, user_id=user_id)
-
-
 async def get_db_uow():
     """Yield a request-scoped async unit of work."""
     session = get_sessionmaker()()
@@ -99,12 +87,25 @@ def check_rate_limit(request: Request) -> None:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
 
-def destroy_session_dep(request: Request) -> None:
+async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
+    """FastAPI dependency that requires authentication."""
+    prior_session_id = request.session.get("session_id")
+    record = await auth.get_current_token(request.session, uow)
+    if record is not None:
+        return AuthUser(jf_token=record.jf_token, user_id=record.user_id)
+
+    if prior_session_id is not None:
+        auth.clear_session_state(request.session)
+
+    raise HTTPException(status_code=401, detail="Authentication required")
+
+
+async def destroy_session_dep(request: Request, uow: DBUoW) -> None:
     """FastAPI dependency that destroys the current session.
 
     Calls auth.destroy_session(request.session).
     """
-    auth.destroy_session(request.session)
+    await auth.destroy_session(request.session, uow)
 
 
 def get_provider():
