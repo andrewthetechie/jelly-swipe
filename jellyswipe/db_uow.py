@@ -10,6 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.auth_types import AuthRecord
 from jellyswipe.models.auth_session import AuthSession
+from jellyswipe.repositories.matches import MatchRepository
+from jellyswipe.repositories.rooms import RoomRepository
+from jellyswipe.repositories.swipes import SwipeRepository
 
 T = TypeVar("T")
 
@@ -58,29 +61,15 @@ class AuthSessionRepository:
         return result.rowcount or 0
 
 
-class SwipeRepository:
-    """Repository for swipe maintenance queries."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def delete_orphans(self) -> int:
-        result = await self._session.execute(
-            text(
-                "DELETE FROM swipes "
-                "WHERE room_code NOT IN (SELECT pairing_code FROM rooms)"
-            )
-        )
-        return result.rowcount or 0
-
-
 class DatabaseUnitOfWork:
     """Typed async unit-of-work facade around one AsyncSession."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.auth_sessions = AuthSessionRepository(session)
+        self.rooms = RoomRepository(session)
         self.swipes = SwipeRepository(session)
+        self.matches = MatchRepository(session)
 
     async def run_sync(self, fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
         """Run legacy sync work on the managed session connection.
@@ -96,5 +85,7 @@ class DatabaseUnitOfWork:
 __all__ = [
     "AuthSessionRepository",
     "DatabaseUnitOfWork",
+    "MatchRepository",
+    "RoomRepository",
     "SwipeRepository",
 ]
