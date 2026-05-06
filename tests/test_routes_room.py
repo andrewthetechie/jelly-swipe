@@ -401,6 +401,10 @@ def test_swipe_right_dual_match(client, app):
     conn = jellyswipe.db.get_db()
     try:
         conn.execute(
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            ("other-session-id", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
+        )
+        conn.execute(
             "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
             ("TEST1", "m1", "user-2", "right", "other-session-id"),
         )
@@ -450,6 +454,10 @@ def test_swipe_right_updates_last_match_data(client, app):
 
     conn = jellyswipe.db.get_db()
     try:
+        conn.execute(
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            ("other-session-id", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
+        )
         conn.execute(
             "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
             ("TEST1", "m1", "user-2", "right", "other-session-id"),

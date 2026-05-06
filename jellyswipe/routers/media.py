@@ -43,10 +43,7 @@ def log_exception(exc: Exception, request: Request, context: dict = None) -> Non
     }
     if context:
         log_data.update(context)
-    _logger.error(
-        "unhandled_exception",
-        extra=log_data
-    )
+    logging.getLogger().error("unhandled_exception", extra=log_data)
 
 
 @media_router.get('/get-trailer/{movie_id}')

@@ -139,4 +139,5 @@ class TestRuntimeHelpersStillAvailable:
     def test_db_module_still_exports_runtime_entrypoints(self):
         assert hasattr(jellyswipe.db, "get_db")
         assert hasattr(jellyswipe.db, "get_db_closing")
-        assert hasattr(jellyswipe.db, "init_db")
+        assert hasattr(jellyswipe.db, "prepare_runtime_database")
+        assert hasattr(jellyswipe.db, "cleanup_expired_auth_sessions")

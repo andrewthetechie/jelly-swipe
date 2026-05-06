@@ -30,11 +30,14 @@ def test_module_import():
     # 3. Sets required environment variables
     import jellyswipe.db
     import jellyswipe.jellyfin_library
+    import jellyswipe.migrations
 
     # Verify the modules have expected exports
     assert hasattr(jellyswipe.db, 'get_db')
-    assert hasattr(jellyswipe.db, 'init_db')
+    assert hasattr(jellyswipe.db, 'prepare_runtime_database')
+    assert hasattr(jellyswipe.db, 'cleanup_expired_auth_sessions')
     assert hasattr(jellyswipe.jellyfin_library, 'JellyfinLibraryProvider')
+    assert hasattr(jellyswipe.migrations, 'upgrade_to_head')
 
 def test_env_vars_set():
     """

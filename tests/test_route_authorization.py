@@ -22,7 +22,7 @@ def _set_session(client, db_connection, secret_key, *, active_room: str = "ROOM1
     if authenticated:
         session_id = "test-session-" + secrets.token_hex(8)
         db_connection.execute(
-            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
             (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
         )
         db_connection.commit()
@@ -99,16 +99,16 @@ def test_login_returns_userId_no_authToken(db_connection, client_real_auth):
 
 
 def test_login_creates_vault_entry(db_connection, client_real_auth):
-    """Login creates a user_tokens row and sets session_id cookie."""
+    """Login creates a auth_sessions row and sets session_id cookie."""
     response = client_real_auth.post("/auth/jellyfin-login", json={
         "username": "testuser",
         "password": "testpass",
     })
     assert response.status_code == 200
     # Verify vault entry was created
-    count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+    count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
     assert count == 1
-    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM user_tokens").fetchone()
+    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions").fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
 
@@ -140,12 +140,12 @@ def test_delegate_returns_userId(db_connection, client_real_auth):
 
 
 def test_delegate_creates_vault_entry(db_connection, client_real_auth):
-    """Delegate creates a user_tokens row with server credentials."""
+    """Delegate creates a auth_sessions row with server credentials."""
     response = client_real_auth.post("/auth/jellyfin-use-server-identity")
     assert response.status_code == 200
-    count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+    count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
     assert count == 1
-    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM user_tokens").fetchone()
+    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions").fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
 
@@ -222,7 +222,7 @@ def _setup_deck_session(client, db_connection, secret_key, *, user_id="verified-
     """Set up an authenticated session and return the session_id."""
     session_id = "test-session-" + secrets.token_hex(8)
     db_connection.execute(
-        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
         (session_id, token, user_id, datetime.now(timezone.utc).isoformat())
     )
     db_connection.commit()
@@ -725,10 +725,10 @@ class TestLogout:
     """Tests for POST /auth/logout endpoint (CLNT-01)."""
 
     def test_logout_clears_vault(self, db_connection, client_real_auth):
-        """POST /auth/logout removes session_id from user_tokens vault."""
+        """POST /auth/logout removes session_id from auth_sessions vault."""
         _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
         # Verify vault entry exists before logout
-        count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
         assert count >= 1
 
         resp = client_real_auth.post('/auth/logout')
@@ -737,7 +737,7 @@ class TestLogout:
         assert data['status'] == 'logged_out'
 
         # Verify vault entry was removed
-        count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
         assert count == 0
 
     def test_logout_clears_session_cookie(self, db_connection, client_real_auth):

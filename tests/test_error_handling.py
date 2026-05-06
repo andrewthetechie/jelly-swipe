@@ -231,7 +231,9 @@ class TestErrorLogging:
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test logging error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR):
+        import jellyswipe.config as app_config
+        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get('/get-trailer/test-movie-id')
 
         assert resp.status_code == 500
@@ -248,7 +250,9 @@ class TestErrorLogging:
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("test runtime error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR):
+        import jellyswipe.config as app_config
+        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get('/get-trailer/test-movie-id')
 
         assert resp.status_code == 500
@@ -263,7 +267,9 @@ class TestErrorLogging:
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("specific error detail for logging")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR):
+        import jellyswipe.config as app_config
+        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get('/get-trailer/test-movie-id')
 
         assert resp.status_code == 500
@@ -292,7 +298,7 @@ class TestAdditionalRoutes:
         import jellyswipe.db
         conn = jellyswipe.db.get_db()
         conn.execute(
-            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
             (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
         )
         conn.commit()

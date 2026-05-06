@@ -23,6 +23,7 @@ from jellyswipe.dependencies import (
     check_rate_limit,
     destroy_session_dep,
 )
+from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@ from jellyswipe.dependencies import (
 def auth_app(db_path, monkeypatch):
     """Create a minimal FastAPI test app with session middleware and auth test routes."""
     monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-    jellyswipe.db.init_db()
+    upgrade_to_head(build_sqlite_url(db_path))
 
     app = FastAPI()
     app.add_middleware(SessionMiddleware, secret_key="test-secret-key")
@@ -81,7 +82,7 @@ def seed_vault(db_path, monkeypatch):
         created_at = datetime.now(timezone.utc).isoformat()
         with jellyswipe.db.get_db_closing() as conn:
             conn.execute(
-                "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) "
+                "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) "
                 "VALUES (?, ?, ?, ?)",
                 (session_id, jf_token, jf_user_id, created_at),
             )
@@ -97,10 +98,10 @@ def seed_vault(db_path, monkeypatch):
 class TestCreateSession:
     """Tests for create_session() function."""
 
-    def test_create_session_inserts_into_user_tokens(self, db_path, monkeypatch, client):
-        """Verify INSERT into user_tokens with correct fields."""
+    def test_create_session_inserts_into_auth_sessions(self, db_path, monkeypatch, client):
+        """Verify INSERT into auth_sessions with correct fields."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         resp = client.post('/test-create-session', json={
             'jf_token': 'my-jf-token',
@@ -110,10 +111,10 @@ class TestCreateSession:
         data = resp.json()
         sid = data['session_id']
 
-        # Verify the row exists in user_tokens
+        # Verify the row exists in auth_sessions
         with jellyswipe.db.get_db_closing() as conn:
             row = conn.execute(
-                'SELECT * FROM user_tokens WHERE session_id = ?', (sid,)
+                'SELECT * FROM auth_sessions WHERE session_id = ?', (sid,)
             ).fetchone()
 
         assert row is not None
@@ -124,7 +125,7 @@ class TestCreateSession:
     def test_create_session_sets_session_cookie(self, db_path, monkeypatch, client):
         """Verify session['session_id'] matches returned value."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         resp = client.post('/test-create-session', json={
             'jf_token': 'my-token',
@@ -143,7 +144,7 @@ class TestCreateSession:
     def test_create_session_returns_session_id(self, db_path, monkeypatch, client):
         """Verify return value is a 64-char hex string."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         resp = client.post('/test-create-session', json={
             'jf_token': 'token',
@@ -156,11 +157,11 @@ class TestCreateSession:
         assert re.match(r'^[0-9a-f]{64}$', sid), f"session_id is not 64-char hex: {sid}"
 
     def test_create_session_calls_cleanup(self, db_path, monkeypatch, client):
-        """Mock cleanup_expired_tokens and verify it was called."""
+        """Mock cleanup_expired_auth_sessions and verify it was called."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
-        with patch('jellyswipe.auth.cleanup_expired_tokens') as mock_cleanup:
+        with patch('jellyswipe.auth.cleanup_expired_auth_sessions') as mock_cleanup:
             resp = client.post('/test-create-session', json={
                 'jf_token': 'token',
                 'jf_user_id': 'user'
@@ -177,7 +178,7 @@ class TestGetCurrentToken:
     """Tests for get_current_token() function."""
 
     def test_returns_token_and_user_id_for_valid_session(self, client, seed_vault):
-        """Seed user_tokens, verify tuple return."""
+        """Seed auth_sessions, verify tuple return."""
         sid = seed_vault()
 
         # Create session via POST
@@ -196,7 +197,7 @@ class TestGetCurrentToken:
     def test_returns_none_when_no_session_id(self, client, db_path, monkeypatch):
         """No session set → None."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Use a fresh client with no cookies
         fresh_client = TestClient(client.app)
@@ -208,7 +209,7 @@ class TestGetCurrentToken:
     def test_returns_none_when_session_id_not_in_vault(self, client, db_path, monkeypatch):
         """session['session_id'] set but no matching row → None."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Create a session then delete the vault entry
         resp = client.post('/test-create-session', json={
@@ -219,7 +220,7 @@ class TestGetCurrentToken:
 
         # Delete the vault entry
         with jellyswipe.db.get_db_closing() as conn:
-            conn.execute('DELETE FROM user_tokens WHERE session_id = ?', (sid,))
+            conn.execute('DELETE FROM auth_sessions WHERE session_id = ?', (sid,))
 
         # Now get_current_token should return None
         resp = client.get('/test-get-current-token')
@@ -238,7 +239,7 @@ class TestRequireAuth:
     def test_returns_auth_user_for_valid_session(self, client, seed_vault, db_path, monkeypatch):
         """Seed vault + set session, verify AuthUser returned with correct fields."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
         sid = seed_vault('auth-sid', 'my-token', 'my-user')
 
         # Create session
@@ -256,7 +257,7 @@ class TestRequireAuth:
     def test_returns_401_for_unauthenticated_request(self, client, db_path, monkeypatch):
         """No session → 401 with {'detail': 'Authentication required'}."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Use fresh client with no session
         fresh_client = TestClient(client.app)
@@ -268,7 +269,7 @@ class TestRequireAuth:
     def test_returns_401_when_session_id_not_in_vault(self, client, db_path, monkeypatch):
         """session set but vault empty → 401."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Create a session then delete the vault entry
         resp = client.post('/test-create-session', json={
@@ -279,7 +280,7 @@ class TestRequireAuth:
 
         # Delete the vault entry
         with jellyswipe.db.get_db_closing() as conn:
-            conn.execute('DELETE FROM user_tokens WHERE session_id = ?', (sid,))
+            conn.execute('DELETE FROM auth_sessions WHERE session_id = ?', (sid,))
 
         # Now protected route should return 401
         resp = client.get('/test-protected')
@@ -298,7 +299,7 @@ class TestGetDbDep:
     def test_yields_connection_and_closes(self, db_path, monkeypatch):
         """get_db_dep yields a sqlite3.Connection that is closed after context exits."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         gen = get_db_dep()
         conn = next(gen)
@@ -383,7 +384,7 @@ class TestDestroySessionDep:
     def test_calls_auth_destroy_session(self, db_path, monkeypatch):
         """destroy_session_dep delegates to auth.destroy_session(request.session)."""
         monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         with patch("jellyswipe.auth.destroy_session") as mock_destroy:
             app = FastAPI()

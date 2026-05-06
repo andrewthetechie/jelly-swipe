@@ -8,6 +8,8 @@ import pytest
 import itsdangerous
 from fastapi.testclient import TestClient
 
+from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
+
 # Set required environment variables at module level to satisfy jellyswipe/__init__.py
 # This must happen before any imports that trigger __init__.py validation
 os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
@@ -118,12 +120,12 @@ def db_connection(db_path, monkeypatch):
 
     This fixture:
     1. Patches jellyswipe.db.DB_PATH to use the temporary database file
-    2. Initializes the database schema by calling init_db()
+    2. Initializes the database schema by running Alembic upgrade head
     3. Yields a database connection to the test
     4. Closes the connection after the test
 
     Per D-03: Use monkeypatch to set DB_PATH global variable.
-    Per D-06: Each test receives a fresh database with init_db() already called.
+    Per D-06: Each test receives a fresh database with Alembic already applied.
 
     The function scope ensures complete test isolation - no state leaks between tests.
     """
@@ -132,8 +134,8 @@ def db_connection(db_path, monkeypatch):
     # Patch the global DB_PATH to use the temporary database file
     monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
 
-    # Initialize the database schema
-    jellyswipe.db.init_db()
+    # Initialize the database schema through Alembic
+    upgrade_to_head(build_sqlite_url(db_path))
 
     # Get a database connection and yield it to the test
     conn = jellyswipe.db.get_db()
@@ -218,14 +220,16 @@ def app(tmp_path, monkeypatch):
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import require_auth, get_provider, AuthUser
-    import jellyswipe.config
-
-    # Set provider singleton before creating app (matches app_real_auth fix)
     import jellyswipe as app_module
+    # Set provider singleton before creating app (matches app_real_auth fix)
     fake_provider = FakeProvider()
+    import jellyswipe.config as app_config
+    app_config._provider_singleton = fake_provider
     app_module._provider_singleton = fake_provider
 
     db_file = str(tmp_path / "test_route.db")
+    monkeypatch.setattr("jellyswipe.db.DB_PATH", db_file)
+    upgrade_to_head(build_sqlite_url(db_file))
     test_config = {
         "DB_PATH": db_file,
         "TESTING": True,
@@ -249,6 +253,7 @@ def app(tmp_path, monkeypatch):
 
     fast_app.dependency_overrides.clear()   # CRITICAL: prevents override state leakage
     # Clear provider singleton on teardown
+    app_config._provider_singleton = None
     app_module._provider_singleton = None
 
 
@@ -276,16 +281,16 @@ def app_real_auth(db_path, monkeypatch):
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
-    import jellyswipe.config
-
+    import jellyswipe as app_module
     # Initialize database schema
     import jellyswipe.db
-    jellyswipe.db.DB_PATH = db_path
-    jellyswipe.db.init_db()
+    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    upgrade_to_head(build_sqlite_url(db_path))
 
     # Set provider singleton BEFORE creating app (fixes Plan 03 bug)
-    import jellyswipe as app_module
     fake_provider = FakeProvider()
+    import jellyswipe.config as app_config
+    app_config._provider_singleton = fake_provider
     app_module._provider_singleton = fake_provider
 
     test_config = {
@@ -303,6 +308,7 @@ def app_real_auth(db_path, monkeypatch):
     yield fast_app
     fast_app.dependency_overrides.clear()
     # Clear provider singleton on teardown (reuse app_module from above, line 287)
+    app_config._provider_singleton = None
     app_module._provider_singleton = None
     # Reset rate limiter to prevent cross-test pollution (matches app fixture teardown)
     from jellyswipe.rate_limiter import rate_limiter as _rl

@@ -99,13 +99,15 @@ async def lifespan(app: FastAPI):
     # Only set DB_PATH if it hasn't been set yet (e.g., by test_config)
     if jellyswipe.db.DB_PATH is None:
         jellyswipe.db.DB_PATH = DB_PATH
-    from .db import init_db
-    init_db()
+    from .db import prepare_runtime_database
+    prepare_runtime_database()
     _logger.info("jellyswipe_startup")
     yield
     # Teardown
     global _provider_singleton
     _provider_singleton = None
+    import jellyswipe.config as _config
+    _config._provider_singleton = None
     _logger.info("jellyswipe_shutdown")
 
 

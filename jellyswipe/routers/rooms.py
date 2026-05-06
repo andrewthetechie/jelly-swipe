@@ -57,7 +57,7 @@ def log_exception(exc: Exception, request: Request, context: dict = None) -> Non
     }
     if context:
         log_data.update(context)
-    _logger.error("unhandled_exception", extra=log_data)
+    logging.getLogger().error("unhandled_exception", extra=log_data)
 
 
 def _get_cursor(conn, code, user_id):
@@ -197,7 +197,7 @@ async def swipe(
         title = resolved.title
         thumb = f"/proxy?path=jellyfin/{mid}/Primary"
     except RuntimeError as exc:
-        _logger.warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
+        logging.getLogger().warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
 
     # Switch to autocommit mode so that explicit BEGIN IMMEDIATE does not conflict
     # with the implicit transaction started by get_db_closing()'s `with conn:` wrapper.
@@ -466,7 +466,7 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
                     # Do NOT swallow CancelledError — it is the asyncio disconnect signal.
                     if isinstance(exc, asyncio.CancelledError):
                         raise
-                    _logger.warning("SSE poll error for room %s: %s", code, exc)
+                    logging.getLogger().warning("SSE poll error for room %s: %s", code, exc)
                     delay = POLL + random.uniform(0, 0.5)
                     await asyncio.sleep(delay)  # SSE-2: non-blocking even in error path
         finally:

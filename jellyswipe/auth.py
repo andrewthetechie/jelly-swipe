@@ -1,4 +1,4 @@
-"""Auth module for Jelly Swipe — token vault CRUD.
+"""Auth module for Jelly Swipe — auth session CRUD.
 
 Server-side identity resolution: session cookie → vault lookup.
 This module is the Phase 31 bridge; Phase 32 rewrites it with proper
@@ -9,14 +9,14 @@ from typing import Optional, Tuple
 import secrets
 from datetime import datetime, timezone
 
-from jellyswipe.db import get_db_closing, cleanup_expired_tokens
+from jellyswipe.db import get_db_closing, cleanup_expired_auth_sessions
 
 
 def create_session(jf_token: str, jf_user_id: str, session_dict: dict) -> str:
     """Store token in vault, set session cookie, return session_id.
 
     Generates a 64-char hex session_id, cleans up expired tokens,
-    inserts the new session into user_tokens, and sets session['session_id']
+    inserts the new session into auth_sessions, and sets session['session_id']
     on the provided session_dict (request.session in FastAPI).
 
     Per D-03: cleanup runs on every new session creation.
@@ -27,12 +27,12 @@ def create_session(jf_token: str, jf_user_id: str, session_dict: dict) -> str:
     created_at = datetime.now(timezone.utc).isoformat()
 
     # Clean up expired tokens before inserting the new session
-    cleanup_expired_tokens()
+    cleanup_expired_auth_sessions()
 
-    # Insert into user_tokens
+    # Insert into auth_sessions
     with get_db_closing() as conn:
         conn.execute(
-            'INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) '
+            'INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) '
             'VALUES (?, ?, ?, ?)',
             (session_id, jf_token, jf_user_id, created_at)
         )
@@ -47,7 +47,7 @@ def get_current_token(session_dict: dict) -> Optional[Tuple[str, str]]:
     """Return (jf_token, jf_user_id) for current session, or None.
 
     Reads session_id from the provided session dict (request.session in FastAPI),
-    looks up the corresponding token in the user_tokens vault.
+    looks up the corresponding token in the auth_sessions table.
 
     Per D-14: trusts the vault entry — no Jellyfin API validation on every request.
     Per D-10: returns None for anonymous sessions and missing vault entries.
@@ -58,7 +58,7 @@ def get_current_token(session_dict: dict) -> Optional[Tuple[str, str]]:
 
     with get_db_closing() as conn:
         row = conn.execute(
-            'SELECT jellyfin_token, jellyfin_user_id FROM user_tokens WHERE session_id = ?',
+            'SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions WHERE session_id = ?',
             (sid,)
         ).fetchone()
 
@@ -71,11 +71,11 @@ def get_current_token(session_dict: dict) -> Optional[Tuple[str, str]]:
 def destroy_session(session_dict: dict) -> None:
     """Clear session cookie and delete vault entry.
 
-    Per CLNT-01: logout removes the server-side vault entry and
+    Per CLNT-01: logout removes the server-side auth session row and
     clears the session cookie so no auth state remains.
     """
     sid = session_dict.get('session_id')
     if sid:
         with get_db_closing() as conn:
-            conn.execute('DELETE FROM user_tokens WHERE session_id = ?', (sid,))
+            conn.execute('DELETE FROM auth_sessions WHERE session_id = ?', (sid,))
         session_dict.pop('session_id', None)

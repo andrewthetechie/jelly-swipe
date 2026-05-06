@@ -18,6 +18,7 @@ from jellyswipe.dependencies import (
     destroy_session_dep,
     get_provider,
 )
+from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +31,7 @@ class TestRequireAuth:
     def test_returns_auth_user_for_valid_session(self, db_path, monkeypatch):
         """Valid session in vault → returns AuthUser with correct fields."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Create a session in vault
         sid = jellyswipe.auth.create_session('test-token', 'test-user', {})
@@ -50,7 +51,7 @@ class TestRequireAuth:
     def test_raises_401_for_empty_session(self, db_path, monkeypatch):
         """Empty session → raises HTTPException(401)."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Mock request with empty session
         request = MagicMock(spec=Request)
@@ -66,7 +67,7 @@ class TestRequireAuth:
     def test_raises_401_when_session_id_not_in_vault(self, db_path, monkeypatch):
         """session with invalid session_id → raises HTTPException(401)."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Mock request with nonexistent session_id
         request = MagicMock(spec=Request)
@@ -90,7 +91,7 @@ class TestGetDbDep:
     def test_yields_connection_and_closes(self, db_path, monkeypatch):
         """get_db_dep yields a sqlite3.Connection that is closed after context exits."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         # Create generator
         gen = get_db_dep()
@@ -193,7 +194,7 @@ class TestDestroySessionDep:
     def test_calls_auth_destroy_session(self, db_path, monkeypatch):
         """destroy_session_dep delegates to auth.destroy_session(request.session)."""
         monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
-        jellyswipe.db.init_db()
+        upgrade_to_head(build_sqlite_url(db_path))
 
         with patch("jellyswipe.auth.destroy_session") as mock_destroy:
             from fastapi import FastAPI
