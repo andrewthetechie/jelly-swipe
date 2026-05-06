@@ -6,6 +6,8 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import text
+
 from jellyswipe.auth_types import AuthRecord
 from jellyswipe.db_uow import DatabaseUnitOfWork
 
@@ -64,3 +66,26 @@ async def destroy_session(session_dict: dict, uow: DatabaseUnitOfWork) -> None:
             exc_info=True,
             extra={"session_id": sid},
         )
+
+
+async def resolve_active_room(session_dict: dict, uow: DatabaseUnitOfWork) -> str | None:
+    """Return the active room when it still exists, else clear stale room session state."""
+    active_room = session_dict.get("active_room")
+    if active_room is None:
+        return None
+
+    def _room_exists(sync_session, pairing_code: str) -> bool:
+        return (
+            sync_session.execute(
+                text("SELECT 1 FROM rooms WHERE pairing_code = :pairing_code"),
+                {"pairing_code": pairing_code},
+            ).first()
+            is not None
+        )
+
+    if await uow.run_sync(_room_exists, active_room):
+        return active_room
+
+    session_dict.pop("active_room", None)
+    session_dict.pop("solo_mode", None)
+    return None

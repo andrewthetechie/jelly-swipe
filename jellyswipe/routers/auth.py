@@ -14,11 +14,10 @@ from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
     check_rate_limit,
-    destroy_session_dep,
     get_provider,
     require_auth,
 )
-from jellyswipe.auth import create_session
+from jellyswipe.auth import create_session, destroy_session, resolve_active_room
 from jellyswipe.config import TMDB_AUTH_HEADERS
 
 _logger = logging.getLogger(__name__)
@@ -98,22 +97,14 @@ async def jellyfin_login(request: Request, uow: DBUoW):
 @auth_router.post('/auth/logout')
 async def logout(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Destroy the current user session."""
-    await destroy_session_dep(request, uow)
+    await destroy_session(request.session, uow)
     return {'status': 'logged_out'}
 
 
 @auth_router.get('/me')
-def get_me(request: Request, user: AuthUser = Depends(require_auth)):
+async def get_me(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Return current user information."""
-    active_room = request.session.get('active_room')
-    if active_room:
-        from jellyswipe.db import get_db_closing
-        with get_db_closing() as conn:
-            row = conn.execute('SELECT 1 FROM rooms WHERE pairing_code = ?', (active_room,)).fetchone()
-        if not row:
-            request.session.pop('active_room', None)
-            request.session.pop('solo_mode', None)
-            active_room = None
+    active_room = await resolve_active_room(request.session, uow)
     info = get_provider().server_info()
     return {
         'userId': user.user_id,
