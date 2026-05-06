@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -13,8 +13,14 @@ import jellyswipe.auth as auth
 import jellyswipe.db
 import jellyswipe.db_runtime
 from jellyswipe.auth_types import AuthRecord
-from jellyswipe.db_runtime import dispose_runtime, get_sessionmaker
+from jellyswipe.db_runtime import (
+    build_async_sqlite_url,
+    dispose_runtime,
+    get_sessionmaker,
+    initialize_runtime,
+)
 from jellyswipe.db_uow import AuthSessionRepository, DatabaseUnitOfWork
+from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from tests.conftest import _bootstrap_temp_db_runtime
 
@@ -29,7 +35,15 @@ def reset_runtime(monkeypatch):
 
 @pytest.fixture
 async def runtime_sessionmaker(db_path, monkeypatch):
-    _bootstrap_temp_db_runtime(db_path, monkeypatch)
+    sync_database_url = build_sqlite_url(db_path)
+    runtime_database_url = build_async_sqlite_url(db_path)
+
+    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.setenv("DATABASE_URL", sync_database_url)
+
+    upgrade_to_head(sync_database_url)
+    await initialize_runtime(runtime_database_url)
     yield get_sessionmaker()
     await dispose_runtime()
 
@@ -75,7 +89,8 @@ class TestCreateSession:
                 await session.execute(select(AuthSession).order_by(AuthSession.session_id))
             ).scalars().all()
 
-        assert [row.session_id for row in rows] == ["fresh-session", session_id]
+        assert len(rows) == 2
+        assert {row.session_id for row in rows} == {"fresh-session", session_id}
         created = next(row for row in rows if row.session_id == session_id)
         assert created.jellyfin_token == "new-token"
         assert created.jellyfin_user_id == "new-user"
@@ -153,7 +168,7 @@ class TestDestroySession:
         assert persisted is None
 
     async def test_destroy_session_swallows_delete_failures_after_clearing_local_state(
-        self, runtime_sessionmaker, monkeypatch, caplog
+        self, runtime_sessionmaker, monkeypatch
     ):
         async def blow_up(self, session_id: str) -> int:
             raise RuntimeError(f"delete failed for {session_id}")
@@ -163,11 +178,12 @@ class TestDestroySession:
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            with caplog.at_level(logging.ERROR):
+            with patch.object(auth._logger, "error") as mock_error:
                 await auth.destroy_session(session_dict, uow)
 
         assert session_dict == {}
-        assert "auth_session_delete_failed" in caplog.text
+        mock_error.assert_called_once()
+        assert mock_error.call_args.args[0] == "auth_session_delete_failed"
 
 
 def test_shared_bootstrap_reinitializes_runtime_for_distinct_temp_dbs(tmp_path):
