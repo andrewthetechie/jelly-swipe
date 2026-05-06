@@ -12,7 +12,6 @@ import asyncio
 import json
 import logging
 import random
-import secrets
 import sqlite3
 import time
 import traceback
@@ -25,11 +24,14 @@ from sse_starlette.sse import EventSourceResponse
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import JELLYFIN_URL
 from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
+from jellyswipe.services.room_lifecycle import RoomLifecycleService, UniqueRoomCodeExhaustedError
 from jellyswipe.db import get_db_closing
 
 rooms_router = APIRouter()
 
 _logger = logging.getLogger(__name__)
+
+room_lifecycle_service = RoomLifecycleService()
 
 
 # ============================================================================
@@ -233,69 +235,34 @@ def _run_swipe_transaction(
 # ============================================================================
 
 @rooms_router.post('/room')
-def create_room(request: Request, user: AuthUser = Depends(require_auth)):
+async def create_room(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Create a new room with a unique pairing code."""
-    # Generate cryptographically secure pairing code with collision detection
-    for _ in range(10):
-        pairing_code = str(secrets.randbelow(9000) + 1000)
-        with get_db_closing() as conn:
-            existing = conn.execute(
-                'SELECT 1 FROM rooms WHERE pairing_code = ?', (pairing_code,)
-            ).fetchone()
-            if not existing:
-                movie_list = get_provider().fetch_deck()
-                conn.execute('INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
-                             (pairing_code, json.dumps(movie_list), 0, 'All', 0))
-                conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
-                             (json.dumps({user.user_id: 0}), pairing_code))
-                request.session['active_room'] = pairing_code
-                request.session['solo_mode'] = False
-                return {'pairing_code': pairing_code}
-    return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
+    try:
+        return await room_lifecycle_service.create_room(
+            request.session, user.user_id, get_provider(), uow
+        )
+    except UniqueRoomCodeExhaustedError:
+        return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
 
 
 @rooms_router.post('/room/solo')
-def create_solo_room(request: Request, user: AuthUser = Depends(require_auth)):
+async def create_solo_room(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Create a solo room (single-player mode)."""
-    # Generate cryptographically secure pairing code with collision detection
-    for _ in range(10):
-        pairing_code = str(secrets.randbelow(9000) + 1000)
-        with get_db_closing() as conn:
-            existing = conn.execute(
-                'SELECT 1 FROM rooms WHERE pairing_code = ?', (pairing_code,)
-            ).fetchone()
-            if not existing:
-                movie_list = get_provider().fetch_deck()
-                conn.execute(
-                    'INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)',
-                    (pairing_code, json.dumps(movie_list), 1, 'All', 1)
-                )
-                conn.execute(
-                    'UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
-                    (json.dumps({user.user_id: 0}), pairing_code)
-                )
-                request.session['active_room'] = pairing_code
-                request.session['solo_mode'] = True
-                return {'pairing_code': pairing_code}
-    return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
+    try:
+        return await room_lifecycle_service.create_solo_room(
+            request.session, user.user_id, get_provider(), uow
+        )
+    except UniqueRoomCodeExhaustedError:
+        return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
 
 
 @rooms_router.post('/room/{code}/join')
-def join_room(code: str, request: Request, user: AuthUser = Depends(require_auth)):
+async def join_room_route(code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Join an existing room."""
-    with get_db_closing() as conn:
-        room = conn.execute('SELECT * FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        if room:
-            conn.execute('UPDATE rooms SET ready = 1 WHERE pairing_code = ?', (code,))
-            room2 = conn.execute('SELECT deck_position FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-            positions = json.loads(room2['deck_position']) if room2 and room2['deck_position'] else {}
-            positions[user.user_id] = 0
-            conn.execute('UPDATE rooms SET deck_position = ? WHERE pairing_code = ?',
-                         (json.dumps(positions), code))
-            request.session['active_room'] = code
-            request.session['solo_mode'] = False
-            return {'status': 'success'}
-    return XSSSafeJSONResponse(content={'error': 'Invalid Code'}, status_code=404)
+    payload = await room_lifecycle_service.join_room(code, request.session, user.user_id, uow)
+    if payload is None:
+        return XSSSafeJSONResponse(content={'error': 'Invalid Code'}, status_code=404)
+    return payload
 
 
 @rooms_router.post('/room/{code}/swipe')
@@ -346,29 +313,17 @@ async def swipe(
 
 
 @rooms_router.get('/matches')
-def get_matches(request: Request, user: AuthUser = Depends(require_auth)):
+async def get_matches(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Get matches for the current room or history."""
     code = request.session.get('active_room')
     view = request.query_params.get('view')
-
-    with get_db_closing() as conn:
-        if view == 'history':
-            rows = conn.execute('SELECT title, thumb, movie_id, deep_link, rating, duration, year FROM matches WHERE status = "archived" AND user_id = ?', (user.user_id,)).fetchall()
-        else:
-            rows = conn.execute('SELECT title, thumb, movie_id, deep_link, rating, duration, year FROM matches WHERE room_code = ? AND status = "active" AND user_id = ?', (code, user.user_id)).fetchall()
-        return [dict(row) for row in rows]
+    return await room_lifecycle_service.get_matches(code, user.user_id, view, uow)
 
 
 @rooms_router.post('/room/{code}/quit')
-def quit_room(code: str, request: Request, user: AuthUser = Depends(require_auth)):
+async def quit_room(code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Quit a room and archive matches."""
-    with get_db_closing() as conn:
-        conn.execute('DELETE FROM rooms WHERE pairing_code = ?', (code,))
-        conn.execute('DELETE FROM swipes WHERE room_code = ?', (code,))
-        conn.execute('UPDATE matches SET status = "archived", room_code = "HISTORY" WHERE room_code = ? AND status = "active"', (code,))
-    request.session.pop('active_room', None)
-    request.session.pop('solo_mode', None)
-    return {'status': 'session_ended'}
+    return await room_lifecycle_service.quit_room(code, request.session, user.user_id, uow)
 
 
 @rooms_router.post('/matches/delete')
@@ -405,27 +360,17 @@ async def undo_swipe(code: str, request: Request, user: AuthUser = Depends(requi
 
 
 @rooms_router.get('/room/{code}/deck')
-def get_deck(code: str, request: Request, user: AuthUser = Depends(require_auth)):
+async def get_deck(code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Get a page of movies from the deck."""
     try:
         page = max(1, int(request.query_params.get('page', 1)))
     except (ValueError, TypeError):
         return XSSSafeJSONResponse(content={'error': 'Invalid page parameter'}, status_code=400)
-    page_size = 20
-    with get_db_closing() as conn:
-        cursor_pos = _get_cursor(conn, code, user.user_id)
-        room = conn.execute('SELECT movie_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        if not room:
-            return []
-        movies = json.loads(room['movie_data'])
-        start = cursor_pos + (page - 1) * page_size
-        end = start + page_size
-        page_items = movies[start:end]
-        return page_items
+    return await room_lifecycle_service.get_deck(code, user.user_id, page, uow)
 
 
 @rooms_router.post('/room/{code}/genre')
-async def set_genre(code: str, request: Request, user: AuthUser = Depends(require_auth)):
+async def set_genre(code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Set the genre filter for the room and reload the deck."""
     try:
         data = await request.json()
@@ -434,22 +379,13 @@ async def set_genre(code: str, request: Request, user: AuthUser = Depends(requir
     genre = data.get('genre')
     if not genre:
         return XSSSafeJSONResponse(content={'error': 'Genre required'}, status_code=400)
-    new_list = get_provider().fetch_deck(genre)
-    with get_db_closing() as conn:
-        conn.execute('UPDATE rooms SET movie_data = ?, deck_position = ?, current_genre = ? WHERE pairing_code = ?',
-                     (json.dumps(new_list), json.dumps({}), genre, code))
-    return new_list
+    return await room_lifecycle_service.set_genre(code, genre, get_provider(), uow)
 
 
 @rooms_router.get('/room/{code}/status')
-def room_status(code: str, request: Request, user: AuthUser = Depends(require_auth)):
+async def room_status(code: str, _request: Request, uow: DBUoW, _user: AuthUser = Depends(require_auth)):
     """Get the current status of the room."""
-    with get_db_closing() as conn:
-        room = conn.execute('SELECT ready, current_genre, solo_mode, last_match_data FROM rooms WHERE pairing_code = ?', (code,)).fetchone()
-        if room:
-            last_match = json.loads(room['last_match_data']) if room['last_match_data'] else None
-            return {'ready': bool(room['ready']), 'genre': room['current_genre'], 'solo': bool(room['solo_mode']), 'last_match': last_match}
-        return {'ready': False}
+    return await room_lifecycle_service.get_status(code, uow)
 
 
 @rooms_router.get('/room/{code}/stream')
