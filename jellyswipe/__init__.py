@@ -19,6 +19,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from jellyswipe.db_runtime import dispose_runtime, set_runtime_database_url_override
+
 # App root for static/template paths
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -94,20 +96,13 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    import jellyswipe.db
-    # Only set DB_PATH if it hasn't been set yet (e.g., by test_config)
-    if jellyswipe.db.DB_PATH is None:
-        jellyswipe.db.DB_PATH = DB_PATH
-    from .db import prepare_runtime_database
-    prepare_runtime_database()
     _logger.info("jellyswipe_startup")
     yield
-    # Teardown
     global _provider_singleton
     _provider_singleton = None
     import jellyswipe.config as _config
     _config._provider_singleton = None
+    await dispose_runtime()
     _logger.info("jellyswipe_shutdown")
 
 
@@ -156,9 +151,15 @@ def create_app(test_config=None):
 
     # Test config override
     if test_config:
+        if 'DATABASE_URL' in test_config:
+            set_runtime_database_url_override(test_config['DATABASE_URL'])
+        else:
+            set_runtime_database_url_override(None)
         if 'DB_PATH' in test_config:
             import jellyswipe.db
             jellyswipe.db.DB_PATH = test_config['DB_PATH']
+    else:
+        set_runtime_database_url_override(None)
 
     # Static files mount (prevents path traversal vulnerabilities)
     app.mount('/static', StaticFiles(directory=os.path.join(_APP_ROOT, 'static')), name='static')

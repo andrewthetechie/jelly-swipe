@@ -34,4 +34,4 @@ RUN mkdir -p /app/data
 
 EXPOSE 5005
 
-CMD ["/app/.venv/bin/uvicorn", "jellyswipe:app", "--host", "0.0.0.0", "--port", "5005"]
+CMD ["/app/.venv/bin/python", "-m", "jellyswipe.bootstrap"]

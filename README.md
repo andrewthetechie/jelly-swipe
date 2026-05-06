@@ -171,12 +171,12 @@ This creates a virtual environment in `.venv/` and installs all dependencies fro
 
 **Development server (auto-reload):**
 ```bash
-uv run python -m jellyswipe
+uv run python -m jellyswipe.bootstrap
 ```
 
 **Production-style server (for testing):**
 ```bash
-uv run gunicorn -b 0.0.0.0:5005 -k gevent --worker-connections 1000 jellyswipe:app
+uv run python -m jellyswipe.bootstrap
 ```
 
 ### Managing dependencies
@@ -195,7 +195,7 @@ Commit both `pyproject.toml` and `uv.lock` when adding or updating dependencies.
 
 ### Notes
 
-- The app is installed as a package (`jellyswipe/` layout), not a script. Run it via `uv run python -m jellyswipe` or `uv run gunicorn jellyswipe:app`.
+- The app is installed as a package (`jellyswipe/` layout), not a script. Run it via `uv run python -m jellyswipe.bootstrap`.
 - All production deployment uses Docker (see Deployment section above). Local dev uses uv for fast iteration.
 - Distribution is Docker-only (Docker Hub and GHCR). There is no PyPI package to install via pip.
 
