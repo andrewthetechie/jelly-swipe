@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -13,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import jellyswipe.auth
 import jellyswipe.db
 import jellyswipe.dependencies as deps
+from jellyswipe.auth_types import AuthRecord
 from jellyswipe.db_runtime import dispose_runtime, get_sessionmaker, initialize_runtime
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import (
@@ -91,52 +93,65 @@ def _begin_immediate_insert(sync_session, value: str) -> None:
 # TestRequireAuth
 # ---------------------------------------------------------------------------
 
+@pytest.mark.anyio
 class TestRequireAuth:
     """Tests for require_auth() dependency."""
 
-    def test_returns_auth_user_for_valid_session(self, db_path, monkeypatch):
-        """Valid session in vault → returns AuthUser with correct fields."""
-        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        upgrade_to_head(build_sqlite_url(db_path))
+    async def test_returns_auth_user_for_valid_session(self, runtime_sessionmaker):
+        """Valid persisted session returns AuthUser from the auth service record."""
+        record = AuthRecord(
+            session_id="valid-session",
+            jf_token="test-token",
+            user_id="test-user",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
 
-        sid = jellyswipe.auth.create_session("test-token", "test-user", {})
+        async with runtime_sessionmaker() as session:
+            await DatabaseUnitOfWork(session).auth_sessions.insert(record)
+            await session.commit()
 
-        request = MagicMock(spec=Request)
-        request.session = {"session_id": sid}
-
-        auth_user = require_auth(request)
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            request = MagicMock(spec=Request)
+            request.session = {"session_id": record.session_id}
+            auth_user = await require_auth(request, uow)
 
         assert isinstance(auth_user, AuthUser)
         assert auth_user.jf_token == "test-token"
         assert auth_user.user_id == "test-user"
 
-    def test_raises_401_for_empty_session(self, db_path, monkeypatch):
+    async def test_raises_401_for_empty_session(self, runtime_sessionmaker):
         """Empty session → raises HTTPException(401)."""
-        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        upgrade_to_head(build_sqlite_url(db_path))
-
         request = MagicMock(spec=Request)
         request.session = {}
 
-        with pytest.raises(HTTPException) as exc_info:
-            require_auth(request)
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            with pytest.raises(HTTPException) as exc_info:
+                await require_auth(request, uow)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Authentication required"
 
-    def test_raises_401_when_session_id_not_in_vault(self, db_path, monkeypatch):
-        """Session with invalid session_id → raises HTTPException(401)."""
-        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        upgrade_to_head(build_sqlite_url(db_path))
-
+    async def test_raises_401_and_clears_stale_session_when_session_id_not_in_vault(
+        self, runtime_sessionmaker
+    ):
+        """Stale persisted session miss raises the same 401 and clears local state."""
         request = MagicMock(spec=Request)
-        request.session = {"session_id": "nonexistent-session-id"}
+        request.session = {
+            "session_id": "nonexistent-session-id",
+            "active_room": "ROOM1",
+            "solo_mode": True,
+        }
 
-        with pytest.raises(HTTPException) as exc_info:
-            require_auth(request)
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            with pytest.raises(HTTPException) as exc_info:
+                await require_auth(request, uow)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Authentication required"
+        assert request.session == {}
 
 
 # ---------------------------------------------------------------------------
@@ -267,24 +282,18 @@ class TestCheckRateLimit:
 class TestDestroySessionDep:
     """Tests for destroy_session_dep() dependency."""
 
-    def test_calls_auth_destroy_session(self, db_path, monkeypatch):
-        """destroy_session_dep delegates to auth.destroy_session(request.session)."""
-        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-        upgrade_to_head(build_sqlite_url(db_path))
+    @pytest.mark.anyio
+    async def test_calls_auth_destroy_session(self, runtime_sessionmaker):
+        """destroy_session_dep awaits auth.destroy_session(request.session, uow)."""
+        request = MagicMock(spec=Request)
+        request.session = {"session_id": "destroy-session"}
 
-        with patch("jellyswipe.auth.destroy_session") as mock_destroy:
-            app = FastAPI()
-            app.add_middleware(SessionMiddleware, secret_key="test-secret-key")
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            with patch("jellyswipe.auth.destroy_session", new=AsyncMock()) as mock_destroy:
+                await destroy_session_dep(request, uow)
 
-            @app.post("/test-destroy-session")
-            def destroy_route(request: Request):
-                destroy_session_dep(request)
-                return {"destroyed": True}
-
-            client = TestClient(app)
-            resp = client.post("/test-destroy-session")
-            assert resp.status_code == 200
-            mock_destroy.assert_called_once()
+        mock_destroy.assert_awaited_once_with(request.session, uow)
 
 
 # ---------------------------------------------------------------------------
