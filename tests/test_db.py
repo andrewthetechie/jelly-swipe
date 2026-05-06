@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import sqlite3
+
+import pytest
 
 import jellyswipe.db
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
@@ -141,3 +145,76 @@ class TestRuntimeHelpersStillAvailable:
         assert hasattr(jellyswipe.db, "get_db_closing")
         assert hasattr(jellyswipe.db, "prepare_runtime_database")
         assert hasattr(jellyswipe.db, "cleanup_expired_auth_sessions")
+        assert inspect.iscoroutinefunction(jellyswipe.db.prepare_runtime_database_async)
+        assert inspect.iscoroutinefunction(jellyswipe.db.cleanup_orphan_swipes_async)
+        assert inspect.iscoroutinefunction(jellyswipe.db.cleanup_expired_auth_sessions_async)
+
+    def test_db_module_routes_orphan_cleanup_through_async_source_of_truth(self):
+        source = inspect.getsource(jellyswipe.db)
+        assert "DELETE FROM swipes" not in source
+
+    def test_prepare_runtime_database_preserves_migrated_tables(self, db_path, monkeypatch):
+        upgrade_to_head(build_sqlite_url(db_path))
+        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("INSERT INTO rooms (pairing_code) VALUES (?)", ("ROOM1",))
+            conn.execute(
+                "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+                ("sid-expired", "token", "user-1", "2000-01-01T00:00:00+00:00"),
+            )
+            conn.execute(
+                "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
+                ("MISSING", "movie-1", "user-1", "right", "sid-expired"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        jellyswipe.db.prepare_runtime_database()
+
+        conn = sqlite3.connect(db_path)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert {"rooms", "swipes", "matches", "auth_sessions"} <= tables
+            assert conn.execute("SELECT COUNT(*) FROM swipes").fetchone()[0] == 0
+            assert conn.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    @pytest.mark.anyio
+    async def test_cleanup_expired_auth_sessions_stays_sync_safe_in_async_context(
+        self, db_path, monkeypatch
+    ):
+        upgrade_to_head(build_sqlite_url(db_path))
+        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+                ("sid-expired", "token", "user-1", "2000-01-01T00:00:00+00:00"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        def fail_asyncio_run(*args, **kwargs):
+            raise AssertionError("cleanup_expired_auth_sessions must stay sync-safe")
+
+        monkeypatch.setattr(asyncio, "run", fail_asyncio_run)
+
+        jellyswipe.db.cleanup_expired_auth_sessions()
+
+        conn = sqlite3.connect(db_path)
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
+            assert count == 0
+        finally:
+            conn.close()
