@@ -8,16 +8,16 @@
 
 ### Migrations
 
-- [ ] **MIG-01**: The app can create a fresh SQLite database by running Alembic migrations to head.
-- [ ] **MIG-02**: Alembic owns all schema changes that are currently embedded in `init_db()`, including rooms, swipes, matches, user_tokens, metadata columns, cursor fields, and constraints.
-- [ ] **MIG-03**: Alembic autogenerate is configured against the SQLAlchemy declarative metadata without importing the FastAPI app root or requiring Jellyfin/TMDB runtime configuration.
+- [x] **MIG-01**: The app can create a fresh SQLite database by running Alembic migrations to head.
+- [x] **MIG-02**: Alembic owns all schema changes that are currently embedded in `init_db()`, including rooms, swipes, matches, user_tokens, metadata columns, cursor fields, and constraints.
+- [x] **MIG-03**: Alembic autogenerate is configured against the SQLAlchemy declarative metadata without importing the FastAPI app root or requiring Jellyfin/TMDB runtime configuration.
 - [ ] **MIG-04**: FastAPI startup runs a controlled migration path instead of ad hoc table creation.
 
 ### Schema
 
-- [ ] **SCH-01**: SQLAlchemy declarative models represent every persisted table used by Jelly Swipe.
-- [ ] **SCH-02**: Model definitions preserve current column names, defaults, nullable behavior, primary keys, and unique constraints needed by existing behavior.
-- [ ] **SCH-03**: SQLModel is not introduced anywhere in the project.
+- [x] **SCH-01**: SQLAlchemy declarative models represent every persisted table used by Jelly Swipe.
+- [x] **SCH-02**: Model definitions preserve current column names, defaults, nullable behavior, primary keys, and unique constraints needed by existing behavior.
+- [x] **SCH-03**: SQLModel is not introduced anywhere in the project.
 
 ### Async Database Access
 
@@ -74,13 +74,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MIG-01 | Phase 36 | Pending |
-| MIG-02 | Phase 36 | Pending |
-| MIG-03 | Phase 36 | Pending |
+| MIG-01 | Phase 36 | Complete |
+| MIG-02 | Phase 36 | Complete |
+| MIG-03 | Phase 36 | Complete |
 | MIG-04 | Phase 37 | Pending |
-| SCH-01 | Phase 36 | Pending |
-| SCH-02 | Phase 36 | Pending |
-| SCH-03 | Phase 36 | Pending |
+| SCH-01 | Phase 36 | Complete |
+| SCH-02 | Phase 36 | Complete |
+| SCH-03 | Phase 36 | Complete |
 | ADB-01 | Phase 37 | Pending |
 | ADB-02 | Phase 37 | Pending |
 | ADB-03 | Phase 40 | Pending |

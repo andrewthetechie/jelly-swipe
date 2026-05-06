@@ -29,7 +29,7 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 
 ### v2.1 Alembic + Async SQLAlchemy Persistence
 
-- [ ] **Phase 36: Alembic Baseline and SQLAlchemy Models** — Introduce SQLAlchemy declarative schema and Alembic migration baseline without app import side effects.
+- [x] **Phase 36: Alembic Baseline and SQLAlchemy Models** — Introduce SQLAlchemy declarative schema and Alembic migration baseline without app import side effects. (completed 2026-05-06)
 - [ ] **Phase 37: Async Database Infrastructure** — Add async engine/sessionmaker, FastAPI DB dependency, migration runner, and Alembic-backed test setup.
 - [ ] **Phase 38: Auth Persistence Conversion** — Convert token vault CRUD and auth dependency behavior to async SQLAlchemy behind persistence boundaries.
 - [ ] **Phase 39: Room, Swipe, Match, and SSE Persistence Conversion** — Convert core room/session persistence to async SQLAlchemy while preserving transaction and stream behavior.
