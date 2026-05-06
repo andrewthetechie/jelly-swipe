@@ -111,6 +111,21 @@ Plans:
 
 **Depends on:** Phase 38
 
+**Plans:** 4 plans
+
+Plans:
+**Wave 1**
+- [ ] 39-01-PLAN.md — Create the room-domain repository/type-contract foundation and register it on the async UoW.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 39-02-PLAN.md — Migrate non-swipe room lifecycle routes onto a dedicated room-lifecycle service while preserving solo/multiplayer parity.
+
+**Wave 3** *(blocked on Waves 1-2 completion)*
+- [ ] 39-03-PLAN.md — Move swipe, undo, and match-delete behavior behind a dedicated swipe/match service while preserving `BEGIN IMMEDIATE` semantics.
+
+**Wave 4** *(blocked on Waves 1-3 completion)*
+- [ ] 39-04-PLAN.md — Convert SSE room polling to short-lived async SQLAlchemy sessions without changing stream behavior.
+
 **Success Criteria:**
 
 1. Room creation, solo room creation, join, quit, genre, deck, status, undo, delete, and match history delegate persistence to async domain functions.
