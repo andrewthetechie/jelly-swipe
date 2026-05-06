@@ -402,15 +402,15 @@ This ordering satisfies D-07 and D-14 because local session state clears first a
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | Reusing `jellyswipe/auth.py` as the thin auth service is lower-risk than introducing a new `services/` package in this phase. [ASSUMED] | Summary; Standard Stack; Architecture Patterns | Low. The planner may choose a new file layout, but broader file churn could slow the phase without changing behavior. |
-| A2 | Phase 38 should leave the `/me` room-existence check on its current path unless the planner decides it is required to satisfy the auth invalid-session contract. [ASSUMED] | Summary | Medium. If the user interprets MVC-01 as banning all route-level DB access in auth routes immediately, Phase 38 may need one extra room lookup conversion. |
+| A2 | Phase 38 should move the `/me` room-existence check off direct route-level DB access and behind the auth service seam, while still avoiding broader room persistence migration in this phase. [RESOLVED] | Summary | Low. This keeps auth-route purity aligned with D-04 without widening Phase 38 into general room persistence conversion. |
 | A3 | Existing tests do not yet prove stale-session clearing of non-auth keys or best-effort delete failure logging, so the planner should add those assertions. [ASSUMED] | Validation Architecture; Common Pitfalls | Medium. If hidden tests already cover this, Wave 0 can be smaller than recommended. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should Phase 38 also convert the `/me` room-existence lookup to async SQLAlchemy?**
-   - What we know: `/me` currently does a sync `SELECT 1 FROM rooms` via `get_db_closing()`, but the phase goal and user decisions focus on auth vault persistence, not room persistence. [VERIFIED: jellyswipe/routers/auth.py][VERIFIED: .planning/phases/38-auth-persistence-conversion/38-CONTEXT.md]
-   - What's unclear: Whether the planner should treat that one room lookup as acceptable Phase 39 work or fold it into this phase for stricter auth-route purity. [ASSUMED]
-   - Recommendation: Keep Phase 38 focused on vault persistence unless implementation simplicity strongly favors converting the `/me` room check at the same time. [ASSUMED]
+   - Resolution: Yes, Phase 38 must remove the direct route-level DB access from `/me` so auth routes speak only through the auth service seam required by D-04. [RESOLVED]
+   - Scope guard: This does **not** require broader room persistence migration in Phase 38. The phase may keep the room-existence check as a narrow compatibility helper behind the auth service or UoW seam, provided the route itself no longer talks to `jellyswipe.db` or other direct DB helpers. [RESOLVED]
+   - Planning impact: Plan 38-02 should move `/me` off `get_db_closing()` in the route layer, preserve the exact visible response contract, and avoid pulling room/swipe/match/SSE repository work into this phase. [RESOLVED]
 
 ## Environment Availability
 
