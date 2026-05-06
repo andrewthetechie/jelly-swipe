@@ -11,7 +11,7 @@
 - [x] **MIG-01**: The app can create a fresh SQLite database by running Alembic migrations to head.
 - [x] **MIG-02**: Alembic owns all schema changes that are currently embedded in `init_db()`, including rooms, swipes, matches, user_tokens, metadata columns, cursor fields, and constraints.
 - [x] **MIG-03**: Alembic autogenerate is configured against the SQLAlchemy declarative metadata without importing the FastAPI app root or requiring Jellyfin/TMDB runtime configuration.
-- [ ] **MIG-04**: FastAPI startup runs a controlled migration path instead of ad hoc table creation.
+- [x] **MIG-04**: FastAPI startup runs a controlled migration path instead of ad hoc table creation.
 
 ### Schema
 
@@ -21,10 +21,10 @@
 
 ### Async Database Access
 
-- [ ] **ADB-01**: The database module exposes async SQLAlchemy engine and sessionmaker setup for the configured SQLite database path.
-- [ ] **ADB-02**: FastAPI dependency injection provides request-scoped `AsyncSession` access through the existing dependency layer.
+- [x] **ADB-01**: The database module exposes async SQLAlchemy engine and sessionmaker setup for the configured SQLite database path.
+- [x] **ADB-02**: FastAPI dependency injection provides request-scoped `AsyncSession` access through the existing dependency layer.
 - [ ] **ADB-03**: Application database interactions use async SQLAlchemy APIs rather than direct `sqlite3` connections.
-- [ ] **ADB-04**: Async session lifecycle avoids shared global sessions and closes sessions cleanly after each request or unit of work.
+- [x] **ADB-04**: Async session lifecycle avoids shared global sessions and closes sessions cleanly after each request or unit of work.
 
 ### MVC Persistence Boundaries
 
@@ -43,7 +43,7 @@
 
 ### Validation
 
-- [ ] **VAL-01**: Tests create temporary databases through the Alembic upgrade path instead of `init_db()` table creation.
+- [x] **VAL-01**: Tests create temporary databases through the Alembic upgrade path instead of `init_db()` table creation.
 - [ ] **VAL-02**: Migration tests prove an empty database reaches the current schema and an already-current database remains upgrade-safe.
 - [ ] **VAL-03**: Existing DB, auth, room, route, SSE, and security tests pass after the migration.
 - [ ] **VAL-04**: A final source scan finds no application-layer `sqlite3` database usage, no table-creating `init_db()` path, and no SQLModel dependency.
@@ -77,14 +77,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MIG-01 | Phase 36 | Complete |
 | MIG-02 | Phase 36 | Complete |
 | MIG-03 | Phase 36 | Complete |
-| MIG-04 | Phase 37 | Pending |
+| MIG-04 | Phase 37 | Complete |
 | SCH-01 | Phase 36 | Complete |
 | SCH-02 | Phase 36 | Complete |
 | SCH-03 | Phase 36 | Complete |
-| ADB-01 | Phase 37 | Pending |
-| ADB-02 | Phase 37 | Pending |
+| ADB-01 | Phase 37 | Complete |
+| ADB-02 | Phase 37 | Complete |
 | ADB-03 | Phase 40 | Pending |
-| ADB-04 | Phase 37 | Pending |
+| ADB-04 | Phase 37 | Complete |
 | MVC-01 | Phase 38 | Pending |
 | MVC-02 | Phase 39 | Pending |
 | MVC-03 | Phase 39 | Pending |
@@ -94,7 +94,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAR-03 | Phase 39 | Pending |
 | PAR-04 | Phase 39 | Pending |
 | PAR-05 | Phase 39 | Pending |
-| VAL-01 | Phase 37 | Pending |
+| VAL-01 | Phase 37 | Complete |
 | VAL-02 | Phase 40 | Pending |
 | VAL-03 | Phase 40 | Pending |
 | VAL-04 | Phase 40 | Pending |

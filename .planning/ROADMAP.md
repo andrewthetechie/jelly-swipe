@@ -30,7 +30,7 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 ### v2.1 Alembic + Async SQLAlchemy Persistence
 
 - [x] **Phase 36: Alembic Baseline and SQLAlchemy Models** — Introduce SQLAlchemy declarative schema and Alembic migration baseline without app import side effects. (completed 2026-05-06)
-- [ ] **Phase 37: Async Database Infrastructure** — Add async engine/sessionmaker, FastAPI DB dependency, migration runner, and Alembic-backed test setup.
+- [x] **Phase 37: Async Database Infrastructure** — Add async engine/sessionmaker, FastAPI DB dependency, migration runner, and Alembic-backed test setup. (completed 2026-05-06)
 - [ ] **Phase 38: Auth Persistence Conversion** — Convert token vault CRUD and auth dependency behavior to async SQLAlchemy behind persistence boundaries.
 - [ ] **Phase 39: Room, Swipe, Match, and SSE Persistence Conversion** — Convert core room/session persistence to async SQLAlchemy while preserving transaction and stream behavior.
 - [ ] **Phase 40: Full Migration Validation and Sync DB Removal** — Prove migration parity, remove old sync DB paths, and verify the full suite.
@@ -60,17 +60,17 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 
 **Depends on:** Phase 36
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1**
-- [ ] 37-01-PLAN.md — Add the async engine/sessionmaker runtime and replace `DBConn` with a unit-of-work dependency seam.
+- [x] 37-01-PLAN.md — Add the async engine/sessionmaker runtime and replace `DBConn` with a unit-of-work dependency seam.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 37-02-PLAN.md — Move startup to a migration-first bootstrap wrapper and shift runtime maintenance onto the async path.
+- [x] 37-02-PLAN.md — Move startup to a migration-first bootstrap wrapper and shift runtime maintenance onto the async path.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 37-03-PLAN.md — Rewire pytest fixtures and low-level auth tests to the Alembic + async runtime bootstrap flow.
+- [x] 37-03-PLAN.md — Rewire pytest fixtures and low-level auth tests to the Alembic + async runtime bootstrap flow.
 
 **Success Criteria:**
 
