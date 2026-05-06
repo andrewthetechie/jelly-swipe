@@ -336,17 +336,15 @@ Source: Alembic command docs. [CITED: https://alembic.sqlalchemy.org/en/latest/a
 | A1 | No repo-external service manager or deployment script is hiding an alternate startup command outside the checked-in Dockerfile/README. [ASSUMED] | Runtime State Inventory / Common Pitfalls | Planner could miss a non-git entrypoint that also needs the new bootstrap wrapper. |
 | A2 | `asgi-lifespan` is not required for this phase if route-level async tests remain mostly `TestClient`-based and async tests focus on low-level runtime/session helpers. [ASSUMED] | Standard Stack / Validation Architecture | If the planner chooses full async HTTPX app tests with lifespan handling, one more test helper dependency may be needed. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How much of auth cleanup belongs in Phase 37 versus Phase 38?**
    - What we know: Phase 37 locks runtime maintenance functions into the async path, while Phase 38 converts auth token CRUD semantics. [VERIFIED: `.planning/phases/37-async-database-infrastructure/37-CONTEXT.md`] [VERIFIED: `.planning/ROADMAP.md`]
-   - What's unclear: Whether `cleanup_expired_auth_sessions()` should move now as infrastructure while `create_session()` / `get_current_token()` / `destroy_session()` remain sync until Phase 38. [VERIFIED: codebase grep]
-   - Recommendation: Treat cleanup helpers as Phase 37 infrastructure and leave auth vault CRUD conversion to Phase 38. [VERIFIED: `.planning/ROADMAP.md`] [ASSUMED]
+   - Resolution: `cleanup_expired_auth_sessions()` moves in Phase 37 as runtime infrastructure, while `create_session()` / `get_current_token()` / `destroy_session()` remain on the legacy path until Phase 38 converts auth persistence end to end. [VERIFIED: `.planning/ROADMAP.md`] [VERIFIED: `.planning/phases/37-async-database-infrastructure/37-CONTEXT.md`]
 
 2. **Which startup command becomes canonical for local dev and container runtime?**
    - What we know: Docker starts direct Uvicorn now, and the README still contains old direct app commands. [VERIFIED: codebase grep]
-   - What's unclear: Whether the project wants a Python module wrapper, a small shell wrapper, or a console-script entrypoint. [VERIFIED: codebase grep]
-   - Recommendation: Pick one Python module entrypoint (`python -m jellyswipe.bootstrap`) and make Docker/docs/tests all use it. [ASSUMED]
+   - Resolution: adopt one Python module bootstrap entrypoint, `python -m jellyswipe.bootstrap`, and make Docker plus local startup documentation point to that wrapper so Alembic runs before the ASGI server starts. [VERIFIED: codebase grep] [ASSUMED]
 
 ## Environment Availability
 
@@ -379,10 +377,10 @@ Source: Alembic command docs. [CITED: https://alembic.sqlalchemy.org/en/latest/a
 ### Phase Requirements -> Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| MIG-04 | Bootstrap runs Alembic before app serve path and fails fast on migration error. [VERIFIED: `.planning/REQUIREMENTS.md`] | integration | `./.venv/bin/pytest tests/test_bootstrap.py -q` | No - Wave 0 |
-| ADB-01 | Async engine/sessionmaker resolves configured SQLite URL and can open a session. [VERIFIED: `.planning/REQUIREMENTS.md`] | unit | `./.venv/bin/pytest tests/test_db_runtime.py -q` | No - Wave 0 |
+| MIG-04 | Bootstrap runs Alembic before app serve path and fails fast on migration error. [VERIFIED: `.planning/REQUIREMENTS.md`] | integration | `./.venv/bin/pytest tests/test_bootstrap.py -q` | Planned in `37-02` Task `37-02-01` |
+| ADB-01 | Async engine/sessionmaker resolves configured SQLite URL and can open a session. [VERIFIED: `.planning/REQUIREMENTS.md`] | unit | `./.venv/bin/pytest tests/test_db_runtime.py -q` | Planned in `37-01` Task `37-01-01` |
 | ADB-02 | Dependency layer yields UoW/repo object and commits/rolls back correctly. [VERIFIED: `.planning/REQUIREMENTS.md`] | integration | `./.venv/bin/pytest tests/test_dependencies.py -q` | Yes - rewrite/extend existing file |
-| ADB-04 | Session is not shared globally and closes cleanly after each request/unit of work. [VERIFIED: `.planning/REQUIREMENTS.md`] | unit/integration | `./.venv/bin/pytest tests/test_db_runtime.py tests/test_dependencies.py -q` | Partially - new runtime file missing |
+| ADB-04 | Session is not shared globally and closes cleanly after each request/unit of work. [VERIFIED: `.planning/REQUIREMENTS.md`] | unit/integration | `./.venv/bin/pytest tests/test_db_runtime.py tests/test_dependencies.py -q` | Planned across `37-01` runtime + dependency tasks |
 | VAL-01 | Tests provision temp DBs through Alembic, not `init_db()`. [VERIFIED: `.planning/REQUIREMENTS.md`] | integration | `./.venv/bin/pytest tests/test_auth.py tests/test_dependencies.py -q` | Yes - fixtures already use Alembic, but dependency/runtime assertions are still sync-oriented |
 
 ### Sampling Rate
@@ -390,9 +388,9 @@ Source: Alembic command docs. [CITED: https://alembic.sqlalchemy.org/en/latest/a
 - **Per wave merge:** `./.venv/bin/pytest tests/test_auth.py tests/test_dependencies.py tests/test_db.py -q`
 - **Phase gate:** `./.venv/bin/pytest`
 
-### Wave 0 Gaps
-- [ ] `tests/test_bootstrap.py` - prove bootstrap migration success/fail-fast behavior for MIG-04.
-- [ ] `tests/test_db_runtime.py` - prove engine/session factory, shutdown disposal, and no-global-session lifecycle for ADB-01 and ADB-04.
+### Coverage Ownership (ASSIGNED)
+- [ ] `tests/test_bootstrap.py` - created in Plan `37-02` Task `37-02-01` to prove bootstrap migration success/fail-fast behavior for MIG-04.
+- [ ] `tests/test_db_runtime.py` - created in Plan `37-01` Task `37-01-01` to prove engine/session factory, shutdown disposal, and no-global-session lifecycle for ADB-01 and ADB-04.
 - [ ] Rewrite `tests/test_dependencies.py` around async UoW behavior instead of `sqlite3.Connection`.
 - [ ] Rewrite low-level callers in `tests/test_auth.py` that still assume sync-only DB helpers as the main verification surface.
 

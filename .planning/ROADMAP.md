@@ -63,8 +63,13 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 **Plans:** 3 plans
 
 Plans:
+**Wave 1**
 - [ ] 37-01-PLAN.md — Add the async engine/sessionmaker runtime and replace `DBConn` with a unit-of-work dependency seam.
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 37-02-PLAN.md — Move startup to a migration-first bootstrap wrapper and shift runtime maintenance onto the async path.
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 37-03-PLAN.md — Rewire pytest fixtures and low-level auth tests to the Alembic + async runtime bootstrap flow.
 
 **Success Criteria:**
