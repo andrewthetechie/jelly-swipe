@@ -1,6 +1,7 @@
+import asyncio
+import json
 import os
 import secrets
-import json
 from base64 import b64encode
 from unittest.mock import MagicMock, patch
 
@@ -8,6 +9,7 @@ import pytest
 import itsdangerous
 from fastapi.testclient import TestClient
 
+from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, initialize_runtime
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 # Set required environment variables at module level to satisfy jellyswipe/__init__.py
@@ -113,6 +115,32 @@ def db_path(tmp_path):
     yield str(db_file)
 
 
+def _bootstrap_temp_db_runtime(db_path, monkeypatch):
+    """Provision one temp database through Alembic plus the async runtime path."""
+    import jellyswipe.db
+
+    sync_database_url = build_sqlite_url(db_path)
+    runtime_database_url = build_async_sqlite_url(db_path)
+
+    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.setenv("DATABASE_URL", sync_database_url)
+
+    upgrade_to_head(sync_database_url)
+    asyncio.run(initialize_runtime(runtime_database_url))
+
+    return {
+        "db_path": db_path,
+        "sync_database_url": sync_database_url,
+        "runtime_database_url": runtime_database_url,
+    }
+
+
+def _dispose_test_runtime() -> None:
+    """Tear down the shared async runtime from sync pytest fixtures."""
+    asyncio.run(dispose_runtime())
+
+
 @pytest.fixture
 def db_connection(db_path, monkeypatch):
     """
@@ -131,11 +159,7 @@ def db_connection(db_path, monkeypatch):
     """
     import jellyswipe.db
 
-    # Patch the global DB_PATH to use the temporary database file
-    monkeypatch.setattr(jellyswipe.db, 'DB_PATH', db_path)
-
-    # Initialize the database schema through Alembic
-    upgrade_to_head(build_sqlite_url(db_path))
+    _bootstrap_temp_db_runtime(db_path, monkeypatch)
 
     # Get a database connection and yield it to the test
     conn = jellyswipe.db.get_db()
@@ -144,6 +168,7 @@ def db_connection(db_path, monkeypatch):
     finally:
         # Ensure the connection is closed after the test
         conn.close()
+        _dispose_test_runtime()
 
 
 class FakeProvider:
@@ -206,7 +231,7 @@ class FakeProvider:
 
 
 @pytest.fixture
-def app(tmp_path, monkeypatch):
+def app(db_path, monkeypatch):
     """Create a fresh FastAPI app instance for route testing.
 
     Each test gets its own isolated app with:
@@ -227,11 +252,10 @@ def app(tmp_path, monkeypatch):
     app_config._provider_singleton = fake_provider
     app_module._provider_singleton = fake_provider
 
-    db_file = str(tmp_path / "test_route.db")
-    monkeypatch.setattr("jellyswipe.db.DB_PATH", db_file)
-    upgrade_to_head(build_sqlite_url(db_file))
+    bootstrap = _bootstrap_temp_db_runtime(db_path, monkeypatch)
     test_config = {
-        "DB_PATH": db_file,
+        "DATABASE_URL": bootstrap["sync_database_url"],
+        "DB_PATH": bootstrap["db_path"],
         "TESTING": True,
         "SECRET_KEY": os.environ["FLASK_SECRET"],
     }
@@ -251,6 +275,9 @@ def app(tmp_path, monkeypatch):
 
     yield fast_app
 
+    # Dispose the cached runtime before clearing test singletons so the next
+    # temp database cannot inherit the previous engine/sessionmaker binding.
+    _dispose_test_runtime()
     fast_app.dependency_overrides.clear()   # CRITICAL: prevents override state leakage
     # Clear provider singleton on teardown
     app_config._provider_singleton = None
@@ -282,10 +309,7 @@ def app_real_auth(db_path, monkeypatch):
     from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
     import jellyswipe as app_module
-    # Initialize database schema
-    import jellyswipe.db
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
-    upgrade_to_head(build_sqlite_url(db_path))
+    bootstrap = _bootstrap_temp_db_runtime(db_path, monkeypatch)
 
     # Set provider singleton BEFORE creating app (fixes Plan 03 bug)
     fake_provider = FakeProvider()
@@ -294,7 +318,8 @@ def app_real_auth(db_path, monkeypatch):
     app_module._provider_singleton = fake_provider
 
     test_config = {
-        "DB_PATH": db_path,
+        "DATABASE_URL": bootstrap["sync_database_url"],
+        "DB_PATH": bootstrap["db_path"],
         "TESTING": True,
         "SECRET_KEY": os.environ["FLASK_SECRET"],
     }
@@ -306,6 +331,9 @@ def app_real_auth(db_path, monkeypatch):
     _rl.reset()
 
     yield fast_app
+    # Dispose the cached runtime before clearing overrides/singletons so a
+    # later fixture can rebind cleanly to another temp SQLite database.
+    _dispose_test_runtime()
     fast_app.dependency_overrides.clear()
     # Clear provider singleton on teardown (reuse app_module from above, line 287)
     app_config._provider_singleton = None
