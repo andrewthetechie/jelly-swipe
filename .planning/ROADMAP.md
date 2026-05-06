@@ -87,6 +87,15 @@ Plans:
 
 **Depends on:** Phase 37
 
+**Plans:** 2 plans
+
+Plans:
+**Wave 1**
+- [ ] 38-01-PLAN.md — Convert auth vault CRUD and `require_auth` semantics onto the async repository/service and UoW seam.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 38-02-PLAN.md — Rewire the auth router to the async auth service and prove stale-session/logout route parity.
+
 **Success Criteria:**
 
 1. `create_session`, `get_current_token`, `destroy_session`, and token cleanup use async SQLAlchemy persistence.
