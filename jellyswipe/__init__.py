@@ -12,7 +12,7 @@ import time
 import typing
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -121,6 +121,17 @@ def create_app(test_config=None):
         lifespan=lifespan,
         default_response_class=XSSSafeJSONResponse,
     )
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        response = XSSSafeJSONResponse(
+            content={"detail": exc.detail},
+            status_code=exc.status_code,
+            headers=exc.headers,
+        )
+        if getattr(request.state, "clear_session_cookie", False):
+            response.delete_cookie("session", path="/")
+        return response
 
     # Middleware stack — add in LIFO order (last added = outermost):
     # 1. RequestIdMiddleware (innermost — sees request after session decoded)

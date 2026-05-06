@@ -96,6 +96,7 @@ async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
 
     if prior_session_id is not None:
         auth.clear_session_state(request.session)
+        request.state.clear_session_cookie = True
 
     raise HTTPException(status_code=401, detail="Authentication required")
 

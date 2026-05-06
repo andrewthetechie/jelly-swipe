@@ -7,7 +7,7 @@ Uses dependency injection for authentication (require_auth) and rate limiting.
 import logging
 import traceback
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Response
 from jellyswipe import XSSSafeJSONResponse
 
 from jellyswipe.dependencies import (
@@ -95,9 +95,15 @@ async def jellyfin_login(request: Request, uow: DBUoW):
 
 
 @auth_router.post('/auth/logout')
-async def logout(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
+async def logout(
+    request: Request,
+    response: Response,
+    uow: DBUoW,
+    user: AuthUser = Depends(require_auth),
+):
     """Destroy the current user session."""
     await destroy_session(request.session, uow)
+    response.delete_cookie("session", path="/")
     return {'status': 'logged_out'}
 
 

@@ -33,7 +33,9 @@ def set_session_cookie(client, data: dict, secret_key: str) -> None:
     signer = itsdangerous.TimestampSigner(str(secret_key))
     payload = b64encode(json.dumps(data).encode("utf-8"))
     signed = signer.sign(payload)
-    client.cookies.set("session", signed.decode("utf-8"))
+    host = getattr(client.base_url, "host", "")
+    domain = f"{host}.local" if host and "." not in host else host
+    client.cookies.set("session", signed.decode("utf-8"), domain=domain, path="/")
 
 
 @pytest.fixture(scope="session", autouse=True)
