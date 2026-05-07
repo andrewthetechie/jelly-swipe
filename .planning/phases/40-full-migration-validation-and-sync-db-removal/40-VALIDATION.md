@@ -39,7 +39,7 @@ created: 2026-05-07
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| *Planned* | 01 | 1 | VAL-02 | T-40-01 | Migration commands do not mutate operator data paths unexpectedly. | integration | `uv run pytest tests/test_migrations*.py -q` *(planner names file)* | ❌ W0 | ⬜ pending |
+| T-40-01-mig | 01 | 1 | VAL-02 | T-40-01 | Migration commands do not mutate operator data paths unexpectedly. | integration | `uv run pytest tests/test_migrations.py -q` | `tests/test_migrations.py` | ✅ green |
 | *Planned* | 02 | 2 | ADB-03, VAL-03 | T-40-02 | No runtime route regresses auth/room/SSE contracts when sync DB helpers go away. | route + unit | `uv run pytest` *(subset then full)* | ✅ | ⬜ pending |
 | *Planned* | 03 | 3 | VAL-04 | T-40-03 | Scans only flag true app-layer violations under `jellyswipe/`. | script / grep | `uv run pytest` + VAL-04 script *(plan defines)* | ✅ | ⬜ pending |
 | *Planned* | 04 | 4 | ADB-03..VAL-04 | — | Planning sign-off + REQ checkboxes + deferred work recorded. | docs | Manual review + checklist in this file | ✅ | ⬜ pending |
