@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -15,6 +16,13 @@ if config.config_file_name is not None:
 
 
 def _resolve_url() -> str:
+    """Prefer explicit env overrides for subprocess parity tests (VAL-02).
+
+    Without ``DATABASE_URL`` / ``DB_PATH``, keep ``alembic.ini`` authoritative so
+    normal operator runs match historical behavior.
+    """
+    if os.environ.get("DATABASE_URL") or os.environ.get("DB_PATH"):
+        return get_database_url()
     configured = config.get_main_option("sqlalchemy.url")
     if configured:
         return configured
