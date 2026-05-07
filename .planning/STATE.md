@@ -4,7 +4,7 @@ milestone: v2.1
 milestone_name: Alembic + Async SQLAlchemy Persistence
 status: executing
 last_updated: "2026-05-07T22:03:00.036Z"
-last_activity: 2026-05-06 -- Phase 39 execution started
+last_activity: 2026-05-07 -- Phase 40 context gathered; ready to plan
 progress:
   total_phases: 5
   completed_phases: 4
@@ -16,8 +16,8 @@ progress:
 # State — Jelly Swipe
 
 **Milestone:** v2.1 Alembic + Async SQLAlchemy Persistence
-**Status:** Executing Phase 39
-**Progress:** [██████░░░░] 60%
+**Status:** Phase 40 — context gathered (ready to plan)
+**Progress:** [████████░░] 80% (4/5 v2.1 phases complete on disk; Phase 40 unplanned)
 
 ---
 
@@ -27,16 +27,16 @@ See: `.planning/PROJECT.md` (updated 2026-05-05)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-**Current focus:** Phase 39 — room-swipe-match-and-sse-persistence-conversion
+**Current focus:** Phase 40 — full-migration-validation-and-sync-db-removal
 
 ---
 
 ## Current Position
 
-Phase: 39 (room-swipe-match-and-sse-persistence-conversion) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 39
-Last activity: 2026-05-06 -- Phase 39 execution started
+Phase: 40 (full-migration-validation-and-sync-db-removal) — READY TO PLAN
+Plan: not started (0 of N)
+Status: Phase 39 complete on disk (`39-CONTEXT.md` satisfied); Phase 40 discuss-phase complete (`40-CONTEXT.md`)
+Last activity: 2026-05-07 -- Phase 40 context gathered; ready to plan
 
 ## Performance Metrics
 
@@ -85,4 +85,4 @@ Last activity: 2026-05-06 -- Phase 39 execution started
 - Tests: `tests/`
 
 ---
-*Last updated: 2026-05-06 after Phase 39 context capture*
+*Last updated: 2026-05-07 after Phase 40 discuss-phase resume (checkpoint merged)*
