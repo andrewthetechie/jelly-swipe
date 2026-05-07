@@ -453,11 +453,28 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
-    mock_sleep, _ = _make_sse_sleep_mock()
+    real_start = time.time()
+    exit_after_idle_polls = [False]
+    poll_sleeps = [0]
+
+    def _after_poll_sleep(_delay):
+        # End the stream only *between* full poll iterations so the next time.time()
+        # call is the `while time.time() < deadline` check — not the `elif` that would
+        # treat a fake +3700s jump as "idle for 15s" and emit a spurious ping.
+        poll_sleeps[0] += 1
+        if poll_sleeps[0] >= 40:
+            exit_after_idle_polls[0] = True
+
+    mock_sleep, _sleep_calls = _make_sse_sleep_mock(on_sleep_callback=_after_poll_sleep)
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
 
+    def _time_frozen_then_exit_deadline():
+        if exit_after_idle_polls[0]:
+            return real_start + 3700
+        return real_start
+
     monkeypatch.setattr(time, "sleep", lambda _: None)
-    monkeypatch.setattr(time, "time", _make_time_mock(10))
+    monkeypatch.setattr(time, "time", _time_frozen_then_exit_deadline)
 
     response = client.get("/room/NHB1/stream")
     data = response.text
@@ -509,13 +526,15 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
 
 
 def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
-    """G1: is_disconnected() returning True breaks the poll loop before the next DB query.
+    """G1: is_disconnected() returning True breaks the poll loop before the next DB snapshot read.
 
     Strategy: seed a real room so the first poll succeeds and yields an event.
     Then mock is_disconnected to return True on the second call.
-    Verify that the stream exits early — the DB execute call count confirms no
+    Verify that the stream exits early — fetch_stream_snapshot call count confirms no
     additional query was issued after disconnect was detected.
     """
+    from jellyswipe.repositories.rooms import RoomRepository
+
     _seed_stream_room("DISC1", ready=0, current_genre="All")
     _set_session_room(client, os.environ["FLASK_SECRET"], "DISC1")
 
@@ -526,34 +545,14 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
     monkeypatch.setattr(time, "sleep", lambda _: None)
 
-    import sqlite3 as _sqlite3
+    _orig_fetch = RoomRepository.fetch_stream_snapshot
+    snapshot_calls = [0]
 
-    db_execute_count = [0]
-    original_connect = _sqlite3.connect
+    async def counting_fetch(self, pairing_code):  # type: ignore[no-untyped-def]
+        snapshot_calls[0] += 1
+        return await _orig_fetch(self, pairing_code)
 
-    class _SpyConnection:
-        """Wrapper around sqlite3.Connection that counts SELECT queries."""
-
-        def __init__(self, real_conn):
-            self._real = real_conn
-
-        def __getattr__(self, name):
-            return getattr(self._real, name)
-
-        def execute(self, sql, params=()):
-            if "FROM rooms WHERE pairing_code" in sql:
-                db_execute_count[0] += 1
-            return self._real.execute(sql, params)
-
-        def close(self):
-            return self._real.close()
-
-    def spy_connect(path, **kwargs):
-        real_conn = original_connect(path, **kwargs)
-        real_conn.row_factory = _sqlite3.Row
-        return _SpyConnection(real_conn)
-
-    monkeypatch.setattr(_sqlite3, "connect", spy_connect)
+    monkeypatch.setattr(RoomRepository, "fetch_stream_snapshot", counting_fetch)
 
     # Patch is_disconnected on the Starlette Request class so all Request instances
     # use our fake. First call returns False (allow first poll), second returns True (break).
@@ -580,10 +579,10 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
         f"is_disconnected was never called — disconnect detection not wired: calls={is_disconnected_call_count[0]}"
     )
 
-    # After disconnect (2nd call returns True), the loop breaks BEFORE the next DB query.
-    # So DB execute count must be exactly 1 (first poll) — not 2 or more.
-    assert db_execute_count[0] == 1, (
-        f"Expected exactly 1 DB query (disconnect before 2nd query), got {db_execute_count[0]}"
+    # After disconnect (2nd call returns True), the loop breaks BEFORE the next snapshot fetch.
+    # So snapshot count must be exactly 1 (first poll) — not 2 or more.
+    assert snapshot_calls[0] == 1, (
+        f"Expected exactly 1 snapshot fetch (disconnect before 2nd query), got {snapshot_calls[0]}"
     )
 
     # The response is still a valid SSE stream (not an error)
@@ -592,12 +591,13 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
 
 
 def test_stream_connection_closed_on_all_exit_paths(client, monkeypatch):
-    """G2: sqlite3 connection's .close() must be called after the stream completes.
+    """G2: each short-lived async session is closed after snapshot reads (context manager exit).
 
-    Strategy: patch sqlite3.connect to return a spy connection that records
-    whether .close() was called. Run a normal stream that exits via timeout
-    (time mock). Assert close_called is True.
+    Strategy: patch AsyncSession.close to count invocations. Consume a stream until
+    deadline via time mock. Expect at least one close (one poll completed).
     """
+    import sqlalchemy.ext.asyncio as sa_async
+
     _seed_stream_room("CLEANUP1", ready=0, current_genre="All")
     _set_session_room(client, os.environ["FLASK_SECRET"], "CLEANUP1")
 
@@ -608,33 +608,14 @@ def test_stream_connection_closed_on_all_exit_paths(client, monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
     monkeypatch.setattr(time, "sleep", lambda _: None)
 
-    import sqlite3 as _sqlite3
+    close_calls = [0]
+    _orig_close = sa_async.AsyncSession.close
 
-    close_called = [False]
-    original_connect = _sqlite3.connect
+    async def counting_close(self):  # type: ignore[no-untyped-def]
+        close_calls[0] += 1
+        return await _orig_close(self)
 
-    class _SpyConnection:
-        """Wrapper around sqlite3.Connection that records .close() calls."""
-
-        def __init__(self, real_conn):
-            self._real = real_conn
-
-        def __getattr__(self, name):
-            return getattr(self._real, name)
-
-        def execute(self, sql, params=()):
-            return self._real.execute(sql, params)
-
-        def close(self):
-            close_called[0] = True
-            return self._real.close()
-
-    def spy_connect(path, **kwargs):
-        real_conn = original_connect(path, **kwargs)
-        real_conn.row_factory = _sqlite3.Row
-        return _SpyConnection(real_conn)
-
-    monkeypatch.setattr(_sqlite3, "connect", spy_connect)
+    monkeypatch.setattr(sa_async.AsyncSession, "close", counting_close)
 
     # Time mock: exit after a few iterations (normal timeout exit path)
     monkeypatch.setattr(time, "time", _make_time_mock(8))
@@ -642,9 +623,8 @@ def test_stream_connection_closed_on_all_exit_paths(client, monkeypatch):
     response = client.get("/room/CLEANUP1/stream")
     _ = response.content  # consume fully
 
-    assert close_called[0], (
-        "conn.close() was never called after stream completed — "
-        "connection leak on normal exit path"
+    assert close_calls[0] >= 1, (
+        "Expected at least one AsyncSession.close from short-lived SSE poll sessions"
     )
 
 
@@ -652,90 +632,96 @@ def test_stream_cancelled_error_not_swallowed(monkeypatch):
     """G3: CancelledError raised inside the generate() loop must propagate out, not be swallowed.
 
     Strategy: unit test the generate() async generator directly by driving it with
-    an async harness. Patch sqlite3.connect so the DB execute raises CancelledError
-    on the first query. Verify CancelledError escapes the generator (finally block fires).
+    an async harness. Patch fetch_stream_snapshot so the snapshot read raises
+    CancelledError on the first query. Verify CancelledError escapes the generator.
     """
     import asyncio
-    import sqlite3 as _sqlite3
-    import jellyswipe.db
-    import jellyswipe.routers.rooms as rooms_module
+    from contextlib import asynccontextmanager
 
-    # We need a Request object with is_disconnected returning False
+    import jellyswipe.routers.rooms as rooms_module
+    from jellyswipe.repositories.rooms import RoomRepository
     from unittest.mock import AsyncMock, MagicMock, patch
 
-    # Build a minimal fake request
+    @asynccontextmanager
+    async def _fake_async_session():
+        yield MagicMock()
+
+    class _FakeSessionMaker:
+        def __call__(self):
+            return _fake_async_session()
+
+    monkeypatch.setattr(rooms_module, "get_sessionmaker", lambda: _FakeSessionMaker())
+
+    # We need a Request object with is_disconnected returning False
     fake_request = MagicMock()
     fake_request.is_disconnected = AsyncMock(return_value=False)
 
-    # Patch sqlite3.connect to return a connection whose execute raises CancelledError
-    close_called = [False]
+    snapshot_calls = [0]
 
-    def spy_connect(path, **kwargs):
-        mock_conn = MagicMock()
-        mock_conn.row_factory = None
+    async def raise_cancelled(self, pairing_code):  # type: ignore[no-untyped-def]
+        snapshot_calls[0] += 1
+        raise asyncio.CancelledError("simulated cancellation")
 
-        def raise_cancelled(sql, params=()):
-            raise asyncio.CancelledError("simulated cancellation")
+    # Extract the generate() inner function by calling room_stream
+    from jellyswipe.dependencies import AuthUser
+    fake_auth = AuthUser(jf_token="t", user_id="u")
 
-        mock_conn.execute = raise_cancelled
+    with patch.object(RoomRepository, "fetch_stream_snapshot", raise_cancelled):
+        result = rooms_module.room_stream(
+            code="CANCEL1",
+            request=fake_request,
+            auth=fake_auth,
+        )
+        generator = result.body_iterator
 
-        def recording_close():
-            close_called[0] = True
+        cancelled_error_propagated = [False]
 
-        mock_conn.close = recording_close
-        return mock_conn
+        async def drive_generator():
+            try:
+                async for _ in generator:
+                    pass
+            except (asyncio.CancelledError, Exception) as exc:
+                if isinstance(exc, asyncio.CancelledError):
+                    cancelled_error_propagated[0] = True
+                else:
+                    raise
 
-    # Temporarily patch DB_PATH and sqlite3.connect for the unit test
-    original_db_path = jellyswipe.db.DB_PATH
+        asyncio.run(drive_generator())
 
-    with patch.object(jellyswipe.db, "DB_PATH", "/tmp/fake.db"):
-        with patch("jellyswipe.routers.rooms.sqlite3") as mock_sqlite3_module:
-            mock_sqlite3_module.connect = spy_connect
-            mock_sqlite3_module.Row = _sqlite3.Row
-
-            # Extract the generate() inner function by calling room_stream
-            # room_stream is a sync def that returns EventSourceResponse(generate())
-            # We need to get generate() out — call the route with our fake request
-            # and a fake auth object, then extract the generator from the response.
-            from jellyswipe.dependencies import AuthUser
-            fake_auth = AuthUser(jf_token="t", user_id="u")
-
-            # Call room_stream to get the EventSourceResponse, then get the generator
-            result = rooms_module.room_stream(
-                code="CANCEL1",
-                request=fake_request,
-                auth=fake_auth,
-            )
-            # result is EventSourceResponse; its generator is in result.body_iterator
-            generator = result.body_iterator
-
-            cancelled_error_propagated = [False]
-            finally_fired = [False]
-
-            async def drive_generator():
-                try:
-                    async for _ in generator:
-                        pass
-                except (asyncio.CancelledError, Exception) as exc:
-                    if isinstance(exc, asyncio.CancelledError):
-                        cancelled_error_propagated[0] = True
-                    else:
-                        # Some wrappers re-raise as a different exception type
-                        raise
-
-            asyncio.run(drive_generator())
-
-    # CancelledError must have propagated out of the generator (not swallowed)
     assert cancelled_error_propagated[0], (
         "CancelledError was swallowed inside except Exception block — "
-        "it must be re-raised so finally: conn.close() fires"
+        "it must be re-raised so callers see cancellation semantics"
     )
+    assert snapshot_calls[0] == 1, "Expected CancelledError to surface from first snapshot poll"
 
-    # The finally block must have fired, calling conn.close()
-    assert close_called[0], (
-        "conn.close() was not called when CancelledError propagated — "
-        "finally block did not fire"
-    )
+
+def test_room_stream_does_not_open_sqlite3_connection(client, monkeypatch):
+    """Regression: SSE polling must stay off sync sqlite (get_db) in the router.
+
+    aiosqlite opens sqlite under the hood for AsyncEngine — that is expected. This
+    test blocks the legacy sync API so the stream path cannot regress to
+    sqlite3.connect/get_db in application code.
+    """
+    _seed_stream_room("NO_SQLITE_ROUTE", ready=1, current_genre="All")
+    _set_session_room(client, os.environ["FLASK_SECRET"], "NO_SQLITE_ROUTE")
+
+    import jellyswipe.db as jelly_db
+
+    def forbid_sync_get_db():
+        pytest.fail("room_stream must not use jellyswipe.db.get_db() — use async SQLAlchemy sessions")
+
+    monkeypatch.setattr(jelly_db, "get_db", forbid_sync_get_db)
+
+    import jellyswipe
+    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
+
+    mock_sleep, _ = _make_sse_sleep_mock()
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+    monkeypatch.setattr(time, "time", _make_time_mock(4))
+
+    response = client.get("/room/NO_SQLITE_ROUTE/stream")
+    assert response.status_code == 200
 
 
 def test_stream_unauthenticated_request_returns_401(client_real_auth):

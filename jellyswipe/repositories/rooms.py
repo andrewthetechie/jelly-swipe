@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.room import Room
-from jellyswipe.room_types import RoomRecord, RoomStatusSnapshot
+from jellyswipe.room_types import RoomRecord, RoomStatusSnapshot, StreamSnapshot
 
 
 class RoomRepository:
@@ -105,6 +105,33 @@ class RoomRepository:
     async def fetch_movie_data(self, pairing_code: str) -> str | None:
         return await self._session.scalar(
             select(Room.movie_data).where(Room.pairing_code == pairing_code)
+        )
+
+    async def fetch_stream_snapshot(self, pairing_code: str) -> StreamSnapshot | None:
+        stmt = select(Room.ready, Room.current_genre, Room.solo_mode, Room.last_match_data).where(
+            Room.pairing_code == pairing_code
+        )
+        row = (await self._session.execute(stmt)).one_or_none()
+        if row is None:
+            return None
+        ready_raw, genre, solo_raw, raw_last = row[0], row[1], row[2], row[3]
+        last_match: dict[str, Any] | None = None
+        last_match_ts: str | float | int | None = None
+        if raw_last:
+            try:
+                parsed = json.loads(raw_last)
+                if isinstance(parsed, dict):
+                    last_match = parsed
+                    last_match_ts = parsed.get("ts")
+            except (json.JSONDecodeError, TypeError):
+                last_match = None
+                last_match_ts = None
+        return StreamSnapshot(
+            ready=bool(ready_raw),
+            genre=genre or "",
+            solo=bool(solo_raw),
+            last_match=last_match,
+            last_match_ts=last_match_ts,
         )
 
     async def delete(self, pairing_code: str) -> int:
