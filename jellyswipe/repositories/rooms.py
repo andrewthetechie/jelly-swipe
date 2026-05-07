@@ -75,6 +75,12 @@ class RoomRepository:
         )
         return result.rowcount or 0
 
+    async def set_last_match_data(self, pairing_code: str, last_match_data_json: str | None) -> int:
+        result = await self._session.execute(
+            update(Room).where(Room.pairing_code == pairing_code).values(last_match_data=last_match_data_json)
+        )
+        return result.rowcount or 0
+
     async def fetch_status(self, pairing_code: str) -> RoomStatusSnapshot | None:
         row = (
             await self._session.scalars(select(Room).where(Room.pairing_code == pairing_code))
