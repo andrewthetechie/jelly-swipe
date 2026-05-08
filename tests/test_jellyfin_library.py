@@ -365,7 +365,7 @@ def test_movies_library_id_finds_movies_collection(mocker, monkeypatch):
 
     # Verify correct library ID is returned and cached
     assert lib_id == "lib-123"
-    assert provider._cached_library_id == "lib-123"
+    assert provider._cached_library_ids == {"movies": ["lib-123"]}
 
     # Verify GET /Users/{uid}/Views was called
     mock_session.request.assert_called_once()
@@ -424,11 +424,11 @@ def test_list_genres_from_items_filters(mocker, monkeypatch):
     mock_session.request.return_value = mock_response
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
-    # Create provider and set up state
+    # Create provider and set up state with pre-populated library cache
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
+    provider._cached_library_ids = {"movies": ["lib-123"], "tvshows": []}
 
     # Call list_genres
     genres = provider.list_genres()
@@ -437,7 +437,7 @@ def test_list_genres_from_items_filters(mocker, monkeypatch):
     assert "Action" in genres
     assert "Sci-Fi" in genres  # Mapped from "Science Fiction"
     assert "Drama" in genres
-    assert provider._genre_cache == genres
+    assert provider._genre_cache == {"all": genres}
 
     # Verify GET /Items/Filters was called with correct params
     mock_session.request.assert_called_once()
@@ -457,19 +457,14 @@ def test_genre_cache_prevents_redundant_api_calls(mocker, monkeypatch):
 
     # Mock Session.request (should not be called)
     mock_session = mocker.MagicMock()
-    mock_response = mocker.MagicMock()
-    mock_response.ok = True
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"GenreFilters": []}
-    mock_session.request.return_value = mock_response
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state with cached genres
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
-    provider._genre_cache = ["Action", "Sci-Fi"]
+    provider._cached_library_ids = {"movies": ["lib-123"]}
+    provider._genre_cache = {"all": ["Action", "Sci-Fi"]}
 
     # Call list_genres
     genres = provider.list_genres()
@@ -485,7 +480,24 @@ def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
-    # Mock Session.request - first call returns empty, second returns genres
+    # Mock Session.request - first for movie library discovery, second for TV library discovery,
+    # third for empty filters, fourth for genres fallback
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
+    mock_tv_lib_response = mocker.MagicMock()
+    mock_tv_lib_response.ok = True
+    mock_tv_lib_response.status_code = 200
+    mock_tv_lib_response.json.return_value = {
+        "Items": []  # No TV libraries
+    }
+    
     mock_response_empty = mocker.MagicMock()
     mock_response_empty.ok = True
     mock_response_empty.status_code = 200
@@ -502,14 +514,15 @@ def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
     }
 
     mock_session = mocker.MagicMock()
-    mock_session.request.side_effect = [mock_response_empty, mock_response_genres]
+    mock_session.request.side_effect = [
+        mock_lib_response, mock_tv_lib_response, mock_response_empty, mock_response_genres
+    ]
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
 
     # Call list_genres
     genres = provider.list_genres()
@@ -517,7 +530,7 @@ def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
     # Verify both endpoints were called and genres are returned
     assert "Comedy" in genres
     assert "Horror" in genres
-    assert mock_session.request.call_count == 2  # /Items/Filters and /Genres
+    assert mock_session.request.call_count == 4  # Views x2, /Items/Filters, /Genres
 
 
 # ---- Deck Fetching Tests ----
@@ -528,7 +541,16 @@ def test_fetch_deck_all_movies(mocker, monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
-    # Mock Session.request to return movie items
+    # Mock Session.request - first for library discovery, second for items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
     mock_response = mocker.MagicMock()
     mock_response.ok = True
     mock_response.status_code = 200
@@ -545,17 +567,16 @@ def test_fetch_deck_all_movies(mocker, monkeypatch):
         ]
     }
     mock_session = mocker.MagicMock()
-    mock_session.request.return_value = mock_response
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
 
     # Call fetch_deck
-    deck = provider.fetch_deck()
+    deck = provider.fetch_deck(media_types=["movie"])
 
     # Verify deck contains one card with correct format
     assert len(deck) == 1
@@ -567,10 +588,11 @@ def test_fetch_deck_all_movies(mocker, monkeypatch):
     assert card["duration"] == "1h 30m"
     assert card["year"] == 2024
     assert card["thumb"] == "/proxy?path=jellyfin/movie-1/Primary"
+    assert card["media_type"] == "movie"
 
     # Verify GET /Items was called with correct params
-    mock_session.request.assert_called_once()
-    call_args = mock_session.request.call_args
+    assert mock_session.request.call_count == 2
+    call_args = mock_session.request.call_args_list[1]
     assert call_args[0][0] == "GET"
     assert "/Items" in call_args[0][1]
     assert call_args[1]['params']['ParentId'] == "lib-123"
@@ -587,7 +609,16 @@ def test_fetch_deck_with_genre_filter(mocker, monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
-    # Mock Session.request to return movie items
+    # Mock Session.request - first for library discovery, second for items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
     mock_response = mocker.MagicMock()
     mock_response.ok = True
     mock_response.status_code = 200
@@ -603,20 +634,19 @@ def test_fetch_deck_with_genre_filter(mocker, monkeypatch):
         ]
     }
     mock_session = mocker.MagicMock()
-    mock_session.request.return_value = mock_response
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
 
     # Call fetch_deck with genre filter
-    deck = provider.fetch_deck("Sci-Fi")
+    deck = provider.fetch_deck(media_types=["movie"], genre_name="Sci-Fi")
 
     # Verify "Sci-Fi" was mapped to "Science Fiction" in API call
-    call_args = mock_session.request.call_args
+    call_args = mock_session.request.call_args_list[1]
     assert call_args[1]['params']['Genres'] == "Science Fiction"
     assert call_args[1]['params']['Limit'] == 100
     assert call_args[1]['params']['SortBy'] == "Random"
@@ -628,26 +658,34 @@ def test_fetch_deck_recently_added_sort(mocker, monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
-    # Mock Session.request to return empty items
+    # Mock Session.request - first for library discovery, second for items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
     mock_response = mocker.MagicMock()
     mock_response.ok = True
     mock_response.status_code = 200
     mock_response.json.return_value = {"Items": []}
     mock_session = mocker.MagicMock()
-    mock_session.request.return_value = mock_response
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
 
     # Call fetch_deck with "Recently Added"
-    deck = provider.fetch_deck("Recently Added")
+    deck = provider.fetch_deck(media_types=["movie"], genre_name="Recently Added")
 
     # Verify DateCreated descending sort is used
-    call_args = mock_session.request.call_args
+    call_args = mock_session.request.call_args_list[1]
     assert call_args[1]['params']['SortBy'] == "DateCreated"
     assert call_args[1]['params']['SortOrder'] == "Descending"
     assert call_args[1]['params']['Limit'] == 100
@@ -802,23 +840,31 @@ def test_fetch_deck_with_empty_items(mocker, monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
-    # Mock Session.request to return empty Items array
+    # Mock Session.request - first for library discovery, second for empty items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
     mock_response = mocker.MagicMock()
     mock_response.ok = True
     mock_response.status_code = 200
     mock_response.json.return_value = {"Items": []}
     mock_session = mocker.MagicMock()
-    mock_session.request.return_value = mock_response
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
 
     # Call fetch_deck
-    deck = provider.fetch_deck()
+    deck = provider.fetch_deck(media_types=["movie"])
 
     # Verify empty list is returned (not None)
     assert deck == []
@@ -831,7 +877,16 @@ def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
-    # Mock Session.request to return item with missing fields
+    # Mock Session.request - first for library discovery, second for items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-123", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
     mock_response = mocker.MagicMock()
     mock_response.ok = True
     mock_response.status_code = 200
@@ -841,17 +896,16 @@ def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
         ]
     }
     mock_session = mocker.MagicMock()
-    mock_session.request.return_value = mock_response
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
     mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
 
     # Create provider and set up state
     provider = JellyfinLibraryProvider("http://test.local")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
-    provider._cached_library_id = "lib-123"
 
     # Call fetch_deck
-    deck = provider.fetch_deck()
+    deck = provider.fetch_deck(media_types=["movie"])
 
     # Verify card uses defaults for missing fields
     assert len(deck) == 1
@@ -861,6 +915,7 @@ def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
     assert card["summary"] == ""  # Default for missing string
     assert card["rating"] is None  # Default for missing numeric
     assert card["year"] is None  # Default for missing numeric
+    assert card["media_type"] == "movie"
 
 
 def test_fetch_library_image_403_forbidden(mocker, monkeypatch):
@@ -982,4 +1037,280 @@ def test_api_non_json_response(mocker, monkeypatch):
     # Verify RuntimeError is raised
     with pytest.raises(RuntimeError, match="Jellyfin returned non-JSON body"):
         provider._api("GET", "/Items")
+
+
+# ---- TV Show Tests ----
+
+def test_series_to_card_transformation(mocker, monkeypatch):
+    """Test that _series_to_card extracts TV show fields correctly."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Create provider
+    provider = JellyfinLibraryProvider("http://test.local")
+
+    # Create test series item with all fields
+    series = {
+        "Id": "series-123",
+        "Name": "Test Series",
+        "Overview": "Test series summary",
+        "ProductionYear": 2024,
+        "ChildCount": 3,  # 3 seasons
+        "Type": "Series",
+    }
+
+    # Transform series to card
+    card = provider._series_to_card(series)
+
+    # Verify all TV show fields are extracted correctly
+    assert card["id"] == "series-123"
+    assert card["title"] == "Test Series"
+    assert card["summary"] == "Test series summary"
+    assert card["year"] == 2024
+    assert card["media_type"] == "tv_show"
+    assert card["season_count"] == 3
+    # TV cards should NOT have duration or rating
+    assert "duration" not in card
+    assert "rating" not in card
+
+    # Test with missing ChildCount
+    series2 = {
+        "Id": "series-456",
+        "Name": "Series 2",
+        "Overview": "",
+        "ProductionYear": 2023,
+    }
+    card2 = provider._series_to_card(series2)
+    assert card2["season_count"] is None
+
+
+def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
+    """Test that fetch_deck with tv_show returns only TV series cards."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request - first for library discovery, second for TV items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-tv", "CollectionType": "tvshows", "Name": "TV Shows"}
+        ]
+    }
+    
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {
+                "Id": "series-1",
+                "Name": "TV Series 1",
+                "Overview": "Series summary 1",
+                "ProductionYear": 2024,
+                "ChildCount": 2,
+                "Type": "Series",
+            }
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Call fetch_deck for TV shows only
+    deck = provider.fetch_deck(media_types=["tv_show"])
+
+    # Verify deck contains one TV card with correct format
+    assert len(deck) == 1
+    card = deck[0]
+    assert card["id"] == "series-1"
+    assert card["title"] == "TV Series 1"
+    assert card["summary"] == "Series summary 1"
+    assert card["year"] == 2024
+    assert card["season_count"] == 2
+    assert card["media_type"] == "tv_show"
+    # TV cards should NOT have duration
+    assert "duration" not in card
+
+    # Verify GET /Items was called with Series item type
+    assert mock_session.request.call_count == 2
+    call_args = mock_session.request.call_args_list[1]
+    assert call_args[1]['params']['IncludeItemTypes'] == "Series"
+
+
+def test_fetch_deck_mixed_media_types(mocker, monkeypatch):
+    """Test that fetch_deck with both movie and tv_show returns mixed cards."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Create mock session
+    mock_session = mocker.MagicMock()
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+    # Pre-populate library cache to avoid library discovery calls
+    provider._cached_library_ids = {
+        "movies": ["lib-movies"],
+        "tvshows": ["lib-tv"],
+    }
+
+    # Configure mock responses for /Items queries
+    def request_side_effect(method, url, **kwargs):
+        mock_response = mocker.MagicMock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+        
+        # Check if this is a movie or TV query based on IncludeItemTypes param
+        params = kwargs.get('params', {})
+        if params.get('IncludeItemTypes') == 'Movie':
+            mock_response.json.return_value = {
+                "Items": [
+                    {
+                        "Id": "movie-1",
+                        "Name": "Movie 1",
+                        "Overview": "Movie summary",
+                        "RunTimeTicks": 54000000000,
+                        "ProductionYear": 2024,
+                        "CommunityRating": 8.5,
+                        "Type": "Movie",
+                    }
+                ]
+            }
+        elif params.get('IncludeItemTypes') == 'Series':
+            mock_response.json.return_value = {
+                "Items": [
+                    {
+                        "Id": "series-1",
+                        "Name": "TV Series 1",
+                        "Overview": "Series summary",
+                        "ProductionYear": 2023,
+                        "ChildCount": 3,
+                        "Type": "Series",
+                    }
+                ]
+            }
+        else:
+            mock_response.json.return_value = {"Items": []}
+        
+        return mock_response
+    
+    mock_session.request.side_effect = request_side_effect
+
+    # Call fetch_deck for both media types
+    deck = provider.fetch_deck(media_types=["movie", "tv_show"])
+
+    # Verify deck contains both movie and TV cards
+    assert len(deck) == 2
+    
+    # Find movie and TV cards
+    movie_card = next(c for c in deck if c["media_type"] == "movie")
+    tv_card = next(c for c in deck if c["media_type"] == "tv_show")
+    
+    # Verify movie card
+    assert movie_card["id"] == "movie-1"
+    assert movie_card["title"] == "Movie 1"
+    assert movie_card["duration"] == "1h 30m"
+    assert movie_card["rating"] == 8.5
+    
+    # Verify TV card
+    assert tv_card["id"] == "series-1"
+    assert tv_card["title"] == "TV Series 1"
+    assert tv_card["season_count"] == 3
+    assert "duration" not in tv_card
+
+
+def test_fetch_deck_tv_show_with_genre_filter(mocker, monkeypatch):
+    """Test that fetch_deck with tv_show and genre filter uses correct API params."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request - library discovery, TV items
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-tv", "CollectionType": "tvshows", "Name": "TV Shows"}
+        ]
+    }
+    
+    mock_response = mocker.MagicMock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "Items": [
+            {
+                "Id": "series-1",
+                "Name": "Drama Series",
+                "Overview": "",
+                "ProductionYear": 2023,
+                "Type": "Series",
+            }
+        ]
+    }
+    mock_session = mocker.MagicMock()
+    mock_session.request.side_effect = [mock_lib_response, mock_response]
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Call fetch_deck with TV shows and genre filter
+    deck = provider.fetch_deck(media_types=["tv_show"], genre_name="Drama")
+
+    # Verify genre filter was applied
+    call_args = mock_session.request.call_args_list[1]
+    assert call_args[1]['params']['Genres'] == "Drama"
+    assert call_args[1]['params']['IncludeItemTypes'] == "Series"
+
+
+def test_fetch_deck_no_tv_library_returns_empty(mocker, monkeypatch):
+    """Test that fetch_deck returns empty list when no TV library exists."""
+    # Mock environment variables
+    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
+
+    # Mock Session.request - library discovery shows no TV libraries
+    mock_lib_response = mocker.MagicMock()
+    mock_lib_response.ok = True
+    mock_lib_response.status_code = 200
+    mock_lib_response.json.return_value = {
+        "Items": [
+            {"Id": "lib-movies", "CollectionType": "movies", "Name": "Movies"}
+        ]
+    }
+    
+    mock_session = mocker.MagicMock()
+    mock_session.request.side_effect = [mock_lib_response]
+    mocker.patch('jellyswipe.jellyfin_library.requests.Session', return_value=mock_session)
+
+    # Create provider and set up state
+    provider = JellyfinLibraryProvider("http://test.local")
+    provider._access_token = "test-token"
+    provider._cached_user_id = "user-123"
+
+    # Call fetch_deck for TV shows only (no TV library exists)
+    deck = provider.fetch_deck(media_types=["tv_show"])
+
+    # Verify empty list is returned without raising
+    assert deck == []
+    assert isinstance(deck, list)
+    
+    # Verify only library discovery was called (no /Items query)
+    assert mock_session.request.call_count == 1
 

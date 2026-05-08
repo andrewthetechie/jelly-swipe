@@ -227,12 +227,12 @@ class FakeProvider:
     def add_to_user_favorites(self, user_token, movie_id):
         self.favorites_added.append((user_token, movie_id))
 
-    def fetch_deck(self, genre=None):
+    def fetch_deck(self, media_types=None, genre_name=None):
         """Return a list of 25 fake movie cards for deck testing."""
         return [
             {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
              "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
-             "rating": 7.0, "duration": "1h 30m", "year": 2024}
+             "rating": 7.0, "duration": "1h 30m", "year": 2024, "media_type": "movie"}
             for i in range(25)
         ]
 

@@ -18,7 +18,7 @@ class UniqueRoomCodeExhaustedError(Exception):
 
 
 class DeckProvider(Protocol):
-    def fetch_deck(self, genre: str | None = None) -> list[dict[str, Any]]: ...
+    def fetch_deck(self, media_types: list[str], genre_name: str | None = None) -> list[dict[str, Any]]: ...
 
 
 class RoomLifecycleService:
@@ -66,7 +66,7 @@ class RoomLifecycleService:
             exists = await uow.rooms.pairing_code_exists(pairing_code)
             if exists:
                 continue
-            movie_list = provider.fetch_deck()
+            movie_list = provider.fetch_deck(media_types=["movie"])
             deck_json = json.dumps({user_id: 0})
             await uow.rooms.create(
                 pairing_code,
@@ -94,7 +94,7 @@ class RoomLifecycleService:
             exists = await uow.rooms.pairing_code_exists(pairing_code)
             if exists:
                 continue
-            movie_list = provider.fetch_deck()
+            movie_list = provider.fetch_deck(media_types=["movie"])
             deck_json = json.dumps({user_id: 0})
             await uow.rooms.create(
                 pairing_code,
@@ -181,7 +181,7 @@ class RoomLifecycleService:
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
-        new_list = provider.fetch_deck(genre)
+        new_list = provider.fetch_deck(media_types=["movie"], genre_name=genre)
         await uow.rooms.set_genre_and_deck(
             code,
             genre,
