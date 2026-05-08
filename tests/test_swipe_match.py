@@ -108,7 +108,7 @@ class TestSwipeMatchService:
             rec = await uow.rooms.get_room("ROOM1")
             assert rec is not None and rec.last_match_data_json is not None
             lm = json.loads(rec.last_match_data_json)
-            assert lm["movie_id"] == "m1"
+            assert lm["media_id"] == "m1"
             assert isinstance(lm["ts"], int)
 
     async def test_undo_swipe_recomputes_last_match_when_peer_match_survives(self, runtime_sessionmaker):
@@ -146,7 +146,7 @@ class TestSwipeMatchService:
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             before = json.loads((await uow.rooms.get_room("ROOM1")).last_match_data_json or "{}")
-            assert before["movie_id"] == "m1"
+            assert before["media_id"] == "m1"
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
@@ -166,7 +166,7 @@ class TestSwipeMatchService:
             survivor = await uow.matches.latest_active_for_room("ROOM1")
             assert survivor is not None
             lm = json.loads(rec.last_match_data_json or "{}")
-            assert lm["movie_id"] == "m1"
+            assert lm["media_id"] == "m1"
             assert lm["ts"] == survivor.match_order
 
     async def test_same_jellyfin_user_separate_sessions_can_match_via_service(self, runtime_sessionmaker):

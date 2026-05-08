@@ -140,12 +140,12 @@ def get_genres(request: Request):
 def add_to_watchlist(request: Request, user: AuthUser = Depends(require_auth), _: None = Depends(check_rate_limit), body: dict = None):
     """Add a movie to the user's watchlist/favorites."""
     try:
-        movie_id = (body or {}).get('movie_id')
-        if not movie_id:
+        media_id = (body or {}).get('media_id')
+        if not media_id:
             return XSSSafeJSONResponse(
-                content={'error': 'movie_id required'}, status_code=400
+                content={'error': 'media_id required'}, status_code=400
             )
-        get_provider().add_to_user_favorites(user.jf_token, movie_id)
+        get_provider().add_to_user_favorites(user.jf_token, media_id)
         return {'status': 'success'}
     except Exception as e:
         log_exception(e, request)

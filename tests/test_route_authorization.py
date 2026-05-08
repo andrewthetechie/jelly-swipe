@@ -76,11 +76,11 @@ def _send_request(client, method: str, path: str, payload: Optional[Dict[str, An
 
 SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
 ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
-    ("POST", "/room/ROOM1/swipe", {"movie_id": "movie-1", "direction": "right"}),
+    ("POST", "/room/ROOM1/swipe", {"media_id": "movie-1", "direction": "right"}),
     ("GET", "/matches", None),
-    ("POST", "/matches/delete", {"movie_id": "movie-1"}),
-    ("POST", "/room/ROOM1/undo", {"movie_id": "movie-1"}),
-    ("POST", "/watchlist/add", {"movie_id": "movie-1"}),
+    ("POST", "/matches/delete", {"media_id": "movie-1"}),
+    ("POST", "/room/ROOM1/undo", {"media_id": "movie-1"}),
+    ("POST", "/watchlist/add", {"media_id": "movie-1"}),
 )
 
 
@@ -188,7 +188,7 @@ def test_unauthenticated_swipe_no_side_effects(db_connection, client_real_auth):
     _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=False)
     _seed_room(db_connection, "ROOM1")
     before_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
-    response = client_real_auth.post("/room/ROOM1/swipe", json={"movie_id": "movie-1", "direction": "right"})
+    response = client_real_auth.post("/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"})
     after_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
     assert response.status_code == 401
     data = response.json()
@@ -270,18 +270,18 @@ class TestDeckCursorTracking:
         # Get initial deck and note the first card
         resp = client_real_auth.get(f'/room/{code}/deck')
         initial_cards = resp.json()
-        first_card_id = initial_cards[0]['id']
+        first_card_id = initial_cards[0]['media_id']
 
         # Swipe on the first card
         resp = client_real_auth.post(f'/room/{code}/swipe',
-                           json={'movie_id': first_card_id, 'direction': 'left'})
+                           json={'media_id': first_card_id, 'direction': 'left'})
         assert resp.status_code == 200
 
         # Get deck again — first card should be different (cursor advanced by 1)
         resp = client_real_auth.get(f'/room/{code}/deck')
         new_cards = resp.json()
-        assert new_cards[0]['id'] != first_card_id
-        assert new_cards[0]['id'] == initial_cards[1]['id']
+        assert new_cards[0]['media_id'] != first_card_id
+        assert new_cards[0]['media_id'] == initial_cards[1]['media_id']
 
     def test_cursor_persists_across_requests(self, db_connection, client_real_auth):
         """Cursor position persists across multiple requests."""
@@ -293,7 +293,7 @@ class TestDeckCursorTracking:
             resp = client_real_auth.get(f'/room/{code}/deck')
             cards = resp.json()
             client_real_auth.post(f'/room/{code}/swipe',
-                        json={'movie_id': cards[0]['id'], 'direction': 'left'})
+                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
 
         # Fetch deck at position 3
         resp = client_real_auth.get(f'/room/{code}/deck')
@@ -304,14 +304,14 @@ class TestDeckCursorTracking:
             resp = client_real_auth.get(f'/room/{code}/deck')
             cards = resp.json()
             client_real_auth.post(f'/room/{code}/swipe',
-                        json={'movie_id': cards[0]['id'], 'direction': 'left'})
+                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
 
         # Fetch deck at position 5
         resp = client_real_auth.get(f'/room/{code}/deck')
         cards_at_5 = resp.json()
 
         # Position 5 cards should be different from position 3 cards
-        assert cards_at_5[0]['id'] != cards_at_3[0]['id']
+        assert cards_at_5[0]['media_id'] != cards_at_3[0]['media_id']
 
     def test_genre_change_resets_cursor(self, db_connection, client_real_auth):
         """Genre change resets cursor to position 0."""
@@ -320,18 +320,18 @@ class TestDeckCursorTracking:
 
         # Get the original first card
         resp = client_real_auth.get(f'/room/{code}/deck')
-        original_first = resp.json()[0]['id']
+        original_first = resp.json()[0]['media_id']
 
         # Swipe 2 times to advance cursor
         for i in range(2):
             resp = client_real_auth.get(f'/room/{code}/deck')
             cards = resp.json()
             client_real_auth.post(f'/room/{code}/swipe',
-                        json={'movie_id': cards[0]['id'], 'direction': 'left'})
+                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
 
         # Verify cursor has advanced
         resp = client_real_auth.get(f'/room/{code}/deck')
-        assert resp.json()[0]['id'] != original_first
+        assert resp.json()[0]['media_id'] != original_first
 
         # Change genre — resets cursor
         resp = client_real_auth.post(f'/room/{code}/genre', json={'genre': 'Action'})
@@ -340,7 +340,7 @@ class TestDeckCursorTracking:
         # Deck should start from position 0 again
         resp = client_real_auth.get(f'/room/{code}/deck')
         cards = resp.json()
-        assert cards[0]['id'] == original_first
+        assert cards[0]['media_id'] == original_first
 
     def test_join_initializes_cursor_at_zero(self, db_connection, client_real_auth):
         """User B joining a room gets their own cursor starting at 0."""
@@ -350,14 +350,14 @@ class TestDeckCursorTracking:
 
         # Get original first card
         resp = client_real_auth.get(f'/room/{code}/deck')
-        original_first = resp.json()[0]['id']
+        original_first = resp.json()[0]['media_id']
 
         # User A swipes 3 times
         for i in range(3):
             resp = client_real_auth.get(f'/room/{code}/deck')
             cards = resp.json()
             client_real_auth.post(f'/room/{code}/swipe',
-                        json={'movie_id': cards[0]['id'], 'direction': 'left'})
+                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
 
         # User B joins — set up separate session
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
@@ -369,7 +369,7 @@ class TestDeckCursorTracking:
         # User B gets deck starting from position 0 (their own cursor)
         resp = client_real_auth.get(f'/room/{code}/deck')
         cards = resp.json()
-        assert cards[0]['id'] == original_first
+        assert cards[0]['media_id'] == original_first
 
     def test_end_of_deck_returns_empty(self, db_connection, client_real_auth):
         """After swiping all cards, deck endpoint returns empty array."""
@@ -384,7 +384,7 @@ class TestDeckCursorTracking:
         # Swipe the first 20
         for card in first_page:
             client_real_auth.post(f'/room/{code}/swipe',
-                        json={'movie_id': card['id'], 'direction': 'left'})
+                        json={'media_id': card['media_id'], 'direction': 'left'})
 
         # Get remaining cards (page 1 at cursor=20)
         resp = client_real_auth.get(f'/room/{code}/deck')
@@ -394,7 +394,7 @@ class TestDeckCursorTracking:
         # Swipe the remaining 5
         for card in remaining:
             client_real_auth.post(f'/room/{code}/swipe',
-                        json={'movie_id': card['id'], 'direction': 'left'})
+                        json={'media_id': card['media_id'], 'direction': 'left'})
 
         # Now deck should be empty
         resp = client_real_auth.get(f'/room/{code}/deck')
@@ -434,7 +434,7 @@ class TestSSEMatchDelivery:
         _seed_room_with_movies(db_connection)
 
         resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'movie_id': 'movie-1', 'direction': 'right'})
+                           json={'media_id': 'movie-1', 'direction': 'right'})
         assert resp.status_code == 200
         data = resp.json()
         assert data == {'accepted': True}
@@ -448,7 +448,7 @@ class TestSSEMatchDelivery:
         _seed_room_with_movies(db_connection)
 
         resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'movie_id': 'movie-1', 'direction': 'left'})
+                           json={'media_id': 'movie-1', 'direction': 'left'})
         assert resp.status_code == 200
         assert resp.json() == {'accepted': True}
 
@@ -459,7 +459,7 @@ class TestSSEMatchDelivery:
 
         # First user swipes right
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         # Set up second user session with a new session_id
         session_id_b = _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
@@ -467,7 +467,7 @@ class TestSSEMatchDelivery:
 
         # Second user swipes right
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         # Verify match has deep link
         row = db_connection.execute(
@@ -484,7 +484,7 @@ class TestSSEMatchDelivery:
         _seed_room_with_movies(db_connection, solo_mode=1)
 
         resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'movie_id': 'movie-1', 'direction': 'right'})
+                           json={'media_id': 'movie-1', 'direction': 'right'})
         assert resp.status_code == 200
 
         row = db_connection.execute(
@@ -502,7 +502,7 @@ class TestSSEMatchDelivery:
         _seed_room_with_movies(db_connection, solo_mode=1)
 
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         resp = client_real_auth.get('/matches')
         assert resp.status_code == 200
@@ -524,7 +524,7 @@ class TestSSEMatchDelivery:
         _seed_room_with_movies(db_connection, solo_mode=1)
 
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         row = db_connection.execute(
             "SELECT last_match_data FROM rooms WHERE pairing_code = ?",
@@ -534,7 +534,7 @@ class TestSSEMatchDelivery:
         data = json.loads(row["last_match_data"])
         assert data["type"] == "match"
         assert data["title"] == "Movie-movie-1"
-        assert data["movie_id"] == "movie-1"
+        assert data["media_id"] == "movie-1"
         assert data["rating"] == "8.5"
         assert data["duration"] == "2h 15m"
         assert data["year"] == "2024"
@@ -548,7 +548,7 @@ class TestSSEMatchDelivery:
 
         # First user swipes right
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         # Second user - set up separate session
         session_id_b = _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
@@ -556,7 +556,7 @@ class TestSSEMatchDelivery:
 
         # Second user swipes right
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         # Exactly 2 match rows: one per user (INSERT OR IGNORE prevents duplicates)
         count = db_connection.execute(
@@ -611,13 +611,13 @@ class TestSSEMatchDelivery:
             )
             resp = client_real_auth.post(
                 f"/room/{code}/swipe",
-                json={"movie_id": "movie-1", "direction": "right"},
+                json={"media_id": "movie-1", "direction": "right"},
             )
             assert resp.status_code == 200
 
             resp = second_client.post(
                 f"/room/{code}/swipe",
-                json={"movie_id": "movie-1", "direction": "right"},
+                json={"media_id": "movie-1", "direction": "right"},
             )
             assert resp.status_code == 200
 
@@ -856,7 +856,7 @@ class TestPhase27Compliance:
         _seed_room_with_movies(db_connection)
 
         resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'movie_id': 'movie-1', 'direction': 'right'})
+                           json={'media_id': 'movie-1', 'direction': 'right'})
         assert resp.status_code == 200
         data = resp.json()
         assert data == {'accepted': True}
@@ -872,7 +872,7 @@ class TestPhase27Compliance:
 
         # First user swipes right
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         # Second user - set up separate session
         session_id_b = _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
@@ -880,7 +880,7 @@ class TestPhase27Compliance:
 
         # Second user swipes right — creates match
         client_real_auth.post('/room/ROOM1/swipe',
-                    json={'movie_id': 'movie-1', 'direction': 'right'})
+                    json={'media_id': 'movie-1', 'direction': 'right'})
 
         # Check room status for enriched match data
         resp = client_real_auth.get('/room/ROOM1/status')
@@ -891,7 +891,7 @@ class TestPhase27Compliance:
         assert match['type'] == 'match'
         assert 'title' in match
         assert 'thumb' in match
-        assert 'movie_id' in match
+        assert 'media_id' in match
         assert 'deep_link' in match
         assert '/web/#/details?id=movie-1' in match['deep_link']
         assert match['rating'] == '8.5'

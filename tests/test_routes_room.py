@@ -416,7 +416,7 @@ def test_swipe_left_records_no_match(client, app):
 
     response = client.post(
         "/room/TEST1/swipe",
-        json={"movie_id": "m1", "direction": "left"},
+        json={"media_id": "m1", "direction": "left"},
     )
 
     assert response.status_code == 200
@@ -440,7 +440,7 @@ def test_swipe_right_solo_match(client, app):
 
     response = client.post(
         "/room/TEST1/swipe",
-        json={"movie_id": "m1", "direction": "right"},
+        json={"media_id": "m1", "direction": "right"},
     )
 
     assert response.status_code == 200
@@ -477,7 +477,7 @@ def test_swipe_right_dual_match(client, app):
 
     response = client.post(
         "/room/TEST1/swipe",
-        json={"movie_id": "m1", "direction": "right"},
+        json={"media_id": "m1", "direction": "right"},
     )
 
     assert response.status_code == 200
@@ -503,7 +503,7 @@ def test_swipe_right_no_match_yet(client, app):
 
     response = client.post(
         "/room/TEST1/swipe",
-        json={"movie_id": "m1", "direction": "right"},
+        json={"media_id": "m1", "direction": "right"},
     )
 
     assert response.status_code == 200
@@ -531,7 +531,7 @@ def test_swipe_right_updates_last_match_data(client, app):
 
     client.post(
         "/room/TEST1/swipe",
-        json={"movie_id": "m1", "direction": "right"},
+        json={"media_id": "m1", "direction": "right"},
     )
 
     conn = _sqlite_conn_for_route_tests()

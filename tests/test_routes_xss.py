@@ -68,7 +68,7 @@ class TestLayer1ServerSideValidation:
         response = client.post(
             '/room/TEST123/swipe',
             json={
-                'movie_id': 'movie123',
+                'media_id': 'movie123',
                 'direction': 'right',
             }
         )
@@ -114,7 +114,7 @@ class TestLayer1ServerSideValidation:
         response = client.post(
             '/room/TEST456/swipe',
             json={
-                'movie_id': 'movie456',
+                'media_id': 'movie456',
                 'direction': 'right',
             }
         )
@@ -185,7 +185,7 @@ class TestEndToEndXSSBlocking:
         response = client.post(
             '/room/E2E123/swipe',
             json={
-                'movie_id': 'movie_e2e',
+                'media_id': 'movie_e2e',
                 'direction': 'right',
             }
         )
@@ -230,7 +230,7 @@ class TestEndToEndXSSBlocking:
             response = client.post(
                 '/room/FAIL789/swipe',
                 json={
-                    'movie_id': 'movie_fail',
+                    'media_id': 'movie_fail',
                     'direction': 'right',
                 }
             )
@@ -324,7 +324,7 @@ def test_swipe_xss_title_escaped_in_match_response(client, monkeypatch):
     response = client.post(
         "/room/ROOM1/swipe",
         json={
-            "movie_id": "movie-1",
+            "media_id": "movie-1",
             "direction": "right",
         },
     )
@@ -350,7 +350,7 @@ def test_swipe_xss_thumb_escaped_in_match_response(client, monkeypatch):
     response = client.post(
         "/room/ROOM1/swipe",
         json={
-            "movie_id": "movie-2",
+            "media_id": "movie-2",
             "direction": "right",
         },
     )
@@ -376,7 +376,7 @@ def test_stored_xss_matches_endpoint(client, monkeypatch):
     client.post(
         "/room/ROOM1/swipe",
         json={
-            "movie_id": "movie-3",
+            "media_id": "movie-3",
             "direction": "right",
         },
     )
@@ -404,7 +404,7 @@ def test_swipe_xss_img_tag_escaped(client, monkeypatch):
     response = client.post(
         "/room/ROOM1/swipe",
         json={
-            "movie_id": "movie-4",
+            "media_id": "movie-4",
             "direction": "right",
         },
     )
@@ -430,7 +430,7 @@ def test_swipe_xss_event_handler_escaped(client, monkeypatch):
     response = client.post(
         "/room/ROOM1/swipe",
         json={
-            "movie_id": "movie-5",
+            "media_id": "movie-5",
             "direction": "right",
         },
     )

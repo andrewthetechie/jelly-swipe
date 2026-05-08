@@ -125,7 +125,7 @@ class TestErrorSanitization:
         mock_prov.add_to_user_favorites.side_effect = Exception("SECRET_WATCHLIST_ERROR")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
         resp = auth_client.post('/watchlist/add',
-                           json={'movie_id': 'test-id'},
+                           json={'media_id': 'test-id'},
                            headers={'Authorization': 'MediaBrowser Token="test-token"'})
         data = resp.json()
         assert resp.status_code == 500
@@ -217,7 +217,7 @@ class TestErrorResponseFormat:
         assert 'request_id' in data
 
     def test_401_includes_request_id(self, client):
-        resp = client.post('/watchlist/add', json={'movie_id': 'test-id'})
+        resp = client.post('/watchlist/add', json={'media_id': 'test-id'})
         data = resp.json()
         assert resp.status_code == 401
         # Note: 401 uses FastAPI's default HTTPException format (detail)
