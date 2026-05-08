@@ -13,9 +13,20 @@ import threading
 import time
 from datetime import datetime, timezone
 
-import jellyswipe.db
+import sqlite3
+
 import pytest
+from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
+
+
+def _sqlite_conn_for_sse_tests():
+    path = application_db_path.path
+    assert path is not None
+    conn = sqlite3.connect(path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
 
 
 # ---------------------------------------------------------------------------
@@ -41,17 +52,9 @@ def _set_session_room(client, secret_key, room_code, user_id=None):
 
 
 def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None):
-    """Seed a room row directly via jellyswipe.db.get_db() for SSE tests.
-
-    Args:
-        room_code: Pairing code for the room.
-        ready: Room ready flag (0 or 1).
-        solo_mode: Solo mode flag (0 or 1).
-        current_genre: Current genre string.
-        last_match_data: Last match JSON string (None for no match).
-    """
+    """Seed a room row directly into SQLite for SSE tests (VAL-03: no jellyswipe.db.get_db)."""
     movie_data = json.dumps([])
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_sse_tests()
     try:
         conn.execute(
             "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode, last_match_data) "
@@ -298,7 +301,7 @@ def test_stream_ready_state_change(client, monkeypatch):
         sleep_call_count += 1
         if sleep_call_count == 1:
             # After first poll (ready=0 sent), flip ready to 1
-            conn = jellyswipe.db.get_db()
+            conn = _sqlite_conn_for_sse_tests()
             try:
                 conn.execute(
                     "UPDATE rooms SET ready = 1 WHERE pairing_code = ?",
@@ -502,7 +505,7 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
         sleep_count += 1
         if sleep_count == 1:
             # After first poll (initial state sent), delete the room
-            conn = jellyswipe.db.get_db()
+            conn = _sqlite_conn_for_sse_tests()
             try:
                 conn.execute("DELETE FROM rooms WHERE pairing_code = ?", ("VANISH1",))
                 conn.commit()

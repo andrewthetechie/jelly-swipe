@@ -32,13 +32,13 @@ from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 def reset_runtime(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", None)
+    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", None)
     yield
 
 
 @pytest.fixture
 async def runtime_sessionmaker(db_path, monkeypatch):
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
     upgrade_to_head(build_sqlite_url(db_path))
     await dispose_runtime()
     await initialize_runtime(build_sqlite_url(db_path))
@@ -231,7 +231,7 @@ class TestCheckRateLimit:
 
     def test_raises_429_when_limit_exceeded(self, db_path, monkeypatch):
         """Exceeding rate limit raises HTTPException(429)."""
-        monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+        monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
         monkeypatch.setattr(deps, "_RATE_LIMITS", {"get-trailer": 5})
 
         app = FastAPI()

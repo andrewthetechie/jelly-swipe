@@ -26,7 +26,7 @@ pytestmark = pytest.mark.anyio
 async def reset_runtime(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", None)
+    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", None)
     await dispose_runtime()
     yield
     await dispose_runtime()

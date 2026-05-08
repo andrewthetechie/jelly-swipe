@@ -1,7 +1,9 @@
 import asyncio
+import contextlib
 import json
 import os
 import secrets
+import sqlite3
 from base64 import b64encode
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +11,7 @@ import pytest
 import itsdangerous
 from fastapi.testclient import TestClient
 
+from jellyswipe.db_paths import application_db_path
 from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, initialize_runtime
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
@@ -103,6 +106,29 @@ def mock_env_vars(monkeypatch):
     yield
 
 
+@contextlib.contextmanager
+def sqlite_test_connection():
+    """Open sqlite3 directly to ``application_db_path`` (VAL-03: no jellyswipe.db.get_db())."""
+    path = application_db_path.path
+    assert path is not None, "fixture must bootstrap application_db_path"
+    conn = sqlite3.connect(path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+@contextlib.contextmanager
+def sqlite_test_transaction():
+    """Like ``get_db_closing``: commit-on-context-exit semantics for XSS/route seeds."""
+    with sqlite_test_connection() as conn:
+        with conn:
+            yield conn
+
+
 @pytest.fixture
 def db_path(tmp_path):
     """
@@ -119,12 +145,12 @@ def db_path(tmp_path):
 
 def _bootstrap_temp_db_runtime(db_path, monkeypatch):
     """Provision one temp database through Alembic plus the async runtime path."""
-    import jellyswipe.db
+    import jellyswipe.db_paths as db_paths_mod
 
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -149,27 +175,22 @@ def db_connection(db_path, monkeypatch):
     Provide a database connection with fresh schema for each test.
 
     This fixture:
-    1. Patches jellyswipe.db.DB_PATH to use the temporary database file
+    1. Patches jellyswipe.db_paths.application_db_path.path to use the temporary database file
     2. Initializes the database schema by running Alembic upgrade head
     3. Yields a database connection to the test
     4. Closes the connection after the test
 
-    Per D-03: Use monkeypatch to set DB_PATH global variable.
+    Per D-03: Use monkeypatch to set application_db_path.path.
     Per D-06: Each test receives a fresh database with Alembic already applied.
 
     The function scope ensures complete test isolation - no state leaks between tests.
     """
-    import jellyswipe.db
-
     _bootstrap_temp_db_runtime(db_path, monkeypatch)
 
-    # Get a database connection and yield it to the test
-    conn = jellyswipe.db.get_db()
     try:
-        yield conn
+        with sqlite_test_connection() as conn:
+            yield conn
     finally:
-        # Ensure the connection is closed after the test
-        conn.close()
         _dispose_test_runtime()
 
 

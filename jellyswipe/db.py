@@ -9,9 +9,8 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 import jellyswipe.db_runtime as db_runtime
+from jellyswipe.db_paths import application_db_path
 from jellyswipe.db_uow import DatabaseUnitOfWork
-
-DB_PATH = None
 
 
 def configure_sqlite_connection(conn: sqlite3.Connection) -> sqlite3.Connection:
@@ -100,7 +99,7 @@ def ensure_sqlite_wal_mode(db_path: str | None = None) -> None:
     """Compatibility wrapper that applies runtime SQLite pragmas off-request."""
     async def _apply() -> None:
         _, runtime_already_initialized = await _initialize_maintenance_runtime(
-            _get_database_url(db_path or DB_PATH)
+            _get_database_url(db_path or application_db_path.path)
         )
         try:
             await _configure_runtime_sqlite_pragmas()
@@ -113,10 +112,11 @@ def ensure_sqlite_wal_mode(db_path: str | None = None) -> None:
 
 def get_db():
     """Get a configured runtime connection."""
-    if not DB_PATH:
-        raise RuntimeError("DB_PATH is not configured")
+    resolved = application_db_path.path
+    if not resolved:
+        raise RuntimeError("application_db_path is not configured")
 
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(resolved, check_same_thread=False)
     return configure_sqlite_connection(conn)
 
 

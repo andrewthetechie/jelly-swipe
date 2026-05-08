@@ -24,7 +24,7 @@ from jellyswipe.room_types import MatchRecord, RoomRecord, RoomStatusSnapshot
 def reset_runtime(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", None)
+    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", None)
     yield
 
 
@@ -33,7 +33,7 @@ async def runtime_sessionmaker(db_path, monkeypatch):
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(jellyswipe.db, "DB_PATH", db_path)
+    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 

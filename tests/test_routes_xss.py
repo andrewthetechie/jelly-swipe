@@ -12,9 +12,11 @@ import secrets
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-import jellyswipe.db
+import sqlite3
+
 import pytest
-from tests.conftest import set_session_cookie
+from jellyswipe.db_paths import application_db_path
+from tests.conftest import set_session_cookie, sqlite_test_transaction
 
 # ---------------------------------------------------------------------------
 # Module-level XSS payload constants (per D-03, D-04, D-05, D-06, D-07)
@@ -46,7 +48,7 @@ class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_supplied_title_thumb(self, client, app, monkeypatch):
         import jellyswipe
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("TEST123", 1)
@@ -77,7 +79,7 @@ class TestLayer1ServerSideValidation:
 
         mock_provider.resolve_item_for_tmdb.assert_called_once_with('movie123')
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             cursor = conn.execute(
                 "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
                 ("TEST123", "movie123")
@@ -92,7 +94,7 @@ class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_params_silently(self, client, app, monkeypatch):
         import jellyswipe
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("TEST456", 1)
@@ -122,7 +124,7 @@ class TestLayer1ServerSideValidation:
         response_data = response.json()
         assert response_data == {'accepted': True}
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             cursor = conn.execute(
                 "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
                 ("TEST456", "movie456")
@@ -163,7 +165,7 @@ class TestEndToEndXSSBlocking:
     def test_xss_blocked_three_layer_defense(self, client, app, monkeypatch):
         import jellyswipe
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("E2E123", 1)
@@ -196,7 +198,7 @@ class TestEndToEndXSSBlocking:
         assert "script-src 'self'" in response.headers['Content-Security-Policy']
         assert "unsafe-inline" not in response.headers['Content-Security-Policy']
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             cursor = conn.execute(
                 "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
                 ("E2E123", "movie_e2e")
@@ -210,7 +212,7 @@ class TestEndToEndXSSBlocking:
     def test_swipe_handles_jellyfin_failure_gracefully(self, client, app, monkeypatch, caplog):
         import jellyswipe
 
-        with jellyswipe.db.get_db_closing() as conn:
+        with sqlite_test_transaction() as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("FAIL789", 1)
@@ -243,7 +245,7 @@ class TestEndToEndXSSBlocking:
             ]
             assert len(error_logs) > 0, "Error was not logged"
 
-            with jellyswipe.db.get_db_closing() as conn:
+            with sqlite_test_transaction() as conn:
                 cursor = conn.execute(
                     "SELECT COUNT(*) as count FROM matches WHERE room_code = ? AND movie_id = ?",
                     ("FAIL789", "movie_fail")
@@ -251,7 +253,7 @@ class TestEndToEndXSSBlocking:
                 result = cursor.fetchone()
                 assert result['count'] == 0, "Match should not be created when metadata resolution fails"
 
-            with jellyswipe.db.get_db_closing() as conn:
+            with sqlite_test_transaction() as conn:
                 cursor = conn.execute(
                     "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
                     ("FAIL789", "movie_fail")
@@ -280,7 +282,11 @@ def _set_session(client, secret_key, *, active_room="ROOM1", solo_mode=False):
 
 def _seed_solo_room(db_path, room_code="ROOM1"):
     """Seed a solo-mode room ready for swiping."""
-    conn = jellyswipe.db.get_db()
+    path = application_db_path.path
+    assert path is not None
+    conn = sqlite3.connect(path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
     try:
         conn.execute(
             "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
