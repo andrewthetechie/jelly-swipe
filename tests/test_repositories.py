@@ -104,6 +104,51 @@ class TestRoomRepository:
             assert md == "{}"
             await session.commit()
 
+    async def test_create_with_media_type_fields(self, runtime_sessionmaker):
+        """Test that RoomRepository.create() persists include_movies and include_tv_shows."""
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "MEDIA_TEST",
+                movie_data_json="[]",
+                ready=False,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+                include_movies=False,
+                include_tv_shows=True,
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            record = await uow.rooms.get_room("MEDIA_TEST")
+            
+        assert record is not None
+        assert record.include_movies is False
+        assert record.include_tv_shows is True
+        
+        # Also test default values (movies-only)
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "DEFAULT_TEST",
+                movie_data_json="[]",
+                ready=False,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            record = await uow.rooms.get_room("DEFAULT_TEST")
+            
+        assert record is not None
+        assert record.include_movies is True
+        assert record.include_tv_shows is False
+
 
 @pytest.mark.anyio
 class TestMatchRepository:

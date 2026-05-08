@@ -54,6 +54,8 @@ class TestAlembicBaseline:
                 "last_match_data",
                 "deck_position",
                 "deck_order",
+                "include_movies",
+                "include_tv_shows",
             }
             assert columns["movie_data"]["dflt_value"] in ("'[]'", '"[]"', "[]")
             assert columns["ready"]["dflt_value"] in ("0", "'0'")
@@ -121,11 +123,13 @@ class TestAlembicBaseline:
             )
             conn.commit()
 
-            room = conn.execute("SELECT movie_data, ready, current_genre, solo_mode FROM rooms WHERE pairing_code = ?", ("ROOM1",)).fetchone()
+            room = conn.execute("SELECT movie_data, ready, current_genre, solo_mode, include_movies, include_tv_shows FROM rooms WHERE pairing_code = ?", ("ROOM1",)).fetchone()
             assert room["movie_data"] == "[]"
             assert room["ready"] == 0
             assert room["current_genre"] == "All"
             assert room["solo_mode"] == 0
+            assert room["include_movies"] == 1
+            assert room["include_tv_shows"] == 0
         finally:
             conn.close()
 
