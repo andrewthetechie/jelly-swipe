@@ -23,30 +23,30 @@
 
 - [x] **ADB-01**: The database module exposes async SQLAlchemy engine and sessionmaker setup for the configured SQLite database path.
 - [x] **ADB-02**: FastAPI dependency injection provides request-scoped `AsyncSession` access through the existing dependency layer.
-- [ ] **ADB-03**: Application database interactions use async SQLAlchemy APIs rather than direct `sqlite3` connections.
+- [x] **ADB-03**: Application database interactions use async SQLAlchemy APIs rather than direct `sqlite3` connections.
 - [x] **ADB-04**: Async session lifecycle avoids shared global sessions and closes sessions cleanly after each request or unit of work.
 
 ### MVC Persistence Boundaries
 
 - [x] **MVC-01**: Auth token vault reads, writes, cleanup, and destroy operations live behind async persistence functions instead of route/controller SQL.
-- [ ] **MVC-02**: Room creation, join, quit, deck cursor, genre, and status persistence live behind async room persistence functions.
-- [ ] **MVC-03**: Swipe, match creation, history, undo, and delete persistence live behind async swipe/match persistence functions.
-- [ ] **MVC-04**: Route handlers remain controller-level code that delegates database behavior to dependency-injected services or repositories.
+- [x] **MVC-02**: Room creation, join, quit, deck cursor, genre, and status persistence live behind async room persistence functions.
+- [x] **MVC-03**: Swipe, match creation, history, undo, and delete persistence live behind async swipe/match persistence functions.
+- [x] **MVC-04**: Route handlers remain controller-level code that delegates database behavior to dependency-injected services or repositories.
 
 ### Behavior Parity
 
 - [x] **PAR-01**: Existing auth/session behavior remains compatible, including `session_id` token vault lookup and 14-day token cleanup.
-- [ ] **PAR-02**: Existing room lifecycle behavior remains compatible for multiplayer and solo rooms.
-- [ ] **PAR-03**: Existing swipe behavior remains compatible, including deck cursor advancement, undo, right-swipe match detection, and match metadata.
-- [ ] **PAR-04**: Swipe persistence preserves race protection equivalent to the current SQLite `BEGIN IMMEDIATE` behavior.
-- [ ] **PAR-05**: SSE room stream behavior remains async and non-blocking while using async database access for polling.
+- [x] **PAR-02**: Existing room lifecycle behavior remains compatible for multiplayer and solo rooms.
+- [x] **PAR-03**: Existing swipe behavior remains compatible, including deck cursor advancement, undo, right-swipe match detection, and match metadata.
+- [x] **PAR-04**: Swipe persistence preserves race protection equivalent to the current SQLite `BEGIN IMMEDIATE` behavior.
+- [x] **PAR-05**: SSE room stream behavior remains async and non-blocking while using async database access for polling.
 
 ### Validation
 
 - [x] **VAL-01**: Tests create temporary databases through the Alembic upgrade path instead of `init_db()` table creation.
-- [ ] **VAL-02**: Migration tests prove an empty database reaches the current schema and an already-current database remains upgrade-safe.
-- [ ] **VAL-03**: Existing DB, auth, room, route, SSE, and security tests pass after the migration.
-- [ ] **VAL-04**: A final source scan finds no application-layer `sqlite3` database usage, no table-creating `init_db()` path, and no SQLModel dependency.
+- [x] **VAL-02**: Migration tests prove an empty database reaches the current schema and an already-current database remains upgrade-safe.
+- [x] **VAL-03**: Existing DB, auth, room, route, SSE, and security tests pass after the migration.
+- [x] **VAL-04**: A final source scan finds no application-layer `sqlite3` database usage, no table-creating `init_db()` path, and no SQLModel dependency.
 
 ## Future Requirements
 
@@ -83,21 +83,21 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCH-03 | Phase 36 | Complete |
 | ADB-01 | Phase 37 | Complete |
 | ADB-02 | Phase 37 | Complete |
-| ADB-03 | Phase 40 | Pending |
+| ADB-03 | Phase 40 | Complete |
 | ADB-04 | Phase 37 | Complete |
 | MVC-01 | Phase 38 | Complete |
-| MVC-02 | Phase 39 | Pending |
-| MVC-03 | Phase 39 | Pending |
-| MVC-04 | Phase 39 | Pending |
+| MVC-02 | Phase 39 | Complete |
+| MVC-03 | Phase 39 | Complete |
+| MVC-04 | Phase 39 | Complete |
 | PAR-01 | Phase 38 | Complete |
-| PAR-02 | Phase 39 | Pending |
-| PAR-03 | Phase 39 | Pending |
-| PAR-04 | Phase 39 | Pending |
-| PAR-05 | Phase 39 | Pending |
+| PAR-02 | Phase 39 | Complete |
+| PAR-03 | Phase 39 | Complete |
+| PAR-04 | Phase 39 | Complete |
+| PAR-05 | Phase 39 | Complete |
 | VAL-01 | Phase 37 | Complete |
-| VAL-02 | Phase 40 | Pending |
-| VAL-03 | Phase 40 | Pending |
-| VAL-04 | Phase 40 | Pending |
+| VAL-02 | Phase 40 | Complete |
+| VAL-03 | Phase 40 | Complete |
+| VAL-04 | Phase 40 | Complete |
 
 **Coverage:**
 - v2.1 requirements: 24 total
@@ -106,4 +106,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-05*
-*Last updated: 2026-05-05 after roadmap traceability*
+*Last updated: 2026-05-07 — Phase 39–40 closure (MVC/PAR parity + ADB-03 / VAL-02–04)*

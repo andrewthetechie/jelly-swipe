@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Alembic + Async SQLAlchemy Persistence
-status: executing
-last_updated: "2026-05-07T23:08:48.297Z"
-last_activity: 2026-05-07 -- Phase 40 execution started
+status: idle
+last_updated: "2026-05-07T12:00:00Z"
+last_activity: 2026-05-07 -- Phase 40 closed (verification + VAL-04 CI + docs)
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 16
-  completed_plans: 12
-  percent: 75
+  completed_plans: 16
+  percent: 100
 ---
 
 # State — Jelly Swipe
 
 **Milestone:** v2.1 Alembic + Async SQLAlchemy Persistence
-**Status:** Executing Phase 40
-**Progress:** [████████░░] 80% (4/5 v2.1 phases complete on disk; Phase 40 unplanned)
+**Status:** v2.1 milestone complete (Phases 36–40)
+**Progress:** [██████████] 100% (5/5 v2.1 phases; Phase 40 verified 2026-05-07)
 
 ---
 
@@ -27,16 +27,16 @@ See: `.planning/PROJECT.md` (updated 2026-05-05)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-**Current focus:** Phase 40 — full-migration-validation-and-sync-db-removal
+**Current focus:** None — hand off to release / next milestone planning as needed
 
 ---
 
 ## Current Position
 
-Phase: 40 (full-migration-validation-and-sync-db-removal) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 40
-Last activity: 2026-05-07 -- Phase 40 execution started
+Phase: 40 (full-migration-validation-and-sync-db-removal) — COMPLETE  
+Plan: 4 of 4 (summaries + `40-VERIFICATION.md`)  
+Status: Milestone verification passed  
+Last activity: 2026-05-07 -- Phase 40 docs + CI closure
 
 ## Performance Metrics
 
@@ -85,4 +85,4 @@ Last activity: 2026-05-07 -- Phase 40 execution started
 - Tests: `tests/`
 
 ---
-*Last updated: 2026-05-07 after Phase 40 discuss-phase resume (checkpoint merged)*
+*Last updated: 2026-05-07 — Phase 40 execute-phase closure (verification, summaries, roadmap)*

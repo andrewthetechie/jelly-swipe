@@ -111,6 +111,9 @@ None captured during Phase 40 discussion—all items belonged in milestone closu
 ### Reviewed Todos (not folded)
 None (`todo.match-phase 40` returned no matches).
 
+### Technical debt retained (D-12)
+- **`DatabaseUnitOfWork.run_sync`** remains for SQLAlchemy `AsyncSession.run_sync` bridging (not raw `sqlite3`). Reassess when no callers need sync callbacks on the managed connection.
+
 </deferred>
 
 ---

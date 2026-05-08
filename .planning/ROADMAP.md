@@ -1,7 +1,7 @@
 # Roadmap — Jelly Swipe
 
-**Current State:** v2.1 planning complete
-**Last Updated:** 2026-05-05
+**Current State:** v2.1 milestone complete (Phases 36–40)
+**Last Updated:** 2026-05-07
 
 ---
 
@@ -9,7 +9,7 @@
 
 - Complete **v1.0-v1.7** — Phases 1-29 (all shipped; see `.planning/milestones/`)
 - Complete **v2.0 Flask to FastAPI + MVC Refactor** — Phases 30-35 (shipped 2026-05-05; archived in [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md))
-- Active **v2.1 Alembic + Async SQLAlchemy Persistence** — Phases 36-40
+- Complete **v2.1 Alembic + Async SQLAlchemy Persistence** — Phases 36–40 (closed 2026-05-07)
 
 ## Phases
 
@@ -32,8 +32,8 @@ Full archive: [v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
 - [x] **Phase 36: Alembic Baseline and SQLAlchemy Models** — Introduce SQLAlchemy declarative schema and Alembic migration baseline without app import side effects. (completed 2026-05-06)
 - [x] **Phase 37: Async Database Infrastructure** — Add async engine/sessionmaker, FastAPI DB dependency, migration runner, and Alembic-backed test setup. (completed 2026-05-06)
 - [x] **Phase 38: Auth Persistence Conversion** — Convert token vault CRUD and auth dependency behavior to async SQLAlchemy behind persistence boundaries. (completed 2026-05-06)
-- [ ] **Phase 39: Room, Swipe, Match, and SSE Persistence Conversion** — Convert core room/session persistence to async SQLAlchemy while preserving transaction and stream behavior.
-- [ ] **Phase 40: Full Migration Validation and Sync DB Removal** — Prove migration parity, remove old sync DB paths, and verify the full suite.
+- [x] **Phase 39: Room, Swipe, Match, and SSE Persistence Conversion** — Convert core room/session persistence to async SQLAlchemy while preserving transaction and stream behavior. (completed 2026-05-07)
+- [x] **Phase 40: Full Migration Validation and Sync DB Removal** — Prove migration parity, remove old sync DB paths, and verify the full suite. (completed 2026-05-07)
 
 ## Phase Details
 
