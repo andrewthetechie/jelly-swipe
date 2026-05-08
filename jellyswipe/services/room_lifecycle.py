@@ -75,6 +75,8 @@ class RoomLifecycleService:
                 current_genre="All",
                 solo_mode=False,
                 deck_position_json=deck_json,
+                include_movies=True,
+                include_tv_shows=False,
             )
             session_dict["active_room"] = pairing_code
             session_dict["solo_mode"] = False
@@ -103,6 +105,8 @@ class RoomLifecycleService:
                 current_genre="All",
                 solo_mode=True,
                 deck_position_json=deck_json,
+                include_movies=True,
+                include_tv_shows=False,
             )
             session_dict["active_room"] = pairing_code
             session_dict["solo_mode"] = True
