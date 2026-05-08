@@ -45,13 +45,7 @@
             <div id="session-info" class="hidden">
                 <div class="session-info-container">
                     <p>Code: <span id="session-display" class="plex-yellow session-code">----</span></p>
-                    <label class="solo-toggle-label">
-                        <span class="solo-label-text">SOLO</span>
-                        <div id="solo-toggle-track" class="solo-toggle-track">
-                            <div id="solo-toggle-thumb" class="solo-toggle-thumb"></div>
-                        </div>
-                        <input type="checkbox" id="solo-toggle" class="solo-toggle-input">
-                    </label>
+                    <p class="scope-summary">Scope: <span id="session-scope" class="plex-yellow"></span></p>
                 </div>
                 <p class="waiting-text">Waiting for partner...</p>
             </div>
@@ -78,6 +72,31 @@
             <div id="glow-right" class="glow-side"></div>
             <div id="swipe-deck"></div>
             <div id="game-instruction" class="match-instruction">Tap poster for full details</div>
+        </div>
+    </div>
+
+    <!-- Setup Panel Modal -->
+    <div id="setup-panel-overlay" class="hidden"></div>
+    <div id="setup-panel" class="hidden">
+        <h2 class="plex-yellow">Session Setup</h2>
+        <div class="setup-toggles">
+            <label class="setup-toggle-label">
+                <span class="toggle-label-text">Movies</span>
+                <input type="checkbox" id="setup-movies" class="setup-toggle-input" checked>
+            </label>
+            <label class="setup-toggle-label">
+                <span class="toggle-label-text">TV Shows</span>
+                <input type="checkbox" id="setup-tv-shows" class="setup-toggle-input">
+            </label>
+            <label class="setup-toggle-label">
+                <span class="toggle-label-text">Solo</span>
+                <input type="checkbox" id="setup-solo" class="setup-toggle-input">
+            </label>
+        </div>
+        <p id="setup-error" class="setup-error hidden"></p>
+        <div class="setup-buttons">
+            <button id="setup-cancel-btn" class="menu-btn">Cancel</button>
+            <button id="setup-confirm-btn" class="menu-btn glow-btn" disabled>Confirm</button>
         </div>
     </div>
 

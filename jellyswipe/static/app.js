@@ -155,19 +155,81 @@
             }
         }
 
-        async function handleSoloToggle(checkbox) {
-            const track = document.getElementById('solo-toggle-track');
-            const thumb = document.getElementById('solo-toggle-thumb');
-            if (checkbox.checked) {
-                track.style.background = '#e5a00d';
-                thumb.style.transform = 'translateX(18px)';
-                thumb.style.background = '#000';
-                await activateSoloMode();
-            } else {
-                track.style.background = '#333';
-                thumb.style.transform = 'translateX(0)';
-                thumb.style.background = '#888';
+        function showSetupPanel() {
+            document.getElementById('setup-movies').checked = true;
+            document.getElementById('setup-tv-shows').checked = false;
+            document.getElementById('setup-solo').checked = false;
+            document.getElementById('setup-error').classList.add('hidden');
+            updateConfirmButtonState();
+            document.getElementById('setup-panel-overlay').classList.remove('hidden');
+            document.getElementById('setup-panel').classList.remove('hidden');
+        }
+
+        function updateConfirmButtonState() {
+            const moviesOn = document.getElementById('setup-movies').checked;
+            const tvShowsOn = document.getElementById('setup-tv-shows').checked;
+            const confirmBtn = document.getElementById('setup-confirm-btn');
+            confirmBtn.disabled = !(moviesOn || tvShowsOn);
+        }
+
+        function getScopeSummary() {
+            const moviesOn = document.getElementById('setup-movies').checked;
+            const tvShowsOn = document.getElementById('setup-tv-shows').checked;
+            if (moviesOn && tvShowsOn) return 'Movies + TV Shows';
+            if (moviesOn) return 'Movies';
+            if (tvShowsOn) return 'TV Shows';
+            return '';
+        }
+
+        async function confirmSetup() {
+            const moviesOn = document.getElementById('setup-movies').checked;
+            const tvShowsOn = document.getElementById('setup-tv-shows').checked;
+            const soloOn = document.getElementById('setup-solo').checked;
+            const errorEl = document.getElementById('setup-error');
+
+            if (!moviesOn && !tvShowsOn) {
+                errorEl.textContent = 'Select at least one media type';
+                errorEl.classList.remove('hidden');
+                return;
             }
+
+            try {
+                const res = await apiFetch('/room', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ movies: moviesOn, tv_shows: tvShowsOn, solo: soloOn })
+                });
+
+                if (res.status === 422) {
+                    errorEl.textContent = 'No titles found for the selected media types';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                if (!res.ok) {
+                    errorEl.textContent = 'Failed to create session';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                const data = await res.json();
+                currentRoomCode = data.pairing_code;
+                document.getElementById('session-display').innerText = data.pairing_code;
+                document.getElementById('session-scope').innerText = getScopeSummary();
+                document.getElementById('host-btn').classList.add('hidden');
+                document.getElementById('session-info').classList.remove('hidden');
+                document.getElementById('setup-panel-overlay').classList.add('hidden');
+                document.getElementById('setup-panel').classList.add('hidden');
+                startPolling();
+            } catch (err) {
+                errorEl.textContent = 'Network error - please try again';
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function cancelSetup() {
+            document.getElementById('setup-panel-overlay').classList.add('hidden');
+            document.getElementById('setup-panel').classList.add('hidden');
         }
 
         const loadMovies = async (solo = false) => {
@@ -404,8 +466,20 @@
             const genrePill = document.getElementById('genre-pill');
             if (genrePill) genrePill.onclick = () => toggleGenreModal();
 
-            const soloToggle = document.getElementById('solo-toggle');
-            if (soloToggle) soloToggle.addEventListener('change', function() { handleSoloToggle(this); });
+            const setupMovies = document.getElementById('setup-movies');
+            if (setupMovies) setupMovies.addEventListener('change', updateConfirmButtonState);
+
+            const setupTvShows = document.getElementById('setup-tv-shows');
+            if (setupTvShows) setupTvShows.addEventListener('change', updateConfirmButtonState);
+
+            const setupConfirmBtn = document.getElementById('setup-confirm-btn');
+            if (setupConfirmBtn) setupConfirmBtn.addEventListener('click', confirmSetup);
+
+            const setupCancelBtn = document.getElementById('setup-cancel-btn');
+            if (setupCancelBtn) setupCancelBtn.addEventListener('click', cancelSetup);
+
+            const setupOverlay = document.getElementById('setup-panel-overlay');
+            if (setupOverlay) setupOverlay.addEventListener('click', cancelSetup);
 
             const genreCancelBtn = document.querySelector('.genre-cancel-btn');
             if (genreCancelBtn) genreCancelBtn.addEventListener('click', () => toggleGenreModal());
@@ -667,14 +741,8 @@
             };
         }
 
-        document.getElementById('host-btn').onclick = async () => {
-            const res = await apiFetch('/room', { method: 'POST' });
-            const data = await res.json();
-            currentRoomCode = data.pairing_code;
-            document.getElementById('session-display').innerText = data.pairing_code;
-            document.getElementById('host-btn').classList.add('hidden');
-            document.getElementById('session-info').classList.remove('hidden');
-            startPolling();
+        document.getElementById('host-btn').onclick = () => {
+            showSetupPanel();
         };
 
         async function joinRoom() {
