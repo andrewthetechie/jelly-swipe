@@ -33,6 +33,7 @@ dev = [
     "pytest-mock>=3.14.0",
     "responses>=0.25.0",
     "pytest-timeout>=2.3.0",
+    "ruff>=0.15.12"
 ]
 
 [tool.pytest.ini_options]
