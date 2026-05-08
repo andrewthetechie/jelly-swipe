@@ -70,7 +70,13 @@ class RoomLifecycleService:
             exists = await uow.rooms.pairing_code_exists(pairing_code)
             if exists:
                 continue
-            movie_list = provider.fetch_deck(media_types=["movie"])
+            # Build media_types list from boolean flags
+            media_types = []
+            if include_movies:
+                media_types.append("movie")
+            if include_tv_shows:
+                media_types.append("tv_show")
+            movie_list = provider.fetch_deck(media_types=media_types)
             deck_json = json.dumps({user_id: 0})
             await uow.rooms.create(
                 pairing_code,
@@ -100,7 +106,9 @@ class RoomLifecycleService:
             exists = await uow.rooms.pairing_code_exists(pairing_code)
             if exists:
                 continue
-            movie_list = provider.fetch_deck(media_types=["movie"])
+            # Build media_types list from boolean flags - solo mode defaults to movies only
+            media_types = ["movie"]
+            movie_list = provider.fetch_deck(media_types=media_types)
             deck_json = json.dumps({user_id: 0})
             await uow.rooms.create(
                 pairing_code,
