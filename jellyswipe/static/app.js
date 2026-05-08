@@ -133,7 +133,7 @@
                 const res = await apiFetch("/watchlist/add", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ movie_id: id })
+                    body: JSON.stringify({ media_id: id })
                 });
                 if (res.ok) {
                     btn.innerText = "IN WATCHLIST";
@@ -321,7 +321,7 @@
                 watchlistBtn.style.border = '1px solid #e5a00d';
                 watchlistBtn.style.marginTop = '5px';
                 watchlistBtn.textContent = 'SAVE TO WATCHLIST';
-                watchlistBtn.onclick = (event) => addToWatchlist(event, m.movie_id);
+                watchlistBtn.onclick = (event) => addToWatchlist(event, m.media_id);
                 miniBack.appendChild(watchlistBtn);
 
                 // Delete button
@@ -334,7 +334,7 @@
                 deleteBtn.style.marginTop = '5px';
                 deleteBtn.style.color = 'black';
                 deleteBtn.textContent = 'DELETE';
-                deleteBtn.onclick = (event) => deleteMatch(event, m.movie_id);
+                deleteBtn.onclick = (event) => deleteMatch(event, m.media_id);
                 miniBack.appendChild(deleteBtn);
 
                 miniInner.appendChild(miniBack);
@@ -369,7 +369,7 @@
                 await apiFetch("/matches/delete", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({ movie_id: pendingDeleteId })
+                    body: JSON.stringify({ media_id: pendingDeleteId })
                 });
                 closeDeleteModal();
                 openMatches(isHistoryView);
@@ -384,7 +384,7 @@
                 await apiFetch(`/room/${currentRoomCode}/undo`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ movie_id: lastMovie.id })
+                    body: JSON.stringify({ media_id: lastMovie.media_id })
                 });
                 movieStack.unshift(lastMovie);
                 renderInitialDeck();
@@ -456,7 +456,7 @@
         function createCard(m) {
             const c = document.createElement('div');
             c.className = 'movie-card';
-            c.dataset.id = m.id; c.dataset.title = m.title; c.dataset.thumb = m.thumb;
+            c.dataset.media_id = m.media_id; c.dataset.title = m.title; c.dataset.thumb = m.thumb;
 
             // Create card-inner
             const cardInner = document.createElement('div');
@@ -653,7 +653,7 @@
                     apiFetch(`/room/${currentRoomCode}/swipe`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ movie_id: card.dataset.id, direction: dir })
+                        body: JSON.stringify({ media_id: card.dataset.media_id, direction: dir })
                     });
                     // Match popup comes from SSE only — no match detection in HTTP response
                     setTimeout(() => { card.remove(); movieStack.shift(); if (movieStack[4]) document.getElementById('swipe-deck').prepend(createCard(movieStack[4])); initDrag(document.getElementById('swipe-deck').lastElementChild); globalCurrentX = 0; }, 300);

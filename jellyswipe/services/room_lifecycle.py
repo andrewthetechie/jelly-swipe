@@ -47,7 +47,8 @@ class RoomLifecycleService:
         return {
             "title": record.title,
             "thumb": record.thumb,
-            "movie_id": record.movie_id,
+            "media_id": record.movie_id,
+            "media_type": "movie",
             "deep_link": record.deep_link,
             "rating": record.rating or "",
             "duration": record.duration or "",
@@ -172,7 +173,14 @@ class RoomLifecycleService:
         start = cursor_pos + (page - 1) * self.page_size
         end = start + self.page_size
         slice_ = movies[start:end]
-        return list(slice_) if isinstance(slice_, list) else []
+        # Map id → media_id and add media_type for API response (exclude original id)
+        result = []
+        for m in (slice_ if isinstance(slice_, list) else []):
+            item = {k: v for k, v in m.items() if k != "id"}
+            item["media_id"] = m.get("id")
+            item["media_type"] = m.get("media_type", "movie")
+            result.append(item)
+        return result
 
     async def set_genre(
         self,

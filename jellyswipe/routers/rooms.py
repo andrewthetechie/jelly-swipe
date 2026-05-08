@@ -115,9 +115,9 @@ async def swipe(
         data = await request.json()
     except Exception:
         data = {}
-    mid = data.get('movie_id')
+    mid = data.get('media_id')
     if not mid:
-        return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+        return JSONResponse(content={'error': 'media_id required'}, status_code=400)
     mid = str(mid)
 
     title = None
@@ -127,7 +127,7 @@ async def swipe(
         title = resolved.title
         thumb = f"/proxy?path=jellyfin/{mid}/Primary"
     except RuntimeError as exc:
-        logging.getLogger().warning(f"Failed to resolve metadata for movie_id={mid}: {exc}")
+        logging.getLogger().warning(f"Failed to resolve metadata for media_id={mid}: {exc}")
 
     result = await swipe_match_service.swipe(
         code=code,
@@ -167,9 +167,9 @@ async def delete_match(request: Request, uow: DBUoW, user: AuthUser = Depends(re
         data = await request.json()
     except Exception:
         data = {}
-    mid = data.get('movie_id')
+    mid = data.get('media_id')
     if not mid:
-        return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+        return JSONResponse(content={'error': 'media_id required'}, status_code=400)
     mid = str(mid)
     return await swipe_match_service.delete_match(
         movie_id=mid,
@@ -186,9 +186,9 @@ async def undo_swipe(code: str, request: Request, uow: DBUoW, user: AuthUser = D
         data = await request.json()
     except Exception:
         data = {}
-    mid = data.get('movie_id')
+    mid = data.get('media_id')
     if not mid:
-        return JSONResponse(content={'error': 'movie_id required'}, status_code=400)
+        return JSONResponse(content={'error': 'media_id required'}, status_code=400)
     mid = str(mid)
     return await swipe_match_service.undo_swipe(
         code=code,
