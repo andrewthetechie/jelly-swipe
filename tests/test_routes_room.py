@@ -117,6 +117,89 @@ def test_room_create_stores_room_in_db(client, app):
 
 
 # ---------------------------------------------------------------------------
+# Section 1b: POST /room with body tests (merged endpoint)
+# ---------------------------------------------------------------------------
+
+
+def test_room_create_with_movies_only(client, app):
+    """POST /room with {"movies": true, "tv_shows": false, "solo": false} creates hosted room."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    response = client.post("/room", json={"movies": True, "tv_shows": False, "solo": False})
+    assert response.status_code == 200
+    data = response.json()
+    assert "pairing_code" in data
+    code = data["pairing_code"]
+
+    conn = _sqlite_conn_for_route_tests()
+    try:
+        row = conn.execute(
+            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["include_movies"] == 1
+    assert row["include_tv_shows"] == 0
+    assert row["solo_mode"] == 0
+    assert row["ready"] == 0
+
+
+def test_room_create_with_solo_mode(client, app):
+    """POST /room with {"movies": true, "tv_shows": false, "solo": true} creates solo room with ready=1."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    response = client.post("/room", json={"movies": True, "tv_shows": False, "solo": True})
+    assert response.status_code == 200
+    data = response.json()
+    assert "pairing_code" in data
+    code = data["pairing_code"]
+
+    conn = _sqlite_conn_for_route_tests()
+    try:
+        row = conn.execute(
+            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["include_movies"] == 1
+    assert row["include_tv_shows"] == 0
+    assert row["solo_mode"] == 1
+    assert row["ready"] == 1
+
+
+def test_room_create_no_media_types_returns_400(client, app):
+    """POST /room with {"movies": false, "tv_shows": false} returns 400."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    response = client.post("/room", json={"movies": False, "tv_shows": False, "solo": False})
+    assert response.status_code == 400
+    data = response.json()
+    assert "error" in data
+
+
+def test_room_create_empty_body_defaults_to_movies_only(client, app):
+    """POST /room with empty body defaults to movies-only hosted session."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    response = client.post("/room", json={})
+    assert response.status_code == 200
+    data = response.json()
+    assert "pairing_code" in data
+    code = data["pairing_code"]
+
+    conn = _sqlite_conn_for_route_tests()
+    try:
+        row = conn.execute(
+            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["include_movies"] == 1
+    assert row["include_tv_shows"] == 0
+    assert row["solo_mode"] == 0
+    assert row["ready"] == 0
+
+
+# ---------------------------------------------------------------------------
 # Section 2: POST /room/<code>/join tests
 # ---------------------------------------------------------------------------
 
@@ -159,48 +242,17 @@ def test_room_join_invalid_code_returns_404(client, app):
 
 
 # ---------------------------------------------------------------------------
-# Section 3: POST /room/solo tests
+# Section 3: POST /room/solo tests (deprecated endpoint)
 # ---------------------------------------------------------------------------
 
 
-def test_solo_room_creation(client, app):
-    """POST /room/solo creates a solo room and returns pairing code."""
+def test_solo_room_endpoint_returns_404(client, app):
+    """POST /room/solo returns 404 (endpoint removed)."""
     _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
     response = client.post("/room/solo")
-    assert response.status_code == 200
+    assert response.status_code == 404
     data = response.json()
-    assert "pairing_code" in data
-    code = data["pairing_code"]
-    assert len(str(code)) == 4
-    assert str(code).isdigit()
-
-
-def test_solo_room_db_state(client, app):
-    """POST /room/solo stores solo_mode=1 and ready=1 in the database."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
-    response = client.post("/room/solo")
-    code = response.json()["pairing_code"]
-
-    conn = _sqlite_conn_for_route_tests()
-    try:
-        row = conn.execute(
-            "SELECT solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
-        ).fetchone()
-    finally:
-        conn.close()
-    assert row["solo_mode"] == 1
-    assert row["ready"] == 1
-
-
-def test_solo_room_sets_session(client, app):
-    """POST /room/solo sets solo_mode=True and active_room in session."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
-    response = client.post("/room/solo")
-    code = response.json()["pairing_code"]
-
-    # Note: Session state cannot be verified directly in FastAPI TestClient
-    # The session is set via cookies by the endpoint
-    assert code is not None
+    assert "error" in data
 
 
 # ---------------------------------------------------------------------------

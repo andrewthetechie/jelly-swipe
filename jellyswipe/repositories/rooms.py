@@ -31,6 +31,8 @@ class RoomRepository:
         current_genre: str,
         solo_mode: bool,
         deck_position_json: str,
+        include_movies: bool = True,
+        include_tv_shows: bool = False,
     ) -> None:
         self._session.add(
             Room(
@@ -40,6 +42,8 @@ class RoomRepository:
                 current_genre=current_genre,
                 solo_mode=1 if solo_mode else 0,
                 deck_position=deck_position_json,
+                include_movies=1 if include_movies else 0,
+                include_tv_shows=1 if include_tv_shows else 0,
             )
         )
 
@@ -149,4 +153,6 @@ class RoomRepository:
             last_match_data_json=row.last_match_data,
             deck_position_json=row.deck_position,
             deck_order_json=row.deck_order,
+            include_movies=bool(row.include_movies),
+            include_tv_shows=bool(row.include_tv_shows),
         )

@@ -23,6 +23,8 @@ def upgrade() -> None:
         sa.Column("last_match_data", sa.Text(), nullable=True),
         sa.Column("deck_position", sa.Text(), nullable=True),
         sa.Column("deck_order", sa.Text(), nullable=True),
+        sa.Column("include_movies", sa.Integer(), nullable=False, server_default=sa.text("1")),
+        sa.Column("include_tv_shows", sa.Integer(), nullable=False, server_default=sa.text("0")),
     )
 
     op.create_table(
