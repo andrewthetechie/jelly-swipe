@@ -12,24 +12,14 @@ import time
 import typing
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-# Config globals — single source of truth in config.py (D-01 through D-05).
-# _provider_singleton and _JELLYFIN_URL re-exported here because dependencies.py
-# accesses them via `import jellyswipe as _app`.
-from jellyswipe.config import (
-    _provider_singleton,
-    _JELLYFIN_URL,
-    JELLYFIN_URL,
-    _token_user_id_cache,
-    TOKEN_USER_ID_CACHE_TTL_SECONDS,
-    IDENTITY_ALIAS_HEADERS,
-)
+from jellyswipe.db_runtime import dispose_runtime, set_runtime_database_url_override
 
 # App root for static/template paths
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +29,12 @@ DB_PATH = os.path.abspath(
     os.getenv("DB_PATH", os.path.join(_APP_ROOT, "..", "data", "jellyswipe.db"))
 )
 
+from jellyswipe.db_paths import application_db_path as _application_db_path
+
+_application_db_path.path = DB_PATH
+
 _logger = logging.getLogger(__name__)
+_provider_singleton = None
 
 
 def generate_request_id() -> str:
@@ -105,18 +100,13 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    import jellyswipe.db
-    # Only set DB_PATH if it hasn't been set yet (e.g., by test_config)
-    if jellyswipe.db.DB_PATH is None:
-        jellyswipe.db.DB_PATH = DB_PATH
-    from .db import init_db
-    init_db()
     _logger.info("jellyswipe_startup")
     yield
-    # Teardown
     global _provider_singleton
     _provider_singleton = None
+    import jellyswipe.config as _config
+    _config._provider_singleton = None
+    await dispose_runtime()
     _logger.info("jellyswipe_shutdown")
 
 
@@ -135,6 +125,17 @@ def create_app(test_config=None):
         lifespan=lifespan,
         default_response_class=XSSSafeJSONResponse,
     )
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        response = XSSSafeJSONResponse(
+            content={"detail": exc.detail},
+            status_code=exc.status_code,
+            headers=exc.headers,
+        )
+        if getattr(request.state, "clear_session_cookie", False):
+            response.delete_cookie("session", path="/")
+        return response
 
     # Middleware stack — add in LIFO order (last added = outermost):
     # 1. RequestIdMiddleware (innermost — sees request after session decoded)
@@ -165,9 +166,16 @@ def create_app(test_config=None):
 
     # Test config override
     if test_config:
+        if 'DATABASE_URL' in test_config:
+            set_runtime_database_url_override(test_config['DATABASE_URL'])
+        else:
+            set_runtime_database_url_override(None)
         if 'DB_PATH' in test_config:
-            import jellyswipe.db
-            jellyswipe.db.DB_PATH = test_config['DB_PATH']
+            import jellyswipe.db_paths as _db_paths
+
+            _db_paths.application_db_path.path = test_config['DB_PATH']
+    else:
+        set_runtime_database_url_override(None)
 
     # Static files mount (prevents path traversal vulnerabilities)
     app.mount('/static', StaticFiles(directory=os.path.join(_APP_ROOT, 'static')), name='static')
@@ -188,15 +196,16 @@ def create_app(test_config=None):
     return app
 
 
-# Module-level app instance — required for deployment.
-# Uvicorn is invoked as `uvicorn jellyswipe:app` (not --factory), so this
-# module-level call is necessary. Removing it would break the Dockerfile CMD.
-#
-# SIDE EFFECT: importing jellyswipe for ANY reason (tests, IDE indexing, etc.)
-# triggers create_app(), which reads os.environ["FLASK_SECRET"] and runs
-# config.validate_jellyfin_url(). The test suite works around this by setting
-# env vars at conftest module level before any jellyswipe imports.
-#
-# Future improvement: switch Uvicorn to --factory mode with
-# `uvicorn jellyswipe:create_app --factory` and remove this line.
-app = create_app()
+def __getattr__(name: str):
+    """Lazy-export the ASGI app so package imports stay side-effect free.
+
+    Alembic and declarative metadata imports need to load `jellyswipe` the package
+    without constructing the FastAPI app or validating runtime provider config.
+    Uvicorn's `jellyswipe:app` import path still works because module attribute
+    access triggers this loader on first access.
+    """
+    if name == "app":
+        app = create_app()
+        globals()["app"] = app
+        return app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

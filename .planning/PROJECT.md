@@ -16,6 +16,16 @@ The app now runs as FastAPI on Uvicorn, with `jellyswipe/__init__.py` reduced to
 
 **Current verification:** 328 tests pass locally after the final PR fixes. The milestone archive records the earlier audit gaps and later closure artifacts.
 
+## Current Milestone: v2.1 Alembic + Async SQLAlchemy Persistence
+
+**Goal:** Replace ad hoc SQLite schema management with Alembic migrations and async SQLAlchemy persistence while preserving Jelly Swipe behavior.
+
+**Target features:**
+- Alembic owns schema creation and versioned migrations instead of `init_db()` ad hoc DDL and PRAGMA column checks.
+- SQLAlchemy declarative ORM models define the app schema; SQLModel is explicitly excluded.
+- All application database interactions use async SQLAlchemy APIs and fit the existing FastAPI MVC/domain-router organization.
+- Existing room, swipe, match, token, SSE, and test behaviors remain compatible during and after the migration.
+
 ## Validated Requirements
 
 ### v2.0
@@ -36,7 +46,10 @@ Validated requirements from v1.0–v1.7 are archived under `.planning/milestones
 
 ## Active Requirements
 
-No active requirements are defined. Use `$gsd-new-milestone` to define the next milestone requirements.
+- [ ] Replace ad hoc migrations with Alembic-managed migrations.
+- [ ] Replace handwritten SQLite schema definitions with SQLAlchemy declarative models, not SQLModel.
+- [ ] Convert database access paths to async SQLAlchemy sessions and queries.
+- [ ] Preserve current MVC/router boundaries and existing Jelly Swipe runtime behavior.
 
 ## Deferred
 
@@ -78,4 +91,4 @@ No active requirements are defined. Use `$gsd-new-milestone` to define the next 
 This document is updated at milestone boundaries. Historical requirement detail now lives in milestone archives so the active context stays small.
 
 ---
-*Last updated: 2026-05-05 after v2.0 milestone completion*
+*Last updated: 2026-05-05 after v2.1 milestone start*

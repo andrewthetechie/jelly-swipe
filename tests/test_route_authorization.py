@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
+import jellyswipe.routers.auth as auth_routes
 from tests.conftest import FakeProvider, set_session_cookie
 
 
@@ -22,7 +23,7 @@ def _set_session(client, db_connection, secret_key, *, active_room: str = "ROOM1
     if authenticated:
         session_id = "test-session-" + secrets.token_hex(8)
         db_connection.execute(
-            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
             (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
         )
         db_connection.commit()
@@ -99,16 +100,16 @@ def test_login_returns_userId_no_authToken(db_connection, client_real_auth):
 
 
 def test_login_creates_vault_entry(db_connection, client_real_auth):
-    """Login creates a user_tokens row and sets session_id cookie."""
+    """Login creates a auth_sessions row and sets session_id cookie."""
     response = client_real_auth.post("/auth/jellyfin-login", json={
         "username": "testuser",
         "password": "testpass",
     })
     assert response.status_code == 200
     # Verify vault entry was created
-    count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+    count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
     assert count == 1
-    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM user_tokens").fetchone()
+    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions").fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
 
@@ -140,12 +141,12 @@ def test_delegate_returns_userId(db_connection, client_real_auth):
 
 
 def test_delegate_creates_vault_entry(db_connection, client_real_auth):
-    """Delegate creates a user_tokens row with server credentials."""
+    """Delegate creates a auth_sessions row with server credentials."""
     response = client_real_auth.post("/auth/jellyfin-use-server-identity")
     assert response.status_code == 200
-    count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+    count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
     assert count == 1
-    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM user_tokens").fetchone()
+    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions").fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
 
@@ -222,7 +223,7 @@ def _setup_deck_session(client, db_connection, secret_key, *, user_id="verified-
     """Set up an authenticated session and return the session_id."""
     session_id = "test-session-" + secrets.token_hex(8)
     db_connection.execute(
-        "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
         (session_id, token, user_id, datetime.now(timezone.utc).isoformat())
     )
     db_connection.commit()
@@ -658,6 +659,20 @@ class TestGetMe:
         assert resp.status_code == 401
         assert resp.json() == {'detail': 'Authentication required'}
 
+    def test_get_me_clears_stale_session_cookie(self, db_connection, client_real_auth):
+        """GET /me clears stale local session state when the persisted auth row is missing."""
+        set_session_cookie(
+            client_real_auth,
+            {"session_id": "stale-session", "active_room": "ROOM1", "solo_mode": True},
+            os.environ["FLASK_SECRET"],
+        )
+
+        resp = client_real_auth.get("/me")
+
+        assert resp.status_code == 401
+        assert resp.json() == {"detail": "Authentication required"}
+        assert client_real_auth.cookies.get("session") is None
+
 
 # --- Solo Room Endpoint Tests ---
 
@@ -724,11 +739,30 @@ class TestSoloRoom:
 class TestLogout:
     """Tests for POST /auth/logout endpoint (CLNT-01)."""
 
+    def test_logout_delegates_destroy_to_auth_service(self, db_connection, client_real_auth, monkeypatch):
+        """POST /auth/logout delegates session destruction to the auth service seam."""
+        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        calls: list[str | None] = []
+
+        async def fake_destroy_session(session_dict, uow):
+            calls.append(session_dict.get("session_id"))
+            session_dict.clear()
+
+        monkeypatch.setattr(auth_routes, "destroy_session", fake_destroy_session, raising=False)
+
+        resp = client_real_auth.post("/auth/logout")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "logged_out"}
+        assert len(calls) == 1
+        assert calls[0] is not None
+        assert calls[0].startswith("test-session-")
+
     def test_logout_clears_vault(self, db_connection, client_real_auth):
-        """POST /auth/logout removes session_id from user_tokens vault."""
+        """POST /auth/logout removes session_id from auth_sessions vault."""
         _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
         # Verify vault entry exists before logout
-        count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
         assert count >= 1
 
         resp = client_real_auth.post('/auth/logout')
@@ -737,7 +771,7 @@ class TestLogout:
         assert data['status'] == 'logged_out'
 
         # Verify vault entry was removed
-        count = db_connection.execute("SELECT COUNT(*) FROM user_tokens").fetchone()[0]
+        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
         assert count == 0
 
     def test_logout_clears_session_cookie(self, db_connection, client_real_auth):
@@ -749,10 +783,13 @@ class TestLogout:
 
         resp = client_real_auth.post('/auth/logout')
         assert resp.status_code == 200
+        assert resp.json() == {"status": "logged_out"}
+        assert client_real_auth.cookies.get("session") is None
 
         # Verify session_id is cleared
         resp2 = client_real_auth.get('/me')
         assert resp2.status_code == 401
+        assert resp2.json() == {"detail": "Authentication required"}
 
     def test_logout_requires_auth(self, db_connection, client_real_auth):
         """POST /auth/logout without authentication returns 401."""
@@ -787,6 +824,24 @@ class TestGetMeActiveRoom:
         data = resp.json()
         assert 'activeRoom' in data
         assert data['activeRoom'] == 'ROOM1'
+
+    def test_me_delegates_active_room_resolution_to_auth_service(self, db_connection, client_real_auth, monkeypatch):
+        """GET /me uses the auth service helper for active-room compatibility."""
+        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _seed_room(db_connection, "ROOM1")
+        calls: list[dict[str, Any]] = []
+
+        async def fake_resolve_active_room(session_dict, uow):
+            calls.append(dict(session_dict))
+            return None
+
+        monkeypatch.setattr(auth_routes, "resolve_active_room", fake_resolve_active_room, raising=False)
+
+        resp = client_real_auth.get("/me")
+
+        assert resp.status_code == 200
+        assert resp.json()["activeRoom"] is None
+        assert calls and calls[0]["active_room"] == "ROOM1"
 
 
 # --- Go-Solo Route Removal Test ---

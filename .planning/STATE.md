@@ -1,23 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Flask → FastAPI + MVC Refactor
-status: completed
-last_updated: "2026-05-05T17:09:00.283Z"
-last_activity: 2026-05-05
+milestone: v2.1
+milestone_name: Alembic + Async SQLAlchemy Persistence
+status: Branch worktree-agent-37-03 pushed — create PR manually (gh not authenticated)
+last_updated: "2026-05-08T03:40:48.434Z"
+last_activity: 2026-05-07
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 13
-  completed_plans: 13
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 16
+  completed_plans: 16
   percent: 100
 ---
 
 # State — Jelly Swipe
 
-**Milestone:** v2.0 Flask → FastAPI + MVC Refactor
-**Status:** Complete
-**Progress:** [██████████] 100%
+**Milestone:** v2.1 Alembic + Async SQLAlchemy Persistence
+**Status:** Branch worktree-agent-37-03 pushed — create PR manually (gh not authenticated)
+**Progress:** [██████████] 100% (5/5 v2.1 phases; Phase 40 verified 2026-05-07)
 
 ---
 
@@ -27,24 +27,23 @@ See: `.planning/PROJECT.md` (updated 2026-05-05)
 
 **Core value:** Users can run a swipe session backed by Jellyfin, with library browsing, deck behavior, and match behavior preserved across framework changes.
 
-**Current focus:** Planning next milestone.
+**Current focus:** None — hand off to release / next milestone planning as needed
 
 ---
 
 ## Current Position
 
-v2.0 is archived. Requirements for the next milestone have not been defined yet.
-
-Next command: `$gsd-new-milestone`
-
----
+Phase: 40 (full-migration-validation-and-sync-db-removal) — COMPLETE  
+Plan: 4 of 4 (summaries + `40-VERIFICATION.md`)  
+Status: Milestone verification passed  
+Last activity: 2026-05-07
 
 ## Performance Metrics
 
-- v2.0 phases: 6 (Phases 30–35)
-- v2.0 plans: 13
-- v2.0 tasks: 24
-- Final local verification after PR fixes: 328 tests passed
+- v2.1 planned phases: 5 (Phases 36–40)
+- v2.1 requirements: 24
+- v2.1 requirements mapped: 24/24
+- Baseline before implementation: 328 tests passed after v2.0 close
 
 ---
 
@@ -58,6 +57,9 @@ Next command: `$gsd-new-milestone`
 - `FLASK_SECRET` remains the session-secret env var for backward compatibility.
 - Pydantic request/response models are deferred.
 - Browser session ID is the participant identity for room matching when present.
+- v2.1 will use Alembic for migrations and SQLAlchemy declarative models for schema.
+- SQLModel is explicitly out of scope for v2.1.
+- All application database interactions must become async and fit the existing FastAPI MVC/router organization.
 
 ### Deferred Items
 
@@ -83,4 +85,4 @@ Next command: `$gsd-new-milestone`
 - Tests: `tests/`
 
 ---
-*Last updated: 2026-05-05 after v2.0 milestone completion*
+*Last updated: 2026-05-07 — Phase 40 execute-phase closure (verification, summaries, roadmap)*

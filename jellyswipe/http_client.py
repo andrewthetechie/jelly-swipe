@@ -91,7 +91,7 @@ def make_http_request(
         duration_ms = (time.time() - start_time) * 1000
 
         # Structured logging for successful requests
-        logger.info(
+        logging.getLogger().info(
             "http_request",
             extra={
                 'method': method,
@@ -110,7 +110,7 @@ def make_http_request(
         duration_ms = (time.time() - start_time) * 1000
 
         # Structured logging for failed requests
-        logger.error(
+        logging.getLogger().error(
             "http_request_failed",
             extra={
                 'method': method,

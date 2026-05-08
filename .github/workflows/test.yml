@@ -29,5 +29,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --extra dev
 
+      - name: Install ripgrep (VAL-04 guard uses rg)
+        run: sudo apt-get update -qq && sudo apt-get install -y ripgrep
+
+      - name: Phase 40 VAL-04 guard (jellyswipe/ only)
+        run: bash scripts/phase40_val04_guard.sh
+
       - name: Run tests
         run: uv run pytest tests/

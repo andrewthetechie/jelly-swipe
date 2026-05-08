@@ -14,11 +14,13 @@ Requirements: ERR-01, ERR-02, ERR-03, ERR-04, TEST-02
 import ast
 import logging
 import re
+import sqlite3
 import time
 from unittest.mock import MagicMock
 
 import jellyswipe
 import pytest
+from jellyswipe.db_paths import application_db_path
 from fastapi.testclient import TestClient
 
 
@@ -231,7 +233,9 @@ class TestErrorLogging:
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test logging error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR):
+        import jellyswipe.config as app_config
+        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get('/get-trailer/test-movie-id')
 
         assert resp.status_code == 500
@@ -248,7 +252,9 @@ class TestErrorLogging:
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("test runtime error")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR):
+        import jellyswipe.config as app_config
+        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get('/get-trailer/test-movie-id')
 
         assert resp.status_code == 500
@@ -263,7 +269,9 @@ class TestErrorLogging:
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("specific error detail for logging")
         monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR):
+        import jellyswipe.config as app_config
+        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get('/get-trailer/test-movie-id')
 
         assert resp.status_code == 500
@@ -289,10 +297,13 @@ class TestAdditionalRoutes:
         import secrets
         import os
         session_id = "test-session-" + secrets.token_hex(8)
-        import jellyswipe.db
-        conn = jellyswipe.db.get_db()
+        path = application_db_path.path
+        assert path is not None
+        conn = sqlite3.connect(path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
         conn.execute(
-            "INSERT INTO user_tokens (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
             (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
         )
         conn.commit()

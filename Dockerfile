@@ -29,9 +29,13 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy package data (templates/static)
 COPY --from=builder /app/jellyswipe /app/jellyswipe
 
+# Alembic reads project-root alembic.ini (see jellyswipe/migrations._alembic_config)
+COPY --from=builder /app/alembic.ini /app/alembic.ini
+COPY --from=builder /app/alembic /app/alembic
+
 # Create data directory for persistent storage
 RUN mkdir -p /app/data
 
 EXPOSE 5005
 
-CMD ["/app/.venv/bin/uvicorn", "jellyswipe:app", "--host", "0.0.0.0", "--port", "5005"]
+CMD ["/app/.venv/bin/python", "-m", "jellyswipe.bootstrap"]

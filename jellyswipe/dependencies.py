@@ -2,7 +2,7 @@
 
 Exports AuthUser dataclass and Depends()-compatible callables for:
 - Authentication (require_auth, destroy_session_dep)
-- Database access (get_db_dep, DBConn)
+- Database access (get_db_uow, DBUoW)
 - Rate limiting (check_rate_limit)
 - Jellyfin provider singleton (get_provider)
 """
@@ -10,13 +10,13 @@ Exports AuthUser dataclass and Depends()-compatible callables for:
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-import sqlite3
 from fastapi import Depends, HTTPException, Request
 
 import threading
 
 import jellyswipe.auth as auth
-from jellyswipe.db import get_db_closing
+from jellyswipe.db_runtime import get_sessionmaker
+from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.rate_limiter import rate_limiter
 
 _provider_lock = threading.Lock()
@@ -29,28 +29,20 @@ class AuthUser:
     user_id: str
 
 
-def require_auth(request: Request) -> AuthUser:
-    """FastAPI dependency that requires authentication.
-
-    Returns AuthUser if session is valid, raises HTTPException(401) otherwise.
-    """
-    result = auth.get_current_token(request.session)
-    if result is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    jf_token, user_id = result
-    return AuthUser(jf_token=jf_token, user_id=user_id)
-
-
-def get_db_dep():
-    """Yield dependency for database connections.
-
-    Wraps get_db_closing() to provide a connection that auto-closes.
-    """
-    with get_db_closing() as conn:
-        yield conn
+async def get_db_uow():
+    """Yield a request-scoped async unit of work."""
+    session = get_sessionmaker()()
+    try:
+        yield DatabaseUnitOfWork(session)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
-DBConn = Annotated[sqlite3.Connection, Depends(get_db_dep)]
+DBUoW = Annotated[DatabaseUnitOfWork, Depends(get_db_uow, scope="function")]
 
 
 _RATE_LIMITS = {
@@ -95,12 +87,26 @@ def check_rate_limit(request: Request) -> None:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
 
-def destroy_session_dep(request: Request) -> None:
+async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
+    """FastAPI dependency that requires authentication."""
+    prior_session_id = request.session.get("session_id")
+    record = await auth.get_current_token(request.session, uow)
+    if record is not None:
+        return AuthUser(jf_token=record.jf_token, user_id=record.user_id)
+
+    if prior_session_id is not None:
+        auth.clear_session_state(request.session)
+        request.state.clear_session_cookie = True
+
+    raise HTTPException(status_code=401, detail="Authentication required")
+
+
+async def destroy_session_dep(request: Request, uow: DBUoW) -> None:
     """FastAPI dependency that destroys the current session.
 
     Calls auth.destroy_session(request.session).
     """
-    auth.destroy_session(request.session)
+    await auth.destroy_session(request.session, uow)
 
 
 def get_provider():
@@ -108,9 +114,9 @@ def get_provider():
 
     Uses lazy import to avoid circular dependency with __init__.py.
     """
-    # Lazy import to avoid circular import with __init__.py
     try:
         import jellyswipe as _app
+        import jellyswipe.config as _config
     except RuntimeError as exc:
         raise RuntimeError(
             "Cannot initialise JellyfinLibraryProvider: jellyswipe package "
@@ -118,12 +124,18 @@ def get_provider():
             "TMDB_ACCESS_TOKEN environment variables are set."
         ) from exc
 
-    if _app._provider_singleton is None:
+    if _app._provider_singleton is not None:
+        return _app._provider_singleton
+
+    if _config._provider_singleton is None:
         with _provider_lock:
             # Double-check after acquiring lock
-            if _app._provider_singleton is None:
+            if _config._provider_singleton is None:
                 from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-                _app._provider_singleton = JellyfinLibraryProvider(_app._JELLYFIN_URL)
+                _config._provider_singleton = JellyfinLibraryProvider(_config._JELLYFIN_URL)
+            _app._provider_singleton = _config._provider_singleton
+    else:
+        _app._provider_singleton = _config._provider_singleton
 
     return _app._provider_singleton
 
@@ -131,8 +143,8 @@ def get_provider():
 __all__ = [
     "AuthUser",
     "require_auth",
-    "get_db_dep",
-    "DBConn",
+    "get_db_uow",
+    "DBUoW",
     "check_rate_limit",
     "destroy_session_dep",
     "get_provider",

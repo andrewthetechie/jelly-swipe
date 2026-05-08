@@ -11,9 +11,20 @@ import os
 import secrets
 from datetime import datetime, timezone
 
-import jellyswipe.db
+import sqlite3
+
 import pytest
+from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
+
+
+def _sqlite_conn_for_route_tests():
+    path = application_db_path.path
+    assert path is not None
+    conn = sqlite3.connect(path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +49,7 @@ def _seed_room(room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None, last
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
         movie_data = json.dumps([])
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute(
             "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode, last_match_data) "
@@ -91,7 +102,7 @@ def test_room_create_stores_room_in_db(client, app):
     assert response.status_code == 200
     code = response.json()["pairing_code"]
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT * FROM rooms WHERE pairing_code = ?", (code,)
@@ -128,7 +139,7 @@ def test_room_join_sets_session_and_ready(client, app):
     # Note: Session state cannot be verified directly in FastAPI TestClient
     # The session is set via cookies by the endpoint
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT ready FROM rooms WHERE pairing_code = ?", ("TEST1",)
@@ -170,7 +181,7 @@ def test_solo_room_db_state(client, app):
     response = client.post("/room/solo")
     code = response.json()["pairing_code"]
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
@@ -211,7 +222,7 @@ def test_quit_room_deletes_from_db(client, app):
     _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True)
     _seed_room("TEST1")
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute(
             "INSERT INTO swipes (room_code, movie_id, user_id, direction) VALUES (?, ?, ?, ?)",
@@ -223,7 +234,7 @@ def test_quit_room_deletes_from_db(client, app):
 
     client.post("/room/TEST1/quit")
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         room_count = conn.execute(
             "SELECT COUNT(*) as cnt FROM rooms WHERE pairing_code = ?", ("TEST1",)
@@ -243,7 +254,7 @@ def test_quit_room_archives_matches(client, app):
     _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True)
     _seed_room("TEST1")
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute(
             "INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) "
@@ -256,7 +267,7 @@ def test_quit_room_archives_matches(client, app):
 
     client.post("/room/TEST1/quit")
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT status, room_code FROM matches WHERE movie_id = ? AND user_id = ?",
@@ -330,7 +341,7 @@ def test_room_status_nonexistent_room(client):
 def test_room_status_room_deleted_from_db(client):
     """GET /room/<code>/status for room deleted from DB returns ready=False."""
     _seed_room("TEST1", ready=1)
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute("DELETE FROM rooms WHERE pairing_code = ?", ("TEST1",))
         conn.commit()
@@ -359,7 +370,7 @@ def test_swipe_left_records_no_match(client, app):
     assert response.status_code == 200
     assert response.json() == {"accepted": True}
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT direction FROM swipes WHERE room_code = 'TEST1' AND movie_id = 'm1'"
@@ -383,7 +394,7 @@ def test_swipe_right_solo_match(client, app):
     assert response.status_code == 200
     assert response.json() == {"accepted": True}
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT * FROM matches WHERE room_code = 'TEST1' AND movie_id = 'm1'"
@@ -398,8 +409,12 @@ def test_swipe_right_dual_match(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
+        conn.execute(
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            ("other-session-id", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
+        )
         conn.execute(
             "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
             ("TEST1", "m1", "user-2", "right", "other-session-id"),
@@ -417,7 +432,7 @@ def test_swipe_right_dual_match(client, app):
     data = response.json()
     assert data == {"accepted": True}
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         rows = conn.execute(
             "SELECT user_id FROM matches WHERE room_code = 'TEST1' AND movie_id = 'm1'"
@@ -448,8 +463,12 @@ def test_swipe_right_updates_last_match_data(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
+        conn.execute(
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            ("other-session-id", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
+        )
         conn.execute(
             "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
             ("TEST1", "m1", "user-2", "right", "other-session-id"),
@@ -463,7 +482,7 @@ def test_swipe_right_updates_last_match_data(client, app):
         json={"movie_id": "m1", "direction": "right"},
     )
 
-    conn = jellyswipe.db.get_db()
+    conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
             "SELECT last_match_data FROM rooms WHERE pairing_code = 'TEST1'"

@@ -1,113 +1,134 @@
-"""Database functions for Jelly Swipe."""
+"""Async database maintenance helpers for Jelly Swipe.
 
-import os
-import sqlite3
-from contextlib import contextmanager
+Application code must not open raw sqlite3 connections; use SQLAlchemy async
+sessions via :mod:`jellyswipe.db_runtime` and :mod:`jellyswipe.dependencies`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
-DB_PATH = None
+import jellyswipe.db_runtime as db_runtime
+from jellyswipe.db_paths import application_db_path
+from jellyswipe.db_uow import DatabaseUnitOfWork
 
 
-def get_db():
-    """Get a database connection with NORMAL synchronous mode (DB-02)."""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
+async def _initialize_maintenance_runtime(database_url: str | None = None) -> tuple[str, bool]:
+    target_sync_url = database_url or _get_database_url()
+    target_async_url = db_runtime.build_async_database_url(target_sync_url)
+    runtime_already_initialized = (
+        db_runtime.RUNTIME_ENGINE is not None
+        and db_runtime.RUNTIME_DATABASE_URL == target_async_url
+    )
+    await db_runtime.initialize_runtime(target_sync_url)
+    return target_sync_url, runtime_already_initialized
 
 
-@contextmanager
-def get_db_closing():
-    """Get a database connection that auto-closes on context exit.
+async def _configure_runtime_sqlite_pragmas() -> None:
+    if db_runtime.RUNTIME_ENGINE is None:
+        raise RuntimeError("Async runtime is not initialized")
 
-    Use in route code as: with get_db_closing() as conn: ...
-    """
-    conn = get_db()
+    async with db_runtime.RUNTIME_ENGINE.begin() as conn:
+        await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+        await conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+        await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
+
+
+async def _run_async_maintenance(
+    operation: Callable[[DatabaseUnitOfWork], Awaitable[int]],
+    database_url: str | None = None,
+) -> int:
+    _, runtime_already_initialized = await _initialize_maintenance_runtime(database_url)
     try:
-        with conn:
-            yield conn
+        await _configure_runtime_sqlite_pragmas()
+        async with db_runtime.get_sessionmaker()() as session:
+            uow = DatabaseUnitOfWork(session)
+            deleted = await operation(uow)
+            await session.commit()
+            return deleted
     finally:
-        conn.close()
+        if not runtime_already_initialized:
+            await db_runtime.dispose_runtime()
 
 
-def init_db():
-    """Initialize the database schema and run migrations."""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
-        # WAL mode and synchronous=NORMAL must be set outside any transaction.
-        # The with-block wraps all operations in a transaction, but PRAGMAs
-        # that change database mode must execute before the transaction starts.
-        conn.execute('PRAGMA journal_mode=WAL')
-        conn.execute('PRAGMA synchronous=NORMAL')
-        conn.execute('CREATE TABLE IF NOT EXISTS rooms (pairing_code TEXT PRIMARY KEY, movie_data TEXT, ready INTEGER, current_genre TEXT, solo_mode INTEGER DEFAULT 0)')
-        conn.execute('CREATE TABLE IF NOT EXISTS swipes (room_code TEXT, movie_id TEXT, user_id TEXT, direction TEXT, session_id TEXT)')
-        conn.execute('''CREATE TABLE IF NOT EXISTS matches (
-            room_code TEXT, movie_id TEXT, title TEXT, thumb TEXT,
-            status TEXT DEFAULT "active", user_id TEXT,
-            UNIQUE(room_code, movie_id, user_id)
-        )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS user_tokens (
-            session_id TEXT PRIMARY KEY,
-            jellyfin_token TEXT,
-            jellyfin_user_id TEXT,
-            created_at TEXT
-        )''')
-
-        cursor = conn.execute("PRAGMA table_info(matches)")
-        columns = [col[1] for col in cursor.fetchall()]
-        if 'status' not in columns:
-            conn.execute('ALTER TABLE matches ADD COLUMN status TEXT DEFAULT "active"')
-        if 'user_id' not in columns:
-            # Add user_id column for older databases
-            conn.execute('ALTER TABLE matches ADD COLUMN user_id TEXT')
-
-        # Fresh PRAGMA query for new match metadata columns (previous cursor consumed)
-        cursor = conn.execute("PRAGMA table_info(matches)")
-        match_cols = [col[1] for col in cursor.fetchall()]
-        if 'deep_link' not in match_cols:
-            conn.execute('ALTER TABLE matches ADD COLUMN deep_link TEXT')
-        if 'rating' not in match_cols:
-            conn.execute('ALTER TABLE matches ADD COLUMN rating TEXT')
-        if 'duration' not in match_cols:
-            conn.execute('ALTER TABLE matches ADD COLUMN duration TEXT')
-        if 'year' not in match_cols:
-            conn.execute('ALTER TABLE matches ADD COLUMN year TEXT')
-
-        cursor = conn.execute("PRAGMA table_info(swipes)")
-        sw_cols = [col[1] for col in cursor.fetchall()]
-        if 'user_id' not in sw_cols:
-            conn.execute('ALTER TABLE swipes ADD COLUMN user_id TEXT')
-        if 'session_id' not in sw_cols:
-            conn.execute('ALTER TABLE swipes ADD COLUMN session_id TEXT')
-
-        cursor = conn.execute("PRAGMA table_info(rooms)")
-        room_cols = [col[1] for col in cursor.fetchall()]
-        if 'solo_mode' not in room_cols:
-            conn.execute('ALTER TABLE rooms ADD COLUMN solo_mode INTEGER DEFAULT 0')
-        if 'last_match_data' not in room_cols:
-            conn.execute('ALTER TABLE rooms ADD COLUMN last_match_data TEXT')
-        if 'deck_position' not in room_cols:
-            conn.execute('ALTER TABLE rooms ADD COLUMN deck_position TEXT')
-        if 'deck_order' not in room_cols:
-            conn.execute('ALTER TABLE rooms ADD COLUMN deck_order TEXT')
+async def cleanup_orphan_swipes_async(database_url: str | None = None) -> int:
+    """Delete orphan swipe rows through the async runtime path."""
+    return await _run_async_maintenance(
+        lambda uow: uow.swipes.delete_orphans(),
+        database_url=database_url,
+    )
 
 
-        conn.execute('DELETE FROM swipes WHERE room_code NOT IN (SELECT pairing_code FROM rooms)')
+async def cleanup_expired_auth_sessions_async(
+    cutoff_iso: str | None = None,
+    database_url: str | None = None,
+) -> int:
+    """Delete expired auth sessions through the async runtime path."""
+    cutoff = cutoff_iso or (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+    return await _run_async_maintenance(
+        lambda uow: uow.auth_sessions.delete_expired(cutoff),
+        database_url=database_url,
+    )
 
-    cleanup_expired_tokens()
 
-
-def cleanup_expired_tokens():
-    """Delete rows from user_tokens older than 14 days.
-
-    Called automatically on app startup (via init_db) and should also be
-    called on every new session creation in Phase 24 (per D-03).
-
-    Uses ISO 8601 string comparison for created_at timestamps.
-    """
+async def prepare_runtime_database_async(database_url: str | None = None) -> None:
+    """Run startup-safe database maintenance through the async runtime."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
-    with get_db_closing() as conn:
-        conn.execute(
-            'DELETE FROM user_tokens WHERE created_at < ?',
-            (cutoff,)
+    _, runtime_already_initialized = await _initialize_maintenance_runtime(database_url)
+    try:
+        await _configure_runtime_sqlite_pragmas()
+        async with db_runtime.get_sessionmaker()() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.swipes.delete_orphans()
+            await uow.auth_sessions.delete_expired(cutoff)
+            await session.commit()
+    finally:
+        if not runtime_already_initialized:
+            await db_runtime.dispose_runtime()
+
+
+def ensure_sqlite_wal_mode(db_path: str | None = None) -> None:
+    """Compatibility wrapper that applies runtime SQLite pragmas off-request."""
+
+    async def _apply() -> None:
+        _, runtime_already_initialized = await _initialize_maintenance_runtime(
+            _get_database_url(db_path or application_db_path.path)
         )
+        try:
+            await _configure_runtime_sqlite_pragmas()
+        finally:
+            if not runtime_already_initialized:
+                await db_runtime.dispose_runtime()
+
+    asyncio.run(_apply())
+
+
+def cleanup_orphan_swipes() -> None:
+    """Compatibility wrapper for startup-safe orphan cleanup outside request loops."""
+    asyncio.run(cleanup_orphan_swipes_async())
+
+
+def cleanup_expired_auth_sessions() -> None:
+    """Delete expired auth sessions when no event loop is running (CLI / sync callers)."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(cleanup_expired_auth_sessions_async())
+        return
+    raise RuntimeError(
+        "cleanup_expired_auth_sessions() cannot be used from an async context; "
+        "await cleanup_expired_auth_sessions_async() instead"
+    )
+
+
+def prepare_runtime_database() -> None:
+    """Compatibility wrapper for startup-safe maintenance outside request loops."""
+    asyncio.run(prepare_runtime_database_async())
+
+
+def _get_database_url(db_path: str | None = None) -> str:
+    from jellyswipe.migrations import get_database_url
+
+    return get_database_url(db_path)
