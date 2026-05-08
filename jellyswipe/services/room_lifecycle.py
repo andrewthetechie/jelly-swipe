@@ -202,7 +202,19 @@ class RoomLifecycleService:
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
-        new_list = provider.fetch_deck(media_types=["movie"], genre_name=genre)
+        # Get room to read media type configuration
+        room = await uow.rooms.get_room(code)
+        if room is None:
+            return []
+
+        # Build media_types list from room configuration
+        media_types = []
+        if room.include_movies:
+            media_types.append("movie")
+        if room.include_tv_shows:
+            media_types.append("tv_show")
+
+        new_list = provider.fetch_deck(media_types=media_types, genre_name=genre)
         await uow.rooms.set_genre_and_deck(
             code,
             genre,
