@@ -41,6 +41,19 @@ def _format_runtime(seconds: int) -> str:
     return f"{mins}m"
 
 
+def _get_include_item_types(include_movies: bool, include_tv_shows: bool) -> str:
+    """Build IncludeItemTypes parameter from boolean flags."""
+    types = []
+    if include_movies:
+        types.append("Movie")
+    if include_tv_shows:
+        types.append("Series")
+    if not types:
+        # Fallback to movies only if both false (validation should prevent this)
+        return "Movie"
+    return ",".join(types)
+
+
 class JellyfinLibraryProvider(LibraryMediaProvider):
     """Jellyfin-backed library: genres, deck, images, TMDB item resolution, server info."""
 
@@ -274,13 +287,16 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             "year": it.get("ProductionYear"),
         }
 
-    def fetch_deck(self, genre_name: Optional[str] = None) -> List[dict]:
+    def fetch_deck(
+        self, genre_name: Optional[str] = None, 
+        include_movies: bool = True, include_tv_shows: bool = False
+    ) -> List[dict]:
         lib = self._movies_library_id()
         uid = self._user_id()
         params: Dict[str, Any] = {
             "ParentId": lib,
             "UserId": uid,
-            "IncludeItemTypes": "Movie",
+            "IncludeItemTypes": _get_include_item_types(include_movies, include_tv_shows),
             "Recursive": "true",
             "Fields": "Overview,RunTimeTicks,ProductionYear,CommunityRating,CriticRating",
         }

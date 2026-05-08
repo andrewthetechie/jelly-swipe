@@ -681,50 +681,12 @@ class TestSoloRoom:
     """Tests for POST /room/solo endpoint (API-04)."""
 
     def test_solo_room_creation(self, db_connection, client_real_auth):
-        """POST /room/solo creates solo room with ready=1 and solo_mode=1."""
+        """POST /room/solo returns 404 (deprecated)."""
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
 
         resp = client_real_auth.post('/room/solo')
-        assert resp.status_code == 200
-        data = resp.json()
-        assert 'pairing_code' in data
-        code = data['pairing_code']
-        assert len(code) == 4
-
-        # Verify room state in DB
-        row = db_connection.execute(
-            "SELECT ready, solo_mode FROM rooms WHERE pairing_code = ?",
-            (code,),
-        ).fetchone()
-        assert row['ready'] == 1
-        assert row['solo_mode'] == 1
-
-    def test_solo_room_deck_cursor_initialized(self, db_connection, client_real_auth):
-        """Solo room initializes deck cursor for creator at position 0."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
-
-        resp = client_real_auth.post('/room/solo')
-        code = resp.json()['pairing_code']
-
-        row = db_connection.execute(
-            "SELECT deck_position FROM rooms WHERE pairing_code = ?",
-            (code,),
-        ).fetchone()
-        positions = json.loads(row['deck_position'])
-        assert 'verified-user' in positions
-        assert positions['verified-user'] == 0
-
-    def test_solo_room_sets_session(self, db_connection, client_real_auth):
-        """POST /room/solo sets session active_room and solo_mode=True."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
-
-        resp = client_real_auth.post('/room/solo')
-        code = resp.json()['pairing_code']
-
-        # Verify session is live by calling an endpoint that checks active_room
-        resp2 = client_real_auth.get('/me')
-        assert resp2.status_code == 200
-        assert resp2.json()['activeRoom'] == code
+        assert resp.status_code == 404
+        assert resp.json() == {'error': 'Endpoint removed. Use POST /room with {"solo": true}'}
 
     def test_solo_room_requires_auth(self, db_connection, client_real_auth):
         """Unauthenticated POST /room/solo returns 401."""
@@ -938,17 +900,13 @@ class TestPhase27Compliance:
         assert 'ts' in match
 
     def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
-        """POST /room/solo creates solo room (200), POST /room/{code}/go-solo returns 404."""
+        """POST /room/solo returns 404 (deprecated)."""
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
 
-        # POST /room/solo works
+        # POST /room/solo now returns 404 (deprecated)
         resp = client_real_auth.post('/room/solo')
-        assert resp.status_code == 200
-        code = resp.json()['pairing_code']
-
-        # Old route returns 404
-        resp = client_real_auth.post(f'/room/{code}/go-solo')
         assert resp.status_code == 404
+        assert resp.json() == {'error': 'Endpoint removed. Use POST /room with {"solo": true}'}
 
     def test_me_returns_active_room(self, db_connection, client_real_auth):
         """GET /me tracks activeRoom: null -> code -> null after quit."""

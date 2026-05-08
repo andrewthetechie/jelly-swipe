@@ -46,6 +46,8 @@ class TestAlembicBaseline:
             assert set(columns) == {
                 "pairing_code",
                 "movie_data",
+                "include_movies",
+                "include_tv_shows",
                 "ready",
                 "current_genre",
                 "solo_mode",
@@ -57,6 +59,8 @@ class TestAlembicBaseline:
             assert columns["ready"]["dflt_value"] in ("0", "'0'")
             assert columns["current_genre"]["dflt_value"] in ("'All'", '"All"')
             assert columns["solo_mode"]["dflt_value"] in ("0", "'0'")
+            assert columns["include_movies"]["dflt_value"] in ("1", "'1'")
+            assert columns["include_tv_shows"]["dflt_value"] in ("0", "'0'")
         finally:
             conn.close()
 

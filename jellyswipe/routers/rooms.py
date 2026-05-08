@@ -75,15 +75,25 @@ async def create_room(request: Request, uow: DBUoW, user: AuthUser = Depends(req
     Accepts JSON body: {"movies": true, "tv_shows": false, "solo": false}
     Backward compat: if body is empty/missing, defaults to movies-only hosted session.
     """
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    
     # Parse setup choices with backward-compatible defaults
-    include_movies = body.get("movies", True)
-    include_tv_shows = body.get("tv_shows", False)
-    solo = body.get("solo", False)
+    # If body is empty/missing, default to movies-only hosted session
+    raw_body = await request.body()
+    if not raw_body:
+        body = {}
+    else:
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return XSSSafeJSONResponse(
+                content={"error": "Invalid JSON body"},
+                status_code=400,
+            )
+    body = body or {}
+    
+    # Validate and coerce input types
+    include_movies = bool(body.get("movies", True))
+    include_tv_shows = bool(body.get("tv_shows", False))
+    solo = bool(body.get("solo", False))
     
     # Validate: at least one media type must be selected
     if not include_movies and not include_tv_shows:
