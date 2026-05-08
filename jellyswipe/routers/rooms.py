@@ -90,10 +90,30 @@ async def create_room(request: Request, uow: DBUoW, user: AuthUser = Depends(req
             )
     body = body or {}
     
-    # Validate and coerce input types
-    include_movies = bool(body.get("movies", True))
-    include_tv_shows = bool(body.get("tv_shows", False))
-    solo = bool(body.get("solo", False))
+    # Validate that boolean fields are actual booleans, not strings or other types
+    movies_val = body.get("movies", True)
+    tv_shows_val = body.get("tv_shows", False)
+    solo_val = body.get("solo", False)
+    
+    if not isinstance(movies_val, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "movies must be a boolean value"},
+            status_code=400,
+        )
+    if not isinstance(tv_shows_val, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "tv_shows must be a boolean value"},
+            status_code=400,
+        )
+    if not isinstance(solo_val, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "solo must be a boolean value"},
+            status_code=400,
+        )
+    
+    include_movies = movies_val
+    include_tv_shows = tv_shows_val
+    solo = solo_val
     
     # Validate: at least one media type must be selected
     if not include_movies and not include_tv_shows:
