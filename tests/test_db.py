@@ -46,6 +46,8 @@ class TestAlembicBaseline:
             assert set(columns) == {
                 "pairing_code",
                 "movie_data",
+                "include_movies",
+                "include_tv_shows",
                 "ready",
                 "current_genre",
                 "solo_mode",

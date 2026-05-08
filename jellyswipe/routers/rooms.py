@@ -70,10 +70,67 @@ def log_exception(exc: Exception, request: Request, context: dict = None) -> Non
 
 @rooms_router.post('/room')
 async def create_room(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
-    """Create a new room with a unique pairing code."""
+    """Create a new room with setup choices.
+    
+    Accepts JSON body: {"movies": true, "tv_shows": false, "solo": false}
+    Backward compat: if body is empty/missing, defaults to movies-only hosted session.
+    """
+    # Parse setup choices with backward-compatible defaults
+    # If body is empty/missing, default to movies-only hosted session
+    raw_body = await request.body()
+    if not raw_body:
+        body = {}
+    else:
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return XSSSafeJSONResponse(
+                content={"error": "Invalid JSON body"},
+                status_code=400,
+            )
+    body = body or {}
+    
+    # Validate that boolean fields are actual booleans, not strings or other types
+    movies_val = body.get("movies", True)
+    tv_shows_val = body.get("tv_shows", False)
+    solo_val = body.get("solo", False)
+    
+    if not isinstance(movies_val, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "movies must be a boolean value"},
+            status_code=400,
+        )
+    if not isinstance(tv_shows_val, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "tv_shows must be a boolean value"},
+            status_code=400,
+        )
+    if not isinstance(solo_val, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "solo must be a boolean value"},
+            status_code=400,
+        )
+    
+    include_movies = movies_val
+    include_tv_shows = tv_shows_val
+    solo = solo_val
+    
+    # Validate: at least one media type must be selected
+    if not include_movies and not include_tv_shows:
+        return XSSSafeJSONResponse(
+            content={"error": "At least one of movies or tv_shows must be true"},
+            status_code=400,
+        )
+    
     try:
         return await room_lifecycle_service.create_room(
-            request.session, user.user_id, get_provider(), uow
+            request.session,
+            user.user_id,
+            get_provider(),
+            uow,
+            include_movies=include_movies,
+            include_tv_shows=include_tv_shows,
+            solo=solo,
         )
     except UniqueRoomCodeExhaustedError:
         return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
@@ -81,13 +138,8 @@ async def create_room(request: Request, uow: DBUoW, user: AuthUser = Depends(req
 
 @rooms_router.post('/room/solo')
 async def create_solo_room(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
-    """Create a solo room (single-player mode)."""
-    try:
-        return await room_lifecycle_service.create_solo_room(
-            request.session, user.user_id, get_provider(), uow
-        )
-    except UniqueRoomCodeExhaustedError:
-        return XSSSafeJSONResponse(content={'error': 'Could not generate unique room code'}, status_code=503)
+    """Deprecated: POST /room/solo is removed. Use POST /room with {"solo": true} instead."""
+    return XSSSafeJSONResponse(content={'error': 'Endpoint removed. Use POST /room with {"solo": true}'}, status_code=404)
 
 
 @rooms_router.post('/room/{code}/join')
