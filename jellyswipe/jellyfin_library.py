@@ -41,19 +41,6 @@ def _format_runtime(seconds: int) -> str:
     return f"{mins}m"
 
 
-def _get_include_item_types(include_movies: bool, include_tv_shows: bool) -> str:
-    """Build IncludeItemTypes parameter from boolean flags."""
-    types = []
-    if include_movies:
-        types.append("Movie")
-    if include_tv_shows:
-        types.append("Series")
-    if not types:
-        # Fallback to movies only if both false (validation should prevent this)
-        return "Movie"
-    return ",".join(types)
-
-
 class JellyfinLibraryProvider(LibraryMediaProvider):
     """Jellyfin-backed library: genres, deck, images, TMDB item resolution, server info."""
 
@@ -63,14 +50,14 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         self._session.headers["Content-Type"] = "application/json"
         self._access_token: Optional[str] = None
         self._cached_user_id: Optional[str] = None
-        self._cached_library_id: Optional[str] = None
-        self._genre_cache: Optional[List[str]] = None
+        self._cached_library_ids: Dict[str, List[str]] = {}
+        self._genre_cache: Dict[str, List[str]] = {}
 
     def reset(self) -> None:
         self._access_token = None
         self._cached_user_id = None
-        self._cached_library_id = None
-        self._genre_cache = None
+        self._cached_library_ids = {}
+        self._genre_cache = {}
         self._session = requests.Session()
         self._session.headers["Content-Type"] = "application/json"
 
@@ -211,63 +198,100 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             return self._cached_user_id
         raise RuntimeError("Jellyfin: could not resolve current user id")
 
-    def _movies_library_id(self) -> str:
-        if self._cached_library_id:
-            return self._cached_library_id
+    def _library_ids_for_type(self, collection_type: str) -> List[str]:
+        """Return all library IDs matching the given collection type."""
+        if collection_type in self._cached_library_ids:
+            return self._cached_library_ids[collection_type]
+        
         uid = self._user_id()
         data = self._api("GET", f"/Users/{uid}/Views")
+        ids: List[str] = []
         for v in data.get("Items") or []:
             ct = (v.get("CollectionType") or "").lower()
-            if ct == "movies":
+            if ct == collection_type.lower():
                 lid = v.get("Id")
                 if lid:
-                    self._cached_library_id = lid
-                    return lid
-        raise RuntimeError(
-            "Jellyfin: no library with CollectionType=movies — add a Movies library on the server."
-        )
+                    ids.append(lid)
+        
+        self._cached_library_ids[collection_type] = ids
+        return ids
+
+    def _movies_library_id(self) -> str:
+        """Legacy method for backward compatibility — returns first movies library."""
+        ids = self._library_ids_for_type("movies")
+        if not ids:
+            raise RuntimeError(
+                "Jellyfin: no library with CollectionType=movies — add a Movies library on the server."
+            )
+        return ids[0]
 
     def list_genres(self) -> List[str]:
-        if self._genre_cache is not None:
-            return self._genre_cache
-        lib = self._movies_library_id()
+        cache_key = "all"
+        if cache_key in self._genre_cache:
+            return self._genre_cache[cache_key]
+        
         uid = self._user_id()
         names: List[str] = []
-
-        data = self._api(
-            "GET",
-            "/Items/Filters",
-            params={
-                "ParentId": lib,
-                "UserId": uid,
-                "IncludeItemTypes": "Movie",
-            },
-        )
-        for g in data.get("GenreFilters") or data.get("Genres") or []:
-            if isinstance(g, dict):
-                n = g.get("Name") or g.get("Value")
-            else:
-                n = str(g)
-            if n:
-                names.append(n)
-
+        
+        # Query genres from movie libraries
+        movie_libs = self._library_ids_for_type("movies")
+        for lib in movie_libs:
+            data = self._api(
+                "GET",
+                "/Items/Filters",
+                params={
+                    "ParentId": lib,
+                    "UserId": uid,
+                    "IncludeItemTypes": "Movie",
+                },
+            )
+            for g in data.get("GenreFilters") or data.get("Genres") or []:
+                if isinstance(g, dict):
+                    n = g.get("Name") or g.get("Value")
+                else:
+                    n = str(g)
+                if n:
+                    names.append(n)
+        
+        # Query genres from TV libraries
+        tv_libs = self._library_ids_for_type("tvshows")
+        for lib in tv_libs:
+            data = self._api(
+                "GET",
+                "/Items/Filters",
+                params={
+                    "ParentId": lib,
+                    "UserId": uid,
+                    "IncludeItemTypes": "Series",
+                },
+            )
+            for g in data.get("GenreFilters") or data.get("Genres") or []:
+                if isinstance(g, dict):
+                    n = g.get("Name") or g.get("Value")
+                else:
+                    n = str(g)
+                if n:
+                    names.append(n)
+        
         if not names:
-            try:
-                gdata = self._api(
-                    "GET",
-                    "/Genres",
-                    params={"ParentId": lib, "UserId": uid},
-                )
-                for it in gdata.get("Items") or []:
-                    n = it.get("Name")
-                    if n:
-                        names.append(n)
-            except RuntimeError:
-                pass
-
+            # Fallback to /Genres endpoint for movie libraries
+            for lib in movie_libs:
+                try:
+                    gdata = self._api(
+                        "GET",
+                        "/Genres",
+                        params={"ParentId": lib, "UserId": uid},
+                    )
+                    for it in gdata.get("Items") or []:
+                        n = it.get("Name")
+                        if n:
+                            names.append(n)
+                except RuntimeError:
+                    pass
+        
         names = sorted({n for n in names if n})
         display = ["Sci-Fi" if n == "Science Fiction" else n for n in names]
-        self._genre_cache = display
+        self._genre_cache[cache_key] = display
         return display
 
     def _item_to_card(self, it: dict) -> dict:
@@ -285,30 +309,97 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             "rating": rating,
             "duration": _format_runtime(seconds),
             "year": it.get("ProductionYear"),
+            "media_type": "movie",
         }
 
-    def fetch_deck(
-        self, genre_name: Optional[str] = None, 
-        include_movies: bool = True, include_tv_shows: bool = False
-    ) -> List[dict]:
-        lib = self._movies_library_id()
+    def _series_to_card(self, it: dict) -> dict:
+        """Transform a TV Series item to a card."""
+        mid = it.get("Id")
+        return {
+            "id": mid,
+            "title": it.get("Name") or "",
+            "summary": it.get("Overview") or "",
+            "thumb": f"/proxy?path=jellyfin/{mid}/Primary",
+            "year": it.get("ProductionYear"),
+            "media_type": "tv_show",
+            "season_count": it.get("ChildCount"),
+        }
+
+    def fetch_deck(self, media_types: List[str], genre_name: Optional[str] = None) -> List[dict]:
+        """Fetch deck cards for the specified media types.
+        
+        Args:
+            media_types: List of media types to fetch ("movie", "tv_show").
+            genre_name: Optional genre filter.
+        
+        Returns:
+            List of card dicts with media_type field set.
+        """
         uid = self._user_id()
+        all_items: List[dict] = []
+        
+        # Fetch movies
+        if "movie" in media_types:
+            movie_libs = self._library_ids_for_type("movies")
+            for lib in movie_libs:
+                items = self._fetch_items_for_library(
+                    lib=lib,
+                    uid=uid,
+                    item_type="Movie",
+                    genre_name=genre_name,
+                )
+                all_items.extend(items)
+        
+        # Fetch TV shows
+        if "tv_show" in media_types:
+            tv_libs = self._library_ids_for_type("tvshows")
+            for lib in tv_libs:
+                items = self._fetch_items_for_library(
+                    lib=lib,
+                    uid=uid,
+                    item_type="Series",
+                    genre_name=genre_name,
+                )
+                all_items.extend(items)
+        
+        # Transform items to cards
+        cards: List[dict] = []
+        for it in all_items:
+            item_type = it.get("Type", "")
+            if item_type == "Series":
+                cards.append(self._series_to_card(it))
+            else:
+                cards.append(self._item_to_card(it))
+        
+        # Shuffle if not recently added
+        search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
+        if search_genre not in ("Recently Added", None, "All"):
+            random.shuffle(cards)
+        
+        return cards
+
+    def _fetch_items_for_library(
+        self,
+        lib: str,
+        uid: str,
+        item_type: str,
+        genre_name: Optional[str],
+    ) -> List[dict]:
+        """Fetch items from a single library."""
         params: Dict[str, Any] = {
             "ParentId": lib,
             "UserId": uid,
-            "IncludeItemTypes": _get_include_item_types(include_movies, include_tv_shows),
+            "IncludeItemTypes": item_type,
             "Recursive": "true",
-            "Fields": "Overview,RunTimeTicks,ProductionYear,CommunityRating,CriticRating",
+            "Fields": "Overview,RunTimeTicks,ProductionYear,CommunityRating,CriticRating,ChildCount",
         }
-
-        do_shuffle = True
+        
         search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
-
+        
         if genre_name == "Recently Added":
             params["Limit"] = 100
             params["SortBy"] = "DateCreated"
             params["SortOrder"] = "Descending"
-            do_shuffle = False
         elif search_genre and search_genre != "All":
             params["Limit"] = 100
             params["Genres"] = search_genre
@@ -316,21 +407,20 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         else:
             params["Limit"] = 150
             params["SortBy"] = "Random"
-
+        
         def run_query(p: Dict[str, Any]) -> List[dict]:
             data = self._api("GET", "/Items", params=p)
             return list(data.get("Items") or [])
-
+        
         try:
             items = run_query(params)
         except RuntimeError:
             if params.get("SortBy") == "Random":
                 params["SortBy"] = "SortName"
                 items = run_query(params)
-                do_shuffle = True
             else:
                 raise
-
+        
         if (
             search_genre
             and search_genre not in ("All", "Recently Added")
@@ -340,12 +430,8 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             params2 = dict(params)
             params2["Genres"] = genre_name
             items = run_query(params2)
-
-        movie_list = [self._item_to_card(it) for it in items]
-
-        if do_shuffle:
-            random.shuffle(movie_list)
-        return movie_list
+        
+        return items
 
     def resolve_item_for_tmdb(self, movie_id: str) -> Any:
         params = {"Fields": "Name,OriginalTitle,ProductionYear"}

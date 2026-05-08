@@ -18,12 +18,7 @@ class UniqueRoomCodeExhaustedError(Exception):
 
 
 class DeckProvider(Protocol):
-    def fetch_deck(
-        self,
-        genre: str | None = None,
-        include_movies: bool = True,
-        include_tv_shows: bool = False,
-    ) -> list[dict[str, Any]]: ...
+    def fetch_deck(self, media_types: list[str], genre_name: str | None = None) -> list[dict[str, Any]]: ...
 
 
 class RoomLifecycleService:
@@ -75,10 +70,13 @@ class RoomLifecycleService:
             exists = await uow.rooms.pairing_code_exists(pairing_code)
             if exists:
                 continue
-            movie_list = provider.fetch_deck(
-                include_movies=include_movies,
-                include_tv_shows=include_tv_shows,
-            )
+            # Build media_types list from boolean flags
+            media_types = []
+            if include_movies:
+                media_types.append("movie")
+            if include_tv_shows:
+                media_types.append("tv_show")
+            movie_list = provider.fetch_deck(media_types=media_types)
             deck_json = json.dumps({user_id: 0})
             await uow.rooms.create(
                 pairing_code,
@@ -92,6 +90,36 @@ class RoomLifecycleService:
             )
             session_dict["active_room"] = pairing_code
             session_dict["solo_mode"] = solo
+            return {"pairing_code": pairing_code}
+
+        raise UniqueRoomCodeExhaustedError()
+
+    async def create_solo_room(
+        self,
+        session_dict: dict[str, Any],
+        user_id: str,
+        provider: DeckProvider,
+        uow: DatabaseUnitOfWork,
+    ) -> dict[str, str]:
+        for _ in range(10):
+            pairing_code = str(secrets.randbelow(9000) + 1000)
+            exists = await uow.rooms.pairing_code_exists(pairing_code)
+            if exists:
+                continue
+            # Build media_types list from boolean flags - solo mode defaults to movies only
+            media_types = ["movie"]
+            movie_list = provider.fetch_deck(media_types=media_types)
+            deck_json = json.dumps({user_id: 0})
+            await uow.rooms.create(
+                pairing_code,
+                movie_data_json=json.dumps(movie_list),
+                ready=True,
+                current_genre="All",
+                solo_mode=True,
+                deck_position_json=deck_json,
+            )
+            session_dict["active_room"] = pairing_code
+            session_dict["solo_mode"] = True
             return {"pairing_code": pairing_code}
 
         raise UniqueRoomCodeExhaustedError()
@@ -174,7 +202,19 @@ class RoomLifecycleService:
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
-        new_list = provider.fetch_deck(genre)
+        # Get room to read media type configuration
+        room = await uow.rooms.get_room(code)
+        if room is None:
+            return []
+
+        # Build media_types list from room configuration
+        media_types = []
+        if room.include_movies:
+            media_types.append("movie")
+        if room.include_tv_shows:
+            media_types.append("tv_show")
+
+        new_list = provider.fetch_deck(media_types=media_types, genre_name=genre)
         await uow.rooms.set_genre_and_deck(
             code,
             genre,
