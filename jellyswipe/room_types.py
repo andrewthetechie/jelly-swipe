@@ -15,6 +15,8 @@ class RoomRecord:
     last_match_data_json: str | None
     deck_position_json: str | None
     deck_order_json: str | None
+    include_movies: bool
+    include_tv_shows: bool
 
 
 @dataclass(slots=True)

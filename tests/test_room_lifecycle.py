@@ -53,6 +53,7 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
     prov = FakeProvider()
     uid = prov._user_id
 
+    # Test hosted room (default behavior)
     sess_multi: dict = {}
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
@@ -64,15 +65,18 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert deck[uid] == 0
         assert rec.ready is False
         assert rec.solo_mode is False
+        assert rec.include_movies is True
+        assert rec.include_tv_shows is False
         await session.commit()
 
     assert sess_multi["active_room"] == pc
     assert sess_multi["solo_mode"] is False
 
+    # Test solo room
     sess_solo: dict = {}
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
-        out2 = await svc.create_solo_room(sess_solo, uid, prov, uow)
+        out2 = await svc.create_room(sess_solo, uid, prov, uow, solo=True)
         pc2 = out2["pairing_code"]
         rec2 = await uow.rooms.get_room(pc2)
         assert rec2 is not None

@@ -47,7 +47,8 @@ class RoomLifecycleService:
         return {
             "title": record.title,
             "thumb": record.thumb,
-            "movie_id": record.movie_id,
+            "media_id": record.movie_id,
+            "media_type": "movie",
             "deep_link": record.deep_link,
             "rating": record.rating or "",
             "duration": record.duration or "",
@@ -60,6 +61,9 @@ class RoomLifecycleService:
         user_id: str,
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
+        include_movies: bool = True,
+        include_tv_shows: bool = False,
+        solo: bool = False,
     ) -> dict[str, str]:
         for _ in range(10):
             pairing_code = str(secrets.randbelow(9000) + 1000)
@@ -71,13 +75,15 @@ class RoomLifecycleService:
             await uow.rooms.create(
                 pairing_code,
                 movie_data_json=json.dumps(movie_list),
-                ready=False,
+                ready=solo,  # ready defaults to True when solo=True
                 current_genre="All",
-                solo_mode=False,
+                solo_mode=solo,
                 deck_position_json=deck_json,
+                include_movies=include_movies,
+                include_tv_shows=include_tv_shows,
             )
             session_dict["active_room"] = pairing_code
-            session_dict["solo_mode"] = False
+            session_dict["solo_mode"] = solo
             return {"pairing_code": pairing_code}
 
         raise UniqueRoomCodeExhaustedError()
@@ -172,7 +178,14 @@ class RoomLifecycleService:
         start = cursor_pos + (page - 1) * self.page_size
         end = start + self.page_size
         slice_ = movies[start:end]
-        return list(slice_) if isinstance(slice_, list) else []
+        # Map id → media_id and add media_type for API response (exclude original id)
+        result = []
+        for m in (slice_ if isinstance(slice_, list) else []):
+            item = {k: v for k, v in m.items() if k != "id"}
+            item["media_id"] = m.get("id")
+            item["media_type"] = m.get("media_type", "movie")
+            result.append(item)
+        return result
 
     async def set_genre(
         self,
