@@ -713,7 +713,7 @@ def test_room_stream_does_not_open_sqlite3_connection(client, monkeypatch):
     def forbid_sync_get_db():
         pytest.fail("room_stream must not use jellyswipe.db.get_db() — use async SQLAlchemy sessions")
 
-    monkeypatch.setattr(jelly_db, "get_db", forbid_sync_get_db)
+    monkeypatch.setattr(jelly_db, "get_db", forbid_sync_get_db, raising=False)
 
     import jellyswipe
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)

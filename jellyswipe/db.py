@@ -1,24 +1,18 @@
-"""Synchronous SQLite runtime helpers for Jelly Swipe."""
+"""Async database maintenance helpers for Jelly Swipe.
+
+Application code must not open raw sqlite3 connections; use SQLAlchemy async
+sessions via :mod:`jellyswipe.db_runtime` and :mod:`jellyswipe.dependencies`.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 from collections.abc import Awaitable, Callable
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 import jellyswipe.db_runtime as db_runtime
 from jellyswipe.db_paths import application_db_path
 from jellyswipe.db_uow import DatabaseUnitOfWork
-
-
-def configure_sqlite_connection(conn: sqlite3.Connection) -> sqlite3.Connection:
-    """Apply runtime SQLite settings required by the current sync code paths."""
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
 
 
 async def _initialize_maintenance_runtime(database_url: str | None = None) -> tuple[str, bool]:
@@ -97,6 +91,7 @@ async def prepare_runtime_database_async(database_url: str | None = None) -> Non
 
 def ensure_sqlite_wal_mode(db_path: str | None = None) -> None:
     """Compatibility wrapper that applies runtime SQLite pragmas off-request."""
+
     async def _apply() -> None:
         _, runtime_already_initialized = await _initialize_maintenance_runtime(
             _get_database_url(db_path or application_db_path.path)
@@ -110,40 +105,22 @@ def ensure_sqlite_wal_mode(db_path: str | None = None) -> None:
     asyncio.run(_apply())
 
 
-def get_db():
-    """Get a configured runtime connection."""
-    resolved = application_db_path.path
-    if not resolved:
-        raise RuntimeError("application_db_path is not configured")
-
-    conn = sqlite3.connect(resolved, check_same_thread=False)
-    return configure_sqlite_connection(conn)
-
-
-@contextmanager
-def get_db_closing():
-    """Get a database connection that auto-closes on context exit."""
-    conn = get_db()
-    try:
-        with conn:
-            yield conn
-    finally:
-        conn.close()
-
-
 def cleanup_orphan_swipes() -> None:
     """Compatibility wrapper for startup-safe orphan cleanup outside request loops."""
     asyncio.run(cleanup_orphan_swipes_async())
 
 
 def cleanup_expired_auth_sessions() -> None:
-    """Compatibility wrapper kept sync-safe for the current auth request path."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
-    with get_db_closing() as conn:
-        conn.execute(
-            "DELETE FROM auth_sessions WHERE created_at < ?",
-            (cutoff,),
-        )
+    """Delete expired auth sessions when no event loop is running (CLI / sync callers)."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(cleanup_expired_auth_sessions_async())
+        return
+    raise RuntimeError(
+        "cleanup_expired_auth_sessions() cannot be used from an async context; "
+        "await cleanup_expired_auth_sessions_async() instead"
+    )
 
 
 def prepare_runtime_database() -> None:

@@ -24,7 +24,6 @@ def test_module_import():
     import jellyswipe.migrations
 
     # Verify the modules have expected exports
-    assert hasattr(jellyswipe.db, 'get_db')
     assert hasattr(jellyswipe.db, 'prepare_runtime_database')
     assert hasattr(jellyswipe.db, 'cleanup_expired_auth_sessions')
     assert hasattr(jellyswipe.bootstrap, 'main')

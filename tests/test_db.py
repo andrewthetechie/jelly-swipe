@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import sqlite3
 
@@ -141,13 +140,16 @@ class TestAlembicBaseline:
 
 class TestRuntimeHelpersStillAvailable:
     def test_db_module_still_exports_runtime_entrypoints(self):
-        assert hasattr(jellyswipe.db, "get_db")
-        assert hasattr(jellyswipe.db, "get_db_closing")
         assert hasattr(jellyswipe.db, "prepare_runtime_database")
         assert hasattr(jellyswipe.db, "cleanup_expired_auth_sessions")
         assert inspect.iscoroutinefunction(jellyswipe.db.prepare_runtime_database_async)
         assert inspect.iscoroutinefunction(jellyswipe.db.cleanup_orphan_swipes_async)
         assert inspect.iscoroutinefunction(jellyswipe.db.cleanup_expired_auth_sessions_async)
+
+    def test_db_module_has_no_sqlite3_import(self):
+        source = inspect.getsource(jellyswipe.db)
+        assert "import sqlite3" not in source
+        assert "sqlite3." not in source
 
     def test_db_module_routes_orphan_cleanup_through_async_source_of_truth(self):
         source = inspect.getsource(jellyswipe.db)
@@ -189,7 +191,7 @@ class TestRuntimeHelpersStillAvailable:
             conn.close()
 
     @pytest.mark.anyio
-    async def test_cleanup_expired_auth_sessions_stays_sync_safe_in_async_context(
+    async def test_cleanup_expired_auth_sessions_async_deletes_stale_rows(
         self, db_path, monkeypatch
     ):
         upgrade_to_head(build_sqlite_url(db_path))
@@ -205,12 +207,7 @@ class TestRuntimeHelpersStillAvailable:
         finally:
             conn.close()
 
-        def fail_asyncio_run(*args, **kwargs):
-            raise AssertionError("cleanup_expired_auth_sessions must stay sync-safe")
-
-        monkeypatch.setattr(asyncio, "run", fail_asyncio_run)
-
-        jellyswipe.db.cleanup_expired_auth_sessions()
+        await jellyswipe.db.cleanup_expired_auth_sessions_async()
 
         conn = sqlite3.connect(db_path)
         try:
