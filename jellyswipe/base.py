@@ -22,7 +22,12 @@ class LibraryMediaProvider(abc.ABC):
         """Genre labels for UI (includes Sci-Fi vs Science Fiction normalization)."""
 
     @abc.abstractmethod
-    def fetch_deck(self, media_types: List[str], genre_name: Optional[str] = None) -> List[dict]:
+    def fetch_deck(
+        self,
+        media_types: List[str],
+        genre_name: Optional[str] = None,
+        hide_watched: bool = False,
+    ) -> List[dict]:
         """Media cards: id, title, summary, thumb, rating, duration, year, media_type."""
 
     @abc.abstractmethod

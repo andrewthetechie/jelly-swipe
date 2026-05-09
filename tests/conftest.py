@@ -233,13 +233,14 @@ class FakeProvider:
     def add_to_user_favorites(self, user_token, movie_id):
         self.favorites_added.append((user_token, movie_id))
 
-    def fetch_deck(self, media_types=None, genre_name=None):
+    def fetch_deck(self, media_types=None, genre_name=None, hide_watched=False):
         """Return a list of fake movie/TV cards for deck testing.
 
         Args:
             media_types: List of media types to fetch ("movie", "tv_show").
                         Defaults to ["movie"] if not specified.
             genre_name: Optional genre filter (ignored in fake implementation).
+            hide_watched: Optional boolean to hide watched items (ignored in fake implementation).
 
         Returns:
             List of card dicts with media_type field set.
