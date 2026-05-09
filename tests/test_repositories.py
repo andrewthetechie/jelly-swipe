@@ -10,7 +10,12 @@ from sqlalchemy import update
 
 import jellyswipe.db
 import jellyswipe.db_runtime
-from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, get_sessionmaker, initialize_runtime
+from jellyswipe.db_runtime import (
+    build_async_sqlite_url,
+    dispose_runtime,
+    get_sessionmaker,
+    initialize_runtime,
+)
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
@@ -45,7 +50,9 @@ async def runtime_sessionmaker(db_path, monkeypatch):
 
 @pytest.mark.anyio
 class TestRoomRepository:
-    async def test_create_fetch_status_round_trip_last_match(self, runtime_sessionmaker):
+    async def test_create_fetch_status_round_trip_last_match(
+        self, runtime_sessionmaker
+    ):
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             deck = json.dumps({"u1": 0})
@@ -98,7 +105,9 @@ class TestRoomRepository:
             exists = await uow.rooms.pairing_code_exists("4242")
             assert exists is True
 
-            n = await uow.rooms.set_genre_and_deck("4242", "Comedy", "{}", json.dumps({"u1": 3}))
+            n = await uow.rooms.set_genre_and_deck(
+                "4242", "Comedy", "{}", json.dumps({"u1": 3})
+            )
             assert n == 1
             md = await uow.rooms.fetch_movie_data("4242")
             assert md == "{}"
@@ -123,11 +132,11 @@ class TestRoomRepository:
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             record = await uow.rooms.get_room("MEDIA_TEST")
-            
+
         assert record is not None
         assert record.include_movies is False
         assert record.include_tv_shows is True
-        
+
         # Also test default values (movies-only)
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
@@ -144,10 +153,98 @@ class TestRoomRepository:
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             record = await uow.rooms.get_room("DEFAULT_TEST")
-            
+
         assert record is not None
         assert record.include_movies is True
         assert record.include_tv_shows is False
+
+    async def test_list_swiped_media_ids(self, runtime_sessionmaker):
+        """Test that list_swiped_media_ids returns correct swiped media IDs."""
+        # Create room
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "TEST123",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            # Add swipes for room TEST123
+            session.add_all(
+                [
+                    Swipe(
+                        room_code="TEST123",
+                        movie_id="mv1",
+                        user_id="user-a",
+                        direction="right",
+                    ),
+                    Swipe(
+                        room_code="TEST123",
+                        movie_id="mv2",
+                        user_id="user-b",
+                        direction="left",
+                    ),
+                    Swipe(
+                        room_code="TEST123",
+                        movie_id="mv3",
+                        user_id="user-a",
+                        direction="right",
+                    ),
+                ]
+            )
+            # Add swipes for a different room (should not be included)
+            await uow.rooms.create(
+                "OTHER456",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            session.add(
+                Swipe(
+                    room_code="OTHER456",
+                    movie_id="mv4",
+                    user_id="user-c",
+                    direction="right",
+                )
+            )
+            await session.commit()
+
+        # Test: returns all swiped media IDs for the room
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            swiped_ids = await uow.swipes.list_swiped_media_ids("TEST123")
+        assert swiped_ids == {"mv1", "mv2", "mv3"}
+
+        # Test: returns empty set for room with no swipes
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "EMPTY789",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            empty_swiped = await uow.swipes.list_swiped_media_ids("EMPTY789")
+        assert empty_swiped == set()
+
+        # Test: does not include swipes from other rooms
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            other_room_ids = await uow.swipes.list_swiped_media_ids("OTHER456")
+        assert other_room_ids == {"mv4"}
+        assert "mv1" not in other_room_ids
+        assert "mv2" not in other_room_ids
+        assert "mv3" not in other_room_ids
 
 
 @pytest.mark.anyio
@@ -232,7 +329,9 @@ class TestMatchRepository:
 
 @pytest.mark.anyio
 class TestSwipeRepository:
-    async def test_find_other_right_swipe_session_and_user_fallback(self, runtime_sessionmaker):
+    async def test_find_other_right_swipe_session_and_user_fallback(
+        self, runtime_sessionmaker
+    ):
         sid_a = "session-a"
         sid_b = "session-b"
         now = datetime.now(timezone.utc).isoformat()
