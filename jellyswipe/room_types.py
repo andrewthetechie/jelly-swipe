@@ -48,6 +48,7 @@ class MatchRecord:
     rating: str | None
     duration: str | None
     year: str | None
+    media_type: str | None
     match_order: int | None
 
 

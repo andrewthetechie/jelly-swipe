@@ -50,7 +50,7 @@ class RoomLifecycleService:
             "title": record.title,
             "thumb": record.thumb,
             "media_id": record.movie_id,
-            "media_type": "movie",
+            "media_type": record.media_type or "movie",
             "deep_link": record.deep_link,
             "rating": record.rating or "",
             "duration": record.duration or "",

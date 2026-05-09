@@ -332,6 +332,24 @@
                 const miniBack = document.createElement('div');
                 miniBack.className = 'mini-back';
 
+                // Media type badge
+                const mediaTypeBadge = document.createElement('div');
+                mediaTypeBadge.className = 'media-type-badge';
+                if (m.media_type === 'tv_show') {
+                    mediaTypeBadge.textContent = 'TV Show';
+                    mediaTypeBadge.style.background = '#9c27b0';
+                } else {
+                    mediaTypeBadge.textContent = 'Movie';
+                    mediaTypeBadge.style.background = '#e5a00d';
+                }
+                mediaTypeBadge.style.fontSize = '10px';
+                mediaTypeBadge.style.padding = '2px 6px';
+                mediaTypeBadge.style.borderRadius = '3px';
+                mediaTypeBadge.style.color = 'white';
+                mediaTypeBadge.style.display = 'inline-block';
+                mediaTypeBadge.style.marginBottom = '5px';
+                miniBack.appendChild(mediaTypeBadge);
+
                 // Title text
                 const titleText = document.createElement('div');
                 titleText.className = 'mini-title-text';
@@ -813,7 +831,14 @@
                     document.getElementById('matched-movie-title').innerText = d.last_match.title;
                     document.getElementById('match-popup-poster').src = d.last_match.thumb || '';
                     const heading = document.getElementById('match-heading');
-                    heading.innerText = "IT'S A MATCH!";
+                    
+                    // Update heading based on media type
+                    if (d.last_match.media_type === 'tv_show') {
+                        heading.innerText = "IT'S A TV MATCH!";
+                    } else {
+                        heading.innerText = "IT'S A MATCH!";
+                    }
+                    
                     document.getElementById('match-solo-label').classList.add('hidden');
                     showMatchMetadata(d.last_match);
                     document.getElementById('match-overlay').classList.remove('hidden');
