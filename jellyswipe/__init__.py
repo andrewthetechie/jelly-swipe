@@ -4,7 +4,6 @@ Per D-15: __init__.py is a thin app factory. All domain routes live in routers/*
 SSE route migrated to rooms_router in Phase 34.
 """
 
-import json
 import logging
 import os
 import secrets
@@ -29,7 +28,7 @@ DB_PATH = os.path.abspath(
     os.getenv("DB_PATH", os.path.join(_APP_ROOT, "..", "data", "jellyswipe.db"))
 )
 
-from jellyswipe.db_paths import application_db_path as _application_db_path
+from jellyswipe.db_paths import application_db_path as _application_db_path  # noqa: E402
 
 _application_db_path.path = DB_PATH
 
@@ -64,10 +63,11 @@ class XSSSafeJSONResponse(JSONResponse):
         # \u003c and \u003e sequences inserted above are not double-escaped
         # (they contain no & character). Pre-existing & in JSON values
         # (e.g., "Tom & Jerry") will be escaped to \u0026.
-        return (result
-                .replace(b"<", b"\\u003c")
-                .replace(b">", b"\\u003e")
-                .replace(b"&", b"\\u0026"))
+        return (
+            result.replace(b"<", b"\\u003c")
+            .replace(b">", b"\\u003e")
+            .replace(b"&", b"\\u0026")
+        )
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -89,14 +89,15 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request.state.request_id = generate_request_id()
         response = await call_next(request)
-        response.headers['X-Request-Id'] = request.state.request_id
-        response.headers['Content-Security-Policy'] = self.CSP_POLICY
+        response.headers["X-Request-Id"] = request.state.request_id
+        response.headers["Content-Security-Policy"] = self.CSP_POLICY
         return response
 
 
 # ============================================================================
 # App factory
 # ============================================================================
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -105,6 +106,7 @@ async def lifespan(app: FastAPI):
     global _provider_singleton
     _provider_singleton = None
     import jellyswipe.config as _config
+
     _config._provider_singleton = None
     await dispose_runtime()
     _logger.info("jellyswipe_shutdown")
@@ -157,28 +159,32 @@ def create_app(test_config=None):
         secret_key=session_secret,
         max_age=14 * 24 * 60 * 60,  # 14 days per D-05
         same_site="lax",
-        https_only=os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true',
+        https_only=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
     )
 
     # Add 3rd: ProxyHeadersMiddleware (outermost) per D-04
-    trusted = os.getenv('TRUSTED_PROXY_IPS', '127.0.0.1')
+    trusted = os.getenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
 
     # Test config override
     if test_config:
-        if 'DATABASE_URL' in test_config:
-            set_runtime_database_url_override(test_config['DATABASE_URL'])
+        if "DATABASE_URL" in test_config:
+            set_runtime_database_url_override(test_config["DATABASE_URL"])
         else:
             set_runtime_database_url_override(None)
-        if 'DB_PATH' in test_config:
+        if "DB_PATH" in test_config:
             import jellyswipe.db_paths as _db_paths
 
-            _db_paths.application_db_path.path = test_config['DB_PATH']
+            _db_paths.application_db_path.path = test_config["DB_PATH"]
     else:
         set_runtime_database_url_override(None)
 
     # Static files mount (prevents path traversal vulnerabilities)
-    app.mount('/static', StaticFiles(directory=os.path.join(_APP_ROOT, 'static')), name='static')
+    app.mount(
+        "/static",
+        StaticFiles(directory=os.path.join(_APP_ROOT, "static")),
+        name="static",
+    )
 
     # Mount all 5 domain routers (D-14: no prefix — routes define full paths)
     from jellyswipe.routers.auth import auth_router

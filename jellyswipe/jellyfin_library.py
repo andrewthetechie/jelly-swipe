@@ -12,10 +12,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-logger = logging.getLogger(__name__)
-
 from .base import LibraryMediaProvider
 from .http_client import make_http_request
+
+logger = logging.getLogger(__name__)
+
 
 _DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "jelly-swipe-jellyfin-v1")
 
@@ -100,7 +101,9 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     timeout=30,
                 )
             except requests.RequestException as exc:
-                raise RuntimeError("Jellyfin authentication failed (network error)") from exc
+                raise RuntimeError(
+                    "Jellyfin authentication failed (network error)"
+                ) from exc
             if not r.ok:
                 raise RuntimeError(
                     "Jellyfin authentication failed (check username, password, or server URL)"
@@ -108,10 +111,14 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             try:
                 data = r.json()
             except ValueError as exc:
-                raise RuntimeError("Jellyfin authentication failed (invalid response)") from exc
+                raise RuntimeError(
+                    "Jellyfin authentication failed (invalid response)"
+                ) from exc
             token = data.get("AccessToken")
             if not token:
-                raise RuntimeError("Jellyfin authentication failed (no access token in response)")
+                raise RuntimeError(
+                    "Jellyfin authentication failed (no access token in response)"
+                )
             self._access_token = token
         else:
             raise RuntimeError("Jellyfin authentication failed (missing credentials)")
@@ -157,7 +164,9 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         if r.status_code == 401 and retry:
             self.reset()
             self.ensure_authenticated()
-            return self._api(method, path, params=params, json_body=json_body, retry=False)
+            return self._api(
+                method, path, params=params, json_body=json_body, retry=False
+            )
         if not r.ok:
             raise RuntimeError(f"Jellyfin request failed (HTTP {r.status_code})")
         if not r.content:
@@ -184,13 +193,21 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         try:
             r = self._session.get(url, headers=self._auth_headers(), timeout=30)
         except requests.RequestException as exc:
-            raise RuntimeError("Jellyfin: could not resolve user id (network error)") from exc
+            raise RuntimeError(
+                "Jellyfin: could not resolve user id (network error)"
+            ) from exc
         if not r.ok:
-            raise RuntimeError(f"Jellyfin: could not resolve user id (HTTP {r.status_code})")
+            raise RuntimeError(
+                f"Jellyfin: could not resolve user id (HTTP {r.status_code})"
+            )
         users = r.json() or []
         preferred = (os.getenv("JELLYFIN_USERNAME") or "").strip().lower()
         for u in users:
-            if preferred and (u.get("Name") or "").strip().lower() == preferred and u.get("Id"):
+            if (
+                preferred
+                and (u.get("Name") or "").strip().lower() == preferred
+                and u.get("Id")
+            ):
                 self._cached_user_id = u["Id"]
                 return self._cached_user_id
         if users and users[0].get("Id"):
@@ -202,7 +219,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         """Return all library IDs matching the given collection type."""
         if collection_type in self._cached_library_ids:
             return self._cached_library_ids[collection_type]
-        
+
         uid = self._user_id()
         data = self._api("GET", f"/Users/{uid}/Views")
         ids: List[str] = []
@@ -212,7 +229,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                 lid = v.get("Id")
                 if lid:
                     ids.append(lid)
-        
+
         self._cached_library_ids[collection_type] = ids
         return ids
 
@@ -229,10 +246,10 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         cache_key = "all"
         if cache_key in self._genre_cache:
             return self._genre_cache[cache_key]
-        
+
         uid = self._user_id()
         names: List[str] = []
-        
+
         # Query genres from movie libraries
         movie_libs = self._library_ids_for_type("movies")
         for lib in movie_libs:
@@ -252,7 +269,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     n = str(g)
                 if n:
                     names.append(n)
-        
+
         # Query genres from TV libraries
         tv_libs = self._library_ids_for_type("tvshows")
         for lib in tv_libs:
@@ -272,7 +289,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     n = str(g)
                 if n:
                     names.append(n)
-        
+
         if not names:
             # Fallback to /Genres endpoint for movie libraries
             for lib in movie_libs:
@@ -288,7 +305,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                             names.append(n)
                 except RuntimeError:
                     pass
-        
+
         names = sorted({n for n in names if n})
         display = ["Sci-Fi" if n == "Science Fiction" else n for n in names]
         self._genre_cache[cache_key] = display
@@ -325,19 +342,21 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             "season_count": it.get("ChildCount"),
         }
 
-    def fetch_deck(self, media_types: List[str], genre_name: Optional[str] = None) -> List[dict]:
+    def fetch_deck(
+        self, media_types: List[str], genre_name: Optional[str] = None
+    ) -> List[dict]:
         """Fetch deck cards for the specified media types.
-        
+
         Args:
             media_types: List of media types to fetch ("movie", "tv_show").
             genre_name: Optional genre filter.
-        
+
         Returns:
             List of card dicts with media_type field set.
         """
         uid = self._user_id()
         all_items: List[dict] = []
-        
+
         # Fetch movies
         if "movie" in media_types:
             movie_libs = self._library_ids_for_type("movies")
@@ -349,7 +368,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     genre_name=genre_name,
                 )
                 all_items.extend(items)
-        
+
         # Fetch TV shows
         if "tv_show" in media_types:
             tv_libs = self._library_ids_for_type("tvshows")
@@ -361,7 +380,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     genre_name=genre_name,
                 )
                 all_items.extend(items)
-        
+
         # Transform items to cards
         cards: List[dict] = []
         for it in all_items:
@@ -370,12 +389,12 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                 cards.append(self._series_to_card(it))
             else:
                 cards.append(self._item_to_card(it))
-        
+
         # Shuffle if not recently added
         search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
         if search_genre not in ("Recently Added", None, "All"):
             random.shuffle(cards)
-        
+
         return cards
 
     def _fetch_items_for_library(
@@ -393,9 +412,9 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             "Recursive": "true",
             "Fields": "Overview,RunTimeTicks,ProductionYear,CommunityRating,CriticRating,ChildCount",
         }
-        
+
         search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
-        
+
         if genre_name == "Recently Added":
             params["Limit"] = 100
             params["SortBy"] = "DateCreated"
@@ -407,11 +426,11 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         else:
             params["Limit"] = 150
             params["SortBy"] = "Random"
-        
+
         def run_query(p: Dict[str, Any]) -> List[dict]:
             data = self._api("GET", "/Items", params=p)
             return list(data.get("Items") or [])
-        
+
         try:
             items = run_query(params)
         except RuntimeError:
@@ -420,7 +439,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                 items = run_query(params)
             else:
                 raise
-        
+
         if (
             search_genre
             and search_genre not in ("All", "Recently Added")
@@ -430,7 +449,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             params2 = dict(params)
             params2["Genres"] = genre_name
             items = run_query(params2)
-        
+
         return items
 
     def resolve_item_for_tmdb(self, movie_id: str) -> Any:
@@ -460,9 +479,9 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             }
         except RuntimeError:
             response = make_http_request(
-                method='GET',
+                method="GET",
                 url=f"{self._base}/System/Info/Public",
-                timeout=(5, 15)  # Convert single timeout to (connect, read) tuple
+                timeout=(5, 15),  # Convert single timeout to (connect, read) tuple
             )
             pub = response.json()
             return {
@@ -494,7 +513,10 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     raise
                 logger.warning(
                     "fetch_library_image: transient error on attempt %d/%d for %s: %s",
-                    attempt, max_attempts, iid, exc,
+                    attempt,
+                    max_attempts,
+                    iid,
+                    exc,
                 )
                 time.sleep(0.5 * attempt)
 
@@ -515,7 +537,10 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                         raise
                     logger.warning(
                         "fetch_library_image: transient error on retry attempt %d/%d for %s: %s",
-                        attempt, max_attempts, iid, exc,
+                        attempt,
+                        max_attempts,
+                        iid,
+                        exc,
                     )
                     time.sleep(0.5 * attempt)
         if r.status_code == 403:
@@ -554,7 +579,10 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         try:
             r = self._session.post(
                 url,
-                headers={"Authorization": init_header, "Content-Type": "application/json"},
+                headers={
+                    "Authorization": init_header,
+                    "Content-Type": "application/json",
+                },
                 json={"Username": username, "Pw": password},
                 timeout=30,
             )
@@ -578,27 +606,41 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         try:
             r = self._session.get(url, headers=headers, timeout=30)
         except requests.RequestException as exc:
-            raise RuntimeError("Failed to resolve Jellyfin user (network error)") from exc
+            raise RuntimeError(
+                "Failed to resolve Jellyfin user (network error)"
+            ) from exc
         if r.status_code in (401, 403):
             raise RuntimeError("Jellyfin user token unauthorized")
         if r.status_code == 400:
             # API-key style tokens may not support /Users/Me.
             try:
-                rr = self._session.get(f"{self._base}/Users", headers=headers, timeout=30)
+                rr = self._session.get(
+                    f"{self._base}/Users", headers=headers, timeout=30
+                )
             except requests.RequestException as exc:
-                raise RuntimeError("Failed to resolve Jellyfin user (network error)") from exc
+                raise RuntimeError(
+                    "Failed to resolve Jellyfin user (network error)"
+                ) from exc
             if not rr.ok:
-                raise RuntimeError(f"Failed to resolve Jellyfin user (HTTP {rr.status_code})")
+                raise RuntimeError(
+                    f"Failed to resolve Jellyfin user (HTTP {rr.status_code})"
+                )
             users = rr.json() or []
             preferred = (os.getenv("JELLYFIN_USERNAME") or "").strip().lower()
             for u in users:
-                if preferred and (u.get("Name") or "").strip().lower() == preferred and u.get("Id"):
+                if (
+                    preferred
+                    and (u.get("Name") or "").strip().lower() == preferred
+                    and u.get("Id")
+                ):
                     return u["Id"]
             if users and users[0].get("Id"):
                 return users[0]["Id"]
             raise RuntimeError("Failed to resolve Jellyfin user id")
         if not r.ok:
-            raise RuntimeError(f"Failed to resolve Jellyfin user (HTTP {r.status_code})")
+            raise RuntimeError(
+                f"Failed to resolve Jellyfin user (HTTP {r.status_code})"
+            )
         data = r.json()
         uid = data.get("Id")
         if not uid:

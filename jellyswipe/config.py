@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Import validate_jellyfin_url from ssrf_validator module
-from jellyswipe.ssrf_validator import validate_jellyfin_url
+from jellyswipe.ssrf_validator import validate_jellyfin_url  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,7 @@ has_user_pass = bool(os.getenv("JELLYFIN_USERNAME", "").strip()) and bool(
     os.getenv("JELLYFIN_PASSWORD", "").strip()
 )
 if not has_api and not has_user_pass:
-    missing.append(
-        "JELLYFIN_API_KEY or (JELLYFIN_USERNAME and JELLYFIN_PASSWORD)"
-    )
+    missing.append("JELLYFIN_API_KEY or (JELLYFIN_USERNAME and JELLYFIN_PASSWORD)")
 
 if missing:
     raise RuntimeError(f"Missing env vars: {missing}")
@@ -70,12 +68,13 @@ IDENTITY_ALIAS_HEADERS = (
 )
 
 # Client identifier for Jellyfin API
-CLIENT_ID = 'JellySwipe-AndrewTheTechie-2026'
+CLIENT_ID = "JellySwipe-AndrewTheTechie-2026"
 
 # JellyfinLibraryProvider singleton (lazy initialization)
 # Use TYPE_CHECKING to avoid circular import with jellyfin_library.py
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa: E402
+
 if TYPE_CHECKING:
     from jellyswipe.jellyfin_library import JellyfinLibraryProvider
 
-_provider_singleton: Optional['JellyfinLibraryProvider'] = None
+_provider_singleton: Optional["JellyfinLibraryProvider"] = None
