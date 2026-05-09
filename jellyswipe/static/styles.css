@@ -114,6 +114,7 @@ body::before {
 .mini-title-text { font-size: 1.1rem; font-weight: bold; color: #e5a00d; text-align: center; margin-bottom: 5px; line-height: 1.1; }
 .stats-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .stat-badge { background: black; color: #e5a00d; padding: 4px 8px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
+.media-badge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); color: #e5a00d; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 0.85rem; border: 1px solid #e5a00d; z-index: 10; }
 .back-content { overflow-y: auto; flex-grow: 1; margin-bottom: 10px; padding: 0 15px; }
 .back-content p { font-size: 0.95rem; line-height: 1.4; color: #eee; margin: 0; text-align: left; }
 .glow-side { position: absolute; top: 0; width: 40%; height: 100%; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.2s; }

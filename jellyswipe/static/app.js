@@ -543,6 +543,20 @@
             frontImg.src = m.thumb;
             frontImg.alt = 'Movie poster';
             cardFront.appendChild(frontImg);
+
+            // Media-type badge
+            const mediaBadge = document.createElement('div');
+            mediaBadge.className = 'media-badge';
+            if (m.media_type === 'tv_show') {
+                mediaBadge.textContent = 'TV';
+                if (m.season_count) {
+                    mediaBadge.textContent += ` • ${m.season_count} Season${m.season_count !== 1 ? 's' : ''}`;
+                }
+            } else {
+                mediaBadge.textContent = 'Movie';
+            }
+            cardFront.appendChild(mediaBadge);
+
             cardInner.appendChild(cardFront);
 
             // Create card-back
