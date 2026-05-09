@@ -343,13 +343,17 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         }
 
     def fetch_deck(
-        self, media_types: List[str], genre_name: Optional[str] = None
+        self,
+        media_types: List[str],
+        genre_name: Optional[str] = None,
+        hide_watched: bool = False,
     ) -> List[dict]:
         """Fetch deck cards for the specified media types.
 
         Args:
             media_types: List of media types to fetch ("movie", "tv_show").
             genre_name: Optional genre filter.
+            hide_watched: If True, filter out watched items via Jellyfin's Filters=IsNotPlayed.
 
         Returns:
             List of card dicts with media_type field set.
@@ -366,6 +370,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     uid=uid,
                     item_type="Movie",
                     genre_name=genre_name,
+                    hide_watched=hide_watched,
                 )
                 all_items.extend(items)
 
@@ -378,6 +383,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     uid=uid,
                     item_type="Series",
                     genre_name=genre_name,
+                    hide_watched=hide_watched,
                 )
                 all_items.extend(items)
 
@@ -403,6 +409,7 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
         uid: str,
         item_type: str,
         genre_name: Optional[str],
+        hide_watched: bool = False,
     ) -> List[dict]:
         """Fetch items from a single library."""
         params: Dict[str, Any] = {
@@ -412,6 +419,10 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             "Recursive": "true",
             "Fields": "Overview,RunTimeTicks,ProductionYear,CommunityRating,CriticRating,ChildCount",
         }
+
+        # Add watched filter if requested
+        if hide_watched:
+            params["Filters"] = "IsNotPlayed"
 
         search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
 

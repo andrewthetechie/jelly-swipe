@@ -27,6 +27,7 @@ class Room(Base):
     deck_order: Mapped[str | None] = mapped_column(Text, nullable=True)
     include_movies: Mapped[int] = mapped_column(nullable=False, server_default="1")
     include_tv_shows: Mapped[int] = mapped_column(nullable=False, server_default="0")
+    hide_watched: Mapped[int] = mapped_column(nullable=False, server_default="0")
 
     swipes: Mapped[list["Swipe"]] = relationship(
         "Swipe",

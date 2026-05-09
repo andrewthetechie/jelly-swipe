@@ -19,7 +19,11 @@ class RoomRepository:
         self._session = session
 
     async def pairing_code_exists(self, pairing_code: str) -> bool:
-        stmt = select(func.count()).select_from(Room).where(Room.pairing_code == pairing_code)
+        stmt = (
+            select(func.count())
+            .select_from(Room)
+            .where(Room.pairing_code == pairing_code)
+        )
         count = await self._session.scalar(stmt)
         return (count or 0) > 0
 
@@ -33,6 +37,7 @@ class RoomRepository:
         deck_position_json: str,
         include_movies: bool = True,
         include_tv_shows: bool = False,
+        hide_watched: bool = False,
     ) -> None:
         self._session.add(
             Room(
@@ -44,12 +49,15 @@ class RoomRepository:
                 deck_position=deck_position_json,
                 include_movies=1 if include_movies else 0,
                 include_tv_shows=1 if include_tv_shows else 0,
+                hide_watched=1 if hide_watched else 0,
             )
         )
 
     async def get_room(self, pairing_code: str) -> RoomRecord | None:
         row = (
-            await self._session.scalars(select(Room).where(Room.pairing_code == pairing_code))
+            await self._session.scalars(
+                select(Room).where(Room.pairing_code == pairing_code)
+            )
         ).first()
         if row is None:
             return None
@@ -63,31 +71,49 @@ class RoomRepository:
         )
         return result.rowcount or 0
 
-    async def set_deck_position(self, pairing_code: str, deck_position_json: str) -> int:
-        result = await self._session.execute(
-            update(Room).where(Room.pairing_code == pairing_code).values(deck_position=deck_position_json)
-        )
-        return result.rowcount or 0
-
-    async def set_genre_and_deck(
-        self, pairing_code: str, genre: str, movie_data_json: str, deck_position_json: str
+    async def set_deck_position(
+        self, pairing_code: str, deck_position_json: str
     ) -> int:
         result = await self._session.execute(
             update(Room)
             .where(Room.pairing_code == pairing_code)
-            .values(current_genre=genre, movie_data=movie_data_json, deck_position=deck_position_json)
+            .values(deck_position=deck_position_json)
         )
         return result.rowcount or 0
 
-    async def set_last_match_data(self, pairing_code: str, last_match_data_json: str | None) -> int:
+    async def set_genre_and_deck(
+        self,
+        pairing_code: str,
+        genre: str,
+        movie_data_json: str,
+        deck_position_json: str,
+    ) -> int:
         result = await self._session.execute(
-            update(Room).where(Room.pairing_code == pairing_code).values(last_match_data=last_match_data_json)
+            update(Room)
+            .where(Room.pairing_code == pairing_code)
+            .values(
+                current_genre=genre,
+                movie_data=movie_data_json,
+                deck_position=deck_position_json,
+            )
+        )
+        return result.rowcount or 0
+
+    async def set_last_match_data(
+        self, pairing_code: str, last_match_data_json: str | None
+    ) -> int:
+        result = await self._session.execute(
+            update(Room)
+            .where(Room.pairing_code == pairing_code)
+            .values(last_match_data=last_match_data_json)
         )
         return result.rowcount or 0
 
     async def fetch_status(self, pairing_code: str) -> RoomStatusSnapshot | None:
         row = (
-            await self._session.scalars(select(Room).where(Room.pairing_code == pairing_code))
+            await self._session.scalars(
+                select(Room).where(Room.pairing_code == pairing_code)
+            )
         ).first()
         if row is None:
             return None
@@ -104,6 +130,7 @@ class RoomRepository:
             genre=row.current_genre,
             solo=bool(row.solo_mode),
             last_match=last_match,
+            hide_watched=bool(row.hide_watched),
         )
 
     async def fetch_movie_data(self, pairing_code: str) -> str | None:
@@ -112,13 +139,23 @@ class RoomRepository:
         )
 
     async def fetch_stream_snapshot(self, pairing_code: str) -> StreamSnapshot | None:
-        stmt = select(Room.ready, Room.current_genre, Room.solo_mode, Room.last_match_data).where(
-            Room.pairing_code == pairing_code
-        )
+        stmt = select(
+            Room.ready,
+            Room.current_genre,
+            Room.solo_mode,
+            Room.last_match_data,
+            Room.hide_watched,
+        ).where(Room.pairing_code == pairing_code)
         row = (await self._session.execute(stmt)).one_or_none()
         if row is None:
             return None
-        ready_raw, genre, solo_raw, raw_last = row[0], row[1], row[2], row[3]
+        ready_raw, genre, solo_raw, raw_last, hide_watched_raw = (
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+        )
         last_match: dict[str, Any] | None = None
         last_match_ts: str | float | int | None = None
         if raw_last:
@@ -136,10 +173,13 @@ class RoomRepository:
             solo=bool(solo_raw),
             last_match=last_match,
             last_match_ts=last_match_ts,
+            hide_watched=bool(hide_watched_raw),
         )
 
     async def delete(self, pairing_code: str) -> int:
-        result = await self._session.execute(delete(Room).where(Room.pairing_code == pairing_code))
+        result = await self._session.execute(
+            delete(Room).where(Room.pairing_code == pairing_code)
+        )
         return result.rowcount or 0
 
     @staticmethod
@@ -155,4 +195,5 @@ class RoomRepository:
             deck_order_json=row.deck_order,
             include_movies=bool(row.include_movies),
             include_tv_shows=bool(row.include_tv_shows),
+            hide_watched=bool(row.hide_watched),
         )

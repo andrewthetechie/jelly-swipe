@@ -272,3 +272,43 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
         missing_status = await svc.get_status("0000", uow)
         await session.commit()
     assert missing_status == {"ready": False}
+
+
+@pytest.mark.anyio
+async def test_fetch_status_returns_hide_watched_false_for_new_room(
+    runtime_sessionmaker,
+):
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        snap = await uow.rooms.fetch_status(pc)
+        assert snap is not None
+        assert snap.hide_watched is False
+
+
+@pytest.mark.anyio
+async def test_fetch_stream_snapshot_returns_hide_watched_false_for_new_room(
+    runtime_sessionmaker,
+):
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        snap = await uow.rooms.fetch_stream_snapshot(pc)
+        assert snap is not None
+        assert snap.hide_watched is False
