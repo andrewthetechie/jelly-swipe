@@ -316,6 +316,34 @@ async def set_genre(
         return XSSSafeJSONResponse(content={"error": str(e)}, status_code=400)
 
 
+@rooms_router.post("/room/{code}/watched-filter")
+async def set_watched_filter_route(
+    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
+):
+    """Set the watched filter for the room and reload the deck."""
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    hide_watched = data.get("hide_watched")
+    if hide_watched is None:
+        return XSSSafeJSONResponse(
+            content={"error": "hide_watched required"}, status_code=400
+        )
+    if not isinstance(hide_watched, bool):
+        return XSSSafeJSONResponse(
+            content={"error": "hide_watched must be a boolean"}, status_code=400
+        )
+    try:
+        return await room_lifecycle_service.set_watched_filter(
+            code, hide_watched, get_provider(), uow
+        )
+    except EmptyDeckError:
+        return XSSSafeJSONResponse(
+            content={"error": "No unwatched items available"}, status_code=422
+        )
+
+
 @rooms_router.get("/room/{code}/status")
 async def room_status(
     code: str, _request: Request, uow: DBUoW, _user: AuthUser = Depends(require_auth)
