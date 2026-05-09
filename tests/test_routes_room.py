@@ -630,7 +630,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
     fake_provider = FakeProvider()
     original_fetch = fake_provider.fetch_deck
 
-    def mock_fetch(media_types=None, genre_name=None):
+    def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
         if genre_name == "NonExistent":
             return []
         return original_fetch(media_types, genre_name)
@@ -650,7 +650,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
         )
 
         assert response.status_code == 400
-        assert "No media found" in response.json()["error"]
+        assert "No items available" in response.json()["error"]
     finally:
         # Restore original get_provider
         rooms_router_module.get_provider = original_get_provider

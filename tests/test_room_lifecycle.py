@@ -312,3 +312,272 @@ async def test_fetch_stream_snapshot_returns_hide_watched_false_for_new_room(
         snap = await uow.rooms.fetch_stream_snapshot(pc)
         assert snap is not None
         assert snap.hide_watched is False
+
+
+@pytest.mark.anyio
+async def test_set_watched_filter_excludes_watched_items(runtime_sessionmaker):
+    """Test that watched filter excludes watched items from rebuilt deck."""
+
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Initially hide_watched should be False
+        snap = await uow.rooms.fetch_status(pc)
+        assert snap is not None
+        assert snap.hide_watched is False
+
+        # Set watched filter to True - should rebuild deck
+        new_deck = await svc.set_watched_filter(pc, True, prov, uow)
+        await session.commit()
+
+        # Verify hide_watched is now True
+        snap_after = await uow.rooms.fetch_status(pc)
+        assert snap_after is not None
+        assert snap_after.hide_watched is True
+
+        # Verify deck was rebuilt and cursors reset
+        rec = await uow.rooms.get_room(pc)
+        assert rec is not None
+        assert json.loads(rec.deck_position_json or "{}") == {}
+        assert isinstance(new_deck, list)
+        assert len(new_deck) > 0
+
+
+@pytest.mark.anyio
+async def test_swipe_exclusion_on_deck_rebuild(runtime_sessionmaker):
+    """Test that swiped items are excluded from rebuilt deck."""
+    from jellyswipe.models.swipe import Swipe
+
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get initial deck
+        initial_deck = await svc.get_deck(pc, uid, 1, uow)
+        assert len(initial_deck) > 0
+
+        # Swipe right on first item
+        first_item_id = initial_deck[0]["media_id"]
+        session.add(
+            Swipe(
+                room_code=pc,
+                movie_id=first_item_id,
+                user_id=uid,
+                direction="right",
+                session_id=None,
+            )
+        )
+        await session.commit()
+
+        # Rebuild deck by changing genre
+        new_deck = await svc.set_genre(pc, "Action", prov, uow)
+        await session.commit()
+
+        # Verify swiped item is excluded from new deck
+        swiped_ids = await uow.swipes.list_swiped_media_ids(pc)
+        assert first_item_id in swiped_ids
+        for item in new_deck:
+            assert item["media_id"] != first_item_id, (
+                "Swiped item should be excluded from rebuilt deck"
+            )
+
+
+@pytest.mark.anyio
+async def test_empty_deck_rollback_on_genre_change(runtime_sessionmaker):
+    """Test that empty deck on genre change rolls back without state change."""
+    from jellyswipe.services.room_lifecycle import EmptyDeckError
+
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get initial state
+        initial_room = await uow.rooms.get_room(pc)
+        assert initial_room is not None
+        initial_genre = initial_room.current_genre
+        initial_deck_json = initial_room.movie_data_json
+        initial_cursors = initial_room.deck_position_json
+
+        # Mock provider to return empty deck for "Action" genre
+        original_fetch = prov.fetch_deck
+
+        def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+            if genre_name == "Action":
+                return []
+            return original_fetch(
+                media_types=media_types,
+                genre_name=genre_name,
+                hide_watched=hide_watched,
+            )
+
+        prov.fetch_deck = mock_fetch
+
+        # Attempt to change genre to Action (should raise EmptyDeckError)
+        with pytest.raises(EmptyDeckError):
+            await svc.set_genre(pc, "Action", prov, uow)
+
+        # Verify no state change occurred
+        await session.commit()
+        room_after = await uow.rooms.get_room(pc)
+        assert room_after is not None
+        assert room_after.current_genre == initial_genre
+        assert room_after.movie_data_json == initial_deck_json
+        assert room_after.deck_position_json == initial_cursors
+
+
+@pytest.mark.anyio
+async def test_empty_deck_rollback_on_watched_filter(runtime_sessionmaker):
+    """Test that empty deck on watched filter toggle rolls back without state change."""
+    from jellyswipe.services.room_lifecycle import EmptyDeckError
+
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get initial state
+        initial_room = await uow.rooms.get_room(pc)
+        assert initial_room is not None
+        initial_hide_watched = initial_room.hide_watched
+        initial_deck_json = initial_room.movie_data_json
+
+        # Mock provider to return empty deck when hide_watched=True
+        original_fetch = prov.fetch_deck
+
+        def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+            if hide_watched:
+                return []
+            return original_fetch(
+                media_types=media_types,
+                genre_name=genre_name,
+                hide_watched=hide_watched,
+            )
+
+        prov.fetch_deck = mock_fetch
+
+        # Attempt to enable hide_watched (should raise EmptyDeckError)
+        with pytest.raises(EmptyDeckError):
+            await svc.set_watched_filter(pc, True, prov, uow)
+
+        # Verify no state change occurred
+        await session.commit()
+        room_after = await uow.rooms.get_room(pc)
+        assert room_after is not None
+        assert room_after.hide_watched == initial_hide_watched
+        assert room_after.movie_data_json == initial_deck_json
+
+
+@pytest.mark.anyio
+async def test_genre_change_with_watched_filter_active(runtime_sessionmaker):
+    """Test that genre change respects active watched filter."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # First enable watched filter
+        await svc.set_watched_filter(pc, True, prov, uow)
+        await session.commit()
+
+        # Verify hide_watched is True
+        snap = await uow.rooms.fetch_status(pc)
+        assert snap is not None
+        assert snap.hide_watched is True
+
+        # Change genre - should maintain watched filter
+        new_deck = await svc.set_genre(pc, "Comedy", prov, uow)
+        await session.commit()
+
+        # Verify hide_watched is still True after genre change
+        snap_after = await uow.rooms.fetch_status(pc)
+        assert snap_after is not None
+        assert snap_after.hide_watched is True
+        assert snap_after.genre == "Comedy"
+        assert isinstance(new_deck, list)
+
+
+@pytest.mark.anyio
+async def test_cursor_reset_after_deck_rebuild(runtime_sessionmaker):
+    """Test that deck_position_json resets to {} after any rebuild."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Set some cursor positions
+        room = await uow.rooms.get_room(pc)
+        assert room is not None
+        await uow.rooms.set_deck_position(pc, json.dumps({uid: 5, "other-user": 3}))
+        await session.commit()
+
+        # Verify cursors are set
+        room_before = await uow.rooms.get_room(pc)
+        assert room_before is not None
+        cursors_before = json.loads(room_before.deck_position_json or "{}")
+        assert cursors_before.get(uid) == 5
+
+        # Rebuild deck
+        await svc.set_genre(pc, "Action", prov, uow)
+        await session.commit()
+
+        # Verify cursors reset to {}
+        room_after = await uow.rooms.get_room(pc)
+        assert room_after is not None
+        cursors_after = json.loads(room_after.deck_position_json or "{}")
+        assert cursors_after == {}
+
+
+@pytest.mark.anyio
+async def test_solo_session_watched_filter(runtime_sessionmaker):
+    """Test that watched filter works identically for solo sessions."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        # Create solo room
+        sess_solo: dict = {}
+        out = await svc.create_room(sess_solo, uid, prov, uow, solo=True)
+        pc = out["pairing_code"]
+        await session.commit()
+
+        # Verify solo mode
+        snap = await uow.rooms.fetch_status(pc)
+        assert snap is not None
+        assert snap.solo is True
+        assert snap.hide_watched is False
+
+        # Set watched filter
+        new_deck = await svc.set_watched_filter(pc, True, prov, uow)
+        await session.commit()
+
+        # Verify hide_watched is True
+        snap_after = await uow.rooms.fetch_status(pc)
+        assert snap_after is not None
+        assert snap_after.hide_watched is True
+        assert snap_after.solo is True
+        assert isinstance(new_deck, list)
+        assert len(new_deck) > 0

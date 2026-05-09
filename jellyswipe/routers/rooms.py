@@ -24,6 +24,7 @@ from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
 from jellyswipe.repositories.rooms import RoomRepository
 from jellyswipe.services.room_lifecycle import (
+    EmptyDeckError,
     RoomLifecycleService,
     UniqueRoomCodeExhaustedError,
 )
@@ -306,12 +307,13 @@ async def set_genre(
     genre = data.get("genre")
     if not genre:
         return XSSSafeJSONResponse(content={"error": "Genre required"}, status_code=400)
-    new_list = await room_lifecycle_service.set_genre(code, genre, get_provider(), uow)
-    if not new_list:
-        return XSSSafeJSONResponse(
-            content={"error": "No media found for this genre"}, status_code=400
+    try:
+        new_list = await room_lifecycle_service.set_genre(
+            code, genre, get_provider(), uow
         )
-    return new_list
+        return new_list
+    except EmptyDeckError as e:
+        return XSSSafeJSONResponse(content={"error": str(e)}, status_code=400)
 
 
 @rooms_router.get("/room/{code}/status")
