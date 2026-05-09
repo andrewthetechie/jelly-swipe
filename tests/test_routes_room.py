@@ -610,3 +610,47 @@ def test_swipe_right_updates_last_match_data(client, app):
     match_data = json.loads(row["last_match_data"])
     assert match_data["type"] == "match"
     assert "ts" in match_data
+
+
+def test_set_genre_empty_deck_returns_400(client, app, mocker):
+    """POST /room/{code}/genre returns 400 when genre filter results in empty deck."""
+    from tests.conftest import FakeProvider
+
+    # Seed a room
+    _seed_room("TEST1", ready=1, solo_mode=0)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
+
+    # Mock provider to return empty deck for a specific genre
+    fake_provider = FakeProvider()
+    original_fetch = fake_provider.fetch_deck
+
+    def mock_fetch(media_types=None, genre_name=None):
+        if genre_name == "NonExistent":
+            return []
+        return original_fetch(media_types, genre_name)
+
+    fake_provider.fetch_deck = mock_fetch
+
+    # Override the provider in the router module
+    import jellyswipe.routers.rooms as rooms_router_module
+
+    original_get_provider = rooms_router_module.get_provider
+    rooms_router_module.get_provider = lambda: fake_provider
+
+    try:
+        response = client.post(
+            "/room/TEST1/genre",
+            json={"genre": "NonExistent"},
+        )
+
+        assert response.status_code == 400
+        assert "No media found" in response.json()["error"]
+    finally:
+        # Restore original get_provider
+        rooms_router_module.get_provider = original_get_provider

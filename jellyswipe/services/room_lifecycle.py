@@ -18,7 +18,9 @@ class UniqueRoomCodeExhaustedError(Exception):
 
 
 class DeckProvider(Protocol):
-    def fetch_deck(self, media_types: list[str], genre_name: str | None = None) -> list[dict[str, Any]]: ...
+    def fetch_deck(
+        self, media_types: list[str], genre_name: str | None = None
+    ) -> list[dict[str, Any]]: ...
 
 
 class RoomLifecycleService:
@@ -77,6 +79,20 @@ class RoomLifecycleService:
             if include_tv_shows:
                 media_types.append("tv_show")
             movie_list = provider.fetch_deck(media_types=media_types)
+
+            # Interleave movies and TV shows when both are requested (round-robin)
+            if include_movies and include_tv_shows:
+                movies = [m for m in movie_list if m.get("media_type") == "movie"]
+                tv_shows = [t for t in movie_list if t.get("media_type") == "tv_show"]
+                interleaved = []
+                max_len = max(len(movies), len(tv_shows))
+                for i in range(max_len):
+                    if i < len(movies):
+                        interleaved.append(movies[i])
+                    if i < len(tv_shows):
+                        interleaved.append(tv_shows[i])
+                movie_list = interleaved
+
             deck_json = json.dumps({user_id: 0})
             await uow.rooms.create(
                 pairing_code,
@@ -188,7 +204,7 @@ class RoomLifecycleService:
         slice_ = movies[start:end]
         # Map id → media_id and add media_type for API response (exclude original id)
         result = []
-        for m in (slice_ if isinstance(slice_, list) else []):
+        for m in slice_ if isinstance(slice_, list) else []:
             item = {k: v for k, v in m.items() if k != "id"}
             item["media_id"] = m.get("id")
             item["media_type"] = m.get("media_type", "movie")
@@ -215,6 +231,24 @@ class RoomLifecycleService:
             media_types.append("tv_show")
 
         new_list = provider.fetch_deck(media_types=media_types, genre_name=genre)
+
+        # Interleave movies and TV shows when both are requested (round-robin)
+        if room.include_movies and room.include_tv_shows:
+            movies = [m for m in new_list if m.get("media_type") == "movie"]
+            tv_shows = [t for t in new_list if t.get("media_type") == "tv_show"]
+            interleaved = []
+            max_len = max(len(movies), len(tv_shows))
+            for i in range(max_len):
+                if i < len(movies):
+                    interleaved.append(movies[i])
+                if i < len(tv_shows):
+                    interleaved.append(tv_shows[i])
+            new_list = interleaved
+
+        # Validate: empty genre filter returns empty list (caller should return 400)
+        if not new_list:
+            return []
+
         await uow.rooms.set_genre_and_deck(
             code,
             genre,

@@ -8,7 +8,12 @@ import jellyswipe.db
 import jellyswipe.db_runtime
 import pytest
 from sqlalchemy import update
-from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, get_sessionmaker, initialize_runtime
+from jellyswipe.db_runtime import (
+    build_async_sqlite_url,
+    dispose_runtime,
+    get_sessionmaker,
+    initialize_runtime,
+)
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.match import Match
@@ -41,7 +46,9 @@ async def runtime_sessionmaker(db_path, monkeypatch):
     await dispose_runtime()
 
 
-async def force_create_room(svc: RoomLifecycleService, prov: FakeProvider, user_id: str, uow) -> str:
+async def force_create_room(
+    svc: RoomLifecycleService, prov: FakeProvider, user_id: str, uow
+) -> str:
     sess: dict = {}
     out = await svc.create_room(sess, user_id, prov, uow)
     return str(out["pairing_code"])
@@ -88,6 +95,67 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
 
     assert sess_solo["active_room"] == pc2
     assert sess_solo["solo_mode"] is True
+
+
+@pytest.mark.anyio
+async def test_create_room_with_mixed_media_interleaves(runtime_sessionmaker):
+    """Test that when both movies and TV shows are requested, deck interleaves them."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    sess: dict = {}
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        out = await svc.create_room(
+            sess, uid, prov, uow, include_movies=True, include_tv_shows=True
+        )
+        pc = out["pairing_code"]
+        rec = await uow.rooms.get_room(pc)
+        assert rec is not None
+
+        deck = json.loads(rec.movie_data_json or "[]")
+        assert len(deck) == 50  # 25 movies + 25 TV shows
+
+        # Verify round-robin interleaving: movie, tv, movie, tv, ...
+        for i in range(len(deck)):
+            if i % 2 == 0:
+                assert deck[i]["media_type"] == "movie", f"Position {i} should be movie"
+            else:
+                assert deck[i]["media_type"] == "tv_show", (
+                    f"Position {i} should be tv_show"
+                )
+
+        assert rec.include_movies is True
+        assert rec.include_tv_shows is True
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_create_room_with_tv_shows_only(runtime_sessionmaker):
+    """Test that when only TV shows are requested, deck contains only TV shows."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    sess: dict = {}
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        out = await svc.create_room(
+            sess, uid, prov, uow, include_movies=False, include_tv_shows=True
+        )
+        pc = out["pairing_code"]
+        rec = await uow.rooms.get_room(pc)
+        assert rec is not None
+
+        deck = json.loads(rec.movie_data_json or "[]")
+        assert len(deck) == 25
+        for card in deck:
+            assert card["media_type"] == "tv_show"
+
+        assert rec.include_movies is False
+        assert rec.include_tv_shows is True
+        await session.commit()
 
 
 @pytest.mark.anyio
@@ -155,7 +223,9 @@ async def test_quit_session_ended_archives_matches_to_history(runtime_sessionmak
         room = await uow.rooms.get_room(pc)
         assert room is None
         archived = await uow.matches.list_history_for_user(uid)
-        assert any(isinstance(r, MatchRecord) and r.room_code == "HISTORY" for r in archived)
+        assert any(
+            isinstance(r, MatchRecord) and r.room_code == "HISTORY" for r in archived
+        )
 
 
 @pytest.mark.anyio
@@ -175,7 +245,9 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
 
         lm = {"type": "match", "ts": 999.9}
         await session.execute(
-            update(Room).where(Room.pairing_code == pc).values(last_match_data=json.dumps(lm))
+            update(Room)
+            .where(Room.pairing_code == pc)
+            .values(last_match_data=json.dumps(lm))
         )
 
         genre_deck = await svc.set_genre(pc, "Action", prov, uow)
