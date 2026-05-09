@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.room_types import MatchRecord
@@ -288,26 +291,30 @@ class RoomLifecycleService:
 
         # If deck is empty after filtering, raise error (no state change)
         if not filtered_deck:
-            raise EmptyDeckError(
-                f"No items available after applying filters (genre={effective_genre}, hide_watched={effective_hide_watched}, excluded {len(swiped_ids)} swiped items)"
+            logger.warning(
+                "Empty deck for room %s: genre=%s, hide_watched=%s, excluded %d swiped items",
+                code,
+                effective_genre,
+                effective_hide_watched,
+                len(swiped_ids),
             )
+            raise EmptyDeckError("No items available. Try a different filter.")
 
-        # Transform deck to API format: replace id with media_id (match get_deck behavior)
+        # Persist in internal format (with "id" field) so get_deck can transform correctly
+        await uow.rooms.set_filters_and_deck(
+            code,
+            genre=effective_genre,
+            hide_watched=effective_hide_watched,
+            movie_data_json=json.dumps(filtered_deck),
+            deck_position_json=json.dumps({}),
+        )
+
+        # Return API format (id → media_id) for immediate use by the router
         api_deck = []
         for item in filtered_deck:
             api_item = {k: v for k, v in item.items() if k != "id"}
             api_item["media_id"] = item.get("id")
             api_deck.append(api_item)
-
-        # Persist: new deck JSON, reset cursors, update genre and hide_watched atomically
-        await uow.rooms.set_filters_and_deck(
-            code,
-            genre=effective_genre,
-            hide_watched=effective_hide_watched,
-            movie_data_json=json.dumps(api_deck),
-            deck_position_json=json.dumps({}),
-        )
-
         return api_deck
 
     async def set_genre(
