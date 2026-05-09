@@ -200,3 +200,149 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
         missing_status = await svc.get_status("0000", uow)
         await session.commit()
     assert missing_status == {"ready": False}
+
+
+@pytest.mark.anyio
+async def test_mixed_deck_interleaving(runtime_sessionmaker):
+    """Test that mixed deck creation interleaves movies and TV shows in round-robin fashion."""
+    svc = RoomLifecycleService()
+    
+    class MixedDeckProvider:
+        """Provider that returns interleaved movies and TV shows (simulating JellyfinLibraryProvider behavior)."""
+        
+        def fetch_deck(self, media_types=None, genre_name=None):
+            """Return interleaved deck with both media types - simulates round-robin interleaving."""
+            cards = []
+            if media_types is None:
+                media_types = ["movie"]
+            
+            # Simulate what JellyfinLibraryProvider does: fetch all, then interleave
+            movie_cards = []
+            tv_cards = []
+            
+            if "movie" in media_types:
+                movie_cards = [{"id": f"movie-{i}", "title": f"Movie {i}", "media_type": "movie"} for i in range(5)]
+            if "tv_show" in media_types:
+                tv_cards = [{"id": f"tv-{i}", "title": f"TV Show {i}", "media_type": "tv_show"} for i in range(5)]
+            
+            # Round-robin interleaving (same logic as JellyfinLibraryProvider)
+            if len(media_types) > 1 and movie_cards and tv_cards:
+                interleaved = []
+                max_len = max(len(movie_cards), len(tv_cards))
+                for i in range(max_len):
+                    if i < len(movie_cards):
+                        interleaved.append(movie_cards[i])
+                    if i < len(tv_cards):
+                        interleaved.append(tv_cards[i])
+                return interleaved
+            
+            # Single type or empty: return as-is
+            return movie_cards + tv_cards
+    
+    prov = MixedDeckProvider()
+    uid = "test-user"
+    
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        # Create room with both media types
+        sess: dict = {}
+        out = await svc.create_room(sess, uid, prov, uow, include_movies=True, include_tv_shows=True)
+        pc = out["pairing_code"]
+        
+        rec = await uow.rooms.get_room(pc)
+        assert rec is not None
+        
+        # Verify room configuration
+        assert rec.include_movies is True
+        assert rec.include_tv_shows is True
+        
+        # Verify deck is interleaved (movie, tv, movie, tv, ...)
+        deck = json.loads(rec.movie_data_json)
+        assert len(deck) == 10  # 5 movies + 5 TV shows
+        
+        # Check round-robin pattern: even indices are movies, odd are TV shows
+        for i in range(len(deck)):
+            if i % 2 == 0:
+                assert deck[i]["media_type"] == "movie", f"Expected movie at index {i}, got {deck[i]['media_type']}"
+            else:
+                assert deck[i]["media_type"] == "tv_show", f"Expected tv_show at index {i}, got {deck[i]['media_type']}"
+        
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_single_media_type_deck(runtime_sessionmaker):
+    """Test that single media type decks contain only that type."""
+    svc = RoomLifecycleService()
+    
+    class SingleTypeProvider:
+        def fetch_deck(self, media_types=None, genre_name=None):
+            if media_types == ["movie"]:
+                return [{"id": f"movie-{i}", "title": f"Movie {i}", "media_type": "movie"} for i in range(5)]
+            elif media_types == ["tv_show"]:
+                return [{"id": f"tv-{i}", "title": f"TV Show {i}", "media_type": "tv_show"} for i in range(5)]
+            return []
+    
+    uid = "test-user"
+    
+    # Test movies only
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        prov = SingleTypeProvider()
+        sess: dict = {}
+        out = await svc.create_room(sess, uid, prov, uow, include_movies=True, include_tv_shows=False)
+        pc = out["pairing_code"]
+        
+        rec = await uow.rooms.get_room(pc)
+        deck = json.loads(rec.movie_data_json)
+        
+        assert len(deck) == 5
+        assert all(item["media_type"] == "movie" for item in deck)
+        assert rec.include_movies is True
+        assert rec.include_tv_shows is False
+        await session.commit()
+    
+    # Test TV shows only
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        prov = SingleTypeProvider()
+        sess: dict = {}
+        out = await svc.create_room(sess, uid, prov, uow, include_movies=False, include_tv_shows=True)
+        pc = out["pairing_code"]
+        
+        rec = await uow.rooms.get_room(pc)
+        deck = json.loads(rec.movie_data_json)
+        
+        assert len(deck) == 5
+        assert all(item["media_type"] == "tv_show" for item in deck)
+        assert rec.include_movies is False
+        assert rec.include_tv_shows is True
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_empty_genre_validation(runtime_sessionmaker):
+    """Test that empty genre deck raises ValueError (returns 400)."""
+    svc = RoomLifecycleService()
+    
+    class EmptyGenreProvider:
+        def fetch_deck(self, media_types=None, genre_name=None):
+            # Return empty list when genre is specified
+            if genre_name:
+                return []
+            return [{"id": "movie-1", "title": "Movie 1", "media_type": "movie"}]
+    
+    prov = EmptyGenreProvider()
+    uid = "test-user"
+    
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        sess: dict = {}
+        out = await svc.create_room(sess, uid, prov, uow)
+        pc = out["pairing_code"]
+        
+        # Setting a genre that returns empty deck should raise ValueError
+        with pytest.raises(ValueError, match="No items found for genre"):
+            await svc.set_genre(pc, "EmptyGenre", prov, uow)
+        
+        await session.commit()

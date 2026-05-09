@@ -371,9 +371,24 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             else:
                 cards.append(self._item_to_card(it))
         
-        # Shuffle if not recently added
+        # Interleave movies and TV shows in round-robin fashion when both are requested
         search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
-        if search_genre not in ("Recently Added", None, "All"):
+        if len(media_types) > 1:
+            # Separate by media type
+            movie_cards = [c for c in cards if c.get("media_type") == "movie"]
+            tv_cards = [c for c in cards if c.get("media_type") == "tv_show"]
+            
+            # Round-robin interleaving
+            interleaved: List[dict] = []
+            max_len = max(len(movie_cards), len(tv_cards))
+            for i in range(max_len):
+                if i < len(movie_cards):
+                    interleaved.append(movie_cards[i])
+                if i < len(tv_cards):
+                    interleaved.append(tv_cards[i])
+            cards = interleaved
+        elif search_genre not in ("Recently Added", None, "All"):
+            # Shuffle only when single media type and not recently added/all
             random.shuffle(cards)
         
         return cards

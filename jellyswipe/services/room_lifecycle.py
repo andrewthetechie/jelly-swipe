@@ -215,6 +215,11 @@ class RoomLifecycleService:
             media_types.append("tv_show")
 
         new_list = provider.fetch_deck(media_types=media_types, genre_name=genre)
+        
+        # Validate: empty genre deck returns 400
+        if not new_list:
+            raise ValueError(f"No items found for genre '{genre}'")
+        
         await uow.rooms.set_genre_and_deck(
             code,
             genre,

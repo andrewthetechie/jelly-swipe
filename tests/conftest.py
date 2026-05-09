@@ -228,13 +228,30 @@ class FakeProvider:
         self.favorites_added.append((user_token, movie_id))
 
     def fetch_deck(self, media_types=None, genre_name=None):
-        """Return a list of 25 fake movie cards for deck testing."""
-        return [
-            {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
-             "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
-             "rating": 7.0, "duration": "1h 30m", "year": 2024, "media_type": "movie"}
-            for i in range(25)
-        ]
+        """Return a list of fake cards for deck testing.
+        
+        Supports both movies and TV shows based on media_types parameter.
+        Returns 25 items for single media type to satisfy existing tests.
+        """
+        cards = []
+        if media_types is None:
+            media_types = ["movie"]
+        
+        if "movie" in media_types:
+            cards.extend([
+                {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
+                 "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
+                 "rating": 7.0, "duration": "1h 30m", "year": 2024, "media_type": "movie"}
+                for i in range(25)
+            ])
+        if "tv_show" in media_types:
+            cards.extend([
+                {"id": f"tv-{i}", "title": f"TV Show {i}", "summary": f"Summary {i}",
+                 "thumb": f"/proxy?path=jellyfin/tv-{i}/Primary",
+                 "rating": 8.0, "year": 2024, "media_type": "tv_show", "season_count": 3}
+                for i in range(25)
+            ])
+        return cards
 
     def list_genres(self):
         return ["All", "Action", "Comedy"]

@@ -271,7 +271,10 @@ async def set_genre(code: str, request: Request, uow: DBUoW, user: AuthUser = De
     genre = data.get('genre')
     if not genre:
         return XSSSafeJSONResponse(content={'error': 'Genre required'}, status_code=400)
-    return await room_lifecycle_service.set_genre(code, genre, get_provider(), uow)
+    try:
+        return await room_lifecycle_service.set_genre(code, genre, get_provider(), uow)
+    except ValueError as exc:
+        return XSSSafeJSONResponse(content={'error': str(exc)}, status_code=400)
 
 
 @rooms_router.get('/room/{code}/status')
