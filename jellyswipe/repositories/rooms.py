@@ -99,6 +99,27 @@ class RoomRepository:
         )
         return result.rowcount or 0
 
+    async def set_filters_and_deck(
+        self,
+        pairing_code: str,
+        genre: str,
+        hide_watched: bool,
+        movie_data_json: str,
+        deck_position_json: str,
+    ) -> int:
+        """Atomically update genre, hide_watched, deck, and cursor positions."""
+        result = await self._session.execute(
+            update(Room)
+            .where(Room.pairing_code == pairing_code)
+            .values(
+                current_genre=genre,
+                hide_watched=1 if hide_watched else 0,
+                movie_data=movie_data_json,
+                deck_position=deck_position_json,
+            )
+        )
+        return result.rowcount or 0
+
     async def set_last_match_data(
         self, pairing_code: str, last_match_data_json: str | None
     ) -> int:
