@@ -19,7 +19,10 @@ class UniqueRoomCodeExhaustedError(Exception):
 
 class DeckProvider(Protocol):
     def fetch_deck(
-        self, media_types: list[str], genre_name: str | None = None
+        self,
+        media_types: list[str],
+        genre_name: str | None = None,
+        hide_watched: bool = False,
     ) -> list[dict[str, Any]]: ...
 
 
