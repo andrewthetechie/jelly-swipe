@@ -7,10 +7,10 @@ import logging
 import secrets
 from typing import Any, Protocol
 
-logger = logging.getLogger(__name__)
-
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.room_types import MatchRecord
+
+logger = logging.getLogger(__name__)
 
 
 class UniqueRoomCodeExhaustedError(Exception):
@@ -345,6 +345,7 @@ class RoomLifecycleService:
             "ready": snapshot.ready,
             "genre": snapshot.genre,
             "solo": snapshot.solo,
+            "hide_watched": snapshot.hide_watched,
             "last_match": snapshot.last_match,
         }
 
