@@ -33,6 +33,7 @@ class RoomRepository:
         deck_position_json: str,
         include_movies: bool = True,
         include_tv_shows: bool = False,
+        hide_watched: bool = False,
     ) -> None:
         self._session.add(
             Room(
@@ -44,6 +45,7 @@ class RoomRepository:
                 deck_position=deck_position_json,
                 include_movies=1 if include_movies else 0,
                 include_tv_shows=1 if include_tv_shows else 0,
+                hide_watched=1 if hide_watched else 0,
             )
         )
 
@@ -104,6 +106,7 @@ class RoomRepository:
             genre=row.current_genre,
             solo=bool(row.solo_mode),
             last_match=last_match,
+            hide_watched=bool(row.hide_watched),
         )
 
     async def fetch_movie_data(self, pairing_code: str) -> str | None:
@@ -112,13 +115,13 @@ class RoomRepository:
         )
 
     async def fetch_stream_snapshot(self, pairing_code: str) -> StreamSnapshot | None:
-        stmt = select(Room.ready, Room.current_genre, Room.solo_mode, Room.last_match_data).where(
+        stmt = select(Room.ready, Room.current_genre, Room.solo_mode, Room.last_match_data, Room.hide_watched).where(
             Room.pairing_code == pairing_code
         )
         row = (await self._session.execute(stmt)).one_or_none()
         if row is None:
             return None
-        ready_raw, genre, solo_raw, raw_last = row[0], row[1], row[2], row[3]
+        ready_raw, genre, solo_raw, raw_last, hide_watched_raw = row[0], row[1], row[2], row[3], row[4]
         last_match: dict[str, Any] | None = None
         last_match_ts: str | float | int | None = None
         if raw_last:
@@ -136,6 +139,7 @@ class RoomRepository:
             solo=bool(solo_raw),
             last_match=last_match,
             last_match_ts=last_match_ts,
+            hide_watched=bool(hide_watched_raw),
         )
 
     async def delete(self, pairing_code: str) -> int:
@@ -155,4 +159,5 @@ class RoomRepository:
             deck_order_json=row.deck_order,
             include_movies=bool(row.include_movies),
             include_tv_shows=bool(row.include_tv_shows),
+            hide_watched=bool(row.hide_watched),
         )

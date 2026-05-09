@@ -17,6 +17,7 @@ class RoomRecord:
     deck_order_json: str | None
     include_movies: bool
     include_tv_shows: bool
+    hide_watched: bool
 
 
 @dataclass(slots=True)
@@ -25,6 +26,7 @@ class RoomStatusSnapshot:
     genre: str
     solo: bool
     last_match: dict | None
+    hide_watched: bool
 
 
 @dataclass(slots=True)
@@ -34,6 +36,7 @@ class StreamSnapshot:
     solo: bool
     last_match: dict | None
     last_match_ts: str | float | int | None
+    hide_watched: bool
 
 
 @dataclass(slots=True)

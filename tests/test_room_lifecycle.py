@@ -67,6 +67,7 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert rec.solo_mode is False
         assert rec.include_movies is True
         assert rec.include_tv_shows is False
+        assert rec.hide_watched is False
         await session.commit()
 
     assert sess_multi["active_room"] == pc
@@ -84,6 +85,7 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert deck2[uid] == 0
         assert rec2.ready is True
         assert rec2.solo_mode is True
+        assert rec2.hide_watched is False
         await session.commit()
 
     assert sess_solo["active_room"] == pc2
@@ -200,3 +202,35 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
         missing_status = await svc.get_status("0000", uow)
         await session.commit()
     assert missing_status == {"ready": False}
+
+
+@pytest.mark.anyio
+async def test_fetch_status_returns_hide_watched(runtime_sessionmaker):
+    """Test that fetch_status returns hide_watched=False for a newly created room."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+        snap = await uow.rooms.fetch_status(pc)
+        assert snap is not None
+        assert snap.hide_watched is False
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_fetch_stream_snapshot_returns_hide_watched(runtime_sessionmaker):
+    """Test that fetch_stream_snapshot returns hide_watched=False for a newly created room."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+        snap = await uow.rooms.fetch_stream_snapshot(pc)
+        assert snap is not None
+        assert snap.hide_watched is False
+        await session.commit()
