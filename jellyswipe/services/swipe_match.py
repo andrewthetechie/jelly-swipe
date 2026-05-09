@@ -1,8 +1,8 @@
 """Dedicated swipe/match mutation service — Phase 39 (D-14).
 
- Serialized swipe mutations use `BEGIN IMMEDIATE` inside `uow.run_sync(...)`
- without owning commit/rollback. Undo/delete routes recompute room last-match sentinels
- from persisted active match rows (`match_order` / SQLite rowid).
+Serialized swipe mutations use `BEGIN IMMEDIATE` inside `uow.run_sync(...)`
+without owning commit/rollback. Undo/delete routes recompute room last-match sentinels
+from persisted active match rows (`match_order` / SQLite rowid).
 """
 
 from __future__ import annotations
@@ -37,7 +37,9 @@ def _execute(conn: Connection | object, query: str, params: tuple = ()) -> None:
 
 
 def _get_cursor(conn: Connection, code: str, user_id: str) -> int:
-    room = _fetchone(conn, "SELECT deck_position FROM rooms WHERE pairing_code = ?", (code,))
+    room = _fetchone(
+        conn, "SELECT deck_position FROM rooms WHERE pairing_code = ?", (code,)
+    )
     if room and room["deck_position"]:
         positions = json.loads(room["deck_position"])
         return int(positions.get(user_id, 0))
@@ -45,8 +47,12 @@ def _get_cursor(conn: Connection, code: str, user_id: str) -> int:
 
 
 def _set_cursor(conn: Connection, code: str, user_id: str, position: int) -> None:
-    room = _fetchone(conn, "SELECT deck_position FROM rooms WHERE pairing_code = ?", (code,))
-    positions = json.loads(room["deck_position"]) if room and room["deck_position"] else {}
+    room = _fetchone(
+        conn, "SELECT deck_position FROM rooms WHERE pairing_code = ?", (code,)
+    )
+    positions = (
+        json.loads(room["deck_position"]) if room and room["deck_position"] else {}
+    )
     positions[user_id] = position
     _execute(
         conn,
@@ -63,17 +69,21 @@ def _resolve_movie_meta(movie_data_json: str | None, movie_id: str) -> dict[str,
                 rating = m.get("rating")
                 duration = m.get("duration")
                 year = m.get("year")
+                media_type = m.get("media_type", "movie")
                 return {
                     "rating": str(rating) if rating is not None else "",
                     "duration": duration or "",
                     "year": str(year) if year is not None else "",
+                    "media_type": media_type,
                 }
     except (json.JSONDecodeError, TypeError):
         pass
-    return {"rating": "", "duration": "", "year": ""}
+    return {"rating": "", "duration": "", "year": "", "media_type": "movie"}
 
 
-def _match_sentinel_rowid(conn: Connection, pairing_code: str, movie_id: str) -> int | None:
+def _match_sentinel_rowid(
+    conn: Connection, pairing_code: str, movie_id: str
+) -> int | None:
     row = _fetchone(
         conn,
         "SELECT MAX(rowid) AS rid FROM matches WHERE room_code = ? AND movie_id = ?",
@@ -98,7 +108,7 @@ def _last_match_json(
         "title": title,
         "thumb": thumb,
         "media_id": movie_id,
-        "media_type": "movie",
+        "media_type": meta.get("media_type", "movie"),
         "rating": meta["rating"],
         "duration": meta["duration"],
         "year": meta["year"],
@@ -117,7 +127,7 @@ def match_record_as_last_match_json(rec: MatchRecord) -> str:
         "title": rec.title,
         "thumb": rec.thumb,
         "media_id": rec.movie_id,
-        "media_type": "movie",
+        "media_type": rec.media_type or "movie",
         "rating": rec.rating or "",
         "duration": rec.duration or "",
         "year": rec.year or "",
@@ -163,7 +173,9 @@ def _sync_run_swipe_transaction(
     if direction != "right" or title is None or thumb is None:
         return None
 
-    room = _fetchone(conn, "SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?", (code,))
+    room = _fetchone(
+        conn, "SELECT solo_mode, movie_data FROM rooms WHERE pairing_code = ?", (code,)
+    )
     meta = (
         _resolve_movie_meta(room["movie_data"], movie_id)
         if room
@@ -174,7 +186,7 @@ def _sync_run_swipe_transaction(
     if room and room["solo_mode"]:
         _execute(
             conn,
-            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year, media_type) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?, ?)',
             (
                 code,
                 movie_id,
@@ -185,6 +197,7 @@ def _sync_run_swipe_transaction(
                 meta["rating"],
                 meta["duration"],
                 meta["year"],
+                meta["media_type"],
             ),
         )
         rid = _match_sentinel_rowid(conn, code, movie_id)
@@ -196,7 +209,11 @@ def _sync_run_swipe_transaction(
             deep_link=deep_link,
             sentinel_ts=rid,
         )
-        _execute(conn, "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?", (match_data, code))
+        _execute(
+            conn,
+            "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
+            (match_data, code),
+        )
         return None
 
     session_id = request_session.get("session_id")
@@ -218,7 +235,7 @@ def _sync_run_swipe_transaction(
 
     _execute(
         conn,
-        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year, media_type) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?, ?)',
         (
             code,
             movie_id,
@@ -229,13 +246,14 @@ def _sync_run_swipe_transaction(
             meta["rating"],
             meta["duration"],
             meta["year"],
+            meta["media_type"],
         ),
     )
 
     if other_swipe["user_id"] and other_swipe["user_id"] != user_id:
         _execute(
             conn,
-            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?)',
+            'INSERT OR IGNORE INTO matches (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year, media_type) VALUES (?, ?, ?, ?, "active", ?, ?, ?, ?, ?, ?)',
             (
                 code,
                 movie_id,
@@ -246,6 +264,7 @@ def _sync_run_swipe_transaction(
                 meta["rating"],
                 meta["duration"],
                 meta["year"],
+                meta["media_type"],
             ),
         )
 
@@ -258,7 +277,11 @@ def _sync_run_swipe_transaction(
         deep_link=deep_link,
         sentinel_ts=rid,
     )
-    _execute(conn, "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?", (match_data, code))
+    _execute(
+        conn,
+        "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
+        (match_data, code),
+    )
     return None
 
 
@@ -288,12 +311,16 @@ class SwipeMatchService:
             thumb=thumb,
         )
 
-    async def _recompute_last_match_for_room(self, uow: DatabaseUnitOfWork, pairing_code: str) -> None:
+    async def _recompute_last_match_for_room(
+        self, uow: DatabaseUnitOfWork, pairing_code: str
+    ) -> None:
         latest = await uow.matches.latest_active_for_room(pairing_code)
         if latest is None:
             await uow.rooms.set_last_match_data(pairing_code, None)
             return
-        await uow.rooms.set_last_match_data(pairing_code, match_record_as_last_match_json(latest))
+        await uow.rooms.set_last_match_data(
+            pairing_code, match_record_as_last_match_json(latest)
+        )
 
     async def undo_swipe(
         self,
@@ -304,7 +331,9 @@ class SwipeMatchService:
         movie_id: str,
         uow: DatabaseUnitOfWork,
     ) -> dict:
-        await uow.swipes.delete_by_room_movie_session(code, movie_id, request_session.get("session_id"))
+        await uow.swipes.delete_by_room_movie_session(
+            code, movie_id, request_session.get("session_id")
+        )
         await uow.matches.delete_active_for_room_movie_user(code, movie_id, user_id)
         if await uow.rooms.pairing_code_exists(code):
             await self._recompute_last_match_for_room(uow, code)

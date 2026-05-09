@@ -30,6 +30,7 @@ class Match(Base):
     rating: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration: Mapped[str | None] = mapped_column(Text, nullable=True)
     year: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     __mapper_args__ = {
         "primary_key": [room_code, movie_id, user_id],
     }

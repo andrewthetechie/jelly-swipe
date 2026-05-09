@@ -18,10 +18,16 @@ class MatchRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list_active_for_user(self, pairing_code: str, user_id: str) -> list[MatchRecord]:
+    async def list_active_for_user(
+        self, pairing_code: str, user_id: str
+    ) -> list[MatchRecord]:
         stmt = (
             select(Match, _ROWID_ORDER)
-            .where(Match.room_code == pairing_code, Match.status == "active", Match.user_id == user_id)
+            .where(
+                Match.room_code == pairing_code,
+                Match.status == "active",
+                Match.user_id == user_id,
+            )
             .order_by(_ROWID_ORDER.desc())
         )
         result = await self._session.execute(stmt)
@@ -98,5 +104,6 @@ class MatchRepository:
             rating=match.rating,
             duration=match.duration,
             year=match.year,
+            media_type=match.media_type,
             match_order=mo,
         )
