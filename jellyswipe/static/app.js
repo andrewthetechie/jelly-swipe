@@ -4,6 +4,7 @@
         let swipeHistory = [];
         let globalCurrentX = 0;
         let currentGenre = "All";
+        let hideWatched = false;
         let isHistoryView = false;
         let isSoloMode = false;
         let currentRoomCode = null;
@@ -121,6 +122,48 @@
             document.getElementById('genre-pill').innerText = genre === 'All' ? 'Genres ▾' : genre + ' ▾';
             swipeHistory = [];
             renderInitialDeck();
+        }
+
+        async function toggleHideWatched() {
+            const newHideWatched = !hideWatched;
+            const pill = document.getElementById('hide-watched-pill');
+            const previousState = hideWatched;
+
+            pill.innerText = newHideWatched ? 'Hiding Watched...' : 'Showing Watched...';
+
+            try {
+                const res = await apiFetch(`/room/${currentRoomCode}/watched-filter`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hide_watched: newHideWatched })
+                });
+
+                if (res.status === 422) {
+                    const errorData = await res.json();
+                    alert(errorData.error || 'No unwatched items available');
+                    hideWatched = previousState;
+                    pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                    return;
+                }
+
+                if (!res.ok) {
+                    alert('Failed to update watched filter');
+                    hideWatched = previousState;
+                    pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                    return;
+                }
+
+                movieStack = await res.json();
+                hideWatched = newHideWatched;
+                pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                pill.classList.toggle('active', hideWatched);
+                swipeHistory = [];
+                renderInitialDeck();
+            } catch (err) {
+                console.error('Toggle hide watched failed', err);
+                hideWatched = previousState;
+                pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+            }
         }
 
         async function addToWatchlist(event, id) {
@@ -249,6 +292,20 @@
             } else {
                 document.getElementById('matches-pill').innerText = 'Matches';
                 document.getElementById('solo-badge').classList.add('hidden');
+            }
+
+            // Load initial hide_watched state from room status
+            try {
+                const statusRes = await apiFetch(`/room/${currentRoomCode}/status`);
+                if (statusRes.ok) {
+                    const statusData = await statusRes.json();
+                    hideWatched = statusData.hide_watched || false;
+                    const pill = document.getElementById('hide-watched-pill');
+                    pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                    pill.classList.toggle('active', hideWatched);
+                }
+            } catch (err) {
+                console.error('Failed to load room status', err);
             }
 
             renderInitialDeck();
@@ -483,6 +540,9 @@
 
             const genrePill = document.getElementById('genre-pill');
             if (genrePill) genrePill.onclick = () => toggleGenreModal();
+
+            const hideWatchedPill = document.getElementById('hide-watched-pill');
+            if (hideWatchedPill) hideWatchedPill.onclick = () => toggleHideWatched();
 
             const setupMovies = document.getElementById('setup-movies');
             if (setupMovies) setupMovies.addEventListener('change', updateConfirmButtonState);
@@ -824,6 +884,14 @@
                     const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
                     movieStack = await movieRes.json(); swipeHistory = []; renderInitialDeck();
                 }
+                if (d.hide_watched !== undefined && d.hide_watched !== hideWatched) {
+                    hideWatched = d.hide_watched;
+                    const pill = document.getElementById('hide-watched-pill');
+                    pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                    pill.classList.toggle('active', hideWatched);
+                    const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
+                    movieStack = await movieRes.json(); swipeHistory = []; renderInitialDeck();
+                }
                 if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
                     loadMovies(d.solo || false);
                 }
@@ -831,14 +899,14 @@
                     document.getElementById('matched-movie-title').innerText = d.last_match.title;
                     document.getElementById('match-popup-poster').src = d.last_match.thumb || '';
                     const heading = document.getElementById('match-heading');
-                    
+
                     // Update heading based on media type
                     if (d.last_match.media_type === 'tv_show') {
                         heading.innerText = "IT'S A TV MATCH!";
                     } else {
                         heading.innerText = "IT'S A MATCH!";
                     }
-                    
+
                     document.getElementById('match-solo-label').classList.add('hidden');
                     showMatchMetadata(d.last_match);
                     document.getElementById('match-overlay').classList.remove('hidden');
