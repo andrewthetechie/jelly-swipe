@@ -170,7 +170,7 @@ Dependency Notes
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **jelly-swipe** (2015 symbols, 3987 relationships, 113 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **jelly-swipe** (2029 symbols, 3994 relationships, 113 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -208,14 +208,6 @@ This project is indexed by GitNexus as **jelly-swipe** (2015 symbols, 3987 relat
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Tests area (236 symbols) | `.claude/skills/generated/tests/SKILL.md` |
-| Work in the Services area (29 symbols) | `.claude/skills/generated/services/SKILL.md` |
-| Work in the Static area (27 symbols) | `.claude/skills/generated/static/SKILL.md` |
-| Work in the Jellyswipe area (26 symbols) | `.claude/skills/generated/jellyswipe/SKILL.md` |
-| Work in the Routers area (19 symbols) | `.claude/skills/generated/routers/SKILL.md` |
-| Work in the Alembic area (7 symbols) | `.claude/skills/generated/alembic/SKILL.md` |
-| Work in the Repositories area (6 symbols) | `.claude/skills/generated/repositories/SKILL.md` |
-| Work in the Models area (5 symbols) | `.claude/skills/generated/models/SKILL.md` |
 
 <!-- gitnexus:end -->
 ```
