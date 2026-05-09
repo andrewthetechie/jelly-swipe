@@ -42,7 +42,9 @@ class SwipeRepository:
             .limit(1)
         )
         if session_id:
-            stmt = stmt.where(or_(Swipe.session_id.is_(None), Swipe.session_id != session_id))
+            stmt = stmt.where(
+                or_(Swipe.session_id.is_(None), Swipe.session_id != session_id)
+            )
         else:
             stmt = stmt.where(Swipe.user_id != user_id)
 
@@ -53,7 +55,9 @@ class SwipeRepository:
         return SwipeCounterparty(user_id=row.user_id, session_id=row.session_id)
 
     async def delete_room_swipes(self, pairing_code: str) -> int:
-        result = await self._session.execute(delete(Swipe).where(Swipe.room_code == pairing_code))
+        result = await self._session.execute(
+            delete(Swipe).where(Swipe.room_code == pairing_code)
+        )
         return result.rowcount or 0
 
     async def delete_by_room_movie_session(
@@ -72,3 +76,9 @@ class SwipeRepository:
             stmt = stmt.where(Swipe.session_id == session_id)
         result = await self._session.execute(stmt)
         return result.rowcount or 0
+
+    async def list_swiped_media_ids(self, pairing_code: str) -> set[str]:
+        result = await self._session.execute(
+            select(Swipe.movie_id).where(Swipe.room_code == pairing_code)
+        )
+        return {row[0] for row in result.all()}
