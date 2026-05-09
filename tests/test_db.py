@@ -54,9 +54,9 @@ class TestAlembicBaseline:
                 "last_match_data",
                 "deck_position",
                 "deck_order",
-                "include_movies",
-                "include_tv_shows",
+                "hide_watched",
             }
+            assert columns["hide_watched"]["dflt_value"] in ("0", "'0'")
             assert columns["movie_data"]["dflt_value"] in ("'[]'", '"[]"', "[]")
             assert columns["ready"]["dflt_value"] in ("0", "'0'")
             assert columns["current_genre"]["dflt_value"] in ("'All'", '"All"')
