@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import json
 import os
-import secrets
 import sqlite3
 from base64 import b64encode
 from unittest.mock import MagicMock, patch
@@ -12,7 +11,11 @@ import itsdangerous
 from fastapi.testclient import TestClient
 
 from jellyswipe.db_paths import application_db_path
-from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, initialize_runtime
+from jellyswipe.db_runtime import (
+    build_async_sqlite_url,
+    dispose_runtime,
+    initialize_runtime,
+)
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 # Set required environment variables at module level to satisfy jellyswipe/__init__.py
@@ -51,7 +54,9 @@ def setup_test_environment():
     """
     # Monkeypatch load_dotenv() to skip .env file loading
     # This prevents loading .env from project root which may not exist or have wrong values
-    mock_load_dotenv = patch('dotenv.load_dotenv', side_effect=lambda *args, **kwargs: None)
+    mock_load_dotenv = patch(
+        "dotenv.load_dotenv", side_effect=lambda *args, **kwargs: None
+    )
     mock_load_dotenv.start()
 
     # Yield control to tests - they can now import jellyswipe modules safely
@@ -89,6 +94,7 @@ def mocker():
         yield helper
     finally:
         helper.stopall()
+
 
 @pytest.fixture
 def mock_env_vars(monkeypatch):
@@ -230,9 +236,16 @@ class FakeProvider:
     def fetch_deck(self, media_types=None, genre_name=None):
         """Return a list of 25 fake movie cards for deck testing."""
         return [
-            {"id": f"movie-{i}", "title": f"Movie {i}", "summary": f"Summary {i}",
-             "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
-             "rating": 7.0, "duration": "1h 30m", "year": 2024, "media_type": "movie"}
+            {
+                "id": f"movie-{i}",
+                "title": f"Movie {i}",
+                "summary": f"Summary {i}",
+                "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
+                "rating": 7.0,
+                "duration": "1h 30m",
+                "year": 2024,
+                "media_type": "movie",
+            }
             for i in range(25)
         ]
 
@@ -240,11 +253,20 @@ class FakeProvider:
         return ["All", "Action", "Comedy"]
 
     def server_info(self):
-        return {"machineIdentifier": "test-server-id", "name": "TestServer", "webUrl": ""}
+        return {
+            "machineIdentifier": "test-server-id",
+            "name": "TestServer",
+            "webUrl": "",
+        }
 
     def resolve_item_for_tmdb(self, movie_id):
         from types import SimpleNamespace
-        return SimpleNamespace(title=f"Movie-{movie_id}", year=2026, thumb=f"/proxy?path=jellyfin/{movie_id}/Primary")
+
+        return SimpleNamespace(
+            title=f"Movie-{movie_id}",
+            year=2026,
+            thumb=f"/proxy?path=jellyfin/{movie_id}/Primary",
+        )
 
     def fetch_library_image(self, path):
         return (b"", "image/jpeg")
@@ -269,9 +291,11 @@ def app(db_path, monkeypatch):
     from jellyswipe import create_app
     from jellyswipe.dependencies import require_auth, get_provider, AuthUser
     import jellyswipe as app_module
+
     # Set provider singleton before creating app (matches app_real_auth fix)
     fake_provider = FakeProvider()
     import jellyswipe.config as app_config
+
     app_config._provider_singleton = fake_provider
     app_module._provider_singleton = fake_provider
 
@@ -294,6 +318,7 @@ def app(db_path, monkeypatch):
     fast_app.dependency_overrides[get_provider] = lambda: fake_provider
 
     from jellyswipe.rate_limiter import rate_limiter as _rl
+
     _rl.reset()
 
     yield fast_app
@@ -301,7 +326,7 @@ def app(db_path, monkeypatch):
     # Dispose the cached runtime before clearing test singletons so the next
     # temp database cannot inherit the previous engine/sessionmaker binding.
     _dispose_test_runtime()
-    fast_app.dependency_overrides.clear()   # CRITICAL: prevents override state leakage
+    fast_app.dependency_overrides.clear()  # CRITICAL: prevents override state leakage
     # Clear provider singleton on teardown
     app_config._provider_singleton = None
     app_module._provider_singleton = None
@@ -332,11 +357,13 @@ def app_real_auth(db_path, monkeypatch):
     from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
     import jellyswipe as app_module
+
     bootstrap = _bootstrap_temp_db_runtime(db_path, monkeypatch)
 
     # Set provider singleton BEFORE creating app (fixes Plan 03 bug)
     fake_provider = FakeProvider()
     import jellyswipe.config as app_config
+
     app_config._provider_singleton = fake_provider
     app_module._provider_singleton = fake_provider
 
@@ -351,6 +378,7 @@ def app_real_auth(db_path, monkeypatch):
     fast_app.dependency_overrides[get_provider] = lambda: fake_provider
 
     from jellyswipe.rate_limiter import rate_limiter as _rl
+
     _rl.reset()
 
     yield fast_app
@@ -363,6 +391,7 @@ def app_real_auth(db_path, monkeypatch):
     app_module._provider_singleton = None
     # Reset rate limiter to prevent cross-test pollution (matches app fixture teardown)
     from jellyswipe.rate_limiter import rate_limiter as _rl
+
     _rl.reset()
 
 

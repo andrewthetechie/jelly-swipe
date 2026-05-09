@@ -11,9 +11,6 @@ Requirements: RL-01
 
 import time
 import threading
-from unittest.mock import patch
-
-import pytest
 
 
 class TestTokenBucket:
@@ -22,6 +19,7 @@ class TestTokenBucket:
     def test_new_bucket_starts_full(self):
         """Test 1: New bucket starts full at capacity — first N consume() calls return True."""
         from jellyswipe.rate_limiter import TokenBucket
+
         bucket = TokenBucket(capacity=5, refill_rate=0.5)
         results = [bucket.consume() for _ in range(5)]
         assert all(results), "First 5 consume() calls should all return True"
@@ -29,16 +27,20 @@ class TestTokenBucket:
     def test_consume_returns_false_after_capacity_exhausted(self):
         """Test 2: consume() returns False after capacity exhausted."""
         from jellyswipe.rate_limiter import TokenBucket
+
         bucket = TokenBucket(capacity=3, refill_rate=0.5)
         # Exhaust capacity
         for _ in range(3):
             bucket.consume()
         # Next call should fail
-        assert bucket.consume() is False, "consume() should return False after capacity exhausted"
+        assert bucket.consume() is False, (
+            "consume() should return False after capacity exhausted"
+        )
 
     def test_refill_allows_consume_after_wait(self):
         """Test 3: After waiting sufficient time for refill, consume() returns True again."""
         from jellyswipe.rate_limiter import TokenBucket
+
         bucket = TokenBucket(capacity=2, refill_rate=100.0)  # Very fast refill
         # Exhaust
         bucket.consume()
@@ -51,26 +53,34 @@ class TestTokenBucket:
     def test_retry_after_zero_when_tokens_available(self):
         """Test 4: retry_after() returns ~0 when tokens available, positive float when exhausted."""
         from jellyswipe.rate_limiter import TokenBucket
+
         bucket = TokenBucket(capacity=5, refill_rate=1.0)
         # Tokens available
-        assert bucket.retry_after() == 0.0, "retry_after should be 0 when tokens available"
+        assert bucket.retry_after() == 0.0, (
+            "retry_after should be 0 when tokens available"
+        )
         # Exhaust tokens
         for _ in range(5):
             bucket.consume()
         retry = bucket.retry_after()
-        assert retry > 0.0, f"retry_after should be positive when exhausted, got {retry}"
+        assert retry > 0.0, (
+            f"retry_after should be positive when exhausted, got {retry}"
+        )
 
     def test_refill_rate_calculation(self):
         """Test 5: Refill rate = capacity/60 tokens per second."""
         from jellyswipe.rate_limiter import TokenBucket
+
         # capacity=10 → refill_rate should be 10/60 ≈ 0.1667 tokens/sec
         bucket = TokenBucket(capacity=10, refill_rate=10 / 60)
-        assert abs(bucket.refill_rate - 0.1667) < 0.01, \
+        assert abs(bucket.refill_rate - 0.1667) < 0.01, (
             f"Expected refill_rate ~0.1667, got {bucket.refill_rate}"
+        )
 
     def test_rate_limiter_creates_independent_buckets_per_endpoint_ip(self):
         """Test 6: RateLimiter.check() creates independent buckets per (endpoint, ip) pair."""
         from jellyswipe.rate_limiter import RateLimiter
+
         rl = RateLimiter()
         # Create bucket for (endpoint_a, ip_a)
         allowed1, _ = rl.check(endpoint="endpoint_a", ip="1.1.1.1", limit=2)
@@ -82,6 +92,7 @@ class TestTokenBucket:
     def test_endpoint_isolation(self):
         """Test 7: Hitting limit on endpoint A does NOT affect endpoint B for same IP."""
         from jellyswipe.rate_limiter import RateLimiter
+
         rl = RateLimiter()
         ip = "1.2.3.4"
         # Exhaust endpoint A
@@ -96,6 +107,7 @@ class TestTokenBucket:
     def test_ip_isolation(self):
         """Test 8: Hitting limit on IP A does NOT affect IP B for same endpoint."""
         from jellyswipe.rate_limiter import RateLimiter
+
         rl = RateLimiter()
         endpoint = "test_ep"
         # Exhaust IP A
@@ -110,6 +122,7 @@ class TestTokenBucket:
     def test_stale_bucket_eviction(self):
         """Test 9: Stale buckets (last access >300 seconds ago) are evicted on next check."""
         from jellyswipe.rate_limiter import RateLimiter
+
         rl = RateLimiter(stale_seconds=1.0)
         # Create a bucket
         rl.check(endpoint="stale_ep", ip="1.1.1.1", limit=5)
@@ -118,11 +131,14 @@ class TestTokenBucket:
         time.sleep(1.5)
         # A new check to a DIFFERENT key should trigger eviction of the stale one
         rl.check(endpoint="other_ep", ip="2.2.2.2", limit=5)
-        assert ("stale_ep", "1.1.1.1") not in rl._buckets, "Stale bucket should be evicted"
+        assert ("stale_ep", "1.1.1.1") not in rl._buckets, (
+            "Stale bucket should be evicted"
+        )
 
     def test_max_bucket_cap_eviction(self):
         """Test 10: When bucket count exceeds max_buckets, oldest-accessed buckets are evicted."""
         from jellyswipe.rate_limiter import RateLimiter
+
         rl = RateLimiter(max_buckets=5, stale_seconds=9999)
         # Create 5 buckets
         for i in range(5):
@@ -130,7 +146,9 @@ class TestTokenBucket:
         assert len(rl._buckets) == 5
         # Create 1 more — should trigger eviction of oldest
         rl.check(endpoint="ep_overflow", ip="1.1.1.1", limit=10)
-        assert len(rl._buckets) <= 5, f"Should not exceed max_buckets, got {len(rl._buckets)}"
+        assert len(rl._buckets) <= 5, (
+            f"Should not exceed max_buckets, got {len(rl._buckets)}"
+        )
         # The first bucket (ep_0) should be evicted as it was oldest-accessed
         assert ("ep_0", "1.1.1.1") not in rl._buckets, "Oldest bucket should be evicted"
         # The new one should exist
@@ -139,6 +157,7 @@ class TestTokenBucket:
     def test_thread_safety(self):
         """Test 11: Concurrent check() calls don't corrupt state."""
         from jellyswipe.rate_limiter import RateLimiter
+
         rl = RateLimiter()
         errors = []
 

@@ -13,7 +13,6 @@ import os
 from unittest.mock import MagicMock, patch
 
 import jellyswipe
-import pytest
 
 
 class TestNoApiKeyInUrls:
@@ -59,7 +58,9 @@ class TestBearerTokenHeaders:
         mock_item.title = "Test Movie"
         mock_item.year = 2024
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+        monkeypatch.setattr(
+            jellyswipe, "_provider_singleton", mock_provider, raising=False
+        )
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": [{"id": 123}]}
@@ -72,17 +73,20 @@ class TestBearerTokenHeaders:
         second_response.status_code = 200
 
         # Patch where make_http_request is looked up: jellyswipe.routers.media (D-14)
-        with patch('jellyswipe.routers.media.make_http_request', side_effect=[mock_response, second_response]) as mock_http:
-            response = client.get('/get-trailer/test_movie_id')
+        with patch(
+            "jellyswipe.routers.media.make_http_request",
+            side_effect=[mock_response, second_response],
+        ) as mock_http:
+            response = client.get("/get-trailer/test_movie_id")
             assert response.status_code == 200
             assert mock_http.call_count == 2
 
             for call in mock_http.call_args_list:
-                headers = call.kwargs.get('headers', {})
-                assert 'Authorization' in headers, (
+                headers = call.kwargs.get("headers", {})
+                assert "Authorization" in headers, (
                     f"Authorization header missing from make_http_request call: {call}"
                 )
-                assert headers['Authorization'].startswith('Bearer '), (
+                assert headers["Authorization"].startswith("Bearer "), (
                     f"Authorization header should start with 'Bearer ': {headers['Authorization']}"
                 )
 
@@ -92,7 +96,9 @@ class TestBearerTokenHeaders:
         mock_item.title = "Test Movie"
         mock_item.year = 2024
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+        monkeypatch.setattr(
+            jellyswipe, "_provider_singleton", mock_provider, raising=False
+        )
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": [{"id": 456}]}
@@ -100,22 +106,27 @@ class TestBearerTokenHeaders:
 
         second_response = MagicMock()
         second_response.json.return_value = {
-            "cast": [{"name": "Actor", "character": "Role", "profile_path": "/path.jpg"}]
+            "cast": [
+                {"name": "Actor", "character": "Role", "profile_path": "/path.jpg"}
+            ]
         }
         second_response.status_code = 200
 
         # Patch where make_http_request is looked up: jellyswipe.routers.media (D-14)
-        with patch('jellyswipe.routers.media.make_http_request', side_effect=[mock_response, second_response]) as mock_http:
-            response = client.get('/cast/test_movie_id')
+        with patch(
+            "jellyswipe.routers.media.make_http_request",
+            side_effect=[mock_response, second_response],
+        ) as mock_http:
+            response = client.get("/cast/test_movie_id")
             assert response.status_code == 200
             assert mock_http.call_count == 2
 
             for call in mock_http.call_args_list:
-                headers = call.kwargs.get('headers', {})
-                assert 'Authorization' in headers, (
+                headers = call.kwargs.get("headers", {})
+                assert "Authorization" in headers, (
                     f"Authorization header missing from make_http_request call: {call}"
                 )
-                assert headers['Authorization'].startswith('Bearer '), (
+                assert headers["Authorization"].startswith("Bearer "), (
                     f"Authorization header should start with 'Bearer ': {headers['Authorization']}"
                 )
 
@@ -146,9 +157,7 @@ class TestCredentialExposure:
                     tmdb_url_parts.append(node.value)
 
         for url_part in tmdb_url_parts:
-            assert "api_key" not in url_part, (
-                f"TMDB URL contains api_key: {url_part}"
-            )
+            assert "api_key" not in url_part, f"TMDB URL contains api_key: {url_part}"
             assert "access_token" not in url_part.lower(), (
                 f"TMDB URL contains access_token: {url_part}"
             )

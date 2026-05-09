@@ -11,7 +11,6 @@ import os
 import secrets
 import threading
 import time
-from datetime import datetime, timezone
 
 import sqlite3
 
@@ -42,16 +41,22 @@ def _set_session_room(client, secret_key, room_code, user_id=None):
     """
     if user_id is None:
         user_id = f"test-user-{secrets.token_hex(4)}"
-    set_session_cookie(client, {
-        "active_room": room_code,
-        "my_user_id": user_id,
-        "jf_delegate_server_identity": True,
-        "solo_mode": False,
-    }, secret_key)
+    set_session_cookie(
+        client,
+        {
+            "active_room": room_code,
+            "my_user_id": user_id,
+            "jf_delegate_server_identity": True,
+            "solo_mode": False,
+        },
+        secret_key,
+    )
     # AUTH: handled by dependency_overrides[require_auth] — no vault INSERT needed
 
 
-def _seed_stream_room(room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None):
+def _seed_stream_room(
+    room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None
+):
     """Seed a room row directly into SQLite for SSE tests (VAL-03: no jellyswipe.db.get_db)."""
     movie_data = json.dumps([])
     conn = _sqlite_conn_for_sse_tests()
@@ -95,6 +100,7 @@ def _make_time_mock(iterations_before_timeout):
         if call_count > total_calls:
             return real_start + 3700
         return real_start
+
     return _mock_time
 
 
@@ -156,6 +162,7 @@ def test_stream_response_headers(client, monkeypatch):
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Selective asyncio.sleep mock: skips SSE generator polls (>= 1.5s),
@@ -204,6 +211,7 @@ def test_stream_initial_state_events(client, monkeypatch):
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()
@@ -229,6 +237,7 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()
@@ -249,8 +258,12 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
     ready_count = sum(1 for e in events if '"ready"' in e)
     genre_count = sum(1 for e in events if '"genre"' in e)
 
-    assert ready_count == 1, f"Expected exactly 1 ready event, got {ready_count}: {events}"
-    assert genre_count == 1, f"Expected exactly 1 genre event, got {genre_count}: {events}"
+    assert ready_count == 1, (
+        f"Expected exactly 1 ready event, got {ready_count}: {events}"
+    )
+    assert genre_count == 1, (
+        f"Expected exactly 1 genre event, got {genre_count}: {events}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +279,7 @@ def test_stream_match_event(client, monkeypatch):
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()
@@ -289,6 +303,7 @@ def test_stream_ready_state_change(client, monkeypatch):
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Use a sleep callback that updates DB on first generator poll sleep.
@@ -337,6 +352,7 @@ def test_stream_generator_exit(client, monkeypatch):
 
     # Force gevent sleep fallback path (gevent is available in test env)
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()
@@ -384,6 +400,7 @@ def test_stream_jitter_applied(client, monkeypatch):
 
     # Force gevent sleep fallback path so we can capture asyncio.sleep calls
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Use _make_sse_sleep_mock to intercept SSE generator sleeps and capture durations
@@ -395,9 +412,13 @@ def test_stream_jitter_applied(client, monkeypatch):
     response = client.get("/room/JITTER1/stream")
     _ = response.content  # consume generator
 
-    assert len(sleep_calls) >= 1, f"Expected at least 1 sleep call, got {len(sleep_calls)}"
+    assert len(sleep_calls) >= 1, (
+        f"Expected at least 1 sleep call, got {len(sleep_calls)}"
+    )
     for duration in sleep_calls:
-        assert 1.5 <= duration <= 2.0, f"Sleep duration {duration} outside expected range [1.5, 2.0]"
+        assert 1.5 <= duration <= 2.0, (
+            f"Sleep duration {duration} outside expected range [1.5, 2.0]"
+        )
 
 
 def test_stream_heartbeat_on_idle(client, monkeypatch):
@@ -407,6 +428,7 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
 
     # Force gevent sleep fallback path
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()
@@ -454,6 +476,7 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
 
     # Force gevent sleep fallback path
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     real_start = time.time()
@@ -485,7 +508,9 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
     # With rapid polls (mocked time advances quickly), state changes produce data events
     # and no heartbeat should appear since _last_event_time is reset on data emission
     ping_count = data.count(": ping")
-    assert ping_count == 0, f"Expected no heartbeat when data events sent, but found {ping_count}"
+    assert ping_count == 0, (
+        f"Expected no heartbeat when data events sent, but found {ping_count}"
+    )
 
 
 def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
@@ -495,6 +520,7 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
 
     # Force gevent sleep fallback path
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     # Use a sleep callback that deletes the room on first generator poll sleep.
@@ -520,7 +546,9 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
     response = client.get("/room/VANISH1/stream")
     data = response.text
 
-    assert '"closed": true' in data, f"Expected closed:true event in SSE stream, got: {repr(data)}"
+    assert '"closed": true' in data, (
+        f"Expected closed:true event in SSE stream, got: {repr(data)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +570,7 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
     _set_session_room(client, os.environ["FLASK_SECRET"], "DISC1")
 
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, sleep_calls = _make_sse_sleep_mock()
@@ -575,7 +604,6 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
     monkeypatch.setattr(time, "time", _make_time_mock(20))
 
     response = client.get("/room/DISC1/stream")
-    data = response.text
 
     # The loop must have called is_disconnected at least once
     assert is_disconnected_call_count[0] >= 1, (
@@ -605,6 +633,7 @@ def test_stream_connection_closed_on_all_exit_paths(client, monkeypatch):
     _set_session_room(client, os.environ["FLASK_SECRET"], "CLEANUP1")
 
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()
@@ -667,6 +696,7 @@ def test_stream_cancelled_error_not_swallowed(monkeypatch):
 
     # Extract the generate() inner function by calling room_stream
     from jellyswipe.dependencies import AuthUser
+
     fake_auth = AuthUser(jf_token="t", user_id="u")
 
     with patch.object(RoomRepository, "fetch_stream_snapshot", raise_cancelled):
@@ -695,7 +725,9 @@ def test_stream_cancelled_error_not_swallowed(monkeypatch):
         "CancelledError was swallowed inside except Exception block — "
         "it must be re-raised so callers see cancellation semantics"
     )
-    assert snapshot_calls[0] == 1, "Expected CancelledError to surface from first snapshot poll"
+    assert snapshot_calls[0] == 1, (
+        "Expected CancelledError to surface from first snapshot poll"
+    )
 
 
 def test_room_stream_does_not_open_sqlite3_connection(client, monkeypatch):
@@ -711,11 +743,14 @@ def test_room_stream_does_not_open_sqlite3_connection(client, monkeypatch):
     import jellyswipe.db as jelly_db
 
     def forbid_sync_get_db():
-        pytest.fail("room_stream must not use jellyswipe.db.get_db() — use async SQLAlchemy sessions")
+        pytest.fail(
+            "room_stream must not use jellyswipe.db.get_db() — use async SQLAlchemy sessions"
+        )
 
     monkeypatch.setattr(jelly_db, "get_db", forbid_sync_get_db, raising=False)
 
     import jellyswipe
+
     monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
 
     mock_sleep, _ = _make_sse_sleep_mock()

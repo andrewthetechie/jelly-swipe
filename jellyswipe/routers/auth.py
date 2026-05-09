@@ -13,12 +13,10 @@ from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
-    check_rate_limit,
     get_provider,
     require_auth,
 )
 from jellyswipe.auth import create_session, destroy_session, resolve_active_room
-from jellyswipe.config import TMDB_AUTH_HEADERS
 
 _logger = logging.getLogger(__name__)
 
@@ -26,12 +24,14 @@ _logger = logging.getLogger(__name__)
 auth_router = APIRouter()
 
 
-def make_error_response(message: str, status_code: int, request: Request, extra_fields: dict = None) -> XSSSafeJSONResponse:
+def make_error_response(
+    message: str, status_code: int, request: Request, extra_fields: dict = None
+) -> XSSSafeJSONResponse:
     """Create a standardized error response with request ID tracking."""
     if status_code >= 500:
-        message = 'Internal server error'
-    body = {'error': message}
-    body['request_id'] = getattr(request.state, 'request_id', 'unknown')
+        message = "Internal server error"
+    body = {"error": message}
+    body["request_id"] = getattr(request.state, "request_id", "unknown")
     if extra_fields:
         body.update(extra_fields)
     return XSSSafeJSONResponse(content=body, status_code=status_code)
@@ -40,22 +40,19 @@ def make_error_response(message: str, status_code: int, request: Request, extra_
 def log_exception(exc: Exception, request: Request, context: dict = None) -> None:
     """Log exception with request context."""
     log_data = {
-        'request_id': getattr(request.state, 'request_id', 'unknown'),
-        'route': request.url.path,
-        'method': request.method,
-        'exception_type': type(exc).__name__,
-        'exception_message': str(exc),
-        'stack_trace': traceback.format_exc(),
+        "request_id": getattr(request.state, "request_id", "unknown"),
+        "route": request.url.path,
+        "method": request.method,
+        "exception_type": type(exc).__name__,
+        "exception_message": str(exc),
+        "stack_trace": traceback.format_exc(),
     }
     if context:
         log_data.update(context)
-    _logger.error(
-        "unhandled_exception",
-        extra=log_data
-    )
+    _logger.error("unhandled_exception", extra=log_data)
 
 
-@auth_router.get('/auth/provider')
+@auth_router.get("/auth/provider")
 def auth_provider(request: Request):
     """Return authentication provider information."""
     payload = {"provider": "jellyfin", "jellyfin_browser_auth": "delegate"}
@@ -75,7 +72,7 @@ async def jellyfin_use_server_identity(request: Request, uow: DBUoW):
     return {"userId": uid}
 
 
-@auth_router.post('/auth/jellyfin-login')
+@auth_router.post("/auth/jellyfin-login")
 async def jellyfin_login(request: Request, uow: DBUoW):
     """Authenticate user with Jellyfin username and password."""
     try:
@@ -85,7 +82,9 @@ async def jellyfin_login(request: Request, uow: DBUoW):
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
     if not username or not password:
-        return XSSSafeJSONResponse(content={"error": "Username and password are required"}, status_code=400)
+        return XSSSafeJSONResponse(
+            content={"error": "Username and password are required"}, status_code=400
+        )
     try:
         out = get_provider().authenticate_user_session(username, password)
         await create_session(out["token"], out["user_id"], request.session, uow)
@@ -94,7 +93,7 @@ async def jellyfin_login(request: Request, uow: DBUoW):
         return make_error_response("Jellyfin login failed", 401, request)
 
 
-@auth_router.post('/auth/logout')
+@auth_router.post("/auth/logout")
 async def logout(
     request: Request,
     response: Response,
@@ -104,20 +103,20 @@ async def logout(
     """Destroy the current user session."""
     await destroy_session(request.session, uow)
     response.delete_cookie("session", path="/")
-    return {'status': 'logged_out'}
+    return {"status": "logged_out"}
 
 
-@auth_router.get('/me')
+@auth_router.get("/me")
 async def get_me(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
     """Return current user information."""
     active_room = await resolve_active_room(request.session, uow)
     info = get_provider().server_info()
     return {
-        'userId': user.user_id,
-        'displayName': user.user_id,
-        'serverName': info.get('name', ''),
-        'serverId': info.get('machineIdentifier', ''),
-        'activeRoom': active_room,
+        "userId": user.user_id,
+        "displayName": user.user_id,
+        "serverName": info.get("name", ""),
+        "serverId": info.get("machineIdentifier", ""),
+        "activeRoom": active_room,
     }
 
 
@@ -126,6 +125,11 @@ def jellyfin_server_info(request: Request):
     """Return Jellyfin server information."""
     try:
         info = get_provider().server_info()
-        return {"baseUrl": info.get("machineIdentifier", ""), "webUrl": info.get("webUrl", "")}
+        return {
+            "baseUrl": info.get("machineIdentifier", ""),
+            "webUrl": info.get("webUrl", ""),
+        }
     except Exception:
-        return XSSSafeJSONResponse(content={"baseUrl": "", "webUrl": ""}, status_code=200)
+        return XSSSafeJSONResponse(
+            content={"baseUrl": "", "webUrl": ""}, status_code=200
+        )

@@ -7,7 +7,6 @@ server configuration, and provider error handling (EPIC-04).
 from unittest.mock import MagicMock
 
 import jellyswipe
-import pytest
 
 # ---------------------------------------------------------------------------
 # Constants

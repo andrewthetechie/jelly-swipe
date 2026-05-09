@@ -8,12 +8,9 @@ and the full swipe match logic (solo match, dual match, no match).
 
 import json
 import os
-import secrets
-from datetime import datetime, timezone
 
 import sqlite3
 
-import pytest
 from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
 
@@ -32,7 +29,15 @@ def _sqlite_conn_for_route_tests():
 # ---------------------------------------------------------------------------
 
 
-def _set_session(client, secret_key, *, active_room=None, user_id="verified-user", authenticated=True, solo_mode=False):
+def _set_session(
+    client,
+    secret_key,
+    *,
+    active_room=None,
+    user_id="verified-user",
+    authenticated=True,
+    solo_mode=False,
+):
     """Inject session state for room tests.
 
     Auth is handled by app.dependency_overrides[require_auth] in the app fixture.
@@ -45,7 +50,9 @@ def _set_session(client, secret_key, *, active_room=None, user_id="verified-user
         set_session_cookie(client, data, secret_key)
 
 
-def _seed_room(room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None, last_match_data=None):
+def _seed_room(
+    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None, last_match_data=None
+):
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
         movie_data = json.dumps([])
@@ -124,7 +131,9 @@ def test_room_create_stores_room_in_db(client, app):
 def test_room_create_with_movies_only(client, app):
     """POST /room with {"movies": true, "tv_shows": false, "solo": false} creates hosted room."""
     _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
-    response = client.post("/room", json={"movies": True, "tv_shows": False, "solo": False})
+    response = client.post(
+        "/room", json={"movies": True, "tv_shows": False, "solo": False}
+    )
     assert response.status_code == 200
     data = response.json()
     assert "pairing_code" in data
@@ -133,7 +142,8 @@ def test_room_create_with_movies_only(client, app):
     conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
-            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
+            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?",
+            (code,),
         ).fetchone()
     finally:
         conn.close()
@@ -147,7 +157,9 @@ def test_room_create_with_movies_only(client, app):
 def test_room_create_with_solo_mode(client, app):
     """POST /room with {"movies": true, "tv_shows": false, "solo": true} creates solo room with ready=1."""
     _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
-    response = client.post("/room", json={"movies": True, "tv_shows": False, "solo": True})
+    response = client.post(
+        "/room", json={"movies": True, "tv_shows": False, "solo": True}
+    )
     assert response.status_code == 200
     data = response.json()
     assert "pairing_code" in data
@@ -156,7 +168,8 @@ def test_room_create_with_solo_mode(client, app):
     conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
-            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
+            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?",
+            (code,),
         ).fetchone()
     finally:
         conn.close()
@@ -170,7 +183,9 @@ def test_room_create_with_solo_mode(client, app):
 def test_room_create_no_media_types_returns_400(client, app):
     """POST /room with {"movies": false, "tv_shows": false} returns 400."""
     _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
-    response = client.post("/room", json={"movies": False, "tv_shows": False, "solo": False})
+    response = client.post(
+        "/room", json={"movies": False, "tv_shows": False, "solo": False}
+    )
     assert response.status_code == 400
     data = response.json()
     assert "error" in data
@@ -188,7 +203,8 @@ def test_room_create_empty_body_defaults_to_movies_only(client, app):
     conn = _sqlite_conn_for_route_tests()
     try:
         row = conn.execute(
-            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?", (code,)
+            "SELECT include_movies, include_tv_shows, solo_mode, ready FROM rooms WHERE pairing_code = ?",
+            (code,),
         ).fetchone()
     finally:
         conn.close()
@@ -262,7 +278,13 @@ def test_solo_room_endpoint_returns_404(client, app):
 
 def test_quit_room_success(client, app):
     """POST /room/<code>/quit with existing room returns 200 with session_ended."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True, solo_mode=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        authenticated=True,
+        solo_mode=True,
+    )
     _seed_room("TEST1")
     response = client.post("/room/TEST1/quit")
     assert response.status_code == 200
@@ -271,7 +293,9 @@ def test_quit_room_success(client, app):
 
 def test_quit_room_deletes_from_db(client, app):
     """POST /room/<code>/quit deletes the room and its swipes from the database."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True)
+    _set_session(
+        client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True
+    )
     _seed_room("TEST1")
 
     conn = _sqlite_conn_for_route_tests()
@@ -303,7 +327,9 @@ def test_quit_room_deletes_from_db(client, app):
 
 def test_quit_room_archives_matches(client, app):
     """POST /room/<code>/quit archives active matches (status=archived, room_code=HISTORY)."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True)
+    _set_session(
+        client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True
+    )
     _seed_room("TEST1")
 
     conn = _sqlite_conn_for_route_tests()
@@ -335,7 +361,13 @@ def test_quit_room_archives_matches(client, app):
 
 def test_quit_room_clears_session(client, app):
     """POST /room/<code>/quit clears active_room and solo_mode from the session."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True, solo_mode=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        authenticated=True,
+        solo_mode=True,
+    )
     _seed_room("TEST1")
     client.post("/room/TEST1/quit")
 
@@ -371,7 +403,9 @@ def test_room_status_active_room(client):
 
 def test_room_status_with_last_match(client):
     """GET /room/<code>/status returns last_match data when room has a recent match."""
-    match_data = json.dumps({"title": "Test Movie", "thumb": "test.jpg", "ts": 1234567890})
+    match_data = json.dumps(
+        {"title": "Test Movie", "thumb": "test.jpg", "ts": 1234567890}
+    )
     _seed_room("TEST1", ready=1, solo_mode=0, last_match_data=match_data)
 
     response = client.get("/room/TEST1/status")
@@ -411,7 +445,13 @@ def test_room_status_room_deleted_from_db(client):
 
 def test_swipe_left_records_no_match(client, app):
     """POST /room/<code>/swipe with direction=left records swipe, returns accepted=True."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
     _seed_room("TEST1", ready=1, solo_mode=1)
 
     response = client.post(
@@ -435,7 +475,13 @@ def test_swipe_left_records_no_match(client, app):
 
 def test_swipe_right_solo_match(client, app):
     """POST /room/<code>/swipe right in solo room creates match in DB."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
     _seed_room("TEST1", ready=1, solo_mode=1)
 
     response = client.post(
@@ -459,7 +505,13 @@ def test_swipe_right_solo_match(client, app):
 def test_swipe_right_dual_match(client, app):
     """POST /room/<code>/swipe right in shared room matches when another user swiped right."""
     _seed_room("TEST1", ready=1, solo_mode=0)
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
 
     conn = _sqlite_conn_for_route_tests()
     try:
@@ -498,7 +550,13 @@ def test_swipe_right_dual_match(client, app):
 
 def test_swipe_right_no_match_yet(client, app):
     """POST /room/<code>/swipe right in shared room with no prior swipe returns accepted=True."""
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
     _seed_room("TEST1", ready=1, solo_mode=0)
 
     response = client.post(
@@ -513,7 +571,13 @@ def test_swipe_right_no_match_yet(client, app):
 def test_swipe_right_updates_last_match_data(client, app):
     """POST /room/<code>/swipe dual match updates last_match_data in rooms table."""
     _seed_room("TEST1", ready=1, solo_mode=0)
-    _set_session(client, os.environ["FLASK_SECRET"], active_room="TEST1", user_id="verified-user", authenticated=True)
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
 
     conn = _sqlite_conn_for_route_tests()
     try:

@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from jellyswipe.models.base import Base
 
@@ -18,7 +18,9 @@ class Room(Base):
     pairing_code: Mapped[str] = mapped_column(Text, primary_key=True)
     movie_data: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]")
     ready: Mapped[int] = mapped_column(nullable=False, server_default="0")
-    current_genre: Mapped[str] = mapped_column(Text, nullable=False, server_default="All")
+    current_genre: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="All"
+    )
     solo_mode: Mapped[int] = mapped_column(nullable=False, server_default="0")
     last_match_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     deck_position: Mapped[str | None] = mapped_column(Text, nullable=True)

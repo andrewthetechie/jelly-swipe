@@ -5,17 +5,23 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
 import jellyswipe.routers.auth as auth_routes
-from tests.conftest import FakeProvider, set_session_cookie
+from tests.conftest import set_session_cookie
 
 
-def _set_session(client, db_connection, secret_key, *, active_room: str = "ROOM1", authenticated: bool = True):
+def _set_session(
+    client,
+    db_connection,
+    secret_key,
+    *,
+    active_room: str = "ROOM1",
+    authenticated: bool = True,
+):
     """Inject auth + session state for authorization tests.
 
     Real auth path: vault seeding required (test_route_authorization uses real require_auth).
@@ -24,13 +30,16 @@ def _set_session(client, db_connection, secret_key, *, active_room: str = "ROOM1
         session_id = "test-session-" + secrets.token_hex(8)
         db_connection.execute(
             "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-            (session_id, "valid-token", "verified-user", datetime.now(timezone.utc).isoformat())
+            (
+                session_id,
+                "valid-token",
+                "verified-user",
+                datetime.now(timezone.utc).isoformat(),
+            ),
         )
         db_connection.commit()
         set_session_cookie(
-            client,
-            {"session_id": session_id, "active_room": active_room},
-            secret_key
+            client, {"session_id": session_id, "active_room": active_room}, secret_key
         )
     else:
         set_session_cookie(client, {"active_room": active_room}, secret_key)
@@ -44,7 +53,15 @@ def _seed_room(conn, room_code: str = "ROOM1"):
     conn.commit()
 
 
-def _prepare_route_state(conn, route: str, *, room_code: str, verified_user: str, session_user: str, movie_id: str = "movie-1"):
+def _prepare_route_state(
+    conn,
+    route: str,
+    *,
+    room_code: str,
+    verified_user: str,
+    session_user: str,
+    movie_id: str = "movie-1",
+):
     _seed_room(conn, room_code)
     if route == "/matches":
         conn.execute(
@@ -68,7 +85,13 @@ def _prepare_route_state(conn, route: str, *, room_code: str, verified_user: str
     conn.commit()
 
 
-def _send_request(client, method: str, path: str, payload: Optional[Dict[str, Any]], headers: Dict[str, str]):
+def _send_request(
+    client,
+    method: str,
+    path: str,
+    payload: Optional[Dict[str, Any]],
+    headers: Dict[str, str],
+):
     if method == "GET":
         return client.get(path, headers=headers)
     return client.post(path, json=payload or {}, headers=headers)
@@ -89,10 +112,13 @@ ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
 
 def test_login_returns_userId_no_authToken(db_connection, client_real_auth):
     """Login endpoint stores token in vault and returns only userId."""
-    response = client_real_auth.post("/auth/jellyfin-login", json={
-        "username": "testuser",
-        "password": "testpass",
-    })
+    response = client_real_auth.post(
+        "/auth/jellyfin-login",
+        json={
+            "username": "testuser",
+            "password": "testpass",
+        },
+    )
     assert response.status_code == 200
     data = response.json()
     assert "userId" in data
@@ -101,25 +127,33 @@ def test_login_returns_userId_no_authToken(db_connection, client_real_auth):
 
 def test_login_creates_vault_entry(db_connection, client_real_auth):
     """Login creates a auth_sessions row and sets session_id cookie."""
-    response = client_real_auth.post("/auth/jellyfin-login", json={
-        "username": "testuser",
-        "password": "testpass",
-    })
+    response = client_real_auth.post(
+        "/auth/jellyfin-login",
+        json={
+            "username": "testuser",
+            "password": "testpass",
+        },
+    )
     assert response.status_code == 200
     # Verify vault entry was created
     count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
     assert count == 1
-    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions").fetchone()
+    row = db_connection.execute(
+        "SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions"
+    ).fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
 
 
 def test_login_sets_session_cookie(db_connection, client_real_auth):
     """Login sets session_id in the session cookie."""
-    response = client_real_auth.post("/auth/jellyfin-login", json={
-        "username": "testuser",
-        "password": "testpass",
-    })
+    response = client_real_auth.post(
+        "/auth/jellyfin-login",
+        json={
+            "username": "testuser",
+            "password": "testpass",
+        },
+    )
     assert response.status_code == 200
     # Verify auth works on protected endpoint (session was set)
     resp2 = client_real_auth.get("/auth/provider")
@@ -146,7 +180,9 @@ def test_delegate_creates_vault_entry(db_connection, client_real_auth):
     assert response.status_code == 200
     count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
     assert count == 1
-    row = db_connection.execute("SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions").fetchone()
+    row = db_connection.execute(
+        "SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions"
+    ).fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
 
@@ -174,21 +210,44 @@ def test_delegate_sets_session_cookie(db_connection, client_real_auth):
 
 @pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
 @pytest.mark.parametrize("spoof_header", SPOOF_HEADERS)
-def test_spoofed_headers_ignored_when_vault_authenticated(db_connection, client_real_auth, method, path, payload, spoof_header):
+def test_spoofed_headers_ignored_when_vault_authenticated(
+    db_connection, client_real_auth, method, path, payload, spoof_header
+):
     """Headers are ignored — vault identity is used regardless of what headers say."""
-    _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
-    _prepare_route_state(db_connection, path, room_code="ROOM1",
-                         verified_user="verified-user", session_user="verified-user")
-    response = _send_request(client_real_auth, method, path, payload, {spoof_header: "attacker-id"})
+    _set_session(
+        client_real_auth,
+        db_connection,
+        os.environ["FLASK_SECRET"],
+        active_room="ROOM1",
+        authenticated=True,
+    )
+    _prepare_route_state(
+        db_connection,
+        path,
+        room_code="ROOM1",
+        verified_user="verified-user",
+        session_user="verified-user",
+    )
+    response = _send_request(
+        client_real_auth, method, path, payload, {spoof_header: "attacker-id"}
+    )
     assert response.status_code != 401
 
 
 def test_unauthenticated_swipe_no_side_effects(db_connection, client_real_auth):
     """Without a vault entry, no side effects occur."""
-    _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=False)
+    _set_session(
+        client_real_auth,
+        db_connection,
+        os.environ["FLASK_SECRET"],
+        active_room="ROOM1",
+        authenticated=False,
+    )
     _seed_room(db_connection, "ROOM1")
     before_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
-    response = client_real_auth.post("/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"})
+    response = client_real_auth.post(
+        "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+    )
     after_swipes = db_connection.execute("SELECT COUNT(*) FROM swipes").fetchone()[0]
     assert response.status_code == 401
     data = response.json()
@@ -198,9 +257,17 @@ def test_unauthenticated_swipe_no_side_effects(db_connection, client_real_auth):
 
 
 @pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
-def test_unauthenticated_returns_401(db_connection, client_real_auth, method, path, payload):
+def test_unauthenticated_returns_401(
+    db_connection, client_real_auth, method, path, payload
+):
     """No vault entry = 401 regardless of headers."""
-    _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=False)
+    _set_session(
+        client_real_auth,
+        db_connection,
+        os.environ["FLASK_SECRET"],
+        active_room="ROOM1",
+        authenticated=False,
+    )
     _seed_room(db_connection, "ROOM1")
     response = _send_request(client_real_auth, method, path, payload, {})
     assert response.status_code == 401
@@ -208,10 +275,23 @@ def test_unauthenticated_returns_401(db_connection, client_real_auth, method, pa
 
 
 @pytest.mark.parametrize("method,path,payload", ROUTE_CASES)
-def test_authenticated_vault_identity_succeeds(db_connection, client_real_auth, method, path, payload):
-    _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
-    _prepare_route_state(db_connection, path, room_code="ROOM1",
-                         verified_user="verified-user", session_user="verified-user")
+def test_authenticated_vault_identity_succeeds(
+    db_connection, client_real_auth, method, path, payload
+):
+    _set_session(
+        client_real_auth,
+        db_connection,
+        os.environ["FLASK_SECRET"],
+        active_room="ROOM1",
+        authenticated=True,
+    )
+    _prepare_route_state(
+        db_connection,
+        path,
+        room_code="ROOM1",
+        verified_user="verified-user",
+        session_user="verified-user",
+    )
     response = _send_request(client_real_auth, method, path, payload, {})
     assert response.status_code != 401
 
@@ -219,12 +299,14 @@ def test_authenticated_vault_identity_succeeds(db_connection, client_real_auth, 
 # --- Deck Cursor Tracking Tests ---
 
 
-def _setup_deck_session(client, db_connection, secret_key, *, user_id="verified-user", token="valid-token"):
+def _setup_deck_session(
+    client, db_connection, secret_key, *, user_id="verified-user", token="valid-token"
+):
     """Set up an authenticated session and return the session_id."""
     session_id = "test-session-" + secrets.token_hex(8)
     db_connection.execute(
         "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-        (session_id, token, user_id, datetime.now(timezone.utc).isoformat())
+        (session_id, token, user_id, datetime.now(timezone.utc).isoformat()),
     )
     db_connection.commit()
     set_session_cookie(client, {"session_id": session_id}, secret_key)
@@ -233,9 +315,9 @@ def _setup_deck_session(client, db_connection, secret_key, *, user_id="verified-
 
 def _create_room_with_auth(client):
     """Create a room and return the pairing code. Caller must set up auth first."""
-    resp = client.post('/room')
+    resp = client.post("/room")
     assert resp.status_code == 200
-    return resp.json()['pairing_code']
+    return resp.json()["pairing_code"]
 
 
 class TestDeckCursorTracking:
@@ -246,7 +328,7 @@ class TestDeckCursorTracking:
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         assert resp.status_code == 200
         cards = resp.json()
         assert isinstance(cards, list)
@@ -257,7 +339,7 @@ class TestDeckCursorTracking:
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         assert resp.status_code == 200
         cards = resp.json()
         assert len(cards) == 20  # 25 total, page 1 returns first 20
@@ -268,20 +350,21 @@ class TestDeckCursorTracking:
         code = _create_room_with_auth(client_real_auth)
 
         # Get initial deck and note the first card
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         initial_cards = resp.json()
-        first_card_id = initial_cards[0]['media_id']
+        first_card_id = initial_cards[0]["media_id"]
 
         # Swipe on the first card
-        resp = client_real_auth.post(f'/room/{code}/swipe',
-                           json={'media_id': first_card_id, 'direction': 'left'})
+        resp = client_real_auth.post(
+            f"/room/{code}/swipe", json={"media_id": first_card_id, "direction": "left"}
+        )
         assert resp.status_code == 200
 
         # Get deck again — first card should be different (cursor advanced by 1)
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         new_cards = resp.json()
-        assert new_cards[0]['media_id'] != first_card_id
-        assert new_cards[0]['media_id'] == initial_cards[1]['media_id']
+        assert new_cards[0]["media_id"] != first_card_id
+        assert new_cards[0]["media_id"] == initial_cards[1]["media_id"]
 
     def test_cursor_persists_across_requests(self, db_connection, client_real_auth):
         """Cursor position persists across multiple requests."""
@@ -290,28 +373,32 @@ class TestDeckCursorTracking:
 
         # Swipe 3 times
         for i in range(3):
-            resp = client_real_auth.get(f'/room/{code}/deck')
+            resp = client_real_auth.get(f"/room/{code}/deck")
             cards = resp.json()
-            client_real_auth.post(f'/room/{code}/swipe',
-                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
+            client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"media_id": cards[0]["media_id"], "direction": "left"},
+            )
 
         # Fetch deck at position 3
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         cards_at_3 = resp.json()
 
         # Swipe 2 more times
         for i in range(2):
-            resp = client_real_auth.get(f'/room/{code}/deck')
+            resp = client_real_auth.get(f"/room/{code}/deck")
             cards = resp.json()
-            client_real_auth.post(f'/room/{code}/swipe',
-                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
+            client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"media_id": cards[0]["media_id"], "direction": "left"},
+            )
 
         # Fetch deck at position 5
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         cards_at_5 = resp.json()
 
         # Position 5 cards should be different from position 3 cards
-        assert cards_at_5[0]['media_id'] != cards_at_3[0]['media_id']
+        assert cards_at_5[0]["media_id"] != cards_at_3[0]["media_id"]
 
     def test_genre_change_resets_cursor(self, db_connection, client_real_auth):
         """Genre change resets cursor to position 0."""
@@ -319,57 +406,73 @@ class TestDeckCursorTracking:
         code = _create_room_with_auth(client_real_auth)
 
         # Get the original first card
-        resp = client_real_auth.get(f'/room/{code}/deck')
-        original_first = resp.json()[0]['media_id']
+        resp = client_real_auth.get(f"/room/{code}/deck")
+        original_first = resp.json()[0]["media_id"]
 
         # Swipe 2 times to advance cursor
         for i in range(2):
-            resp = client_real_auth.get(f'/room/{code}/deck')
+            resp = client_real_auth.get(f"/room/{code}/deck")
             cards = resp.json()
-            client_real_auth.post(f'/room/{code}/swipe',
-                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
+            client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"media_id": cards[0]["media_id"], "direction": "left"},
+            )
 
         # Verify cursor has advanced
-        resp = client_real_auth.get(f'/room/{code}/deck')
-        assert resp.json()[0]['media_id'] != original_first
+        resp = client_real_auth.get(f"/room/{code}/deck")
+        assert resp.json()[0]["media_id"] != original_first
 
         # Change genre — resets cursor
-        resp = client_real_auth.post(f'/room/{code}/genre', json={'genre': 'Action'})
+        resp = client_real_auth.post(f"/room/{code}/genre", json={"genre": "Action"})
         assert resp.status_code == 200
 
         # Deck should start from position 0 again
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         cards = resp.json()
-        assert cards[0]['media_id'] == original_first
+        assert cards[0]["media_id"] == original_first
 
     def test_join_initializes_cursor_at_zero(self, db_connection, client_real_auth):
         """User B joining a room gets their own cursor starting at 0."""
         # User A creates room
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-A", token="token-A")
+        _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            user_id="user-A",
+            token="token-A",
+        )
         code = _create_room_with_auth(client_real_auth)
 
         # Get original first card
-        resp = client_real_auth.get(f'/room/{code}/deck')
-        original_first = resp.json()[0]['media_id']
+        resp = client_real_auth.get(f"/room/{code}/deck")
+        original_first = resp.json()[0]["media_id"]
 
         # User A swipes 3 times
         for i in range(3):
-            resp = client_real_auth.get(f'/room/{code}/deck')
+            resp = client_real_auth.get(f"/room/{code}/deck")
             cards = resp.json()
-            client_real_auth.post(f'/room/{code}/swipe',
-                        json={'media_id': cards[0]['media_id'], 'direction': 'left'})
+            client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"media_id": cards[0]["media_id"], "direction": "left"},
+            )
 
         # User B joins — set up separate session
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
+        _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            user_id="user-B",
+            token="token-B",
+        )
 
         # User B joins the room
-        resp = client_real_auth.post(f'/room/{code}/join')
+        resp = client_real_auth.post(f"/room/{code}/join")
         assert resp.status_code == 200
 
         # User B gets deck starting from position 0 (their own cursor)
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         cards = resp.json()
-        assert cards[0]['media_id'] == original_first
+        assert cards[0]["media_id"] == original_first
 
     def test_end_of_deck_returns_empty(self, db_connection, client_real_auth):
         """After swiping all cards, deck endpoint returns empty array."""
@@ -377,27 +480,31 @@ class TestDeckCursorTracking:
         code = _create_room_with_auth(client_real_auth)
 
         # Get the full deck to know how many cards (25 from FakeProvider)
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         first_page = resp.json()
         assert len(first_page) == 20
 
         # Swipe the first 20
         for card in first_page:
-            client_real_auth.post(f'/room/{code}/swipe',
-                        json={'media_id': card['media_id'], 'direction': 'left'})
+            client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"media_id": card["media_id"], "direction": "left"},
+            )
 
         # Get remaining cards (page 1 at cursor=20)
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         remaining = resp.json()
         assert len(remaining) == 5  # 25 total - 20 swiped
 
         # Swipe the remaining 5
         for card in remaining:
-            client_real_auth.post(f'/room/{code}/swipe',
-                        json={'media_id': card['media_id'], 'direction': 'left'})
+            client_real_auth.post(
+                f"/room/{code}/swipe",
+                json={"media_id": card["media_id"], "direction": "left"},
+            )
 
         # Now deck should be empty
-        resp = client_real_auth.get(f'/room/{code}/deck')
+        resp = client_real_auth.get(f"/room/{code}/deck")
         assert resp.json() == []
 
 
@@ -407,12 +514,24 @@ class TestDeckCursorTracking:
 def _seed_room_with_movies(conn, room_code="ROOM1", solo_mode=0):
     """Seed a room with movie data containing enriched metadata."""
     movies = [
-        {"id": "movie-1", "title": "Test Movie", "summary": "A test movie",
-         "thumb": "/proxy?path=jellyfin/movie-1/Primary",
-         "rating": 8.5, "duration": "2h 15m", "year": 2024},
-        {"id": "movie-2", "title": "Other Movie", "summary": "Another test",
-         "thumb": "/proxy?path=jellyfin/movie-2/Primary",
-         "rating": 6.0, "duration": "1h 45m", "year": 2023},
+        {
+            "id": "movie-1",
+            "title": "Test Movie",
+            "summary": "A test movie",
+            "thumb": "/proxy?path=jellyfin/movie-1/Primary",
+            "rating": 8.5,
+            "duration": "2h 15m",
+            "year": 2024,
+        },
+        {
+            "id": "movie-2",
+            "title": "Other Movie",
+            "summary": "Another test",
+            "thumb": "/proxy?path=jellyfin/movie-2/Primary",
+            "rating": 6.0,
+            "duration": "1h 45m",
+            "year": 2023,
+        },
     ]
     conn.execute(
         "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) VALUES (?, ?, ?, ?, ?)",
@@ -430,44 +549,76 @@ class TestSSEMatchDelivery:
 
     def test_swipe_returns_accepted_only(self, db_connection, client_real_auth):
         """POST /room/{code}/swipe returns {accepted: true} only — no match payload."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection)
 
-        resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'media_id': 'movie-1', 'direction': 'right'})
+        resp = client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
         assert resp.status_code == 200
         data = resp.json()
-        assert data == {'accepted': True}
-        assert 'match' not in data
-        assert 'title' not in data
-        assert 'thumb' not in data
+        assert data == {"accepted": True}
+        assert "match" not in data
+        assert "title" not in data
+        assert "thumb" not in data
 
     def test_swipe_no_match_returns_accepted(self, db_connection, client_real_auth):
         """Left-swipe also returns {accepted: true}."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection)
 
-        resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'media_id': 'movie-1', 'direction': 'left'})
+        resp = client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "left"}
+        )
         assert resp.status_code == 200
-        assert resp.json() == {'accepted': True}
+        assert resp.json() == {"accepted": True}
 
     def test_match_created_with_deep_link(self, db_connection, client_real_auth):
         """Two users right-swiping the same movie creates match with deep link."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection)
 
         # First user swipes right
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         # Set up second user session with a new session_id
-        session_id_b = _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
-        set_session_cookie(client_real_auth, {"session_id": session_id_b, "active_room": "ROOM1"}, os.environ["FLASK_SECRET"])
+        session_id_b = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            user_id="user-B",
+            token="token-B",
+        )
+        set_session_cookie(
+            client_real_auth,
+            {"session_id": session_id_b, "active_room": "ROOM1"},
+            os.environ["FLASK_SECRET"],
+        )
 
         # Second user swipes right
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         # Verify match has deep link
         row = db_connection.execute(
@@ -478,13 +629,22 @@ class TestSSEMatchDelivery:
         assert row["deep_link"] is not None
         assert "/web/#/details?id=movie-1" in row["deep_link"]
 
-    def test_match_created_with_enriched_metadata(self, db_connection, client_real_auth):
+    def test_match_created_with_enriched_metadata(
+        self, db_connection, client_real_auth
+    ):
         """Solo match stores rating, duration, year from movie_data."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection, solo_mode=1)
 
-        resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'media_id': 'movie-1', 'direction': 'right'})
+        resp = client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
         assert resp.status_code == 200
 
         row = db_connection.execute(
@@ -498,13 +658,20 @@ class TestSSEMatchDelivery:
 
     def test_get_matches_returns_enriched_fields(self, db_connection, client_real_auth):
         """GET /matches includes deep_link, rating, duration, year."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection, solo_mode=1)
 
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
-        resp = client_real_auth.get('/matches')
+        resp = client_real_auth.get("/matches")
         assert resp.status_code == 200
         matches = resp.json()
         assert len(matches) == 1
@@ -518,13 +685,22 @@ class TestSSEMatchDelivery:
         assert "year" in m
         assert m["year"] == "2024"
 
-    def test_last_match_data_includes_enriched_payload(self, db_connection, client_real_auth):
+    def test_last_match_data_includes_enriched_payload(
+        self, db_connection, client_real_auth
+    ):
         """After a match, rooms.last_match_data contains full enriched JSON."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection, solo_mode=1)
 
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         row = db_connection.execute(
             "SELECT last_match_data FROM rooms WHERE pairing_code = ?",
@@ -541,22 +717,42 @@ class TestSSEMatchDelivery:
         assert "/web/#/details?id=movie-1" in data["deep_link"]
         assert "ts" in data
 
-    def test_concurrent_right_swipes_one_match_per_user(self, db_connection, client_real_auth):
+    def test_concurrent_right_swipes_one_match_per_user(
+        self, db_connection, client_real_auth
+    ):
         """Two users right-swiping same movie produces exactly 1 match row per user."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection)
 
         # First user swipes right
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         # Second user - set up separate session
-        session_id_b = _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
-        set_session_cookie(client_real_auth, {"session_id": session_id_b, "active_room": "ROOM1"}, os.environ["FLASK_SECRET"])
+        session_id_b = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            user_id="user-B",
+            token="token-B",
+        )
+        set_session_cookie(
+            client_real_auth,
+            {"session_id": session_id_b, "active_room": "ROOM1"},
+            os.environ["FLASK_SECRET"],
+        )
 
         # Second user swipes right
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         # Exactly 2 match rows: one per user (INSERT OR IGNORE prevents duplicates)
         count = db_connection.execute(
@@ -578,7 +774,9 @@ class TestSSEMatchDelivery:
         ).fetchone()[0]
         assert user_b == 1
 
-    def test_same_jellyfin_user_separate_sessions_can_match(self, db_connection, client_real_auth):
+    def test_same_jellyfin_user_separate_sessions_can_match(
+        self, db_connection, client_real_auth
+    ):
         """Two browser sessions for the same Jellyfin user still count as room participants."""
         secret_key = os.environ["FLASK_SECRET"]
 
@@ -643,21 +841,26 @@ class TestGetMe:
 
     def test_get_me_returns_user_info(self, db_connection, client_real_auth):
         """Authenticated GET /me returns userId, displayName, serverName, serverId."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            authenticated=True,
+        )
 
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         data = resp.json()
-        assert data['userId'] == 'verified-user'
-        assert data['displayName'] == 'verified-user'
-        assert data['serverName'] == 'TestServer'
-        assert data['serverId'] == 'test-server-id'
+        assert data["userId"] == "verified-user"
+        assert data["displayName"] == "verified-user"
+        assert data["serverName"] == "TestServer"
+        assert data["serverId"] == "test-server-id"
 
     def test_get_me_requires_auth(self, db_connection, client_real_auth):
         """Unauthenticated GET /me returns 401."""
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 401
-        assert resp.json() == {'detail': 'Authentication required'}
+        assert resp.json() == {"detail": "Authentication required"}
 
     def test_get_me_clears_stale_session_cookie(self, db_connection, client_real_auth):
         """GET /me clears stale local session state when the persisted auth row is missing."""
@@ -684,15 +887,17 @@ class TestSoloRoom:
         """POST /room/solo returns 404 (deprecated)."""
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
 
-        resp = client_real_auth.post('/room/solo')
+        resp = client_real_auth.post("/room/solo")
         assert resp.status_code == 404
-        assert resp.json() == {'error': 'Endpoint removed. Use POST /room with {"solo": true}'}
+        assert resp.json() == {
+            "error": 'Endpoint removed. Use POST /room with {"solo": true}'
+        }
 
     def test_solo_room_requires_auth(self, db_connection, client_real_auth):
         """Unauthenticated POST /room/solo returns 401."""
-        resp = client_real_auth.post('/room/solo')
+        resp = client_real_auth.post("/room/solo")
         assert resp.status_code == 401
-        assert resp.json() == {'detail': 'Authentication required'}
+        assert resp.json() == {"detail": "Authentication required"}
 
 
 # --- Logout Endpoint Tests ---
@@ -701,16 +906,26 @@ class TestSoloRoom:
 class TestLogout:
     """Tests for POST /auth/logout endpoint (CLNT-01)."""
 
-    def test_logout_delegates_destroy_to_auth_service(self, db_connection, client_real_auth, monkeypatch):
+    def test_logout_delegates_destroy_to_auth_service(
+        self, db_connection, client_real_auth, monkeypatch
+    ):
         """POST /auth/logout delegates session destruction to the auth service seam."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         calls: list[str | None] = []
 
         async def fake_destroy_session(session_dict, uow):
             calls.append(session_dict.get("session_id"))
             session_dict.clear()
 
-        monkeypatch.setattr(auth_routes, "destroy_session", fake_destroy_session, raising=False)
+        monkeypatch.setattr(
+            auth_routes, "destroy_session", fake_destroy_session, raising=False
+        )
 
         resp = client_real_auth.post("/auth/logout")
 
@@ -722,42 +937,58 @@ class TestLogout:
 
     def test_logout_clears_vault(self, db_connection, client_real_auth):
         """POST /auth/logout removes session_id from auth_sessions vault."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         # Verify vault entry exists before logout
-        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
+        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[
+            0
+        ]
         assert count >= 1
 
-        resp = client_real_auth.post('/auth/logout')
+        resp = client_real_auth.post("/auth/logout")
         assert resp.status_code == 200
         data = resp.json()
-        assert data['status'] == 'logged_out'
+        assert data["status"] == "logged_out"
 
         # Verify vault entry was removed
-        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
+        count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[
+            0
+        ]
         assert count == 0
 
     def test_logout_clears_session_cookie(self, db_connection, client_real_auth):
         """POST /auth/logout clears session_id from session cookie."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         # Verify session is set
-        resp1 = client_real_auth.get('/me')
+        resp1 = client_real_auth.get("/me")
         assert resp1.status_code == 200
 
-        resp = client_real_auth.post('/auth/logout')
+        resp = client_real_auth.post("/auth/logout")
         assert resp.status_code == 200
         assert resp.json() == {"status": "logged_out"}
         assert client_real_auth.cookies.get("session") is None
 
         # Verify session_id is cleared
-        resp2 = client_real_auth.get('/me')
+        resp2 = client_real_auth.get("/me")
         assert resp2.status_code == 401
         assert resp2.json() == {"detail": "Authentication required"}
 
     def test_logout_requires_auth(self, db_connection, client_real_auth):
         """POST /auth/logout without authentication returns 401."""
-        resp = client_real_auth.post('/auth/logout')
+        resp = client_real_auth.post("/auth/logout")
         assert resp.status_code == 401
-        assert resp.json() == {'detail': 'Authentication required'}
+        assert resp.json() == {"detail": "Authentication required"}
 
 
 # --- GET /me activeRoom Tests ---
@@ -768,28 +999,47 @@ class TestGetMeActiveRoom:
 
     def test_me_includes_active_room_null(self, db_connection, client_real_auth):
         """GET /me returns activeRoom as null when no room active."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            authenticated=True,
+        )
         # Verify activeRoom is null when no room is active
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'activeRoom' in data
-        assert data['activeRoom'] is None
+        assert "activeRoom" in data
+        assert data["activeRoom"] is None
 
     def test_me_includes_active_room_code(self, db_connection, client_real_auth):
         """GET /me returns activeRoom with room code when room active."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room(db_connection, "ROOM1")
 
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'activeRoom' in data
-        assert data['activeRoom'] == 'ROOM1'
+        assert "activeRoom" in data
+        assert data["activeRoom"] == "ROOM1"
 
-    def test_me_delegates_active_room_resolution_to_auth_service(self, db_connection, client_real_auth, monkeypatch):
+    def test_me_delegates_active_room_resolution_to_auth_service(
+        self, db_connection, client_real_auth, monkeypatch
+    ):
         """GET /me uses the auth service helper for active-room compatibility."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room(db_connection, "ROOM1")
         calls: list[dict[str, Any]] = []
 
@@ -797,7 +1047,9 @@ class TestGetMeActiveRoom:
             calls.append(dict(session_dict))
             return None
 
-        monkeypatch.setattr(auth_routes, "resolve_active_room", fake_resolve_active_room, raising=False)
+        monkeypatch.setattr(
+            auth_routes, "resolve_active_room", fake_resolve_active_room, raising=False
+        )
 
         resp = client_real_auth.get("/me")
 
@@ -814,10 +1066,16 @@ class TestGoSoloRemoved:
 
     def test_go_solo_returns_404(self, db_connection, client_real_auth):
         """POST /room/<code>/go-solo returns 404 (route removed)."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room(db_connection, "ROOM1")
 
-        resp = client_real_auth.post('/room/ROOM1/go-solo')
+        resp = client_real_auth.post("/room/ROOM1/go-solo")
         assert resp.status_code == 404
 
 
@@ -830,106 +1088,133 @@ class TestPhase27Compliance:
     def test_auth_lifecycle(self, db_connection, client_real_auth):
         """Full auth lifecycle: delegate login -> GET /me (200) -> logout -> GET /me (401)."""
         # Step 1: Login via delegate
-        resp = client_real_auth.post('/auth/jellyfin-use-server-identity')
+        resp = client_real_auth.post("/auth/jellyfin-use-server-identity")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'userId' in data
+        assert "userId" in data
 
         # Step 2: GET /me returns 200 with user info
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         me_data = resp.json()
-        assert me_data['userId'] == 'verified-user'
+        assert me_data["userId"] == "verified-user"
 
         # Step 3: POST /auth/logout clears session
-        resp = client_real_auth.post('/auth/logout')
+        resp = client_real_auth.post("/auth/logout")
         assert resp.status_code == 200
-        assert resp.json()['status'] == 'logged_out'
+        assert resp.json()["status"] == "logged_out"
 
         # Step 4: GET /me now returns 401
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 401
 
     def test_swipe_no_match_in_response(self, db_connection, client_real_auth):
         """Swipe returns {accepted: true} only — no match field (CLNT-02)."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection)
 
-        resp = client_real_auth.post('/room/ROOM1/swipe',
-                           json={'media_id': 'movie-1', 'direction': 'right'})
+        resp = client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
         assert resp.status_code == 200
         data = resp.json()
-        assert data == {'accepted': True}
-        assert 'match' not in data
-        assert 'title' not in data
-        assert 'thumb' not in data
-        assert 'solo' not in data
+        assert data == {"accepted": True}
+        assert "match" not in data
+        assert "title" not in data
+        assert "thumb" not in data
+        assert "solo" not in data
 
     def test_sse_match_has_enriched_fields(self, db_connection, client_real_auth):
         """Two-player match via /room/{code}/status has deep_link, rating, duration, year."""
-        _set_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], active_room="ROOM1", authenticated=True)
+        _set_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            active_room="ROOM1",
+            authenticated=True,
+        )
         _seed_room_with_movies(db_connection)
 
         # First user swipes right
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         # Second user - set up separate session
-        session_id_b = _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"], user_id="user-B", token="token-B")
-        set_session_cookie(client_real_auth, {"session_id": session_id_b, "active_room": "ROOM1"}, os.environ["FLASK_SECRET"])
+        session_id_b = _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            os.environ["FLASK_SECRET"],
+            user_id="user-B",
+            token="token-B",
+        )
+        set_session_cookie(
+            client_real_auth,
+            {"session_id": session_id_b, "active_room": "ROOM1"},
+            os.environ["FLASK_SECRET"],
+        )
 
         # Second user swipes right — creates match
-        client_real_auth.post('/room/ROOM1/swipe',
-                    json={'media_id': 'movie-1', 'direction': 'right'})
+        client_real_auth.post(
+            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
+        )
 
         # Check room status for enriched match data
-        resp = client_real_auth.get('/room/ROOM1/status')
+        resp = client_real_auth.get("/room/ROOM1/status")
         assert resp.status_code == 200
         status = resp.json()
-        assert status['last_match'] is not None
-        match = status['last_match']
-        assert match['type'] == 'match'
-        assert 'title' in match
-        assert 'thumb' in match
-        assert 'media_id' in match
-        assert 'deep_link' in match
-        assert '/web/#/details?id=movie-1' in match['deep_link']
-        assert match['rating'] == '8.5'
-        assert match['duration'] == '2h 15m'
-        assert match['year'] == '2024'
-        assert 'ts' in match
+        assert status["last_match"] is not None
+        match = status["last_match"]
+        assert match["type"] == "match"
+        assert "title" in match
+        assert "thumb" in match
+        assert "media_id" in match
+        assert "deep_link" in match
+        assert "/web/#/details?id=movie-1" in match["deep_link"]
+        assert match["rating"] == "8.5"
+        assert match["duration"] == "2h 15m"
+        assert match["year"] == "2024"
+        assert "ts" in match
 
     def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
         """POST /room/solo returns 404 (deprecated)."""
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
 
         # POST /room/solo now returns 404 (deprecated)
-        resp = client_real_auth.post('/room/solo')
+        resp = client_real_auth.post("/room/solo")
         assert resp.status_code == 404
-        assert resp.json() == {'error': 'Endpoint removed. Use POST /room with {"solo": true}'}
+        assert resp.json() == {
+            "error": 'Endpoint removed. Use POST /room with {"solo": true}'
+        }
 
     def test_me_returns_active_room(self, db_connection, client_real_auth):
         """GET /me tracks activeRoom: null -> code -> null after quit."""
         _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
 
         # Before room: activeRoom is null
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
-        assert resp.json()['activeRoom'] is None
+        assert resp.json()["activeRoom"] is None
 
         # Create room: activeRoom becomes pairing code
-        resp = client_real_auth.post('/room')
+        resp = client_real_auth.post("/room")
         assert resp.status_code == 200
-        code = resp.json()['pairing_code']
+        code = resp.json()["pairing_code"]
 
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
-        assert resp.json()['activeRoom'] == code
+        assert resp.json()["activeRoom"] == code
 
         # Quit room: activeRoom becomes null
-        resp = client_real_auth.post(f'/room/{code}/quit')
+        resp = client_real_auth.post(f"/room/{code}/quit")
         assert resp.status_code == 200
 
-        resp = client_real_auth.get('/me')
+        resp = client_real_auth.get("/me")
         assert resp.status_code == 200
-        assert resp.json()['activeRoom'] is None
+        assert resp.json()["activeRoom"] is None

@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Index, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from jellyswipe.models.base import Base
 
@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 class Match(Base):
     __tablename__ = "matches"
     __table_args__ = (
-        UniqueConstraint("room_code", "movie_id", "user_id", name="uq_matches_room_movie_user"),
+        UniqueConstraint(
+            "room_code", "movie_id", "user_id", name="uq_matches_room_movie_user"
+        ),
         Index("ix_matches_status_user_id", "status", "user_id"),
     )
 

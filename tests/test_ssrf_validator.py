@@ -12,9 +12,8 @@ Tests verify:
 Requirements: SSRF-01, SSRF-02, SSRF-03, SSRF-04
 """
 
-import os
 import socket
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

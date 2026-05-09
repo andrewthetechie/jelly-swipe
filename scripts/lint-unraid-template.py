@@ -20,6 +20,7 @@ RECOGNIZED_VARS = {
     "JELLYFIN_DEVICE_ID",
 }
 
+
 def extract_variables(template_path: Path) -> set[str]:
     """Extract all variable names from <Variable> and <Config> sections."""
     tree = ET.parse(template_path)
@@ -43,6 +44,7 @@ def extract_variables(template_path: Path) -> set[str]:
 
     return variables
 
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: lint-unraid-template.py <template-file>")
@@ -57,14 +59,15 @@ def main():
     unknown_vars = template_vars - RECOGNIZED_VARS
 
     if unknown_vars:
-        print(f"❌ Unraid template validation failed")
+        print("❌ Unraid template validation failed")
         print(f"Unknown environment variables found: {sorted(unknown_vars)}")
         print(f"Recognized variables: {sorted(RECOGNIZED_VARS)}")
         sys.exit(1)
 
-    print(f"✓ Unraid template validation passed")
+    print("✓ Unraid template validation passed")
     print(f"All {len(template_vars)} variables are recognized")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

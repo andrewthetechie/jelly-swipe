@@ -4,7 +4,6 @@ Covers /auth/provider, /auth/jellyfin-use-server-identity, and /auth/jellyfin-lo
 with header-spoof protection tests (EPIC-01).
 """
 
-import os
 from unittest.mock import MagicMock
 
 import jellyswipe
@@ -54,7 +53,9 @@ def test_jellyfin_use_server_identity_sets_session_flag(client_real_auth):
     assert resp2.status_code == 200
 
 
-def test_jellyfin_use_server_identity_runtime_error_returns_401(client_real_auth, monkeypatch):
+def test_jellyfin_use_server_identity_runtime_error_returns_401(
+    client_real_auth, monkeypatch
+):
     """RuntimeError from provider returns 401 and error message."""
     fake = jellyswipe._provider_singleton
     monkeypatch.setattr(
@@ -67,7 +68,9 @@ def test_jellyfin_use_server_identity_runtime_error_returns_401(client_real_auth
     assert "error" in response.json()
 
 
-def test_jellyfin_use_server_identity_failure_no_session_flag(client_real_auth, monkeypatch):
+def test_jellyfin_use_server_identity_failure_no_session_flag(
+    client_real_auth, monkeypatch
+):
     """Failed delegate identity does NOT set session flag."""
     fake = jellyswipe._provider_singleton
     monkeypatch.setattr(
@@ -145,7 +148,9 @@ def test_jellyfin_login_auth_failure_returns_401(client_real_auth, monkeypatch):
 
 
 @pytest.mark.parametrize("spoof_header", SPOOF_HEADERS)
-def test_jellyfin_use_server_identity_ignores_spoofed_headers(client_real_auth, spoof_header):
+def test_jellyfin_use_server_identity_ignores_spoofed_headers(
+    client_real_auth, spoof_header
+):
     """Delegate identity endpoint ignores spoofed identity headers."""
     response = client_real_auth.post(
         "/auth/jellyfin-use-server-identity",

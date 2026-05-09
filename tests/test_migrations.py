@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
@@ -29,8 +28,6 @@ def _get_room_columns(conn: sqlite3.Connection) -> dict[str, str]:
     return {row[1]: row[4] for row in rows}  # column name -> default value
 
 
-
-
 def test_fresh_database_upgrade_then_subprocess_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "migration_parity.db"
     url = build_sqlite_url(str(db_path))
@@ -45,9 +42,7 @@ def test_fresh_database_upgrade_then_subprocess_idempotent(tmp_path: Path) -> No
         tables = _table_names(conn)
         for name in ("rooms", "auth_sessions", "swipes", "matches", "alembic_version"):
             assert name in tables, f"missing table {name}, have {sorted(tables)}"
-        rev = conn.execute(
-            "SELECT version_num FROM alembic_version"
-        ).fetchone()
+        rev = conn.execute("SELECT version_num FROM alembic_version").fetchone()
         assert rev is not None
         assert rev[0] == _EXPECTED_REVISION
     finally:
@@ -85,9 +80,7 @@ def test_fresh_database_upgrade_then_subprocess_idempotent(tmp_path: Path) -> No
 
     conn = sqlite3.connect(db_path)
     try:
-        rev2 = conn.execute(
-            "SELECT version_num FROM alembic_version"
-        ).fetchone()
+        rev2 = conn.execute("SELECT version_num FROM alembic_version").fetchone()
         assert rev2 is not None
         assert rev2[0] == _EXPECTED_REVISION
     finally:
@@ -98,23 +91,31 @@ def test_migration_adds_media_type_columns_with_defaults(tmp_path: Path) -> None
     """Test that migration adds include_movies and include_tv_shows columns with correct defaults."""
     db_path = tmp_path / "media_type_test.db"
     url = build_sqlite_url(str(db_path))
-    
+
     # Apply migration
     upgrade_to_head(url)
-    
+
     assert db_path.is_file()
-    
+
     conn = sqlite3.connect(db_path)
     try:
         # Check columns exist with correct defaults
         columns = _get_room_columns(conn)
-        assert "include_movies" in columns, f"include_movies column missing, have {list(columns.keys())}"
-        assert "include_tv_shows" in columns, f"include_tv_shows column missing, have {list(columns.keys())}"
-        
+        assert "include_movies" in columns, (
+            f"include_movies column missing, have {list(columns.keys())}"
+        )
+        assert "include_tv_shows" in columns, (
+            f"include_tv_shows column missing, have {list(columns.keys())}"
+        )
+
         # Verify defaults (SQLite stores defaults as strings)
-        assert columns["include_movies"] == "1", f"include_movies default is {columns['include_movies']}, expected '1'"
-        assert columns["include_tv_shows"] == "0", f"include_tv_shows default is {columns['include_tv_shows']}, expected '0'"
-        
+        assert columns["include_movies"] == "1", (
+            f"include_movies default is {columns['include_movies']}, expected '1'"
+        )
+        assert columns["include_tv_shows"] == "0", (
+            f"include_tv_shows default is {columns['include_tv_shows']}, expected '0'"
+        )
+
         # Create a room using INSERT to verify defaults work
         conn.execute(
             """
@@ -123,7 +124,7 @@ def test_migration_adds_media_type_columns_with_defaults(tmp_path: Path) -> None
             """
         )
         conn.commit()
-        
+
         # Verify the room has correct defaults
         row = conn.execute(
             "SELECT include_movies, include_tv_shows FROM rooms WHERE pairing_code = 'TEST'"
