@@ -12,7 +12,7 @@ from pathlib import Path
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-_EXPECTED_REVISION = "0002_add_media_type"
+_EXPECTED_REVISION = "0003_add_hide_watched"
 
 
 def _table_names(conn: sqlite3.Connection) -> set[str]:
