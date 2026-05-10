@@ -6,13 +6,30 @@ from dataclasses import dataclass
 
 
 @dataclass(slots=True)
+class SessionInstanceRecord:
+    instance_id: str
+    pairing_code: str
+    status: str
+    created_at: str
+    closed_at: str | None
+
+
+@dataclass(slots=True)
+class SessionEventRecord:
+    event_id: int
+    session_instance_id: str
+    event_type: str
+    payload_json: str
+    created_at: str
+
+
+@dataclass(slots=True)
 class RoomRecord:
     pairing_code: str
     movie_data_json: str
     ready: bool
     current_genre: str
     solo_mode: bool
-    last_match_data_json: str | None
     deck_position_json: str | None
     deck_order_json: str | None
     include_movies: bool
@@ -25,17 +42,6 @@ class RoomStatusSnapshot:
     ready: bool
     genre: str
     solo: bool
-    last_match: dict | None
-    hide_watched: bool
-
-
-@dataclass(slots=True)
-class StreamSnapshot:
-    ready: bool
-    genre: str
-    solo: bool
-    last_match: dict | None
-    last_match_ts: str | float | int | None
     hide_watched: bool
 
 

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import json
-from typing import Any
-
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.room import Room
-from jellyswipe.room_types import RoomRecord, RoomStatusSnapshot, StreamSnapshot
+from jellyswipe.room_types import RoomRecord, RoomStatusSnapshot
 
 
 class RoomRepository:
@@ -120,16 +117,6 @@ class RoomRepository:
         )
         return result.rowcount or 0
 
-    async def set_last_match_data(
-        self, pairing_code: str, last_match_data_json: str | None
-    ) -> int:
-        result = await self._session.execute(
-            update(Room)
-            .where(Room.pairing_code == pairing_code)
-            .values(last_match_data=last_match_data_json)
-        )
-        return result.rowcount or 0
-
     async def fetch_status(self, pairing_code: str) -> RoomStatusSnapshot | None:
         row = (
             await self._session.scalars(
@@ -138,63 +125,16 @@ class RoomRepository:
         ).first()
         if row is None:
             return None
-        last_match: dict[str, Any] | None = None
-        raw = row.last_match_data
-        if raw:
-            try:
-                parsed = json.loads(raw)
-                last_match = parsed if isinstance(parsed, dict) else None
-            except (json.JSONDecodeError, TypeError):
-                last_match = None
         return RoomStatusSnapshot(
             ready=bool(row.ready),
             genre=row.current_genre,
             solo=bool(row.solo_mode),
-            last_match=last_match,
             hide_watched=bool(row.hide_watched),
         )
 
     async def fetch_movie_data(self, pairing_code: str) -> str | None:
         return await self._session.scalar(
             select(Room.movie_data).where(Room.pairing_code == pairing_code)
-        )
-
-    async def fetch_stream_snapshot(self, pairing_code: str) -> StreamSnapshot | None:
-        stmt = select(
-            Room.ready,
-            Room.current_genre,
-            Room.solo_mode,
-            Room.last_match_data,
-            Room.hide_watched,
-        ).where(Room.pairing_code == pairing_code)
-        row = (await self._session.execute(stmt)).one_or_none()
-        if row is None:
-            return None
-        ready_raw, genre, solo_raw, raw_last, hide_watched_raw = (
-            row[0],
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-        )
-        last_match: dict[str, Any] | None = None
-        last_match_ts: str | float | int | None = None
-        if raw_last:
-            try:
-                parsed = json.loads(raw_last)
-                if isinstance(parsed, dict):
-                    last_match = parsed
-                    last_match_ts = parsed.get("ts")
-            except (json.JSONDecodeError, TypeError):
-                last_match = None
-                last_match_ts = None
-        return StreamSnapshot(
-            ready=bool(ready_raw),
-            genre=genre or "",
-            solo=bool(solo_raw),
-            last_match=last_match,
-            last_match_ts=last_match_ts,
-            hide_watched=bool(hide_watched_raw),
         )
 
     async def delete(self, pairing_code: str) -> int:
@@ -211,7 +151,6 @@ class RoomRepository:
             ready=bool(row.ready),
             current_genre=row.current_genre,
             solo_mode=bool(row.solo_mode),
-            last_match_data_json=row.last_match_data,
             deck_position_json=row.deck_position,
             deck_order_json=row.deck_order,
             include_movies=bool(row.include_movies),

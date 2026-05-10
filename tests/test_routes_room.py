@@ -50,18 +50,16 @@ def _set_session(
         set_session_cookie(client, data, secret_key)
 
 
-def _seed_room(
-    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None, last_match_data=None
-):
+def _seed_room(room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None):
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
         movie_data = json.dumps([])
     conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute(
-            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode, last_match_data) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (room_code, movie_data, ready, "All", solo_mode, last_match_data),
+            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (room_code, movie_data, ready, "All", solo_mode),
         )
         conn.commit()
     finally:
@@ -398,23 +396,6 @@ def test_room_status_active_room(client):
     assert data["ready"] is True
     assert data["genre"] == "All"
     assert data["solo"] is False
-    assert data["last_match"] is None
-
-
-def test_room_status_with_last_match(client):
-    """GET /room/<code>/status returns last_match data when room has a recent match."""
-    match_data = json.dumps(
-        {"title": "Test Movie", "thumb": "test.jpg", "ts": 1234567890}
-    )
-    _seed_room("TEST1", ready=1, solo_mode=0, last_match_data=match_data)
-
-    response = client.get("/room/TEST1/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["last_match"] is not None
-    assert data["last_match"]["title"] == "Test Movie"
-    assert data["last_match"]["thumb"] == "test.jpg"
-    assert data["last_match"]["ts"] == 1234567890
 
 
 def test_room_status_nonexistent_room(client):
@@ -566,50 +547,6 @@ def test_swipe_right_no_match_yet(client, app):
 
     assert response.status_code == 200
     assert response.json() == {"accepted": True}
-
-
-def test_swipe_right_updates_last_match_data(client, app):
-    """POST /room/<code>/swipe dual match updates last_match_data in rooms table."""
-    _seed_room("TEST1", ready=1, solo_mode=0)
-    _set_session(
-        client,
-        os.environ["FLASK_SECRET"],
-        active_room="TEST1",
-        user_id="verified-user",
-        authenticated=True,
-    )
-
-    conn = _sqlite_conn_for_route_tests()
-    try:
-        conn.execute(
-            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-            ("other-session-id", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
-        )
-        conn.execute(
-            "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
-            ("TEST1", "m1", "user-2", "right", "other-session-id"),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    client.post(
-        "/room/TEST1/swipe",
-        json={"media_id": "m1", "direction": "right"},
-    )
-
-    conn = _sqlite_conn_for_route_tests()
-    try:
-        row = conn.execute(
-            "SELECT last_match_data FROM rooms WHERE pairing_code = 'TEST1'"
-        ).fetchone()
-    finally:
-        conn.close()
-
-    assert row["last_match_data"] is not None
-    match_data = json.loads(row["last_match_data"])
-    assert match_data["type"] == "match"
-    assert "ts" in match_data
 
 
 def test_set_genre_empty_deck_returns_400(client, app, mocker):
@@ -809,3 +746,95 @@ def test_set_watched_filter_requires_auth(client_real_auth, app_real_auth):
         "/room/TEST1/watched-filter", json={"hide_watched": True}
     )
     assert response.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# Section: Notifier integration tests (ORCH-003)
+# ---------------------------------------------------------------------------
+
+
+def test_join_room_notifies_after_commit(client, app):
+    """POST /room/{code}/join calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room first
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    # Join with a different session
+    from tests.conftest import set_session_cookie
+
+    join_client_session = {"solo_mode": False}
+    set_session_cookie(client, join_client_session, os.environ["FLASK_SECRET"])
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(f"/room/{code}/join")
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_quit_room_notifies_after_commit(client, app):
+    """POST /room/{code}/quit calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(f"/room/{code}/quit")
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_set_genre_notifies_after_commit(client, app):
+    """POST /room/{code}/genre calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(f"/room/{code}/genre", json={"genre": "Action"})
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_set_watched_filter_notifies_after_commit(client, app):
+    """POST /room/{code}/watched-filter calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(
+            f"/room/{code}/watched-filter", json={"hide_watched": True}
+        )
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_create_room_returns_instance_id(client, app):
+    """POST /room returns instance_id in response."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    response = client.post("/room")
+    assert response.status_code == 200
+    data = response.json()
+    assert "instance_id" in data
+    assert data["instance_id"] is not None
+    assert len(data["instance_id"]) > 0  # UUID hex string

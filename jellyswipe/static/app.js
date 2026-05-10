@@ -860,61 +860,132 @@
         }
 
         let sseSource = null;
+        let lastSeenEventId = 0;
+        let seenEventIds = new Set();  // Dedup set (bounded by session lifetime)
 
         const startPolling = () => {
             if (sseSource) { sseSource.close(); sseSource = null; }
-            sseSource = new EventSource(`/room/${currentRoomCode}/stream`);
+
+            // Build URL with cursor if we have one
+            let streamUrl = `/room/${currentRoomCode}/stream`;
+            if (lastSeenEventId > 0) {
+                streamUrl += `?after_event_id=${lastSeenEventId}`;
+            }
+
+            sseSource = new EventSource(streamUrl);
+
             sseSource.onmessage = async (event) => {
+                // Track event ID from SSE id field
+                if (event.lastEventId) {
+                    const eid = parseInt(event.lastEventId, 10);
+                    if (eid > lastSeenEventId) lastSeenEventId = eid;
+                }
+
                 const d = JSON.parse(event.data);
-                if (d.closed) {
-                    sseSource.close();
-                    sseSource = null;
-                    currentRoomCode = null;
-                    document.getElementById('game-area').classList.add('hidden');
-                    document.getElementById('branding').classList.remove('hidden');
-                    document.getElementById('controls-area').classList.remove('hidden');
-                    document.getElementById('quit-pill').classList.add('hidden');
-                    document.getElementById('matches-pill').classList.add('hidden');
-                    document.getElementById('undo-btn').classList.add('hidden');
-                    return;
-                }
-                if (d.genre && d.genre !== currentGenre) {
-                    currentGenre = d.genre;
-                    document.getElementById('genre-pill').innerText = currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
-                    const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
-                    movieStack = await movieRes.json(); swipeHistory = []; renderInitialDeck();
-                }
-                if (d.hide_watched !== undefined && d.hide_watched !== hideWatched) {
-                    hideWatched = d.hide_watched;
-                    const pill = document.getElementById('hide-watched-pill');
-                    pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
-                    pill.classList.toggle('active', hideWatched);
-                    const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
-                    movieStack = await movieRes.json(); swipeHistory = []; renderInitialDeck();
-                }
-                if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
-                    loadMovies(d.solo || false);
-                }
-                if (d.last_match) {
-                    document.getElementById('matched-movie-title').innerText = d.last_match.title;
-                    document.getElementById('match-popup-poster').src = d.last_match.thumb || '';
-                    const heading = document.getElementById('match-heading');
 
-                    // Update heading based on media type
-                    if (d.last_match.media_type === 'tv_show') {
-                        heading.innerText = "IT'S A TV MATCH!";
-                    } else {
-                        heading.innerText = "IT'S A MATCH!";
-                    }
+                // Dedup by event_id (if present — bootstrap/reset don't have one)
+                if (d.event_id) {
+                    if (seenEventIds.has(d.event_id)) return;
+                    seenEventIds.add(d.event_id);
+                }
 
-                    document.getElementById('match-solo-label').classList.add('hidden');
-                    showMatchMetadata(d.last_match);
-                    document.getElementById('match-overlay').classList.remove('hidden');
+                switch (d.event_type) {
+                    case 'session_bootstrap':
+                        // First attach — set initial state, no match popup
+                        currentGenre = d.genre || 'All';
+                        hideWatched = d.hide_watched || false;
+                        isSoloMode = d.solo || false;
+                        // Update genre pill UI
+                        document.getElementById('genre-pill').innerText =
+                            currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
+                        // Update hide_watched pill UI
+                        const pill = document.getElementById('hide-watched-pill');
+                        pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                        pill.classList.toggle('active', hideWatched);
+                        // Update solo badge UI
+                        document.getElementById('matches-pill').innerText = isSoloMode ? 'Shortlist' : 'Matches';
+                        document.getElementById('solo-badge').classList.toggle('hidden', !isSoloMode);
+                        // If room is already ready (e.g. solo) and game hasn't loaded yet, load now.
+                        // On page refresh the /me handler calls loadMovies() first, so game-area
+                        // is already visible and this guard prevents a double-call.
+                        if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
+                            loadMovies(isSoloMode);
+                        }
+                        break;
+
+                    case 'session_ready':
+                        currentGenre = d.genre || 'All';
+                        document.getElementById('genre-pill').innerText =
+                            currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
+                        if (document.getElementById('game-area').classList.contains('hidden')) {
+                            loadMovies(d.solo || false);
+                        }
+                        break;
+
+                    case 'match_found':
+                        document.getElementById('matched-movie-title').innerText = d.title;
+                        document.getElementById('match-popup-poster').src = d.thumb || '';
+                        const heading = document.getElementById('match-heading');
+                        heading.innerText = d.media_type === 'tv_show' ? "IT'S A TV MATCH!" : "IT'S A MATCH!";
+                        document.getElementById('match-solo-label').classList.add('hidden');
+                        showMatchMetadata(d);
+                        document.getElementById('match-overlay').classList.remove('hidden');
+                        break;
+
+                    case 'genre_changed':
+                        if (d.genre && d.genre !== currentGenre) {
+                            currentGenre = d.genre;
+                            document.getElementById('genre-pill').innerText =
+                                currentGenre === 'All' ? 'Genres ▾' : currentGenre + ' ▾';
+                            const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
+                            movieStack = await movieRes.json();
+                            swipeHistory = [];
+                            renderInitialDeck();
+                        }
+                        break;
+
+                    case 'hide_watched_changed':
+                        if (d.hide_watched !== undefined && d.hide_watched !== hideWatched) {
+                            hideWatched = d.hide_watched;
+                            const pill = document.getElementById('hide-watched-pill');
+                            pill.innerText = hideWatched ? 'Hide Watched' : 'Show Watched';
+                            pill.classList.toggle('active', hideWatched);
+                            const movieRes = await apiFetch(`/room/${currentRoomCode}/deck`);
+                            movieStack = await movieRes.json();
+                            swipeHistory = [];
+                            renderInitialDeck();
+                        }
+                        break;
+
+                    case 'session_closed':
+                        sseSource.close();
+                        sseSource = null;
+                        lastSeenEventId = 0;
+                        seenEventIds.clear();
+                        currentRoomCode = null;
+                        document.getElementById('game-area').classList.add('hidden');
+                        document.getElementById('branding').classList.remove('hidden');
+                        document.getElementById('controls-area').classList.remove('hidden');
+                        document.getElementById('quit-pill').classList.add('hidden');
+                        document.getElementById('matches-pill').classList.add('hidden');
+                        document.getElementById('undo-btn').classList.add('hidden');
+                        break;
+
+                    case 'session_reset':
+                        // Cursor was rejected — reconnect fresh
+                        sseSource.close();
+                        sseSource = null;
+                        lastSeenEventId = 0;
+                        seenEventIds.clear();
+                        setTimeout(() => { if (currentRoomCode) startPolling(); }, 1000);
+                        break;
                 }
             };
+
             sseSource.onerror = () => {
                 sseSource.close();
                 sseSource = null;
+                // Reconnect with cursor if we have one
                 setTimeout(() => { if (currentRoomCode) startPolling(); }, 3000);
             };
         };

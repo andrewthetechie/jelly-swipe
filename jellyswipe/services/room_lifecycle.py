@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import secrets
 from typing import Any, Protocol
+from uuid import uuid4
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.room_types import MatchRecord
 
 logger = logging.getLogger(__name__)
@@ -83,7 +86,10 @@ class RoomLifecycleService:
         for _ in range(10):
             pairing_code = str(secrets.randbelow(9000) + 1000)
             exists = await uow.rooms.pairing_code_exists(pairing_code)
-            if exists:
+            reserved = await uow.session_instances.is_pairing_code_reserved(
+                pairing_code
+            )
+            if exists or reserved:
                 continue
             # Build media_types list from boolean flags
             media_types = []
@@ -107,6 +113,7 @@ class RoomLifecycleService:
                 movie_list = interleaved
 
             deck_json = json.dumps({user_id: 0})
+            instance_id = uuid4().hex
             await uow.rooms.create(
                 pairing_code,
                 movie_data_json=json.dumps(movie_list),
@@ -117,9 +124,16 @@ class RoomLifecycleService:
                 include_movies=include_movies,
                 include_tv_shows=include_tv_shows,
             )
+            await uow.session_instances.create(
+                instance_id=instance_id, pairing_code=pairing_code
+            )
+            if solo:
+                await uow.session_events.append(
+                    instance_id, "session_ready", json.dumps({"solo": True})
+                )
             session_dict["active_room"] = pairing_code
             session_dict["solo_mode"] = solo
-            return {"pairing_code": pairing_code}
+            return {"pairing_code": pairing_code, "instance_id": instance_id}
 
         raise UniqueRoomCodeExhaustedError()
 
@@ -133,12 +147,16 @@ class RoomLifecycleService:
         for _ in range(10):
             pairing_code = str(secrets.randbelow(9000) + 1000)
             exists = await uow.rooms.pairing_code_exists(pairing_code)
-            if exists:
+            reserved = await uow.session_instances.is_pairing_code_reserved(
+                pairing_code
+            )
+            if exists or reserved:
                 continue
             # Build media_types list from boolean flags - solo mode defaults to movies only
             media_types = ["movie"]
             movie_list = provider.fetch_deck(media_types=media_types)
             deck_json = json.dumps({user_id: 0})
+            instance_id = uuid4().hex
             await uow.rooms.create(
                 pairing_code,
                 movie_data_json=json.dumps(movie_list),
@@ -147,9 +165,12 @@ class RoomLifecycleService:
                 solo_mode=True,
                 deck_position_json=deck_json,
             )
+            await uow.session_instances.create(
+                instance_id=instance_id, pairing_code=pairing_code
+            )
             session_dict["active_room"] = pairing_code
             session_dict["solo_mode"] = True
-            return {"pairing_code": pairing_code}
+            return {"pairing_code": pairing_code, "instance_id": instance_id}
 
         raise UniqueRoomCodeExhaustedError()
 
@@ -177,6 +198,13 @@ class RoomLifecycleService:
         await uow.rooms.set_ready(code, True)
         await uow.rooms.set_deck_position(code, json.dumps(positions))
 
+        # Append session_ready event
+        instance = await uow.session_instances.get_by_pairing_code(code)
+        if instance:
+            await uow.session_events.append(
+                instance.instance_id, "session_ready", json.dumps({})
+            )
+
         session_dict["active_room"] = code
         session_dict["solo_mode"] = False
         return {"status": "success"}
@@ -188,12 +216,32 @@ class RoomLifecycleService:
         user_id: str,
         uow: DatabaseUnitOfWork,
     ) -> dict[str, str]:
+        # Look up instance and append session_closed event
+        instance = await uow.session_instances.get_by_pairing_code(code)
+        if instance:
+            await uow.session_events.append(
+                instance.instance_id, "session_closed", json.dumps({})
+            )
+            await uow.session_instances.mark_closing(instance.instance_id)
+            # Schedule background cleanup task
+            asyncio.create_task(self._cleanup_after_grace(instance.instance_id))
+
         await uow.rooms.delete(code)
         await uow.swipes.delete_room_swipes(code)
         await uow.matches.archive_active_for_room(code)
         session_dict.pop("active_room", None)
         session_dict.pop("solo_mode", None)
         return {"status": "session_ended"}
+
+    async def _cleanup_after_grace(self, instance_id: str) -> None:
+        """Clean up session instance after 60-second grace period."""
+        await asyncio.sleep(60)
+        async with get_sessionmaker()() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.session_instances.mark_closed(instance_id)
+            await uow.session_events.delete_for_instance(instance_id)
+            await uow.session_instances.delete(instance_id)
+            await session.commit()
 
     async def get_deck(
         self,
@@ -325,7 +373,14 @@ class RoomLifecycleService:
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
         """Set genre filter and rebuild deck."""
-        return await self._rebuild_deck(code, provider, uow, genre=genre)
+        new_deck = await self._rebuild_deck(code, provider, uow, genre=genre)
+        # Append genre_changed event on success
+        instance = await uow.session_instances.get_by_pairing_code(code)
+        if instance:
+            await uow.session_events.append(
+                instance.instance_id, "genre_changed", json.dumps({"genre": genre})
+            )
+        return new_deck
 
     async def set_watched_filter(
         self,
@@ -335,7 +390,18 @@ class RoomLifecycleService:
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
         """Set watched filter and rebuild deck."""
-        return await self._rebuild_deck(code, provider, uow, hide_watched=hide_watched)
+        new_deck = await self._rebuild_deck(
+            code, provider, uow, hide_watched=hide_watched
+        )
+        # Append hide_watched_changed event on success
+        instance = await uow.session_instances.get_by_pairing_code(code)
+        if instance:
+            await uow.session_events.append(
+                instance.instance_id,
+                "hide_watched_changed",
+                json.dumps({"hide_watched": hide_watched}),
+            )
+        return new_deck
 
     async def get_status(self, code: str, uow: DatabaseUnitOfWork) -> dict[str, Any]:
         snapshot = await uow.rooms.fetch_status(code)
@@ -346,7 +412,6 @@ class RoomLifecycleService:
             "genre": snapshot.genre,
             "solo": snapshot.solo,
             "hide_watched": snapshot.hide_watched,
-            "last_match": snapshot.last_match,
         }
 
     async def get_matches(

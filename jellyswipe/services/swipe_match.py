@@ -1,20 +1,20 @@
 """Dedicated swipe/match mutation service — Phase 39 (D-14).
 
 Serialized swipe mutations use `BEGIN IMMEDIATE` inside `uow.run_sync(...)`
-without owning commit/rollback. Undo/delete routes recompute room last-match sentinels
-from persisted active match rows (`match_order` / SQLite rowid).
+without owning commit/rollback. Match creation emits `match_found` events
+into the session event ledger atomically within the swipe transaction.
 """
 
 from __future__ import annotations
 
 import json
+import time
 
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from jellyswipe.config import JELLYFIN_URL
 from jellyswipe.db_uow import DatabaseUnitOfWork
-from jellyswipe.room_types import MatchRecord
 
 
 def _run_query(conn: Connection | object, query: str, params: tuple = ()) -> object:
@@ -81,62 +81,6 @@ def _resolve_movie_meta(movie_data_json: str | None, movie_id: str) -> dict[str,
     return {"rating": "", "duration": "", "year": "", "media_type": "movie"}
 
 
-def _match_sentinel_rowid(
-    conn: Connection, pairing_code: str, movie_id: str
-) -> int | None:
-    row = _fetchone(
-        conn,
-        "SELECT MAX(rowid) AS rid FROM matches WHERE room_code = ? AND movie_id = ?",
-        (pairing_code, movie_id),
-    )
-    if not row or row.get("rid") is None:
-        return None
-    return int(row["rid"])
-
-
-def _last_match_json(
-    *,
-    title: str,
-    thumb: str,
-    movie_id: str,
-    meta: dict[str, str],
-    deep_link: str,
-    sentinel_ts: int | None,
-) -> str:
-    data = {
-        "type": "match",
-        "title": title,
-        "thumb": thumb,
-        "media_id": movie_id,
-        "media_type": meta.get("media_type", "movie"),
-        "rating": meta["rating"],
-        "duration": meta["duration"],
-        "year": meta["year"],
-        "deep_link": deep_link,
-        "ts": sentinel_ts,
-    }
-    return json.dumps(data)
-
-
-def match_record_as_last_match_json(rec: MatchRecord) -> str:
-    """Build `rooms.last_match_data` JSON from the newest persisted active match."""
-
-    ts_token = rec.match_order
-    payload = {
-        "type": "match",
-        "title": rec.title,
-        "thumb": rec.thumb,
-        "media_id": rec.movie_id,
-        "media_type": rec.media_type or "movie",
-        "rating": rec.rating or "",
-        "duration": rec.duration or "",
-        "year": rec.year or "",
-        "deep_link": rec.deep_link or "",
-        "ts": ts_token if ts_token is not None else 0,
-    }
-    return json.dumps(payload)
-
-
 def _sync_run_swipe_transaction(
     sync_session: Session,
     *,
@@ -200,20 +144,35 @@ def _sync_run_swipe_transaction(
                 meta["media_type"],
             ),
         )
-        rid = _match_sentinel_rowid(conn, code, movie_id)
-        match_data = _last_match_json(
-            title=title,
-            thumb=thumb,
-            movie_id=movie_id,
-            meta=meta,
-            deep_link=deep_link,
-            sentinel_ts=rid,
-        )
-        _execute(
+        # Emit match_found event into session event ledger
+        inst = _fetchone(
             conn,
-            "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
-            (match_data, code),
+            "SELECT instance_id FROM session_instances WHERE pairing_code = ? AND status = 'active'",
+            (code,),
         )
+        if inst:
+            payload = json.dumps(
+                {
+                    "media_id": movie_id,
+                    "title": title,
+                    "thumb": thumb,
+                    "media_type": meta.get("media_type", "movie"),
+                    "rating": meta["rating"],
+                    "duration": meta["duration"],
+                    "year": meta["year"],
+                    "deep_link": deep_link,
+                }
+            )
+            _execute(
+                conn,
+                "INSERT INTO session_events (session_instance_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?)",
+                (
+                    inst["instance_id"],
+                    "match_found",
+                    payload,
+                    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                ),
+            )
         return None
 
     session_id = request_session.get("session_id")
@@ -268,20 +227,35 @@ def _sync_run_swipe_transaction(
             ),
         )
 
-    rid = _match_sentinel_rowid(conn, code, movie_id)
-    match_data = _last_match_json(
-        title=title,
-        thumb=thumb,
-        movie_id=movie_id,
-        meta=meta,
-        deep_link=deep_link,
-        sentinel_ts=rid,
-    )
-    _execute(
+    # Emit match_found event into session event ledger
+    inst = _fetchone(
         conn,
-        "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
-        (match_data, code),
+        "SELECT instance_id FROM session_instances WHERE pairing_code = ? AND status = 'active'",
+        (code,),
     )
+    if inst:
+        payload = json.dumps(
+            {
+                "media_id": movie_id,
+                "title": title,
+                "thumb": thumb,
+                "media_type": meta.get("media_type", "movie"),
+                "rating": meta["rating"],
+                "duration": meta["duration"],
+                "year": meta["year"],
+                "deep_link": deep_link,
+            }
+        )
+        _execute(
+            conn,
+            "INSERT INTO session_events (session_instance_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?)",
+            (
+                inst["instance_id"],
+                "match_found",
+                payload,
+                time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            ),
+        )
     return None
 
 
@@ -311,17 +285,6 @@ class SwipeMatchService:
             thumb=thumb,
         )
 
-    async def _recompute_last_match_for_room(
-        self, uow: DatabaseUnitOfWork, pairing_code: str
-    ) -> None:
-        latest = await uow.matches.latest_active_for_room(pairing_code)
-        if latest is None:
-            await uow.rooms.set_last_match_data(pairing_code, None)
-            return
-        await uow.rooms.set_last_match_data(
-            pairing_code, match_record_as_last_match_json(latest)
-        )
-
     async def undo_swipe(
         self,
         *,
@@ -335,8 +298,6 @@ class SwipeMatchService:
             code, movie_id, request_session.get("session_id")
         )
         await uow.matches.delete_active_for_room_movie_user(code, movie_id, user_id)
-        if await uow.rooms.pairing_code_exists(code):
-            await self._recompute_last_match_for_room(uow, code)
         return {"status": "undone"}
 
     async def delete_match(
@@ -348,9 +309,7 @@ class SwipeMatchService:
         uow: DatabaseUnitOfWork,
     ) -> dict:
         await uow.matches.delete_for_user(movie_id, user_id)
-        if active_room and await uow.rooms.pairing_code_exists(active_room):
-            await self._recompute_last_match_for_room(uow, active_room)
         return {"status": "deleted"}
 
 
-__all__ = ["SwipeMatchService", "match_record_as_last_match_json"]
+__all__ = ["SwipeMatchService"]
