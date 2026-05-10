@@ -20,11 +20,6 @@
         }
 
         async function bootstrapJellyfinDelegate() {
-            const provRes = await fetch("/auth/provider", { credentials: "same-origin" });
-            const provData = await provRes.json();
-            if (provData.jellyfin_browser_auth !== "delegate") {
-                return false;
-            }
             const resp = await fetch("/auth/jellyfin-use-server-identity", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -47,31 +42,7 @@
         }
 
         async function login() {
-            const provRes = await fetch("/auth/provider", { credentials: "same-origin" });
-            const provData = await provRes.json();
-            if (provData.jellyfin_browser_auth === "delegate") {
-                await bootstrapJellyfinDelegate();
-                return;
-            }
-            const username = prompt("Jellyfin account name", "");
-            if (!username) return;
-            const password = prompt("Jellyfin account password", "");
-            if (!password) return;
-            const resp = await fetch("/auth/jellyfin-login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-                credentials: "same-origin",
-            });
-            const data = await resp.json();
-            if (!resp.ok || !data.userId) {
-                alert(data.error || "Jellyfin login failed");
-                return;
-            }
-            document.getElementById("login-section").classList.add("hidden");
-            document.getElementById("main-menu").classList.remove("hidden");
-            loadGenres();
-            checkActiveRoom();
+            await bootstrapJellyfinDelegate();
         }
 
         async function checkActiveRoom() {
@@ -1004,33 +975,22 @@
                         loadMovies();
                     }
                 } else {
-                    // Not authenticated — set up login flow
-                    try {
-                        const provRes = await fetch('/auth/provider', { credentials: 'same-origin' });
-                        const provData = await provRes.json();
-                        if (provData.jellyfin_browser_auth === 'delegate') {
-                            document.getElementById('login-btn').innerText = 'Continue';
-                            document.getElementById('login-btn').onclick = () => bootstrapJellyfinDelegate();
-                            const booted = await bootstrapJellyfinDelegate();
-                            if (booted) {
-                                // After delegate bootstrap, check for active room
-                                try {
-                                    const meRes = await fetch('/me', { credentials: 'same-origin' });
-                                    if (meRes.ok) {
-                                        const meData = await meRes.json();
-                                        if (meData.activeRoom) {
-                                            currentRoomCode = meData.activeRoom;
-                                            loadMovies();
-                                        }
-                                    }
-                                } catch(e) {}
+                    // Not authenticated — bootstrap via server delegate
+                    document.getElementById('login-btn').innerText = 'Continue';
+                    document.getElementById('login-btn').onclick = () => bootstrapJellyfinDelegate();
+                    const booted = await bootstrapJellyfinDelegate();
+                    if (booted) {
+                        try {
+                            const meRes = await fetch('/me', { credentials: 'same-origin' });
+                            if (meRes.ok) {
+                                const meData = await meRes.json();
+                                if (meData.activeRoom) {
+                                    currentRoomCode = meData.activeRoom;
+                                    loadMovies();
+                                }
                             }
-                            return;
-                        }
-                    } catch(e) { console.error('Provider probe failed', e); }
-                    // Show login form
-                    document.getElementById('login-btn').innerText = 'Login with Jellyfin';
-                    document.getElementById('login-btn').onclick = login;
+                        } catch(e) {}
+                    }
                 }
             } catch(e) { console.error('Auth check failed', e); }
         };
