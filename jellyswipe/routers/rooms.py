@@ -222,6 +222,9 @@ async def swipe(
         body, status_code = result
         return XSSSafeJSONResponse(content=body, status_code=status_code)
 
+    # Commit before notifying to ensure events are persisted
+    await uow.session.commit()
+    notifier.notify(code)
     return {"accepted": True}
 
 
