@@ -70,19 +70,19 @@ class TestRequestIdPropagation:
     """Integration tests for RequestId in HTTP responses."""
 
     def test_response_has_x_request_id_header(self, client):
-        resp = client.get("/auth/provider")
+        resp = client.get("/")
         assert "X-Request-Id" in resp.headers, "Missing X-Request-Id header"
 
     def test_x_request_id_matches_format(self, client):
-        resp = client.get("/auth/provider")
+        resp = client.get("/")
         rid = resp.headers.get("X-Request-Id", "")
         assert re.match(r"^req_\d+_[0-9a-f]{8}$", rid), (
             f"X-Request-Id '{rid}' doesn't match expected format"
         )
 
     def test_different_requests_get_different_ids(self, client):
-        resp1 = client.get("/auth/provider")
-        resp2 = client.get("/auth/provider")
+        resp1 = client.get("/")
+        resp2 = client.get("/")
         rid1 = resp1.headers.get("X-Request-Id", "")
         rid2 = resp2.headers.get("X-Request-Id", "")
         assert rid1 != rid2, "Consecutive requests should get different RequestIds"
@@ -328,15 +328,6 @@ class TestErrorLogging:
 
 class TestAdditionalRoutes:
     """Additional coverage for routes not covered by main test classes."""
-
-    @pytest.mark.skip(
-        reason="ORCH-007: /auth/jellyfin-login route deleted, test cleanup in separate ticket"
-    )
-    def test_400_includes_request_id(self, client):
-        resp = client.post("/auth/jellyfin-login", json={})
-        resp.json()
-        assert resp.status_code == 400
-        assert "X-Request-Id" in resp.headers
 
     def test_404_join_room_includes_request_id(self, client):
         from datetime import datetime, timezone

@@ -304,9 +304,6 @@ class FakeProvider:
     def fetch_library_image(self, path):
         return (b"", "image/jpeg")
 
-    def authenticate_user_session(self, username, password):
-        return {"token": self._token, "user_id": self._user_id}
-
 
 @pytest.fixture
 def app(db_path, monkeypatch):
