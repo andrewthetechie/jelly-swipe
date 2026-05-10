@@ -16,7 +16,11 @@ from jellyswipe.db_runtime import (
     get_sessionmaker,
     initialize_runtime,
 )
-from jellyswipe.migrations import build_sqlite_url, get_database_url, normalize_sync_database_url
+from jellyswipe.migrations import (
+    build_sqlite_url,
+    get_database_url,
+    normalize_sync_database_url,
+)
 
 
 pytestmark = pytest.mark.anyio

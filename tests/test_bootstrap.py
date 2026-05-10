@@ -20,7 +20,9 @@ def test_main_runs_migrations_runtime_and_uvicorn_in_order(monkeypatch):
     monkeypatch.setattr(
         bootstrap,
         "build_async_database_url",
-        lambda database_url: calls.append(("build_async_database_url", database_url)) or async_url,
+        lambda database_url: (
+            calls.append(("build_async_database_url", database_url)) or async_url
+        ),
     )
     monkeypatch.setattr(
         bootstrap,
@@ -59,7 +61,9 @@ def test_main_re_raises_migration_failures_before_runtime_or_server(monkeypatch)
     async_url = "sqlite+aiosqlite:////tmp/bootstrap.db"
 
     monkeypatch.setattr(bootstrap, "get_database_url", lambda: sync_url)
-    monkeypatch.setattr(bootstrap, "build_async_database_url", lambda database_url: async_url)
+    monkeypatch.setattr(
+        bootstrap, "build_async_database_url", lambda database_url: async_url
+    )
 
     def fail_upgrade(database_url: str) -> None:
         calls.append(("upgrade_to_head", database_url))
