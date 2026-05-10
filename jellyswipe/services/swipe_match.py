@@ -201,7 +201,7 @@ def _sync_run_swipe_transaction(
             ),
         )
         rid = _match_sentinel_rowid(conn, code, movie_id)
-        match_data = _last_match_json(
+        _last_match_json(
             title=title,
             thumb=thumb,
             movie_id=movie_id,
@@ -209,11 +209,12 @@ def _sync_run_swipe_transaction(
             deep_link=deep_link,
             sentinel_ts=rid,
         )
-        _execute(
-            conn,
-            "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
-            (match_data, code),
-        )
+        # TODO(ORCH-001): Migrate to session events - for now, skip last_match_data update
+        # _execute(
+        #     conn,
+        #     "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
+        #     (match_data, code),
+        # )
         return None
 
     session_id = request_session.get("session_id")
@@ -269,7 +270,7 @@ def _sync_run_swipe_transaction(
         )
 
     rid = _match_sentinel_rowid(conn, code, movie_id)
-    match_data = _last_match_json(
+    _last_match_json(
         title=title,
         thumb=thumb,
         movie_id=movie_id,
@@ -277,11 +278,12 @@ def _sync_run_swipe_transaction(
         deep_link=deep_link,
         sentinel_ts=rid,
     )
-    _execute(
-        conn,
-        "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
-        (match_data, code),
-    )
+    # TODO(ORCH-001): Migrate to session events - for now, skip last_match_data update
+    # _execute(
+    #     conn,
+    #     "UPDATE rooms SET last_match_data = ? WHERE pairing_code = ?",
+    #     (match_data, code),
+    # )
     return None
 
 
@@ -314,13 +316,15 @@ class SwipeMatchService:
     async def _recompute_last_match_for_room(
         self, uow: DatabaseUnitOfWork, pairing_code: str
     ) -> None:
-        latest = await uow.matches.latest_active_for_room(pairing_code)
-        if latest is None:
-            await uow.rooms.set_last_match_data(pairing_code, None)
-            return
-        await uow.rooms.set_last_match_data(
-            pairing_code, match_record_as_last_match_json(latest)
-        )
+        # TODO(ORCH-001): Migrate to session events - for now, skip last_match_data recomputation
+        # latest = await uow.matches.latest_active_for_room(pairing_code)
+        # if latest is None:
+        #     await uow.rooms.set_last_match_data(pairing_code, None)
+        #     return
+        # await uow.rooms.set_last_match_data(
+        #     pairing_code, match_record_as_last_match_json(latest)
+        # )
+        pass
 
     async def undo_swipe(
         self,

@@ -58,6 +58,7 @@ class SessionInstanceRepository:
                 "instance_id": instance_id,
             },
         )
+        await self._session.flush()
 
     async def mark_closed(self, instance_id: str) -> None:
         """Mark a session instance as closed."""
@@ -69,6 +70,7 @@ class SessionInstanceRepository:
             """),
             {"status": "closed", "instance_id": instance_id},
         )
+        await self._session.flush()
 
     async def delete(self, instance_id: str) -> None:
         """Delete a session instance."""

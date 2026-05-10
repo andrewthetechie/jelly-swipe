@@ -111,12 +111,10 @@ def _make_sse_sleep_mock(on_sleep_callback=None):
     (POLL=1.5 + random jitter 0–0.5). sse_starlette's _ping task uses exactly 15.0,
     and anyio/starlette internal checkpoints use 0 or 0.5.
 
-    Strategy: intercept ONLY the generator's sleep range [1.4, 2.1] and yield control
-    instantly (via asyncio.sleep(0)). This lets _ping run at its natural 15s interval,
-    and task-group cancellation interrupts _ping after _stream_response completes.
-
-    Passing through the _ping's 15s sleep means tests complete in at most one ping
-    interval (15s) after the generator finishes — acceptable versus hanging indefinitely.
+    Strategy: intercept the generator's sleep range [1.4, 2.1] AND any sleep >= 10s
+    (which includes _ping's 15s sleep), yielding control instantly (via asyncio.sleep(0)).
+    This prevents the _ping task from blocking test teardown, allowing task-group
+    cancellation to complete immediately after _stream_response finishes.
 
     Args:
         on_sleep_callback: Optional sync callable(delay) called when generator sleep is
@@ -134,8 +132,11 @@ def _make_sse_sleep_mock(on_sleep_callback=None):
                 on_sleep_callback(delay)
             # Yield control without blocking, allowing task group to process cancellation
             await original_sleep(0)
+        elif delay >= 10:
+            # _ping (15s) or other long sleeps — yield immediately to prevent deadlock
+            await original_sleep(0)
         else:
-            # _ping (15s), anyio checkpoints (0, 0.5) — keep real behavior
+            # anyio checkpoints (0, 0.5) — keep real behavior
             await original_sleep(delay)
 
     return _selective_sleep, sleep_calls

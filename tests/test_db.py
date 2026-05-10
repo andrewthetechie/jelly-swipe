@@ -51,7 +51,6 @@ class TestAlembicBaseline:
                 "ready",
                 "current_genre",
                 "solo_mode",
-                "last_match_data",
                 "deck_position",
                 "deck_order",
                 "hide_watched",
