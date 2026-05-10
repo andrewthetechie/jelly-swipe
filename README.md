@@ -5,10 +5,11 @@
 **Fork:** This project was forked from [Bergasha/kino-swipe](https://github.com/Bergasha/kino-swipe). It is maintained by [@AndrewTheTechie](https://github.com/AndrewTheTechie).
 
 Always trying to decide on a movie to watch together?, This may be the fun solution you've been looking for.
-Dating app style swipe right for like swipe left for nope, If you both swipe right on the 
+Dating app style swipe right for like swipe left for nope, If you both swipe right on the
 same movie, IT'S A MATCH!!
 
 ## Screenshots
+
 <details>
 <summary>Click to expand screenshots</summary>
 
@@ -23,6 +24,7 @@ same movie, IT'S A MATCH!!
 </details>
 
 ## Features
+
 - **Jellyfin Integration:** Connects directly to your server to pull random movies.
 - **Real-Time Sync:** Host a room, share a 4-digit code, and swipe with a partner instantly.
 - **Visual Feedback:** Faint Red/Green "glow" overlays that react as you drag the posters left or right.
@@ -32,7 +34,7 @@ same movie, IT'S A MATCH!!
 - **PWA Support:** Add it to your Home Screen for a native app feel.
 - **Match Notifications:** Instant alerts when you both swipe right on the same movie.
 - **Match History** All matches now live in Match History until you're ready to delete them.
-- **Solo Mode** Flying solo? no worries, just host session and flick the solo toggle. (Every right swipe saves to Match History) 
+- **Solo Mode** Flying solo? no worries, just host session and flick the solo toggle. (Every right swipe saves to Match History)
 
 ## Media backend: Jellyfin
 
@@ -40,15 +42,13 @@ This application connects directly to a **Jellyfin** server to pull random movie
 
 ### Environment variables
 
-| Variable | Required when | Description |
-|----------|-----------------|-------------|
-| `FLASK_SECRET` | Always | Flask session secret. |
-| `TMDB_API_KEY` | Always | TMDB API key (trailers / cast). |
-| `JELLYFIN_URL` | Always | Base URL of your Jellyfin server (no trailing slash). |
-| `JELLYFIN_API_KEY` | With API key | API key for unattended server access. |
-| `JELLYFIN_USERNAME` | With password (if no API key) | Account username for Jellyfin. |
-| `JELLYFIN_PASSWORD` | With username (if no API key) | Account password for Jellyfin. |
-| `JELLYFIN_DEVICE_ID` | Optional | Stable device id string sent with Jellyfin auth headers (default is built-in). |
+| Variable             | Required when | Description                                                                    |
+| -------------------- | ------------- | ------------------------------------------------------------------------------ |
+| `FLASK_SECRET`       | Always        | Flask session secret.                                                          |
+| `TMDB_ACCESS_TOKEN`  | Always        | TMDB API key (trailers / cast).                                                |
+| `JELLYFIN_URL`       | Always        | Base URL of your Jellyfin server (no trailing slash).                          |
+| `JELLYFIN_API_KEY`   | Always        | API key for unattended server access.                                          |
+| `JELLYFIN_DEVICE_ID` | Optional      | Stable device id string sent with Jellyfin auth headers (default is built-in). |
 
 ### Jellyfin user identity contract
 
@@ -64,8 +64,8 @@ and for user-scoped list actions must include a Jellyfin user token via:
 
 ### Jellyfin operator checks (manual)
 
-1. **Happy path:** With valid `JELLYFIN_URL` and credentials, start the app and hit provider endpoints (`/genres`, `/movies`, `/jellyfin/server-info`). Confirm logs show **no** API keys or access tokens.
-2. **Re-login / reset:** Revoke the API key or set a wrong password, restart or trigger a code path that calls `reset()` on the provider, restore valid credentials, and confirm authenticated **`/Items`** succeeds again.
+1. **Happy path:** With valid `JELLYFIN_URL` and `JELLYFIN_API_KEY`, start the app and hit provider endpoints (`/genres`, `/movies`, `/jellyfin/server-info`). Confirm logs show **no** API keys or access tokens.
+2. **API key rotation:** Revoke the API key, restart, confirm failure, create a new API key, restart, and confirm authenticated **`/Items`** succeeds again.
 3. **After recovery:** Restart the process (or rely on the next provider use after `reset()`) and hit `/genres` or create/join a room so `get_provider()` re-authenticates — you should be back to a working deck without pasting any tokens into logs or tickets.
 
 ### Minimal `.env` example
@@ -77,22 +77,14 @@ TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
 FLASK_SECRET=long-random-string
 ```
 
-Alternatively, use username/password authentication instead of API key:
-
-```env
-JELLYFIN_URL=http://your-jellyfin-host:8096
-JELLYFIN_USERNAME=your-username
-JELLYFIN_PASSWORD=your-password
-TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
-FLASK_SECRET=long-random-string
-```
-
 ## Requirements
+
 - **Media backend:** Jellyfin — see [Media backend: Jellyfin](#media-backend-jellyfin) and the env table above.
 - **TMDB Read Access Token** — required at startup (trailers/cast); keep the token private.
 - **HTTPS/Reverse Proxy:** To "Install" the app as a PWA on your phone so it looks like an app, you must access it over an HTTPS connection. If you access it over local ip, it will work in the browser but when added to homescreen it will just act as a shortcut not like an app.
 
 ## TMDB API instructions
+
 Only required if you want trailers to work on the rear of the movie posters.
 
 1. Go to https://www.themoviedb.org/settings/api
@@ -104,6 +96,7 @@ Only required if you want trailers to work on the rear of the movie posters.
 ## Deployment
 
 ### Option 1: Docker (Recommended)
+
 Copy and paste this into your terminal. Replace the variables with your specific setup.
 
 ```bash
@@ -125,6 +118,7 @@ services:
 ```
 
 **Option 2 — Docker Run**
+
 ```bash
 docker run -d \
   --name jelly-swipe \
@@ -170,11 +164,13 @@ This creates a virtual environment in `.venv/` and installs all dependencies fro
 ### Running the app locally
 
 **Development server (auto-reload):**
+
 ```bash
 uv run python -m jellyswipe.bootstrap
 ```
 
 **Production-style server (for testing):**
+
 ```bash
 uv run python -m jellyswipe.bootstrap
 ```
@@ -182,11 +178,13 @@ uv run python -m jellyswipe.bootstrap
 ### Managing dependencies
 
 **Add a new dependency:**
+
 ```bash
 uv add <package-name>
 ```
 
 **Update the lockfile after dependency changes:**
+
 ```bash
 uv lock --upgrade
 ```
