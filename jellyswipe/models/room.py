@@ -22,7 +22,6 @@ class Room(Base):
         Text, nullable=False, server_default="All"
     )
     solo_mode: Mapped[int] = mapped_column(nullable=False, server_default="0")
-    last_match_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     deck_position: Mapped[str | None] = mapped_column(Text, nullable=True)
     deck_order: Mapped[str | None] = mapped_column(Text, nullable=True)
     include_movies: Mapped[int] = mapped_column(nullable=False, server_default="1")

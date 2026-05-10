@@ -12,6 +12,10 @@ from jellyswipe.auth_types import AuthRecord
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.repositories.matches import MatchRepository
 from jellyswipe.repositories.rooms import RoomRepository
+from jellyswipe.repositories.session_events import (
+    SessionEventRepository,
+    SessionInstanceRepository,
+)
 from jellyswipe.repositories.swipes import SwipeRepository
 
 T = TypeVar("T")
@@ -70,6 +74,8 @@ class DatabaseUnitOfWork:
         self.rooms = RoomRepository(session)
         self.swipes = SwipeRepository(session)
         self.matches = MatchRepository(session)
+        self.session_instances = SessionInstanceRepository(session)
+        self.session_events = SessionEventRepository(session)
 
     async def run_sync(self, fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
         """Run legacy sync work on the managed session connection.
@@ -79,7 +85,9 @@ class DatabaseUnitOfWork:
         remains the single owner of transaction completion for this session.
         """
 
-        return await self.session.run_sync(lambda sync_session: fn(sync_session, *args, **kwargs))
+        return await self.session.run_sync(
+            lambda sync_session: fn(sync_session, *args, **kwargs)
+        )
 
 
 __all__ = [
@@ -87,5 +95,7 @@ __all__ = [
     "DatabaseUnitOfWork",
     "MatchRepository",
     "RoomRepository",
+    "SessionEventRepository",
+    "SessionInstanceRepository",
     "SwipeRepository",
 ]
