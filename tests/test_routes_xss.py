@@ -10,6 +10,7 @@ import json
 import os
 from unittest.mock import MagicMock
 
+import pytest
 import sqlite3
 
 from jellyswipe.db_paths import application_db_path
@@ -527,6 +528,9 @@ def test_proxy_valid_uuid_with_dashes_accepted(client):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: /auth/jellyfin-login route deleted, test cleanup in separate ticket"
+)
 def test_login_xss_username_not_echoed(client):
     response = client.post(
         "/auth/jellyfin-login",

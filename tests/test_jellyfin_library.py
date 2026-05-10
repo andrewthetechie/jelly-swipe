@@ -36,6 +36,9 @@ def test_auth_with_api_key(mocker, monkeypatch):
     mock_request.assert_not_called()
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: username/password auth removed, test cleanup in separate ticket"
+)
 def test_auth_with_username_password_success(mocker, monkeypatch):
     """Test authentication with username/password makes API call and extracts token."""
     # Mock environment variables
@@ -73,6 +76,9 @@ def test_auth_with_username_password_success(mocker, monkeypatch):
     assert provider._access_token == "user-token-123"
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: username/password auth removed, test cleanup in separate ticket"
+)
 def test_auth_with_username_password_network_error(mocker, monkeypatch):
     """Test authentication with network error raises RuntimeError."""
     # Mock environment variables
@@ -98,6 +104,9 @@ def test_auth_with_username_password_network_error(mocker, monkeypatch):
         provider.ensure_authenticated()
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: username/password auth removed, test cleanup in separate ticket"
+)
 def test_auth_with_invalid_credentials(mocker, monkeypatch):
     """Test authentication with invalid credentials raises RuntimeError."""
     # Mock environment variables
@@ -127,6 +136,9 @@ def test_auth_with_invalid_credentials(mocker, monkeypatch):
         provider.ensure_authenticated()
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: username/password auth removed, test cleanup in separate ticket"
+)
 def test_auth_with_missing_token_in_response(mocker, monkeypatch):
     """Test authentication when response lacks AccessToken raises RuntimeError."""
     # Mock environment variables
@@ -1044,6 +1056,9 @@ def test_fetch_library_image_invalid_path(mocker, monkeypatch):
         provider.fetch_library_image("invalid/path")
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: authenticate_user_session method removed, test cleanup in separate ticket"
+)
 def test_authenticate_user_session_missing_credentials(mocker, monkeypatch):
     """Test that authenticate_user_session raises RuntimeError for empty credentials."""
     # Mock environment variables
@@ -1060,6 +1075,9 @@ def test_authenticate_user_session_missing_credentials(mocker, monkeypatch):
         provider.authenticate_user_session("", "")
 
 
+@pytest.mark.skip(
+    reason="ORCH-007: authenticate_user_session method removed, test cleanup in separate ticket"
+)
 def test_authenticate_user_session_missing_token_or_user_id(mocker, monkeypatch):
     """Test that authenticate_user_session raises RuntimeError when response lacks token or user_id."""
     # Mock environment variables

@@ -46,7 +46,9 @@ async def runtime_sessionmaker(db_path, monkeypatch):
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
         await session.execute(
-            text("CREATE TABLE bridge_rows (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+            text(
+                "CREATE TABLE bridge_rows (id INTEGER PRIMARY KEY, value TEXT NOT NULL)"
+            )
         )
         await session.commit()
 
@@ -92,6 +94,7 @@ def _begin_immediate_insert(sync_session, value: str) -> None:
 # ---------------------------------------------------------------------------
 # TestRequireAuth
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 class TestRequireAuth:
@@ -158,11 +161,14 @@ class TestRequireAuth:
 # TestGetDbUow
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 class TestGetDbUow:
     """Tests for get_db_uow() dependency."""
 
-    async def test_yields_uow_and_commits_on_success(self, runtime_sessionmaker, monkeypatch):
+    async def test_yields_uow_and_commits_on_success(
+        self, runtime_sessionmaker, monkeypatch
+    ):
         """Successful downstream work commits once and closes the session."""
         session = runtime_sessionmaker()
         counts = _instrument_session(session)
@@ -182,8 +188,14 @@ class TestGetDbUow:
 
         async with runtime_sessionmaker() as verify_session:
             rows = (
-                await verify_session.execute(text("SELECT value FROM bridge_rows ORDER BY id"))
-            ).scalars().all()
+                (
+                    await verify_session.execute(
+                        text("SELECT value FROM bridge_rows ORDER BY id")
+                    )
+                )
+                .scalars()
+                .all()
+            )
         assert rows == ["committed"]
 
     async def test_rolls_back_on_error_after_begin_immediate_bridge(
@@ -205,14 +217,21 @@ class TestGetDbUow:
 
         async with runtime_sessionmaker() as verify_session:
             rows = (
-                await verify_session.execute(text("SELECT value FROM bridge_rows ORDER BY id"))
-            ).scalars().all()
+                (
+                    await verify_session.execute(
+                        text("SELECT value FROM bridge_rows ORDER BY id")
+                    )
+                )
+                .scalars()
+                .all()
+            )
         assert rows == []
 
 
 # ---------------------------------------------------------------------------
 # TestCheckRateLimit
 # ---------------------------------------------------------------------------
+
 
 class TestCheckRateLimit:
     """Tests for check_rate_limit() dependency."""
@@ -279,6 +298,7 @@ class TestCheckRateLimit:
 # TestDestroySessionDep
 # ---------------------------------------------------------------------------
 
+
 class TestDestroySessionDep:
     """Tests for destroy_session_dep() dependency."""
 
@@ -290,7 +310,9 @@ class TestDestroySessionDep:
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            with patch("jellyswipe.auth.destroy_session", new=AsyncMock()) as mock_destroy:
+            with patch(
+                "jellyswipe.auth.destroy_session", new=AsyncMock()
+            ) as mock_destroy:
                 await destroy_session_dep(request, uow)
 
         mock_destroy.assert_awaited_once_with(request.session, uow)
@@ -299,6 +321,7 @@ class TestDestroySessionDep:
 # ---------------------------------------------------------------------------
 # TestGetProvider
 # ---------------------------------------------------------------------------
+
 
 class TestGetProvider:
     """Tests for get_provider() dependency."""
@@ -335,6 +358,7 @@ class TestGetProvider:
 # ---------------------------------------------------------------------------
 # TestAuthUser
 # ---------------------------------------------------------------------------
+
 
 class TestAuthUser:
     """Tests for AuthUser dataclass."""

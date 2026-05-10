@@ -34,15 +34,21 @@ for v in ("TMDB_ACCESS_TOKEN", "FLASK_SECRET"):
 
 if not os.getenv("JELLYFIN_URL", "").strip():
     missing.append("JELLYFIN_URL")
-has_api = bool(os.getenv("JELLYFIN_API_KEY", "").strip())
-has_user_pass = bool(os.getenv("JELLYFIN_USERNAME", "").strip()) and bool(
-    os.getenv("JELLYFIN_PASSWORD", "").strip()
-)
-if not has_api and not has_user_pass:
-    missing.append("JELLYFIN_API_KEY or (JELLYFIN_USERNAME and JELLYFIN_PASSWORD)")
+if not os.getenv("JELLYFIN_API_KEY", "").strip():
+    missing.append("JELLYFIN_API_KEY")
 
 if missing:
-    raise RuntimeError(f"Missing env vars: {missing}")
+    msg = f"Missing env vars: {missing}"
+    if (
+        "JELLYFIN_API_KEY" in missing
+        and os.getenv("JELLYFIN_USERNAME")
+        and os.getenv("JELLYFIN_PASSWORD")
+    ):
+        msg += (
+            ". JELLYFIN_API_KEY is required; username/password authentication has been removed. "
+            "Create an API key in your Jellyfin Dashboard → Advanced → API Keys."
+        )
+    raise RuntimeError(msg)
 
 # SSRF protection: validate JELLYFIN_URL at boot (per D-04)
 validate_jellyfin_url(os.getenv("JELLYFIN_URL"))

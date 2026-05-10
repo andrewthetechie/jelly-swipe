@@ -788,9 +788,7 @@ def _sqlite_conn_for_route_tests():
     return conn
 
 
-def _seed_room(
-    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None
-):
+def _seed_room(room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None):
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
         movie_data = json.dumps([])

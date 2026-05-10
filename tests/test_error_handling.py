@@ -329,6 +329,9 @@ class TestErrorLogging:
 class TestAdditionalRoutes:
     """Additional coverage for routes not covered by main test classes."""
 
+    @pytest.mark.skip(
+        reason="ORCH-007: /auth/jellyfin-login route deleted, test cleanup in separate ticket"
+    )
     def test_400_includes_request_id(self, client):
         resp = client.post("/auth/jellyfin-login", json={})
         resp.json()
