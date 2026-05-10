@@ -50,9 +50,7 @@ def _set_session(
         set_session_cookie(client, data, secret_key)
 
 
-def _seed_room(
-    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None
-):
+def _seed_room(room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None):
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
         movie_data = json.dumps([])
@@ -551,7 +549,6 @@ def test_swipe_right_no_match_yet(client, app):
     assert response.json() == {"accepted": True}
 
 
-
 def test_set_genre_empty_deck_returns_400(client, app, mocker):
     """POST /room/{code}/genre returns 400 when genre filter results in empty deck."""
     from tests.conftest import FakeProvider
@@ -749,3 +746,95 @@ def test_set_watched_filter_requires_auth(client_real_auth, app_real_auth):
         "/room/TEST1/watched-filter", json={"hide_watched": True}
     )
     assert response.status_code in (401, 403)
+
+
+# ---------------------------------------------------------------------------
+# Section: Notifier integration tests (ORCH-003)
+# ---------------------------------------------------------------------------
+
+
+def test_join_room_notifies_after_commit(client, app):
+    """POST /room/{code}/join calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room first
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    # Join with a different session
+    from tests.conftest import set_session_cookie
+
+    join_client_session = {"solo_mode": False}
+    set_session_cookie(client, join_client_session, os.environ["FLASK_SECRET"])
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(f"/room/{code}/join")
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_quit_room_notifies_after_commit(client, app):
+    """POST /room/{code}/quit calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(f"/room/{code}/quit")
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_set_genre_notifies_after_commit(client, app):
+    """POST /room/{code}/genre calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(f"/room/{code}/genre", json={"genre": "Action"})
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_set_watched_filter_notifies_after_commit(client, app):
+    """POST /room/{code}/watched-filter calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+    from jellyswipe.notifier import notifier
+
+    # Create a room
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    create_resp = client.post("/room")
+    assert create_resp.status_code == 200
+    code = create_resp.json()["pairing_code"]
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(
+            f"/room/{code}/watched-filter", json={"hide_watched": True}
+        )
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with(code)
+
+
+def test_create_room_returns_instance_id(client, app):
+    """POST /room returns instance_id in response."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    response = client.post("/room")
+    assert response.status_code == 200
+    data = response.json()
+    assert "instance_id" in data
+    assert data["instance_id"] is not None
+    assert len(data["instance_id"]) > 0  # UUID hex string

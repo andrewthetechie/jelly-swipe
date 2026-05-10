@@ -7,7 +7,6 @@ import json
 import jellyswipe.db
 import jellyswipe.db_runtime
 import pytest
-from sqlalchemy import update
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
     dispose_runtime,
@@ -17,7 +16,6 @@ from jellyswipe.db_runtime import (
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.match import Match
-from jellyswipe.models.room import Room
 from jellyswipe.room_types import MatchRecord
 from jellyswipe.services.room_lifecycle import RoomLifecycleService
 from tests.conftest import FakeProvider
@@ -284,7 +282,6 @@ async def test_fetch_status_returns_hide_watched_false_for_new_room(
         snap = await uow.rooms.fetch_status(pc)
         assert snap is not None
         assert snap.hide_watched is False
-
 
 
 @pytest.mark.anyio
@@ -554,3 +551,274 @@ async def test_solo_session_watched_filter(runtime_sessionmaker):
         assert snap_after.solo is True
         assert isinstance(new_deck, list)
         assert len(new_deck) > 0
+
+
+# ============================================================================
+# Session instance lifecycle and event emission tests (ORCH-003)
+# ============================================================================
+
+
+@pytest.mark.anyio
+async def test_create_room_creates_session_instance(runtime_sessionmaker):
+    """Test create_room creates a session_instances row with status='active' and returns instance_id."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+    sess: dict = {}
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        result = await svc.create_room(sess, uid, prov, uow)
+
+        assert "instance_id" in result
+        instance_id = result["instance_id"]
+
+        # Verify session_instances row was created
+        instance = await uow.session_instances.get_by_instance_id(instance_id)
+        assert instance is not None
+        assert instance.status == "active"
+        assert instance.pairing_code == result["pairing_code"]
+
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_create_room_retries_if_pairing_code_reserved(runtime_sessionmaker):
+    """Test create_room retries code generation if pairing code is reserved by an active instance."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+
+        # Manually reserve a pairing code with an active session instance
+        await uow.session_instances.create(
+            instance_id="reserved-instance-id", pairing_code="1234"
+        )
+        await session.commit()
+
+        # Now create a room - it should not use "1234"
+        sess: dict = {}
+        result = await svc.create_room(sess, uid, prov, uow)
+
+        # Verify the room was created with a different code
+        assert result["pairing_code"] != "1234"
+        assert result["instance_id"] is not None
+
+        # Verify the reserved instance is still there
+        reserved = await uow.session_instances.get_by_pairing_code("1234")
+        assert reserved is not None
+        assert reserved.instance_id == "reserved-instance-id"
+
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_join_room_appends_session_ready_event(runtime_sessionmaker):
+    """Test join_room appends a session_ready event to the ledger for the correct instance."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    creator = "user-a"
+    joiner = "user-b"
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, creator, uow)
+
+        # Get the instance_id for this room
+        instance = await uow.session_instances.get_by_pairing_code(pc)
+        assert instance is not None
+        instance_id = instance.instance_id
+
+        # Join the room
+        sess_join: dict = {}
+        resp = await svc.join_room(pc, sess_join, joiner, uow)
+        await session.commit()
+
+        assert resp == {"status": "success"}
+
+        # Verify session_ready event was appended
+        events = await uow.session_events.read_after(instance_id, 0)
+        assert len(events) == 1
+        assert events[0].event_type == "session_ready"
+        assert events[0].payload_json == "{}"
+
+
+@pytest.mark.anyio
+async def test_set_genre_appends_genre_changed_event(runtime_sessionmaker):
+    """Test set_genre on success appends genre_changed event with correct genre payload."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get the instance_id
+        instance = await uow.session_instances.get_by_pairing_code(pc)
+        assert instance is not None
+        instance_id = instance.instance_id
+
+        # Set genre
+        await svc.set_genre(pc, "Action", prov, uow)
+        await session.commit()
+
+        # Verify genre_changed event was appended
+        events = await uow.session_events.read_after(instance_id, 0)
+        assert len(events) == 1
+        assert events[0].event_type == "genre_changed"
+        payload = json.loads(events[0].payload_json)
+        assert payload == {"genre": "Action"}
+
+
+@pytest.mark.anyio
+async def test_set_genre_empty_deck_no_event(runtime_sessionmaker):
+    """Test set_genre on EmptyDeckError does NOT append any event."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get the instance_id
+        instance = await uow.session_instances.get_by_pairing_code(pc)
+        assert instance is not None
+        instance_id = instance.instance_id
+
+        # Mock provider to return empty deck
+        original_fetch = prov.fetch_deck
+
+        def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+            return []
+
+        prov.fetch_deck = mock_fetch
+
+        # Attempt to change genre (should raise EmptyDeckError)
+        from jellyswipe.services.room_lifecycle import EmptyDeckError
+
+        with pytest.raises(EmptyDeckError):
+            await svc.set_genre(pc, "Action", prov, uow)
+
+        # Verify NO event was appended
+        events = await uow.session_events.read_after(instance_id, 0)
+        assert len(events) == 0
+
+        prov.fetch_deck = original_fetch
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_set_watched_filter_appends_event(runtime_sessionmaker):
+    """Test set_watched_filter on success appends hide_watched_changed event."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get the instance_id
+        instance = await uow.session_instances.get_by_pairing_code(pc)
+        assert instance is not None
+        instance_id = instance.instance_id
+
+        # Set watched filter
+        await svc.set_watched_filter(pc, True, prov, uow)
+        await session.commit()
+
+        # Verify hide_watched_changed event was appended
+        events = await uow.session_events.read_after(instance_id, 0)
+        assert len(events) == 1
+        assert events[0].event_type == "hide_watched_changed"
+        payload = json.loads(events[0].payload_json)
+        assert payload == {"hide_watched": True}
+
+
+@pytest.mark.anyio
+async def test_quit_room_appends_session_closed_and_marks_closing(runtime_sessionmaker):
+    """Test quit_room appends session_closed event, marks instance 'closing' with closed_at."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Get the instance_id
+        instance = await uow.session_instances.get_by_pairing_code(pc)
+        assert instance is not None
+        instance_id = instance.instance_id
+
+        # Quit the room
+        sess: dict = {"active_room": pc, "solo_mode": False}
+        out = await svc.quit_room(pc, sess, uid, uow)
+        await session.commit()
+
+        assert out == {"status": "session_ended"}
+
+        # Verify session_closed event was appended
+        events = await uow.session_events.read_after(instance_id, 0)
+        assert len(events) == 1
+        assert events[0].event_type == "session_closed"
+
+        # Verify instance is marked as 'closing' with closed_at
+        instance_after = await uow.session_instances.get_by_instance_id(instance_id)
+        assert instance_after is not None
+        assert instance_after.status == "closing"
+        assert instance_after.closed_at is not None
+
+
+@pytest.mark.anyio
+async def test_quit_room_schedules_background_cleanup(runtime_sessionmaker):
+    """Test quit_room schedules background cleanup task."""
+    import asyncio
+
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # Count tasks before quit
+        tasks_before = len(asyncio.all_tasks())
+
+        # Quit the room
+        sess: dict = {"active_room": pc, "solo_mode": False}
+        await svc.quit_room(pc, sess, uid, uow)
+        await session.commit()
+
+        # Count tasks after quit - should have one more (the cleanup task)
+        tasks_after = len(asyncio.all_tasks())
+        assert tasks_after > tasks_before, "Background cleanup task should be scheduled"
+
+
+@pytest.mark.anyio
+async def test_get_status_no_last_match_field(runtime_sessionmaker):
+    """Test get_status returns no last_match field."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        status = await svc.get_status(pc, uow)
+        await session.commit()
+
+    assert "last_match" not in status
+    assert "ready" in status
+    assert "genre" in status
+    assert "solo" in status
+    assert "hide_watched" in status
