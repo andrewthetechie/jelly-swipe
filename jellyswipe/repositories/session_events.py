@@ -46,19 +46,11 @@ class SessionInstanceRepository:
         """Mark a session instance as closing."""
         from datetime import datetime, timezone
 
-        await self._session.execute(
-            text("""
-                UPDATE session_instances
-                SET status = :status, closed_at = :closed_at
-                WHERE instance_id = :instance_id
-            """),
-            {
-                "status": "closing",
-                "closed_at": datetime.now(timezone.utc).isoformat(),
-                "instance_id": instance_id,
-            },
-        )
-        await self._session.flush()
+        instance = await self.get_by_instance_id(instance_id)
+        if instance:
+            instance.status = "closing"
+            instance.closed_at = datetime.now(timezone.utc).isoformat()
+            await self._session.flush()
 
     async def mark_closed(self, instance_id: str) -> None:
         """Mark a session instance as closed."""
@@ -99,6 +91,29 @@ class SessionInstanceRepository:
             {"cutoff": cutoff_iso},
         )
         return result.rowcount or 0
+
+    async def get_closing_before(self, cutoff_iso: str) -> list[SessionInstance]:
+        """Get instances marked as 'closing' before the cutoff time."""
+        result = await self._session.execute(
+            text("""
+                SELECT * FROM session_instances
+                WHERE status = 'closing' AND closed_at < :cutoff
+            """),
+            {"cutoff": cutoff_iso},
+        )
+        rows = result.mappings().all()
+        instances = []
+        for row in rows:
+            instances.append(
+                SessionInstance(
+                    instance_id=row["instance_id"],
+                    pairing_code=row["pairing_code"],
+                    status=row["status"],
+                    created_at=row["created_at"],
+                    closed_at=row["closed_at"],
+                )
+            )
+        return instances
 
 
 class SessionEventRepository:
