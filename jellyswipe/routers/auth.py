@@ -52,13 +52,6 @@ def log_exception(exc: Exception, request: Request, context: dict = None) -> Non
     _logger.error("unhandled_exception", extra=log_data)
 
 
-@auth_router.get("/auth/provider")
-def auth_provider(request: Request):
-    """Return authentication provider information."""
-    payload = {"provider": "jellyfin", "jellyfin_browser_auth": "delegate"}
-    return payload
-
-
 @auth_router.post("/auth/jellyfin-use-server-identity")
 async def jellyfin_use_server_identity(request: Request, uow: DBUoW):
     """Authenticate using Jellyfin server delegate identity."""
@@ -70,27 +63,6 @@ async def jellyfin_use_server_identity(request: Request, uow: DBUoW):
         return make_error_response("Jellyfin delegate unavailable", 401, request)
     await create_session(token, uid, request.session, uow)
     return {"userId": uid}
-
-
-@auth_router.post("/auth/jellyfin-login")
-async def jellyfin_login(request: Request, uow: DBUoW):
-    """Authenticate user with Jellyfin username and password."""
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
-    if not username or not password:
-        return XSSSafeJSONResponse(
-            content={"error": "Username and password are required"}, status_code=400
-        )
-    try:
-        out = get_provider().authenticate_user_session(username, password)
-        await create_session(out["token"], out["user_id"], request.session, uow)
-        return {"userId": out["user_id"]}
-    except Exception:
-        return make_error_response("Jellyfin login failed", 401, request)
 
 
 @auth_router.post("/auth/logout")

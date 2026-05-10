@@ -3,6 +3,7 @@
 import os
 import pathlib
 
+
 def test_module_import():
     """
     Test that jellyswipe modules can be imported without Flask app errors.
@@ -24,11 +25,12 @@ def test_module_import():
     import jellyswipe.migrations
 
     # Verify the modules have expected exports
-    assert hasattr(jellyswipe.db, 'prepare_runtime_database')
-    assert hasattr(jellyswipe.db, 'cleanup_expired_auth_sessions')
-    assert hasattr(jellyswipe.bootstrap, 'main')
-    assert hasattr(jellyswipe.jellyfin_library, 'JellyfinLibraryProvider')
-    assert hasattr(jellyswipe.migrations, 'upgrade_to_head')
+    assert hasattr(jellyswipe.db, "prepare_runtime_database")
+    assert hasattr(jellyswipe.db, "cleanup_expired_auth_sessions")
+    assert hasattr(jellyswipe.bootstrap, "main")
+    assert hasattr(jellyswipe.jellyfin_library, "JellyfinLibraryProvider")
+    assert hasattr(jellyswipe.migrations, "upgrade_to_head")
+
 
 def test_env_vars_set():
     """
@@ -64,7 +66,14 @@ def test_pyproject_declares_fastapi_stack_and_excludes_flask_stack():
     # We check the [project.dependencies] section specifically to avoid matching
     # comments or unrelated text. A simple substring check on the file is
     # sufficient because these names are unique within pyproject.toml.
-    required = ["aiosqlite", "fastapi", "uvicorn", "itsdangerous", "jinja2", "python-multipart"]
+    required = [
+        "aiosqlite",
+        "fastapi",
+        "uvicorn",
+        "itsdangerous",
+        "jinja2",
+        "python-multipart",
+    ]
     for pkg in required:
         assert pkg in content, (
             f"DEP-01 FAIL: required package '{pkg}' not found in pyproject.toml"
@@ -100,13 +109,15 @@ def test_dockerfile_cmd_uses_python_bootstrap_entrypoint():
     content = dockerfile_path.read_text()
 
     # Extract the CMD line(s) for targeted assertions.
-    cmd_lines = [line for line in content.splitlines() if line.strip().startswith("CMD")]
+    cmd_lines = [
+        line for line in content.splitlines() if line.strip().startswith("CMD")
+    ]
     assert len(cmd_lines) == 1, (
         f"DEP-01 FAIL: expected exactly 1 CMD line in Dockerfile, found {len(cmd_lines)}: {cmd_lines}"
     )
     cmd_line = cmd_lines[0]
 
-    assert 'python' in cmd_line, (
+    assert "python" in cmd_line, (
         f"DEP-01 FAIL: CMD line does not reference python. CMD: {cmd_line!r}"
     )
     assert "jellyswipe.bootstrap" in cmd_line, (

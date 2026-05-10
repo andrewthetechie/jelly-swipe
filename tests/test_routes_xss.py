@@ -153,7 +153,7 @@ class TestLayer3CSPHeader:
         assert "Content-Security-Policy" in response.headers
         assert response.headers["Content-Security-Policy"] != ""
 
-        response = client.get("/auth/provider")
+        response = client.get("/me")
         assert "Content-Security-Policy" in response.headers
         assert response.headers["Content-Security-Policy"] != ""
 
@@ -525,17 +525,6 @@ def test_proxy_valid_uuid_with_dashes_accepted(client):
 # ---------------------------------------------------------------------------
 # Section 3: Input validation tests (D-16, D-17)
 # ---------------------------------------------------------------------------
-
-
-def test_login_xss_username_not_echoed(client):
-    response = client.post(
-        "/auth/jellyfin-login",
-        json={"username": XSS_SCRIPT_TAG, "password": "testpass"},
-    )
-
-    body_text = response.text
-    assert "<script>" not in body_text
-    assert response.status_code in (200, 401)
 
 
 def test_join_room_xss_code_not_echoed(client):

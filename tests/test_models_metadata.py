@@ -17,8 +17,7 @@ def test_target_metadata_contains_phase36_tables():
 def test_swipes_has_room_and_auth_session_foreign_keys():
     swipes = target_metadata.tables["swipes"]
     fk_targets = sorted(
-        f"{fk.column.table.name}.{fk.column.name}"
-        for fk in swipes.foreign_keys
+        f"{fk.column.table.name}.{fk.column.name}" for fk in swipes.foreign_keys
     )
     assert fk_targets == ["auth_sessions.session_id", "rooms.pairing_code"]
 

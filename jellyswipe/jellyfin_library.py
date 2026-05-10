@@ -82,46 +82,12 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
 
     def _login_from_env(self) -> None:
         api_key = os.getenv("JELLYFIN_API_KEY", "").strip()
-        username = os.getenv("JELLYFIN_USERNAME", "").strip()
-        password = os.getenv("JELLYFIN_PASSWORD", "").strip()
-
         if api_key:
             self._access_token = api_key
-        elif username and password:
-            url = f"{self._base}/Users/AuthenticateByName"
-            init_header = (
-                'MediaBrowser Client="JellySwipe", Device="FlaskApp", '
-                f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token=""'
-            )
-            try:
-                r = self._session.post(
-                    url,
-                    headers={"Authorization": init_header},
-                    json={"Username": username, "Pw": password},
-                    timeout=30,
-                )
-            except requests.RequestException as exc:
-                raise RuntimeError(
-                    "Jellyfin authentication failed (network error)"
-                ) from exc
-            if not r.ok:
-                raise RuntimeError(
-                    "Jellyfin authentication failed (check username, password, or server URL)"
-                )
-            try:
-                data = r.json()
-            except ValueError as exc:
-                raise RuntimeError(
-                    "Jellyfin authentication failed (invalid response)"
-                ) from exc
-            token = data.get("AccessToken")
-            if not token:
-                raise RuntimeError(
-                    "Jellyfin authentication failed (no access token in response)"
-                )
-            self._access_token = token
         else:
-            raise RuntimeError("Jellyfin authentication failed (missing credentials)")
+            raise RuntimeError(
+                "Jellyfin authentication failed (JELLYFIN_API_KEY required)"
+            )
 
     def _verify_items(self) -> None:
         """Lightweight /Items probe after login (must not call _api → ensure loop)."""
@@ -201,15 +167,6 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                 f"Jellyfin: could not resolve user id (HTTP {r.status_code})"
             )
         users = r.json() or []
-        preferred = (os.getenv("JELLYFIN_USERNAME") or "").strip().lower()
-        for u in users:
-            if (
-                preferred
-                and (u.get("Name") or "").strip().lower() == preferred
-                and u.get("Id")
-            ):
-                self._cached_user_id = u["Id"]
-                return self._cached_user_id
         if users and users[0].get("Id"):
             self._cached_user_id = users[0]["Id"]
             return self._cached_user_id
@@ -578,37 +535,6 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
             f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{user_token}"'
         )
 
-    def authenticate_user_session(self, username: str, password: str) -> dict:
-        """Exchange user credentials for Jellyfin user session token + user id."""
-        if not username or not password:
-            raise RuntimeError("Jellyfin login failed (missing username/password)")
-        url = f"{self._base}/Users/AuthenticateByName"
-        init_header = (
-            'MediaBrowser Client="JellySwipe", Device="Browser", '
-            f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token=""'
-        )
-        try:
-            r = self._session.post(
-                url,
-                headers={
-                    "Authorization": init_header,
-                    "Content-Type": "application/json",
-                },
-                json={"Username": username, "Pw": password},
-                timeout=30,
-            )
-        except requests.RequestException as exc:
-            raise RuntimeError("Jellyfin login failed (network error)") from exc
-        if not r.ok:
-            raise RuntimeError("Jellyfin login failed (invalid credentials)")
-        data = r.json()
-        token = data.get("AccessToken")
-        user = data.get("User") or {}
-        uid = user.get("Id")
-        if not token or not uid:
-            raise RuntimeError("Jellyfin login failed (missing token or user id)")
-        return {"token": token, "user_id": uid}
-
     def resolve_user_id_from_token(self, user_token: str) -> str:
         if not user_token:
             raise RuntimeError("Missing Jellyfin user token")
@@ -637,14 +563,6 @@ class JellyfinLibraryProvider(LibraryMediaProvider):
                     f"Failed to resolve Jellyfin user (HTTP {rr.status_code})"
                 )
             users = rr.json() or []
-            preferred = (os.getenv("JELLYFIN_USERNAME") or "").strip().lower()
-            for u in users:
-                if (
-                    preferred
-                    and (u.get("Name") or "").strip().lower() == preferred
-                    and u.get("Id")
-                ):
-                    return u["Id"]
             if users and users[0].get("Id"):
                 return users[0]["Id"]
             raise RuntimeError("Failed to resolve Jellyfin user id")

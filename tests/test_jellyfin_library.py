@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 import pytest
-import requests
 
 from jellyswipe.jellyfin_library import JellyfinLibraryProvider
 
@@ -34,129 +33,6 @@ def test_auth_with_api_key(mocker, monkeypatch):
 
     # Verify Session.request was NOT called (bypasses _login_from_env)
     mock_request.assert_not_called()
-
-
-def test_auth_with_username_password_success(mocker, monkeypatch):
-    """Test authentication with username/password makes API call and extracts token."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_USERNAME", "testuser")
-    monkeypatch.setenv("JELLYFIN_PASSWORD", "testpass")
-    monkeypatch.setenv(
-        "JELLYFIN_API_KEY", ""
-    )  # Clear API key to force username/password
-
-    # Mock Session.request to return successful auth response
-    mock_response = mocker.MagicMock()
-    mock_response.ok = True
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"AccessToken": "user-token-123"}
-    mock_session = mocker.MagicMock()
-    mock_session.post.return_value = mock_response
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
-
-    # Create provider and authenticate
-    provider = JellyfinLibraryProvider("http://test.local")
-    provider.ensure_authenticated()
-
-    # Verify POST to auth endpoint was called
-    mock_session.post.assert_called_once()
-    call_args = mock_session.post.call_args
-    url = call_args[0][0] if call_args[0] else call_args[1].get("url", "")
-    assert "AuthenticateByName" in url
-    assert call_args[1]["json"]["Username"] == "testuser"
-    assert call_args[1]["json"]["Pw"] == "testpass"
-
-    # Verify token is extracted
-    assert provider._access_token == "user-token-123"
-
-
-def test_auth_with_username_password_network_error(mocker, monkeypatch):
-    """Test authentication with network error raises RuntimeError."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_USERNAME", "testuser")
-    monkeypatch.setenv("JELLYFIN_PASSWORD", "testpass")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "")
-
-    # Mock Session.request to raise network exception
-    mock_session = mocker.MagicMock()
-    mock_session.post.side_effect = requests.RequestException("Network error")
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
-
-    # Create provider and attempt authentication
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Verify RuntimeError is raised
-    with pytest.raises(
-        RuntimeError, match="Jellyfin authentication failed \\(network error\\)"
-    ):
-        provider.ensure_authenticated()
-
-
-def test_auth_with_invalid_credentials(mocker, monkeypatch):
-    """Test authentication with invalid credentials raises RuntimeError."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_USERNAME", "testuser")
-    monkeypatch.setenv("JELLYFIN_PASSWORD", "wrongpass")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "")
-
-    # Mock Session.request to return 401
-    mock_response = mocker.MagicMock()
-    mock_response.ok = False
-    mock_response.status_code = 401
-    mock_session = mocker.MagicMock()
-    mock_session.post.return_value = mock_response
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
-
-    # Create provider and attempt authentication
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Verify RuntimeError is raised
-    with pytest.raises(
-        RuntimeError,
-        match="Jellyfin authentication failed \\(check username, password, or server URL\\)",
-    ):
-        provider.ensure_authenticated()
-
-
-def test_auth_with_missing_token_in_response(mocker, monkeypatch):
-    """Test authentication when response lacks AccessToken raises RuntimeError."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_USERNAME", "testuser")
-    monkeypatch.setenv("JELLYFIN_PASSWORD", "testpass")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "")
-
-    # Mock Session.request to return 200 OK but without AccessToken
-    mock_response = mocker.MagicMock()
-    mock_response.ok = True
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "User": {"Id": "user-123"}
-    }  # Missing AccessToken
-    mock_session = mocker.MagicMock()
-    mock_session.post.return_value = mock_response
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
-
-    # Create provider and attempt authentication
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Verify RuntimeError is raised
-    with pytest.raises(
-        RuntimeError,
-        match="Jellyfin authentication failed \\(no access token in response\\)",
-    ):
-        provider.ensure_authenticated()
 
 
 # ---- User ID Resolution Tests ----
@@ -275,56 +151,6 @@ def test_user_id_from_users_me_endpoint(mocker, monkeypatch):
     user_id2 = provider._user_id()
     assert user_id2 == "user-123"
     assert mock_session.request.call_count == 1  # Only one HTTP call
-
-
-def test_user_id_fallback_to_users_list(mocker, monkeypatch):
-    """Test user ID resolution falls back to /Users when /Users/Me fails."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-    monkeypatch.setenv("JELLYFIN_USERNAME", "testuser")
-
-    # Create mock session
-    mock_session = mocker.MagicMock()
-
-    # Mock _api() to fail (simulating /Users/Me failure)
-    def mock_api_fail(method, path, **kwargs):
-        raise RuntimeError("API call failed")
-
-    # Mock direct .get() call for /Users endpoint
-    mock_response = mocker.MagicMock()
-    mock_response.ok = True
-    mock_response.status_code = 200
-    mock_response.json.return_value = [
-        {"Id": "user-456", "Name": "testuser"},
-        {"Id": "user-789", "Name": "otheruser"},
-    ]
-    mock_session.get.return_value = mock_response
-
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
-
-    # Create provider and set access token
-    provider = JellyfinLibraryProvider("http://test.local")
-    provider._access_token = "test-token"
-
-    # Patch _api to fail for /Users/Me
-    original_api = provider._api
-
-    def patched_api(method, path, **kwargs):
-        if path == "/Users/Me":
-            raise RuntimeError("API call failed")
-        return original_api(method, path, **kwargs)
-
-    provider._api = patched_api
-
-    # Call _user_id
-    user_id = provider._user_id()
-
-    # Verify user matching JELLYFIN_USERNAME is selected
-    assert user_id == "user-456"
-    assert provider._cached_user_id == "user-456"
 
 
 def test_user_id_fallback_to_first_user(mocker, monkeypatch):
@@ -1042,49 +868,6 @@ def test_fetch_library_image_invalid_path(mocker, monkeypatch):
     # Verify PermissionError is raised for invalid path
     with pytest.raises(PermissionError, match="Invalid Jellyfin image path"):
         provider.fetch_library_image("invalid/path")
-
-
-def test_authenticate_user_session_missing_credentials(mocker, monkeypatch):
-    """Test that authenticate_user_session raises RuntimeError for empty credentials."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-
-    # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Verify RuntimeError is raised for empty username/password
-    with pytest.raises(
-        RuntimeError, match="Jellyfin login failed \\(missing username/password\\)"
-    ):
-        provider.authenticate_user_session("", "")
-
-
-def test_authenticate_user_session_missing_token_or_user_id(mocker, monkeypatch):
-    """Test that authenticate_user_session raises RuntimeError when response lacks token or user_id."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-
-    # Mock Session.request to return response with AccessToken but missing User.Id
-    mock_response = mocker.MagicMock()
-    mock_response.ok = True
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"AccessToken": "token-123"}  # Missing User.Id
-    mock_session = mocker.MagicMock()
-    mock_session.post.return_value = mock_response
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
-
-    # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Verify RuntimeError is raised
-    with pytest.raises(
-        RuntimeError, match="Jellyfin login failed \\(missing token or user id\\)"
-    ):
-        provider.authenticate_user_session("user", "pass")
 
 
 def test_api_non_json_response(mocker, monkeypatch):

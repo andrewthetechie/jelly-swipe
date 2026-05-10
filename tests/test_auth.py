@@ -78,7 +78,9 @@ class TestCreateSession:
         session_dict = {}
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            session_id = await auth.create_session("new-token", "new-user", session_dict, uow)
+            session_id = await auth.create_session(
+                "new-token", "new-user", session_dict, uow
+            )
             assert isinstance(session_id, str)
             assert session_id
             assert session_dict["session_id"] == session_id
@@ -86,8 +88,14 @@ class TestCreateSession:
 
         async with runtime_sessionmaker() as session:
             rows = (
-                await session.execute(select(AuthSession).order_by(AuthSession.session_id))
-            ).scalars().all()
+                (
+                    await session.execute(
+                        select(AuthSession).order_by(AuthSession.session_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
 
         assert len(rows) == 2
         assert {row.session_id for row in rows} == {"fresh-session", session_id}
@@ -98,7 +106,9 @@ class TestCreateSession:
 
 @pytest.mark.anyio
 class TestGetCurrentToken:
-    async def test_returns_typed_auth_record_for_valid_session(self, runtime_sessionmaker):
+    async def test_returns_typed_auth_record_for_valid_session(
+        self, runtime_sessionmaker
+    ):
         record = AuthRecord(
             session_id="record-session",
             jf_token="record-token",
@@ -119,11 +129,15 @@ class TestGetCurrentToken:
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            current = await auth.get_current_token({"session_id": record.session_id}, uow)
+            current = await auth.get_current_token(
+                {"session_id": record.session_id}, uow
+            )
 
         assert current == record
 
-    async def test_returns_none_for_missing_session_id_or_missing_row(self, runtime_sessionmaker):
+    async def test_returns_none_for_missing_session_id_or_missing_row(
+        self, runtime_sessionmaker
+    ):
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             assert await auth.get_current_token({}, uow) is None
@@ -132,7 +146,9 @@ class TestGetCurrentToken:
 
 @pytest.mark.anyio
 class TestDestroySession:
-    async def test_destroy_session_clears_all_local_state_and_deletes_row(self, runtime_sessionmaker):
+    async def test_destroy_session_clears_all_local_state_and_deletes_row(
+        self, runtime_sessionmaker
+    ):
         record = AuthRecord(
             session_id="destroy-session",
             jf_token="destroy-token",
@@ -151,7 +167,11 @@ class TestDestroySession:
             )
             await session.commit()
 
-        session_dict = {"session_id": record.session_id, "active_room": "ROOM1", "solo_mode": True}
+        session_dict = {
+            "session_id": record.session_id,
+            "active_room": "ROOM1",
+            "solo_mode": True,
+        }
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             await auth.destroy_session(session_dict, uow)
@@ -162,7 +182,9 @@ class TestDestroySession:
         async with runtime_sessionmaker() as session:
             persisted = (
                 await session.execute(
-                    select(AuthSession).where(AuthSession.session_id == record.session_id)
+                    select(AuthSession).where(
+                        AuthSession.session_id == record.session_id
+                    )
                 )
             ).scalar_one_or_none()
         assert persisted is None
@@ -173,7 +195,11 @@ class TestDestroySession:
         async def blow_up(self, session_id: str) -> int:
             raise RuntimeError(f"delete failed for {session_id}")
 
-        session_dict = {"session_id": "broken-session", "active_room": "ROOM1", "solo_mode": True}
+        session_dict = {
+            "session_id": "broken-session",
+            "active_room": "ROOM1",
+            "solo_mode": True,
+        }
         monkeypatch.setattr(AuthSessionRepository, "delete_by_session_id", blow_up)
 
         async with runtime_sessionmaker() as session:
@@ -194,18 +220,25 @@ def test_shared_bootstrap_reinitializes_runtime_for_distinct_temp_dbs(tmp_path):
 
     try:
         first_bootstrap = _bootstrap_temp_db_runtime(first_db_path, first_patch)
-        assert jellyswipe.db_runtime.RUNTIME_DATABASE_URL == first_bootstrap["runtime_database_url"]
+        assert (
+            jellyswipe.db_runtime.RUNTIME_DATABASE_URL
+            == first_bootstrap["runtime_database_url"]
+        )
 
         asyncio.run(jellyswipe.db_runtime.dispose_runtime())
         first_patch.undo()
 
         second_bootstrap = _bootstrap_temp_db_runtime(second_db_path, second_patch)
-        assert jellyswipe.db_runtime.RUNTIME_DATABASE_URL == second_bootstrap["runtime_database_url"]
-        assert second_bootstrap["runtime_database_url"] != first_bootstrap["runtime_database_url"]
-
-        asyncio.run(
-            jellyswipe.db_runtime.dispose_runtime()
+        assert (
+            jellyswipe.db_runtime.RUNTIME_DATABASE_URL
+            == second_bootstrap["runtime_database_url"]
         )
+        assert (
+            second_bootstrap["runtime_database_url"]
+            != first_bootstrap["runtime_database_url"]
+        )
+
+        asyncio.run(jellyswipe.db_runtime.dispose_runtime())
     finally:
         second_patch.undo()
         first_patch.undo()

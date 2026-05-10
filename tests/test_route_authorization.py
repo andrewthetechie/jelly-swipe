@@ -107,62 +107,7 @@ ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
 )
 
 
-# --- Login/Delegate Route Tests ---
-
-
-def test_login_returns_userId_no_authToken(db_connection, client_real_auth):
-    """Login endpoint stores token in vault and returns only userId."""
-    response = client_real_auth.post(
-        "/auth/jellyfin-login",
-        json={
-            "username": "testuser",
-            "password": "testpass",
-        },
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "userId" in data
-    assert "authToken" not in data
-
-
-def test_login_creates_vault_entry(db_connection, client_real_auth):
-    """Login creates a auth_sessions row and sets session_id cookie."""
-    response = client_real_auth.post(
-        "/auth/jellyfin-login",
-        json={
-            "username": "testuser",
-            "password": "testpass",
-        },
-    )
-    assert response.status_code == 200
-    # Verify vault entry was created
-    count = db_connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
-    assert count == 1
-    row = db_connection.execute(
-        "SELECT jellyfin_token, jellyfin_user_id FROM auth_sessions"
-    ).fetchone()
-    assert row["jellyfin_token"] == "valid-token"
-    assert row["jellyfin_user_id"] == "verified-user"
-
-
-def test_login_sets_session_cookie(db_connection, client_real_auth):
-    """Login sets session_id in the session cookie."""
-    response = client_real_auth.post(
-        "/auth/jellyfin-login",
-        json={
-            "username": "testuser",
-            "password": "testpass",
-        },
-    )
-    assert response.status_code == 200
-    # Verify auth works on protected endpoint (session was set)
-    resp2 = client_real_auth.get("/auth/provider")
-    assert resp2.status_code == 200
-
-
-def test_login_missing_credentials_returns_400(db_connection, client_real_auth):
-    response = client_real_auth.post("/auth/jellyfin-login", json={})
-    assert response.status_code == 400
+# --- Delegate Route Tests ---
 
 
 def test_delegate_returns_userId(db_connection, client_real_auth):
@@ -185,24 +130,6 @@ def test_delegate_creates_vault_entry(db_connection, client_real_auth):
     ).fetchone()
     assert row["jellyfin_token"] == "valid-token"
     assert row["jellyfin_user_id"] == "verified-user"
-
-
-def test_delegate_no_session_flag(db_connection, client_real_auth):
-    """Delegate no longer sets jf_delegate_server_identity session flag."""
-    response = client_real_auth.post("/auth/jellyfin-use-server-identity")
-    assert response.status_code == 200
-    # Verify session is live by calling auth endpoint
-    resp2 = client_real_auth.get("/auth/provider")
-    assert resp2.status_code == 200
-
-
-def test_delegate_sets_session_cookie(db_connection, client_real_auth):
-    """Delegate sets session_id in the session cookie."""
-    response = client_real_auth.post("/auth/jellyfin-use-server-identity")
-    assert response.status_code == 200
-    # Verify session is live by calling auth endpoint
-    resp2 = client_real_auth.get("/auth/provider")
-    assert resp2.status_code == 200
 
 
 # --- Mutation Route Authorization Tests ---
