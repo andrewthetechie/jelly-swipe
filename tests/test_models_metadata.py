@@ -8,6 +8,8 @@ def test_target_metadata_contains_phase36_tables():
         "auth_sessions",
         "matches",
         "rooms",
+        "session_events",
+        "session_instances",
         "swipes",
     ]
 

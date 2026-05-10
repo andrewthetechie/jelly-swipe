@@ -243,13 +243,6 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
 
         assert await svc.get_deck("9999", uid, 1, uow) == []
 
-        lm = {"type": "match", "ts": 999.9}
-        await session.execute(
-            update(Room)
-            .where(Room.pairing_code == pc)
-            .values(last_match_data=json.dumps(lm))
-        )
-
         genre_deck = await svc.set_genre(pc, "Action", prov, uow)
         assert isinstance(genre_deck, list) and genre_deck
         rec_after = await uow.rooms.get_room(pc)
@@ -260,7 +253,6 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
         assert status["ready"] is False
         assert status["genre"] == "Action"
         assert status["solo"] is False
-        assert status["last_match"]["ts"] == 999.9
 
         assert isinstance(await svc.get_matches(pc, uid, None, uow), list)
         assert isinstance(await svc.get_matches(pc, uid, "history", uow), list)
@@ -293,25 +285,6 @@ async def test_fetch_status_returns_hide_watched_false_for_new_room(
         assert snap is not None
         assert snap.hide_watched is False
 
-
-@pytest.mark.anyio
-async def test_fetch_stream_snapshot_returns_hide_watched_false_for_new_room(
-    runtime_sessionmaker,
-):
-    svc = RoomLifecycleService()
-    prov = FakeProvider()
-    uid = prov._user_id
-
-    async with runtime_sessionmaker() as session:
-        uow = DatabaseUnitOfWork(session)
-        pc = await force_create_room(svc, prov, uid, uow)
-        await session.commit()
-
-    async with runtime_sessionmaker() as session:
-        uow = DatabaseUnitOfWork(session)
-        snap = await uow.rooms.fetch_stream_snapshot(pc)
-        assert snap is not None
-        assert snap.hide_watched is False
 
 
 @pytest.mark.anyio

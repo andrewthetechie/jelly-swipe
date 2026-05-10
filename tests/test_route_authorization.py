@@ -683,38 +683,6 @@ class TestSSEMatchDelivery:
         assert "year" in m
         assert m["year"] == "2024"
 
-    def test_last_match_data_includes_enriched_payload(
-        self, db_connection, client_real_auth
-    ):
-        """After a match, rooms.last_match_data contains full enriched JSON."""
-        _set_session(
-            client_real_auth,
-            db_connection,
-            os.environ["FLASK_SECRET"],
-            active_room="ROOM1",
-            authenticated=True,
-        )
-        _seed_room_with_movies(db_connection, solo_mode=1)
-
-        client_real_auth.post(
-            "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
-        )
-
-        row = db_connection.execute(
-            "SELECT last_match_data FROM rooms WHERE pairing_code = ?",
-            ("ROOM1",),
-        ).fetchone()
-        assert row["last_match_data"] is not None
-        data = json.loads(row["last_match_data"])
-        assert data["type"] == "match"
-        assert data["title"] == "Movie-movie-1"
-        assert data["media_id"] == "movie-1"
-        assert data["rating"] == "8.5"
-        assert data["duration"] == "2h 15m"
-        assert data["year"] == "2024"
-        assert "/web/#/details?id=movie-1" in data["deep_link"]
-        assert "ts" in data
-
     def test_concurrent_right_swipes_one_match_per_user(
         self, db_connection, client_real_auth
     ):
@@ -1163,22 +1131,11 @@ class TestPhase27Compliance:
             "/room/ROOM1/swipe", json={"media_id": "movie-1", "direction": "right"}
         )
 
-        # Check room status for enriched match data
+        # Check room status is successful (last_match removed from status response)
         resp = client_real_auth.get("/room/ROOM1/status")
         assert resp.status_code == 200
         status = resp.json()
-        assert status["last_match"] is not None
-        match = status["last_match"]
-        assert match["type"] == "match"
-        assert "title" in match
-        assert "thumb" in match
-        assert "media_id" in match
-        assert "deep_link" in match
-        assert "/web/#/details?id=movie-1" in match["deep_link"]
-        assert match["rating"] == "8.5"
-        assert match["duration"] == "2h 15m"
-        assert match["year"] == "2024"
-        assert "ts" in match
+        assert status["ready"] is True
 
     def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
         """POST /room/solo returns 404 (deprecated)."""

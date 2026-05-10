@@ -71,9 +71,6 @@ class TestRoomRepository:
                     ready=1,
                     solo_mode=1,
                     current_genre="Action",
-                    last_match_data=json.dumps(
-                        {"type": "match", "movie_id": "m1", "ts": 123.45},
-                    ),
                 )
             )
             await session.commit()
@@ -88,8 +85,6 @@ class TestRoomRepository:
         assert snapshot.ready is True
         assert snapshot.genre == "Action"
         assert snapshot.solo is True
-        assert snapshot.last_match is not None
-        assert snapshot.last_match["movie_id"] == "m1"
 
         assert record is not None
         assert isinstance(record, RoomRecord)

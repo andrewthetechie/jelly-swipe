@@ -789,7 +789,7 @@ def _sqlite_conn_for_route_tests():
 
 
 def _seed_room(
-    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None, last_match_data=None
+    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None
 ):
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
@@ -797,9 +797,9 @@ def _seed_room(
     conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute(
-            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode, last_match_data) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (room_code, movie_data, ready, "All", solo_mode, last_match_data),
+            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (room_code, movie_data, ready, "All", solo_mode),
         )
         conn.commit()
     finally:

@@ -346,7 +346,6 @@ class RoomLifecycleService:
             "genre": snapshot.genre,
             "solo": snapshot.solo,
             "hide_watched": snapshot.hide_watched,
-            "last_match": snapshot.last_match,
         }
 
     async def get_matches(

@@ -366,7 +366,6 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
     async def generate():
         last_genre = None
         last_ready = None
-        last_match_ts = None
         last_hide_watched = None
         POLL = 1.5
         TIMEOUT = 3600
@@ -380,7 +379,7 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
             try:
                 async with get_sessionmaker()() as session:
                     repo = RoomRepository(session)
-                    snapshot = await repo.fetch_stream_snapshot(code)
+                    snapshot = await repo.fetch_status(code)
 
                 if snapshot is None:
                     yield {"data": json.dumps({"closed": True})}
@@ -389,8 +388,6 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
                 ready = snapshot.ready
                 genre = snapshot.genre
                 solo = snapshot.solo
-                last_match = snapshot.last_match
-                match_ts = snapshot.last_match_ts
                 hide_watched = snapshot.hide_watched
 
                 payload = {}
@@ -404,9 +401,6 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
                 if hide_watched != last_hide_watched:
                     payload["hide_watched"] = hide_watched
                     last_hide_watched = hide_watched
-                if match_ts and match_ts != last_match_ts:
-                    payload["last_match"] = last_match
-                    last_match_ts = match_ts
 
                 if payload:
                     yield {"data": json.dumps(payload)}

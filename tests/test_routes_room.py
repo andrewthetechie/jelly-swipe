@@ -51,7 +51,7 @@ def _set_session(
 
 
 def _seed_room(
-    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None, last_match_data=None
+    room_code="TEST1", *, ready=0, solo_mode=0, movie_data=None
 ):
     """Seed a room row directly into the database for testing."""
     if movie_data is None:
@@ -59,9 +59,9 @@ def _seed_room(
     conn = _sqlite_conn_for_route_tests()
     try:
         conn.execute(
-            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode, last_match_data) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (room_code, movie_data, ready, "All", solo_mode, last_match_data),
+            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (room_code, movie_data, ready, "All", solo_mode),
         )
         conn.commit()
     finally:
@@ -398,23 +398,6 @@ def test_room_status_active_room(client):
     assert data["ready"] is True
     assert data["genre"] == "All"
     assert data["solo"] is False
-    assert data["last_match"] is None
-
-
-def test_room_status_with_last_match(client):
-    """GET /room/<code>/status returns last_match data when room has a recent match."""
-    match_data = json.dumps(
-        {"title": "Test Movie", "thumb": "test.jpg", "ts": 1234567890}
-    )
-    _seed_room("TEST1", ready=1, solo_mode=0, last_match_data=match_data)
-
-    response = client.get("/room/TEST1/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["last_match"] is not None
-    assert data["last_match"]["title"] == "Test Movie"
-    assert data["last_match"]["thumb"] == "test.jpg"
-    assert data["last_match"]["ts"] == 1234567890
 
 
 def test_room_status_nonexistent_room(client):
@@ -567,49 +550,6 @@ def test_swipe_right_no_match_yet(client, app):
     assert response.status_code == 200
     assert response.json() == {"accepted": True}
 
-
-def test_swipe_right_updates_last_match_data(client, app):
-    """POST /room/<code>/swipe dual match updates last_match_data in rooms table."""
-    _seed_room("TEST1", ready=1, solo_mode=0)
-    _set_session(
-        client,
-        os.environ["FLASK_SECRET"],
-        active_room="TEST1",
-        user_id="verified-user",
-        authenticated=True,
-    )
-
-    conn = _sqlite_conn_for_route_tests()
-    try:
-        conn.execute(
-            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-            ("other-session-id", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
-        )
-        conn.execute(
-            "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
-            ("TEST1", "m1", "user-2", "right", "other-session-id"),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    client.post(
-        "/room/TEST1/swipe",
-        json={"media_id": "m1", "direction": "right"},
-    )
-
-    conn = _sqlite_conn_for_route_tests()
-    try:
-        row = conn.execute(
-            "SELECT last_match_data FROM rooms WHERE pairing_code = 'TEST1'"
-        ).fetchone()
-    finally:
-        conn.close()
-
-    assert row["last_match_data"] is not None
-    match_data = json.loads(row["last_match_data"])
-    assert match_data["type"] == "match"
-    assert "ts" in match_data
 
 
 def test_set_genre_empty_deck_returns_400(client, app, mocker):

@@ -14,6 +14,8 @@ import time
 
 import sqlite3
 
+from sse_starlette.sse import EventSourceResponse
+
 import pytest
 from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
@@ -55,16 +57,16 @@ def _set_session_room(client, secret_key, room_code, user_id=None):
 
 
 def _seed_stream_room(
-    room_code, *, ready=0, solo_mode=0, current_genre="All", last_match_data=None
+    room_code, *, ready=0, solo_mode=0, current_genre="All"
 ):
     """Seed a room row directly into SQLite for SSE tests (VAL-03: no jellyswipe.db.get_db)."""
     movie_data = json.dumps([])
     conn = _sqlite_conn_for_sse_tests()
     try:
         conn.execute(
-            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode, last_match_data) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (room_code, movie_data, ready, current_genre, solo_mode, last_match_data),
+            "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (room_code, movie_data, ready, current_genre, solo_mode),
         )
         conn.commit()
     finally:
@@ -108,13 +110,13 @@ def _make_sse_sleep_mock(on_sleep_callback=None):
     """Create a selective asyncio.sleep mock for SSE generator testing.
 
     The SSE generator calls asyncio.sleep(delay) where delay is in [1.5, 2.0]
-    (POLL=1.5 + random jitter 0–0.5). sse_starlette's _ping task uses exactly 15.0,
-    and anyio/starlette internal checkpoints use 0 or 0.5.
+    (POLL=1.5 + random jitter 0–0.5). Internal anyio/starlette checkpoints use 0 or 0.5.
 
-    Strategy: intercept the generator's sleep range [1.4, 2.1] AND any sleep >= 10s
-    (which includes _ping's 15s sleep), yielding control instantly (via asyncio.sleep(0)).
-    This prevents the _ping task from blocking test teardown, allowing task-group
-    cancellation to complete immediately after _stream_response finishes.
+    Strategy: intercept the generator's sleep range [1.4, 2.1], yielding control
+    instantly (via asyncio.sleep(0)). Starlette internal checkpoints (< 1.4s) pass through.
+
+    The _ping task's anyio.sleep(15s) is handled separately by patching
+    EventSourceResponse._ping to a no-op — see _noop_ping below.
 
     Args:
         on_sleep_callback: Optional sync callable(delay) called when generator sleep is
@@ -132,14 +134,25 @@ def _make_sse_sleep_mock(on_sleep_callback=None):
                 on_sleep_callback(delay)
             # Yield control without blocking, allowing task group to process cancellation
             await original_sleep(0)
-        elif delay >= 10:
-            # _ping (15s) or other long sleeps — yield immediately to prevent deadlock
-            await original_sleep(0)
         else:
-            # anyio checkpoints (0, 0.5) — keep real behavior
+            # anyio checkpoints (0, 0.5) and others — keep real behavior
             await original_sleep(delay)
 
     return _selective_sleep, sleep_calls
+
+
+async def _noop_ping(self, send):
+    """Replacement _ping for tests — polls self.active without sending ping comments.
+
+    EventSourceResponse._ping calls anyio.sleep(15s) inside a while-loop. That sleep
+    is not interrupted when the cancel scope fires, causing a 15s teardown hang.
+
+    This replacement polls self.active every 10ms using asyncio.sleep (which IS
+    interrupted by the task group's cancel scope), so teardown is instantaneous.
+    No ping comments are emitted, so heartbeat-count assertions stay clean.
+    """
+    while self.active:
+        await asyncio.sleep(0.01)
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +183,7 @@ def test_stream_response_headers(client, monkeypatch):
     # passes through internal anyio/sse_starlette sleeps (< 1.5s).
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
 
     # Mock time to exit the generator loop after a few iterations
     monkeypatch.setattr(time, "sleep", lambda _: None)
@@ -217,6 +231,7 @@ def test_stream_initial_state_events(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
 
     # deadline calc + init + loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
@@ -243,6 +258,7 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
 
     # deadline calc + init + loop iterations then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
@@ -271,30 +287,6 @@ def test_stream_stable_state_no_repeat(client, monkeypatch):
 # Section 3: State change detection tests
 # ---------------------------------------------------------------------------
 
-
-def test_stream_match_event(client, monkeypatch):
-    """Stream sends last_match event when room has match data with a timestamp."""
-    match_data = json.dumps({"title": "Test Movie", "ts": "2026-04-26T12:00:00Z"})
-    _seed_stream_room("TEST1", ready=1, last_match_data=match_data)
-    _set_session_room(client, os.environ["FLASK_SECRET"], "TEST1")
-
-    # Force gevent sleep fallback path (gevent is available in test env)
-    import jellyswipe
-
-    monkeypatch.setattr(jellyswipe, "_gevent_sleep", None, raising=False)
-
-    mock_sleep, _ = _make_sse_sleep_mock()
-    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
-
-    # deadline + 2 iterations then exit
-    monkeypatch.setattr(time, "sleep", lambda _: None)
-    monkeypatch.setattr(time, "time", _make_time_mock(8))
-
-    response = client.get("/room/TEST1/stream")
-    data = response.text
-
-    assert '"last_match"' in data
-    assert '"title": "Test Movie"' in data
 
 
 def test_stream_ready_state_change(client, monkeypatch):
@@ -329,6 +321,7 @@ def test_stream_ready_state_change(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock(on_sleep_callback=_on_sleep)
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
     # deadline + loop iterations (with state changes) then exit
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(12))
@@ -358,6 +351,7 @@ def test_stream_generator_exit(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
 
     result = {}
     error_holder = {}
@@ -407,6 +401,7 @@ def test_stream_jitter_applied(client, monkeypatch):
     # Use _make_sse_sleep_mock to intercept SSE generator sleeps and capture durations
     mock_sleep, sleep_calls = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
@@ -434,6 +429,7 @@ def test_stream_heartbeat_on_idle(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
 
     # Create time mock that advances past 15 seconds between polls to trigger heartbeat.
     # Thresholds account for _PRE_GENERATOR_OVERHEAD pre-generator calls PLUS:
@@ -494,6 +490,7 @@ def test_stream_no_heartbeat_when_data_sent(client, monkeypatch):
 
     mock_sleep, _sleep_calls = _make_sse_sleep_mock(on_sleep_callback=_after_poll_sleep)
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
 
     def _time_frozen_then_exit_deadline():
         if exit_after_idle_polls[0]:
@@ -541,6 +538,7 @@ def test_stream_room_disappearance_immediate_exit(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock(on_sleep_callback=_on_sleep_delete)
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(10))
 
@@ -562,7 +560,7 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
 
     Strategy: seed a real room so the first poll succeeds and yields an event.
     Then mock is_disconnected to return True on the second call.
-    Verify that the stream exits early — fetch_stream_snapshot call count confirms no
+    Verify that the stream exits early — fetch_status call count confirms no
     additional query was issued after disconnect was detected.
     """
     from jellyswipe.repositories.rooms import RoomRepository
@@ -576,16 +574,17 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
 
     mock_sleep, sleep_calls = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
     monkeypatch.setattr(time, "sleep", lambda _: None)
 
-    _orig_fetch = RoomRepository.fetch_stream_snapshot
+    _orig_fetch = RoomRepository.fetch_status
     snapshot_calls = [0]
 
     async def counting_fetch(self, pairing_code):  # type: ignore[no-untyped-def]
         snapshot_calls[0] += 1
         return await _orig_fetch(self, pairing_code)
 
-    monkeypatch.setattr(RoomRepository, "fetch_stream_snapshot", counting_fetch)
+    monkeypatch.setattr(RoomRepository, "fetch_status", counting_fetch)
 
     # Patch is_disconnected on the Starlette Request class so all Request instances
     # use our fake. First call returns False (allow first poll), second returns True (break).
@@ -611,10 +610,10 @@ def test_stream_disconnect_breaks_loop_before_db_query(client, monkeypatch):
         f"is_disconnected was never called — disconnect detection not wired: calls={is_disconnected_call_count[0]}"
     )
 
-    # After disconnect (2nd call returns True), the loop breaks BEFORE the next snapshot fetch.
+    # After disconnect (2nd call returns True), the loop breaks BEFORE the next status fetch.
     # So snapshot count must be exactly 1 (first poll) — not 2 or more.
     assert snapshot_calls[0] == 1, (
-        f"Expected exactly 1 snapshot fetch (disconnect before 2nd query), got {snapshot_calls[0]}"
+        f"Expected exactly 1 status fetch (disconnect before 2nd query), got {snapshot_calls[0]}"
     )
 
     # The response is still a valid SSE stream (not an error)
@@ -639,6 +638,7 @@ def test_stream_connection_closed_on_all_exit_paths(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
     monkeypatch.setattr(time, "sleep", lambda _: None)
 
     close_calls = [0]
@@ -665,7 +665,7 @@ def test_stream_cancelled_error_not_swallowed(monkeypatch):
     """G3: CancelledError raised inside the generate() loop must propagate out, not be swallowed.
 
     Strategy: unit test the generate() async generator directly by driving it with
-    an async harness. Patch fetch_stream_snapshot so the snapshot read raises
+    an async harness. Patch fetch_status so the snapshot read raises
     CancelledError on the first query. Verify CancelledError escapes the generator.
     """
     import asyncio
@@ -700,7 +700,7 @@ def test_stream_cancelled_error_not_swallowed(monkeypatch):
 
     fake_auth = AuthUser(jf_token="t", user_id="u")
 
-    with patch.object(RoomRepository, "fetch_stream_snapshot", raise_cancelled):
+    with patch.object(RoomRepository, "fetch_status", raise_cancelled):
         result = rooms_module.room_stream(
             code="CANCEL1",
             request=fake_request,
@@ -756,6 +756,7 @@ def test_room_stream_does_not_open_sqlite3_connection(client, monkeypatch):
 
     mock_sleep, _ = _make_sse_sleep_mock()
     monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+    monkeypatch.setattr(EventSourceResponse, "_ping", _noop_ping)
     monkeypatch.setattr(time, "sleep", lambda _: None)
     monkeypatch.setattr(time, "time", _make_time_mock(4))
 
