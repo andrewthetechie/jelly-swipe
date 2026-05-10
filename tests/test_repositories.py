@@ -92,6 +92,11 @@ class TestRoomRepository:
         assert record.ready is True
         assert record.solo_mode is True
         assert record.current_genre == "Action"
+        assert isinstance(record, RoomRecord)
+        assert record.pairing_code == "4242"
+        assert record.ready is True
+        assert record.solo_mode is True
+        assert record.current_genre == "Action"
         assert record.movie_data_json == "[]"
         assert record.deck_position_json == deck
 

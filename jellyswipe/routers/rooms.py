@@ -11,7 +11,6 @@ request-scoped connection dependency.
 import asyncio
 import json
 import logging
-import random
 import time
 import traceback
 
@@ -21,9 +20,9 @@ from sse_starlette.sse import EventSourceResponse
 
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.db_runtime import get_sessionmaker
+from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
 from jellyswipe.notifier import notifier
-from jellyswipe.repositories.rooms import RoomRepository
 from jellyswipe.services.room_lifecycle import (
     EmptyDeckError,
     RoomLifecycleService,
@@ -375,72 +374,123 @@ async def room_status(
 
 @rooms_router.get("/room/{code}/stream")
 def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_auth)):
-    """SSE stream for room state changes.
-
-    Per D-01: outer handler is sync def; only the inner generator is async.
-    Per D-07: request is closed over from outer signature for disconnect detection.
-
-    Each poll uses a short-lived async SQLAlchemy session (PAR-05) — no request-scoped UoW
-    and no raw sqlite connection spanning the stream lifetime.
-    """
+    """SSE stream for session events. Event-driven with replay support."""
 
     async def generate():
-        last_genre = None
-        last_ready = None
-        last_hide_watched = None
-        POLL = 1.5
-        TIMEOUT = 3600
-        _last_event_time = time.time()
+        # 1. Resolve cursor: Last-Event-ID header or ?after_event_id= query param
+        cursor = request.headers.get("Last-Event-ID") or request.query_params.get(
+            "after_event_id"
+        )
+        cursor = int(cursor) if cursor else None
 
-        deadline = time.time() + TIMEOUT
-        while time.time() < deadline:
-            # D-06: Check disconnect BEFORE DB query — dead clients skip round-trip.
+        # 2. Look up session instance and current room state
+        async with get_sessionmaker()() as session:
+            uow = DatabaseUnitOfWork(session)
+            instance = await uow.session_instances.get_by_pairing_code(code)
+            if instance is None or instance.status == "closed":
+                yield {
+                    "data": json.dumps(
+                        {"event_type": "session_reset", "reason": "instance_changed"}
+                    )
+                }
+                return
+            room = await uow.rooms.get_room(code)
+
+        instance_id = instance.instance_id
+
+        # 3. Validate cursor if present
+        if cursor is not None:
+            # Check: does this cursor belong to our instance?
+            async with get_sessionmaker()() as session:
+                uow = DatabaseUnitOfWork(session)
+                events_after = await uow.session_events.read_after(
+                    instance_id, cursor, limit=1
+                )
+                if not events_after:
+                    # Cursor might be stale or from wrong instance
+                    yield {
+                        "data": json.dumps(
+                            {"event_type": "session_reset", "reason": "stale_cursor"}
+                        )
+                    }
+                    return
+        else:
+            # First attach — send bootstrap
+            async with get_sessionmaker()() as session:
+                uow = DatabaseUnitOfWork(session)
+                latest_eid = await uow.session_events.read_latest_event_id(instance_id)
+            bootstrap = {
+                "event_type": "session_bootstrap",
+                "instance_id": instance_id,
+                "ready": room.ready if room else False,
+                "genre": room.current_genre if room else "All",
+                "solo": room.solo_mode if room else False,
+                "hide_watched": room.hide_watched if room else False,
+                "replay_boundary": latest_eid or 0,
+            }
+            yield {"id": str(latest_eid or 0), "data": json.dumps(bootstrap)}
+
+        # 4. Replay missed events (if cursor was valid)
+        missed = []
+        latest_eid = None
+        if cursor is not None:
+            async with get_sessionmaker()() as session:
+                uow = DatabaseUnitOfWork(session)
+                missed = await uow.session_events.read_after(
+                    instance_id, cursor, limit=100
+                )
+            for evt in missed:
+                yield {
+                    "id": str(evt.event_id),
+                    "data": json.dumps(
+                        {
+                            "event_id": evt.event_id,
+                            "event_type": evt.event_type,
+                            **json.loads(evt.payload_json),
+                        }
+                    ),
+                }
+                if evt.event_type == "session_closed":
+                    return  # Stream ends after session_closed
+
+        # 5. Subscribe to notifier and stream live events
+        last_event_id = (
+            missed[-1].event_id if cursor is not None and missed else (latest_eid or 0)
+        )
+        last_event_time = time.time()
+
+        while True:
             if await request.is_disconnected():
                 break
-            try:
-                async with get_sessionmaker()() as session:
-                    repo = RoomRepository(session)
-                    snapshot = await repo.fetch_status(code)
 
-                if snapshot is None:
-                    yield {"data": json.dumps({"closed": True})}
+            future = notifier.subscribe(code)
+            try:
+                await asyncio.wait_for(future, timeout=20.0)
+            except asyncio.TimeoutError:
+                # Heartbeat check
+                if time.time() - last_event_time >= 15:
+                    yield {"comment": "ping"}
+                    last_event_time = time.time()
+                continue
+
+            # Woken by notifier — read new events from ledger
+            async with get_sessionmaker()() as session:
+                uow = DatabaseUnitOfWork(session)
+                new_events = await uow.session_events.read_after(
+                    instance_id, last_event_id, limit=100
+                )
+
+            for evt in new_events:
+                payload = {"event_id": evt.event_id, "event_type": evt.event_type}
+                payload.update(json.loads(evt.payload_json))
+                yield {"id": str(evt.event_id), "data": json.dumps(payload)}
+                last_event_id = evt.event_id
+                last_event_time = time.time()
+                if evt.event_type == "session_closed":
+                    notifier.unsubscribe(code, future)
                     return
 
-                ready = snapshot.ready
-                genre = snapshot.genre
-                solo = snapshot.solo
-                hide_watched = snapshot.hide_watched
-
-                payload = {}
-                if ready != last_ready:
-                    payload["ready"] = ready
-                    payload["solo"] = solo
-                    last_ready = ready
-                if genre != last_genre:
-                    payload["genre"] = genre
-                    last_genre = genre
-                if hide_watched != last_hide_watched:
-                    payload["hide_watched"] = hide_watched
-                    last_hide_watched = hide_watched
-
-                if payload:
-                    yield {"data": json.dumps(payload)}
-                    _last_event_time = time.time()
-                elif time.time() - _last_event_time >= 15:
-                    # SSE-5: EventSourceResponse comment syntax for heartbeat ping
-                    yield {"comment": "ping"}
-                    _last_event_time = time.time()
-
-                delay = POLL + random.uniform(0, 0.5)
-                await asyncio.sleep(delay)  # SSE-2: non-blocking sleep
-            except Exception as exc:
-                # D-09, SSE-4: Re-raise CancelledError so try/finally can clean up.
-                # Do NOT swallow CancelledError — it is the asyncio disconnect signal.
-                if isinstance(exc, asyncio.CancelledError):
-                    raise
-                logging.getLogger().warning("SSE poll error for room %s: %s", code, exc)
-                delay = POLL + random.uniform(0, 0.5)
-                await asyncio.sleep(delay)  # SSE-2: non-blocking even in error path
+            notifier.unsubscribe(code, future)
 
     # D-03: EventSourceResponse handles text/event-stream media type and SSE framing.
     # D-04: Verify Cache-Control and X-Accel-Buffering headers are present on response.
