@@ -221,12 +221,14 @@ def create_app(test_config=None):
     from jellyswipe.routers.media import media_router
     from jellyswipe.routers.proxy import proxy_router
     from jellyswipe.routers.static import static_router
+    from jellyswipe.routers.health import health_router
 
     app.include_router(auth_router)
     app.include_router(rooms_router)
     app.include_router(media_router)
     app.include_router(proxy_router)
     app.include_router(static_router)
+    app.include_router(health_router)
 
     return app
 
