@@ -22,6 +22,7 @@ from sse_starlette.sse import EventSourceResponse
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
+from jellyswipe.notifier import notifier
 from jellyswipe.repositories.rooms import RoomRepository
 from jellyswipe.services.room_lifecycle import (
     EmptyDeckError,
@@ -133,7 +134,7 @@ async def create_room(
         )
 
     try:
-        return await room_lifecycle_service.create_room(
+        result = await room_lifecycle_service.create_room(
             request.session,
             user.user_id,
             get_provider(),
@@ -142,6 +143,9 @@ async def create_room(
             include_tv_shows=include_tv_shows,
             solo=solo,
         )
+        # Commit the session to persist session_instances row
+        await uow.session.commit()
+        return result
     except UniqueRoomCodeExhaustedError:
         return XSSSafeJSONResponse(
             content={"error": "Could not generate unique room code"}, status_code=503
@@ -169,6 +173,9 @@ async def join_room_route(
     )
     if payload is None:
         return XSSSafeJSONResponse(content={"error": "Invalid Code"}, status_code=404)
+    # Commit before notifying to ensure events are persisted
+    await uow.session.commit()
+    notifier.notify(code)
     return payload
 
 
@@ -215,6 +222,9 @@ async def swipe(
         body, status_code = result
         return XSSSafeJSONResponse(content=body, status_code=status_code)
 
+    # Commit before notifying to ensure events are persisted
+    await uow.session.commit()
+    notifier.notify(code)
     return {"accepted": True}
 
 
@@ -233,9 +243,13 @@ async def quit_room(
     code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
 ):
     """Quit a room and archive matches."""
-    return await room_lifecycle_service.quit_room(
+    result = await room_lifecycle_service.quit_room(
         code, request.session, user.user_id, uow
     )
+    # Commit before notifying to ensure events are persisted
+    await uow.session.commit()
+    notifier.notify(code)
+    return result
 
 
 @rooms_router.post("/matches/delete")
@@ -311,6 +325,9 @@ async def set_genre(
         new_list = await room_lifecycle_service.set_genre(
             code, genre, get_provider(), uow
         )
+        # Commit before notifying to ensure events are persisted
+        await uow.session.commit()
+        notifier.notify(code)
         return new_list
     except EmptyDeckError as e:
         return XSSSafeJSONResponse(content={"error": str(e)}, status_code=400)
@@ -335,9 +352,13 @@ async def set_watched_filter_route(
             content={"error": "hide_watched must be a boolean"}, status_code=400
         )
     try:
-        return await room_lifecycle_service.set_watched_filter(
+        result = await room_lifecycle_service.set_watched_filter(
             code, hide_watched, get_provider(), uow
         )
+        # Commit before notifying to ensure events are persisted
+        await uow.session.commit()
+        notifier.notify(code)
+        return result
     except EmptyDeckError:
         return XSSSafeJSONResponse(
             content={"error": "No unwatched items available"}, status_code=422
