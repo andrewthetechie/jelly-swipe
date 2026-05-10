@@ -6,7 +6,12 @@ import jellyswipe.db
 import jellyswipe.db_paths
 import pytest
 
-from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, get_sessionmaker, initialize_runtime
+from jellyswipe.db_runtime import (
+    build_async_sqlite_url,
+    dispose_runtime,
+    get_sessionmaker,
+    initialize_runtime,
+)
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.room_types import RoomStatusSnapshot
@@ -43,7 +48,9 @@ class TestStreamSnapshotRepo:
             snap = await uow.rooms.fetch_status("NONE")
             assert snap is None
 
-    async def test_fetch_status_preserves_ready_solo_hide_watched(self, runtime_sessionmaker):
+    async def test_fetch_status_preserves_ready_solo_hide_watched(
+        self, runtime_sessionmaker
+    ):
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
@@ -65,4 +72,3 @@ class TestStreamSnapshotRepo:
         assert snap.ready is True
         assert snap.solo is True
         assert snap.hide_watched is False
-
