@@ -905,8 +905,12 @@
                         // Update solo badge UI
                         document.getElementById('matches-pill').innerText = isSoloMode ? 'Shortlist' : 'Matches';
                         document.getElementById('solo-badge').classList.toggle('hidden', !isSoloMode);
-                        // Don't trigger UI changes for bootstrap state —
-                        // the page already loaded via /me response
+                        // If room is already ready (e.g. solo) and game hasn't loaded yet, load now.
+                        // On page refresh the /me handler calls loadMovies() first, so game-area
+                        // is already visible and this guard prevents a double-call.
+                        if (d.ready && document.getElementById('game-area').classList.contains('hidden')) {
+                            loadMovies(isSoloMode);
+                        }
                         break;
 
                     case 'session_ready':

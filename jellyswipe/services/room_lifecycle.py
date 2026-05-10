@@ -127,6 +127,10 @@ class RoomLifecycleService:
             await uow.session_instances.create(
                 instance_id=instance_id, pairing_code=pairing_code
             )
+            if solo:
+                await uow.session_events.append(
+                    instance_id, "session_ready", json.dumps({"solo": True})
+                )
             session_dict["active_room"] = pairing_code
             session_dict["solo_mode"] = solo
             return {"pairing_code": pairing_code, "instance_id": instance_id}
