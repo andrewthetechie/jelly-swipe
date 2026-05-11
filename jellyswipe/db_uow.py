@@ -17,6 +17,7 @@ from jellyswipe.repositories.session_events import (
     SessionInstanceRepository,
 )
 from jellyswipe.repositories.swipes import SwipeRepository
+from jellyswipe.repositories.tmdb_cache import TmdbCacheRepository
 
 T = TypeVar("T")
 
@@ -76,6 +77,7 @@ class DatabaseUnitOfWork:
         self.matches = MatchRepository(session)
         self.session_instances = SessionInstanceRepository(session)
         self.session_events = SessionEventRepository(session)
+        self.tmdb_cache = TmdbCacheRepository(session)
 
     async def run_sync(self, fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
         """Run legacy sync work on the managed session connection.
@@ -98,4 +100,5 @@ __all__ = [
     "SessionEventRepository",
     "SessionInstanceRepository",
     "SwipeRepository",
+    "TmdbCacheRepository",
 ]

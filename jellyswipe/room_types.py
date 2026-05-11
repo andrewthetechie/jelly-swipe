@@ -65,3 +65,11 @@ class MatchRecord:
 class SwipeCounterparty:
     user_id: str
     session_id: str | None
+
+
+@dataclass(slots=True)
+class TmdbCacheRecord:
+    media_id: str
+    lookup_type: str
+    result_json: str
+    fetched_at: str
