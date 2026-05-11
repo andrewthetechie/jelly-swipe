@@ -1,18 +1,16 @@
 services:
   jelly-swipe:
-    image: andrewthetechie/jelly-swipe:latest
+    image: ghcr.io/andrewthetechie/jelly-swipe:v0.1.0 # Pin to a release. :latest tracks main and may include unreleased changes.
     container_name: jelly-swipe
     ports:
       - "5005:5005"
     environment:
-      # Jellyfin-only configuration
       - JELLYFIN_URL=http://your-jellyfin-host:8096
       - JELLYFIN_API_KEY=your-jellyfin-api-key
-      # Alternatively, use username/password authentication:
-      # - JELLYFIN_USERNAME=your-username
-      # - JELLYFIN_PASSWORD=your-password
       - FLASK_SECRET=pick-a-random-string
       - TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
+      - PUID=99 # UID for app process — match your ./data directory owner
+      - PGID=100 # GID for app process — match your ./data directory owner
     volumes:
       - ./data:/app/data
     restart: unless-stopped
