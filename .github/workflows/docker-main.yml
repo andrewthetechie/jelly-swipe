@@ -1,8 +1,8 @@
-name: Publish release image
+name: Publish main image
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 env:
   REGISTRY: ghcr.io
@@ -29,14 +29,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push by digest
-        id: build
+      - id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -44,15 +42,14 @@ jobs:
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=max
           sbom: true
-          cache-from: type=gha,scope=release-${{ matrix.arch }}
-          cache-to: type=gha,scope=release-${{ matrix.arch }},mode=max
+          cache-from: type=gha,scope=main-${{ matrix.arch }}
+          cache-to: type=gha,scope=main-${{ matrix.arch }},mode=max
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.version=main-${{ github.sha }}
             org.opencontainers.image.created=${{ github.event.repository.updated_at }}
-      - name: Export digest
-        run: |
+      - run: |
           mkdir -p /tmp/digests
           echo "${{ steps.build.outputs.digest }}" > /tmp/digests/${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
@@ -65,45 +62,20 @@ jobs:
     needs: build
     steps:
       - uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests
-          pattern: digest-*
-          merge-multiple: true
+        with: { path: /tmp/digests, pattern: digest-*, merge-multiple: true }
       - uses: docker/setup-buildx-action@v3
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Compute tags
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern=v{{version}}
-            type=semver,pattern=v{{major}}.{{minor}}
-            type=semver,pattern=v{{major}}
-            type=sha,format=long,prefix=
-      - name: Create manifest list
+      - name: Create manifest list (latest + main-<sha>)
         run: |
           DIGESTS=""
           for f in /tmp/digests/*; do
             DIGESTS="$DIGESTS ${REGISTRY}/${IMAGE_NAME}@$(cat $f)"
           done
-          for tag in $(jq -r '.[]' <<< '${{ steps.meta.outputs.json }}' | jq -r '.tags[]?'); do
-            docker buildx imagetools create -t $tag $DIGESTS
-          done
-      - name: Trivy scan (non-blocking)
-        uses: aquasecurity/trivy-action@master
-        continue-on-error: true
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          format: sarif
-          output: trivy-results.sarif
-          severity: HIGH,CRITICAL
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: trivy-results.sarif
+          docker buildx imagetools create \
+            -t ${REGISTRY}/${IMAGE_NAME}:latest \
+            -t ${REGISTRY}/${IMAGE_NAME}:main-${{ github.sha }} \
+            $DIGESTS
