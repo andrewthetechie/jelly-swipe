@@ -1,4 +1,4 @@
-"""Jellyfin REST client and LibraryMediaProvider (auth + library parity)."""
+"""Jellyfin REST client (auth + library parity)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from .base import LibraryMediaProvider
 from .http_client import make_http_request
 
 logger = logging.getLogger(__name__)
@@ -42,7 +41,7 @@ def _format_runtime(seconds: int) -> str:
     return f"{mins}m"
 
 
-class JellyfinLibraryProvider(LibraryMediaProvider):
+class JellyfinLibraryProvider:
     """Jellyfin-backed library: genres, deck, images, TMDB item resolution, server info."""
 
     def __init__(self, base_url: str) -> None:
