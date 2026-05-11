@@ -98,6 +98,10 @@ def _send_request(
 
 
 SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
+
+# Routes that are intentionally unauthenticated (health probes, etc.)
+UNAUTHENTICATED_ROUTES = {"/healthz", "/readyz"}
+
 ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
     ("POST", "/room/ROOM1/swipe", {"media_id": "movie-1", "direction": "right"}),
     ("GET", "/matches", None),

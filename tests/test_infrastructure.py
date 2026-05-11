@@ -109,9 +109,8 @@ def test_dockerfile_cmd_uses_python_bootstrap_entrypoint():
     content = dockerfile_path.read_text()
 
     # Extract the CMD line(s) for targeted assertions.
-    cmd_lines = [
-        line for line in content.splitlines() if line.strip().startswith("CMD")
-    ]
+    # Only match top-level CMD instructions (not indented HEALTHCHECK sub-commands).
+    cmd_lines = [line for line in content.splitlines() if line.startswith("CMD")]
     assert len(cmd_lines) == 1, (
         f"DEP-01 FAIL: expected exactly 1 CMD line in Dockerfile, found {len(cmd_lines)}: {cmd_lines}"
     )
