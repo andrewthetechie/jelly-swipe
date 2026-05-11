@@ -54,7 +54,11 @@ def lookup_trailer(title: str, year: Optional[int]) -> Optional[str]:
         if trailers:
             return trailers[0]["key"]
         return None
-    except Exception:
+    except Exception as e:
+        _logger.warning(
+            "TMDB trailer lookup failed",
+            extra={"title": title, "year": year, "error": str(e)},
+        )
         return None
 
 
@@ -97,5 +101,9 @@ def lookup_cast(title: str, year: Optional[int]) -> list[dict]:
                 }
             )
         return cast
-    except Exception:
+    except Exception as e:
+        _logger.warning(
+            "TMDB cast lookup failed",
+            extra={"title": title, "year": year, "error": str(e)},
+        )
         return []
