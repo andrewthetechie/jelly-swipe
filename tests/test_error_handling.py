@@ -273,8 +273,8 @@ class TestErrorLogging:
         import jellyswipe.config as app_config
 
         monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
-        caplog.set_level(logging.ERROR, "jellyswipe.routers.media")
-        resp = client.get("/get-trailer/test-movie-id")
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
+            resp = client.get("/get-trailer/test-movie-id")
 
         assert resp.status_code == 500
         error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
@@ -293,8 +293,8 @@ class TestErrorLogging:
         import jellyswipe.config as app_config
 
         monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
-        caplog.set_level(logging.ERROR, "jellyswipe.routers.media")
-        resp = client.get("/get-trailer/test-movie-id")
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
+            resp = client.get("/get-trailer/test-movie-id")
 
         assert resp.status_code == 500
         error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
@@ -314,8 +314,8 @@ class TestErrorLogging:
         import jellyswipe.config as app_config
 
         monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
-        caplog.set_level(logging.ERROR, "jellyswipe.routers.media")
-        resp = client.get("/get-trailer/test-movie-id")
+        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
+            resp = client.get("/get-trailer/test-movie-id")
 
         assert resp.status_code == 500
         error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
