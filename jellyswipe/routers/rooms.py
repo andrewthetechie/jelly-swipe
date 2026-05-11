@@ -8,10 +8,8 @@ Per D-13: Swipe handler uses the async DBUoW bridge instead of a direct sync
 request-scoped connection dependency.
 """
 
-import asyncio
 import json
 import logging
-import time
 import traceback
 
 from fastapi import APIRouter, Depends, Request
@@ -28,6 +26,7 @@ from jellyswipe.services.room_lifecycle import (
     RoomLifecycleService,
     UniqueRoomCodeExhaustedError,
 )
+from jellyswipe.services.session_event_stream import session_event_stream
 from jellyswipe.services.swipe_match import SwipeMatchService
 
 rooms_router = APIRouter()
@@ -377,13 +376,7 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
     """SSE stream for session events. Event-driven with replay support."""
 
     async def generate():
-        # 1. Resolve cursor: Last-Event-ID header or ?after_event_id= query param
-        cursor = request.headers.get("Last-Event-ID") or request.query_params.get(
-            "after_event_id"
-        )
-        cursor = int(cursor) if cursor else None
-
-        # 2. Look up session instance and current room state
+        # Resolve instance and room
         async with get_sessionmaker()() as session:
             uow = DatabaseUnitOfWork(session)
             instance = await uow.session_instances.get_by_pairing_code(code)
@@ -396,101 +389,21 @@ def room_stream(code: str, request: Request, auth: AuthUser = Depends(require_au
                 return
             room = await uow.rooms.get_room(code)
 
-        instance_id = instance.instance_id
-
-        # 3. Validate cursor if present
-        if cursor is not None:
-            # Check: does this cursor belong to our instance?
-            async with get_sessionmaker()() as session:
-                uow = DatabaseUnitOfWork(session)
-                events_after = await uow.session_events.read_after(
-                    instance_id, cursor, limit=1
-                )
-                if not events_after:
-                    # Cursor might be stale or from wrong instance
-                    yield {
-                        "data": json.dumps(
-                            {"event_type": "session_reset", "reason": "stale_cursor"}
-                        )
-                    }
-                    return
-        else:
-            # First attach — send bootstrap
-            async with get_sessionmaker()() as session:
-                uow = DatabaseUnitOfWork(session)
-                latest_eid = await uow.session_events.read_latest_event_id(instance_id)
-            bootstrap = {
-                "event_type": "session_bootstrap",
-                "instance_id": instance_id,
-                "ready": room.ready if room else False,
-                "genre": room.current_genre if room else "All",
-                "solo": room.solo_mode if room else False,
-                "hide_watched": room.hide_watched if room else False,
-                "replay_boundary": latest_eid or 0,
-            }
-            yield {"id": str(latest_eid or 0), "data": json.dumps(bootstrap)}
-
-        # 4. Replay missed events (if cursor was valid)
-        missed = []
-        latest_eid = None
-        if cursor is not None:
-            async with get_sessionmaker()() as session:
-                uow = DatabaseUnitOfWork(session)
-                missed = await uow.session_events.read_after(
-                    instance_id, cursor, limit=100
-                )
-            for evt in missed:
-                yield {
-                    "id": str(evt.event_id),
-                    "data": json.dumps(
-                        {
-                            "event_id": evt.event_id,
-                            "event_type": evt.event_type,
-                            **json.loads(evt.payload_json),
-                        }
-                    ),
-                }
-                if evt.event_type == "session_closed":
-                    return  # Stream ends after session_closed
-
-        # 5. Subscribe to notifier and stream live events
-        last_event_id = (
-            missed[-1].event_id if cursor is not None and missed else (latest_eid or 0)
+        cursor = request.headers.get("Last-Event-ID") or request.query_params.get(
+            "after_event_id"
         )
-        last_event_time = time.time()
+        cursor = int(cursor) if cursor else None
 
-        while True:
-            if await request.is_disconnected():
-                break
-
-            future = notifier.subscribe(code)
-            try:
-                await asyncio.wait_for(future, timeout=20.0)
-            except asyncio.TimeoutError:
-                # Heartbeat check
-                if time.time() - last_event_time >= 15:
-                    yield {"comment": "ping"}
-                    last_event_time = time.time()
-                continue
-
-            # Woken by notifier — read new events from ledger
-            async with get_sessionmaker()() as session:
-                uow = DatabaseUnitOfWork(session)
-                new_events = await uow.session_events.read_after(
-                    instance_id, last_event_id, limit=100
-                )
-
-            for evt in new_events:
-                payload = {"event_id": evt.event_id, "event_type": evt.event_type}
-                payload.update(json.loads(evt.payload_json))
-                yield {"id": str(evt.event_id), "data": json.dumps(payload)}
-                last_event_id = evt.event_id
-                last_event_time = time.time()
-                if evt.event_type == "session_closed":
-                    notifier.unsubscribe(code, future)
-                    return
-
-            notifier.unsubscribe(code, future)
+        async for event in session_event_stream(
+            code=code,
+            instance_id=instance.instance_id,
+            room=room,
+            cursor=cursor,
+            sessionmaker_factory=get_sessionmaker(),
+            notifier=notifier,
+            is_disconnected=request.is_disconnected,
+        ):
+            yield event
 
     # D-03: EventSourceResponse handles text/event-stream media type and SSE framing.
     # D-04: Verify Cache-Control and X-Accel-Buffering headers are present on response.
