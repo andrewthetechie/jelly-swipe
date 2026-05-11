@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "include-v-in-tag": true,
+  "include-component-in-tag": false,
+  "bootstrap-sha": "faaf1bc64a8741bc4eeb536a525c9ad9c6fae1e5",
+  "packages": {
+    ".": {
+      "package-name": "jellyswipe",
+      "release-type": "python",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
