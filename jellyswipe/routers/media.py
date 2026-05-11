@@ -8,6 +8,7 @@ import traceback
 
 from fastapi import APIRouter, Request, Depends
 from jellyswipe import XSSSafeJSONResponse
+from urllib.parse import urlencode
 
 from jellyswipe.dependencies import (
     require_auth,
@@ -15,7 +16,8 @@ from jellyswipe.dependencies import (
     check_rate_limit,
     get_provider,
 )
-from jellyswipe.tmdb import lookup_trailer, lookup_cast
+from jellyswipe.http_client import make_http_request
+from jellyswipe.config import TMDB_AUTH_HEADERS
 
 _logger = logging.getLogger(__name__)
 
@@ -56,9 +58,26 @@ def get_trailer(movie_id: str, request: Request, _: None = Depends(check_rate_li
     """Get YouTube trailer key for a movie."""
     try:
         item = get_provider().resolve_item_for_tmdb(movie_id)
-        youtube_key = lookup_trailer(item.title, item.year)
-        if youtube_key:
-            return {"youtube_key": youtube_key}
+        params = urlencode({"query": item.title, "year": item.year})
+        search_url = f"https://api.themoviedb.org/3/search/movie?{params}"
+        search_response = make_http_request(
+            method="GET", url=search_url, headers=TMDB_AUTH_HEADERS, timeout=(5, 15)
+        )
+        r = search_response.json()
+        if r.get("results"):
+            tmdb_id = r["results"][0]["id"]
+            v_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/videos"
+            videos_response = make_http_request(
+                method="GET", url=v_url, headers=TMDB_AUTH_HEADERS, timeout=(5, 15)
+            )
+            v_res = videos_response.json()
+            trailers = [
+                v
+                for v in v_res.get("results", [])
+                if v["site"] == "YouTube" and v["type"] == "Trailer"
+            ]
+            if trailers:
+                return {"youtube_key": trailers[0]["key"]}
         return make_error_response("Not found", 404, request)
     except RuntimeError as e:
         if "item lookup failed" in str(e).lower():
@@ -75,8 +94,33 @@ def get_cast(movie_id: str, request: Request, _: None = Depends(check_rate_limit
     """Get cast information for a movie."""
     try:
         item = get_provider().resolve_item_for_tmdb(movie_id)
-        cast = lookup_cast(item.title, item.year)
-        if cast:
+        params = urlencode({"query": item.title, "year": item.year})
+        search_url = f"https://api.themoviedb.org/3/search/movie?{params}"
+        search_response = make_http_request(
+            method="GET", url=search_url, headers=TMDB_AUTH_HEADERS, timeout=(5, 15)
+        )
+        r = search_response.json()
+        if r.get("results"):
+            tmdb_id = r["results"][0]["id"]
+            credits_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits"
+            credits_response = make_http_request(
+                method="GET",
+                url=credits_url,
+                headers=TMDB_AUTH_HEADERS,
+                timeout=(5, 15),
+            )
+            c_res = credits_response.json()
+            cast = []
+            for actor in c_res.get("cast", [])[:8]:
+                cast.append(
+                    {
+                        "name": actor["name"],
+                        "character": actor.get("character", ""),
+                        "profile_path": f"https://image.tmdb.org/t/p/w185{actor['profile_path']}"
+                        if actor.get("profile_path")
+                        else None,
+                    }
+                )
             return {"cast": cast}
         return {"cast": []}
     except RuntimeError as e:
