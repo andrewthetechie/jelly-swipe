@@ -5,7 +5,6 @@ Per D-06, D-07: 4 media routes with TMDB API integration and rate limiting.
 
 import json
 import logging
-import traceback
 
 from fastapi import APIRouter, Request, Depends
 from jellyswipe import XSSSafeJSONResponse
@@ -18,39 +17,12 @@ from jellyswipe.dependencies import (
     DBUoW,
 )
 from jellyswipe.tmdb import lookup_trailer, lookup_cast
+from jellyswipe.routers._helpers import make_error_response, log_exception
 
 _logger = logging.getLogger(__name__)
 
 # Create router with no prefix (D-14)
 media_router = APIRouter()
-
-
-def make_error_response(
-    message: str, status_code: int, request: Request, extra_fields: dict = None
-) -> XSSSafeJSONResponse:
-    """Create a standardized error response with request ID tracking."""
-    if status_code >= 500:
-        message = "Internal server error"
-    body = {"error": message}
-    body["request_id"] = getattr(request.state, "request_id", "unknown")
-    if extra_fields:
-        body.update(extra_fields)
-    return XSSSafeJSONResponse(content=body, status_code=status_code)
-
-
-def log_exception(exc: Exception, request: Request, context: dict = None) -> None:
-    """Log exception with request context."""
-    log_data = {
-        "request_id": getattr(request.state, "request_id", "unknown"),
-        "route": request.url.path,
-        "method": request.method,
-        "exception_type": type(exc).__name__,
-        "exception_message": str(exc),
-        "stack_trace": traceback.format_exc(),
-    }
-    if context:
-        log_data.update(context)
-    logging.getLogger().error("unhandled_exception", extra=log_data)
 
 
 @media_router.get("/get-trailer/{movie_id}")
@@ -82,10 +54,10 @@ async def get_trailer(
     except RuntimeError as e:
         if "item lookup failed" in str(e).lower():
             return make_error_response("Movie metadata not found", 404, request)
-        log_exception(e, request)
+        log_exception(e, request, logger=_logger)
         return make_error_response("Internal server error", 500, request)
     except Exception as e:
-        log_exception(e, request)
+        log_exception(e, request, logger=_logger)
         return make_error_response("Internal server error", 500, request)
 
 
@@ -112,12 +84,12 @@ async def get_cast(
             return make_error_response(
                 "Movie metadata not found", 404, request, extra_fields={"cast": []}
             )
-        log_exception(e, request)
+        log_exception(e, request, logger=_logger)
         return make_error_response(
             "Internal server error", 500, request, extra_fields={"cast": []}
         )
     except Exception as e:
-        log_exception(e, request)
+        log_exception(e, request, logger=_logger)
         return make_error_response(
             "Internal server error", 500, request, extra_fields={"cast": []}
         )
@@ -149,5 +121,5 @@ def add_to_watchlist(
         get_provider().add_to_user_favorites(user.jf_token, media_id)
         return {"status": "success"}
     except Exception as e:
-        log_exception(e, request)
+        log_exception(e, request, logger=_logger)
         return make_error_response("Internal server error", 500, request)
