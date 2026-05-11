@@ -28,6 +28,8 @@ from jellyswipe.services.room_lifecycle import (
 from jellyswipe.services.session_event_stream import session_event_stream
 from jellyswipe.services.swipe_match import SwipeMatchService
 
+from jellyswipe.routers._helpers import make_error_response, log_exception  # noqa: F401
+
 rooms_router = APIRouter()
 
 _logger = logging.getLogger(__name__)
