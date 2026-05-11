@@ -42,13 +42,15 @@ This application connects directly to a **Jellyfin** server to pull random movie
 
 ### Environment variables
 
-| Variable             | Required when | Description                                                                    |
-| -------------------- | ------------- | ------------------------------------------------------------------------------ |
-| `FLASK_SECRET`       | Always        | Flask session secret.                                                          |
-| `TMDB_ACCESS_TOKEN`  | Always        | TMDB API key (trailers / cast).                                                |
-| `JELLYFIN_URL`       | Always        | Base URL of your Jellyfin server (no trailing slash).                          |
-| `JELLYFIN_API_KEY`   | Always        | API key for unattended server access.                                          |
-| `JELLYFIN_DEVICE_ID` | Optional      | Stable device id string sent with Jellyfin auth headers (default is built-in). |
+| Variable             | Required when | Description                                                                                                                |
+| -------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `FLASK_SECRET`       | Always        | Flask session secret.                                                                                                      |
+| `TMDB_ACCESS_TOKEN`  | Always        | TMDB API key (trailers / cast).                                                                                            |
+| `JELLYFIN_URL`       | Always        | Base URL of your Jellyfin server (no trailing slash).                                                                      |
+| `JELLYFIN_API_KEY`   | Always        | API key for unattended server access.                                                                                      |
+| `JELLYFIN_DEVICE_ID` | Optional      | Stable device id string sent with Jellyfin auth headers (default is built-in).                                             |
+| `PUID`               | Optional      | UID the app runs as inside the container — set to match the owner of your bind-mounted `./data` directory (default `99`).  |
+| `PGID`               | Optional      | GID the app runs as inside the container — set to match the group of your bind-mounted `./data` directory (default `100`). |
 
 ### Jellyfin user identity contract
 
@@ -97,12 +99,36 @@ Only required if you want trailers to work on the rear of the movie posters.
 
 ### Option 1: Docker (Recommended)
 
-Copy and paste this into your terminal. Replace the variables with your specific setup.
+### Installation
 
-```bash
+Pin to a versioned tag for stability. Substitute the latest release tag from the [releases page](https://github.com/AndrewTheTechie/jelly-swipe/releases):
+
+```yaml
+image: ghcr.io/andrewthetechie/jelly-swipe:v0.1.0 # Pin to a release tag
+```
+
+### Upgrading
+
+The `:latest` tag tracks the rolling tip of `main` and may include unreleased changes — it is **not** the newest release. For production use, always pin to a versioned tag (`vX.Y.Z`).
+
+If you are upgrading from a pre-PUID/PGID version and your `./data` directory is owned by `root`, you have two options:
+
+1. Set `PUID` and `PGID` to match the current owner: `stat -c '%u %g' ./data`
+2. Or chown the directory once: `chown -R 99:100 ./data`
+
+### Health Probes
+
+The container exposes two unauthenticated endpoints:
+
+- `GET /healthz` — **Liveness probe**. Returns `{"status": "ok", "version": "X.Y.Z"}` with HTTP 200. Never touches Jellyfin or SQLite.
+- `GET /readyz` — **Readiness probe**. Checks SQLite and Jellyfin in parallel. Returns `{"status": "ok", "checks": {"sqlite": "ok", "jellyfin": "ok"}}` with HTTP 200 when healthy, or `{"status": "degraded", "checks": {"sqlite": "ok", "jellyfin": "fail: ..."}}` with HTTP 503 if a dependency is unreachable.
+
+#### Docker Compose Example
+
+```yaml
 services:
   jelly-swipe:
-    image: andrewthetechie/jelly-swipe:latest
+    image: ghcr.io/andrewthetechie/jelly-swipe:v0.1.0 # Pin to a release tag
     container_name: jelly-swipe
     ports:
       - "5005:5005"
@@ -111,13 +137,14 @@ services:
       - JELLYFIN_API_KEY=your-jellyfin-api-key
       - FLASK_SECRET=SomeRandomString
       - TMDB_ACCESS_TOKEN=your_copied_tmdb_token_here
+      - PUID=99 # UID for app process — match your ./data directory owner
+      - PGID=100 # GID for app process — match your ./data directory owner
     volumes:
       - ./data:/app/data
-      - ./static:/app/static
     restart: unless-stopped
 ```
 
-**Option 2 — Docker Run**
+#### Docker Run Example
 
 ```bash
 docker run -d \
@@ -127,10 +154,11 @@ docker run -d \
   -e JELLYFIN_API_KEY=your-jellyfin-api-key \
   -e FLASK_SECRET=SomeRandomString \
   -e TMDB_ACCESS_TOKEN=your_copied_tmdb_token_here \
+  -e PUID=99 \
+  -e PGID=100 \
   -v ./data:/app/data \
-  -v ./static:/app/static \
   --restart unless-stopped \
-  andrewthetechie/jelly-swipe:latest
+  ghcr.io/andrewthetechie/jelly-swipe:v0.1.0
 ```
 
 ### Unraid Template

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Container version="2">
   <Name>Jelly Swipe</Name>
-  <Repository>andrewthetechie/jelly-swipe:latest</Repository>
-  <Registry>https://hub.docker.com/r/andrewthetechie/jelly-swipe</Registry>
+  <Repository>ghcr.io/andrewthetechie/jelly-swipe:v0.1.0</Repository>
+  <Registry>https://github.com/AndrewTheTechie/jelly-swipe/pkgs/container/jelly-swipe</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
@@ -57,6 +57,16 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
       <Value></Value>
       <Mode>password</Mode>
     </Variable>
+    <Variable>
+      <Name>PUID</Name>
+      <Value>99</Value>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Name>PGID</Name>
+      <Value>100</Value>
+      <Mode/>
+    </Variable>
   </Environment>
   <Data>
     <Volume>
@@ -71,4 +81,6 @@ Forked from https://github.com/Bergasha/kino-swipe — maintained by https://git
   <Config Name="TMDB_ACCESS_TOKEN" Target="TMDB_ACCESS_TOKEN" Default="" Mode="" Description="TMDB Read Access Token for trailers and cast" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="FLASK_SECRET" Target="FLASK_SECRET" Default="" Mode="" Description="Random secret string for session security" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="AppData Config Path" Target="/app/data" Default="/mnt/user/appdata/jelly-swipe/data" Mode="rw" Description="Persistent storage for Jelly Swipe data" Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Sets the user ID inside the container. Match to the owner of your data directory." Type="Variable" Display="always" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Sets the group ID inside the container. Match to the group of your data directory." Type="Variable" Display="always" Required="false" Mask="false">100</Config>
 </Container>
