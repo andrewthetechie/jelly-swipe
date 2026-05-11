@@ -119,6 +119,7 @@ sequenceDiagram
 ```
 
 Notable side effects at import time:
+
 - `init_db()` runs unconditionally (even in tests, hence the Flask mock in `tests/conftest.py`).
 - The provider is **not** authenticated at boot; the first request that calls `get_provider()` triggers `ensure_authenticated()` which talks to Jellyfin.
 
@@ -135,6 +136,7 @@ Notable side effects at import time:
 ### 4.2 The Jellyfin provider (`jellyfin_library.py`)
 
 A long-lived singleton (one per process). Holds:
+
 - `self._base` — Jellyfin URL.
 - `self._session: requests.Session` — connection pool, default `Content-Type: application/json` header.
 - `self._access_token` — server-level token (API key or admin credential token).
@@ -214,6 +216,7 @@ erDiagram
 ```
 
 Notes on what the schema does **not** have:
+
 - No primary keys on `swipes` or `matches` (only a `UNIQUE(room_code, movie_id, user_id)` on `matches`).
 - No declared foreign keys, no `PRAGMA foreign_keys = ON`.
 - No `created_at` / `updated_at` anywhere; rooms are pruned only when the user explicitly hits "End Session".
@@ -223,32 +226,32 @@ Notes on what the schema does **not** have:
 
 ### 4.5 HTTP route surface
 
-| Method  | Path                                | Purpose                                            | Auth required             |
-|---------|-------------------------------------|----------------------------------------------------|---------------------------|
-| GET     | `/`                                 | Render `index.html`                                | None                      |
-| GET     | `/manifest.json`                    | PWA manifest (from `static/`)                      | None                      |
-| GET     | `/sw.js`                            | Service worker (from `data/`)                      | None                      |
-| GET     | `/static/<path>`                    | Static files                                       | None                      |
-| GET     | `/auth/provider`                    | Returns `{provider, jellyfin_browser_auth}`        | None                      |
-| POST    | `/auth/jellyfin-use-server-identity`| Sets `session["jf_delegate_server_identity"]`      | Operator-configured creds |
-| POST    | `/auth/jellyfin-login`              | Proxies user creds to Jellyfin, returns token      | None (anonymous)          |
-| GET     | `/genres`                           | Lists genres from Jellyfin                         | Server identity           |
-| POST    | `/room/create`                      | Mints 4-digit code, fetches deck                   | Server identity           |
-| POST    | `/room/join`                        | Joins existing code                                | None (cookie-only)        |
-| POST    | `/room/go-solo`                     | Marks room solo + ready                            | Cookie session            |
-| POST    | `/room/quit`                        | Deletes room + swipes; archives matches            | Cookie session            |
-| GET     | `/room/status`                      | One-shot snapshot of room state                    | Cookie session            |
-| GET     | `/room/stream`                      | SSE stream of room state changes                   | Cookie session            |
-| POST    | `/room/swipe`                       | Records swipe, computes match                      | Cookie + provider id      |
-| GET     | `/movies`                           | Returns deck (refreshes if `?genre=` set)          | Cookie session            |
-| GET     | `/matches`                          | Lists active or archived matches for `user_id`     | Provider id (header)      |
-| POST    | `/matches/delete`                   | Deletes one match for `user_id`                    | Provider id (header)      |
-| POST    | `/undo`                             | Removes last swipe + match for `user_id`           | Cookie + provider id      |
-| GET     | `/get-trailer/<movie_id>`           | TMDB lookup → YouTube key                          | None                      |
-| GET     | `/cast/<movie_id>`                  | TMDB cast lookup                                   | None                      |
-| POST    | `/watchlist/add`                    | Adds favorite via Jellyfin user token              | User token (Authorization)|
-| GET     | `/proxy?path=jellyfin/<id>/Primary` | Streams poster bytes through the app               | None (only allowlist)     |
-| GET     | `/plex/server-info`                 | Returns Jellyfin server id (legacy URL)            | None                      |
+| Method | Path                                 | Purpose                                        | Auth required              |
+| ------ | ------------------------------------ | ---------------------------------------------- | -------------------------- |
+| GET    | `/`                                  | Render `index.html`                            | None                       |
+| GET    | `/manifest.json`                     | PWA manifest (from `static/`)                  | None                       |
+| GET    | `/sw.js`                             | Service worker (from `data/`)                  | None                       |
+| GET    | `/static/<path>`                     | Static files                                   | None                       |
+| GET    | `/auth/provider`                     | Returns `{provider, jellyfin_browser_auth}`    | None                       |
+| POST   | `/auth/jellyfin-use-server-identity` | Sets `session["jf_delegate_server_identity"]`  | Operator-configured creds  |
+| POST   | `/auth/jellyfin-login`               | Proxies user creds to Jellyfin, returns token  | None (anonymous)           |
+| GET    | `/genres`                            | Lists genres from Jellyfin                     | Server identity            |
+| POST   | `/room/create`                       | Mints 4-digit code, fetches deck               | Server identity            |
+| POST   | `/room/join`                         | Joins existing code                            | None (cookie-only)         |
+| POST   | `/room/go-solo`                      | Marks room solo + ready                        | Cookie session             |
+| POST   | `/room/quit`                         | Deletes room + swipes; archives matches        | Cookie session             |
+| GET    | `/room/status`                       | One-shot snapshot of room state                | Cookie session             |
+| GET    | `/room/stream`                       | SSE stream of room state changes               | Cookie session             |
+| POST   | `/room/swipe`                        | Records swipe, computes match                  | Cookie + provider id       |
+| GET    | `/movies`                            | Returns deck (refreshes if `?genre=` set)      | Cookie session             |
+| GET    | `/matches`                           | Lists active or archived matches for `user_id` | Provider id (header)       |
+| POST   | `/matches/delete`                    | Deletes one match for `user_id`                | Provider id (header)       |
+| POST   | `/undo`                              | Removes last swipe + match for `user_id`       | Cookie + provider id       |
+| GET    | `/get-trailer/<movie_id>`            | TMDB lookup → YouTube key                      | None                       |
+| GET    | `/cast/<movie_id>`                   | TMDB cast lookup                               | None                       |
+| POST   | `/watchlist/add`                     | Adds favorite via Jellyfin user token          | User token (Authorization) |
+| GET    | `/proxy?path=jellyfin/<id>/Primary`  | Streams poster bytes through the app           | None (only allowlist)      |
+| GET    | `/plex/server-info`                  | Returns Jellyfin server id (legacy URL)        | None                       |
 
 "Auth required" describes what the code **looks at** today, not what would be safe — see `REVIEW.md` EPIC-01.
 
@@ -414,6 +417,7 @@ flowchart TD
 ```
 
 Implications:
+
 - One SQLite connection open + closed per client per 1.5 s.
 - `last_match_data` overwrites — if two right-swipe pairs land in the same 1.5 s window, only one is delivered.
 - The session cookie scopes the stream to the user's `active_room`, so a user can only listen on their own room.
@@ -438,6 +442,7 @@ flowchart LR
 ```
 
 Highlights:
+
 - All state mutations go through `fetch(...)` to JSON endpoints; SSE only nudges the UI to re-fetch.
 - `providerIdentityHeaders()` builds `X-Plex-User-ID`, `X-Provider-User-Id`, and `Authorization: MediaBrowser ...` headers from `localStorage` and attaches them to every mutation.
 - DOM updates use `innerHTML` with template literals containing server data (titles, thumbs, summaries) — see `REVIEW.md` EPIC-04.
@@ -449,16 +454,16 @@ Highlights:
 
 All configuration is environment-variable driven. Loaded from `<repo>/.env` via `python-dotenv` at import time, with `os.environ` falling back to whatever the container provides.
 
-| Variable             | Required when                                                | Read by                                       |
-|----------------------|--------------------------------------------------------------|-----------------------------------------------|
-| `FLASK_SECRET`       | always                                                       | `__init__.py` → `app.secret_key`              |
-| `TMDB_API_KEY`       | always (despite README implying optional)                    | `__init__.py` → `/get-trailer`, `/cast`       |
-| `JELLYFIN_URL`       | always                                                       | `__init__.py`, `JellyfinLibraryProvider.__init__` |
-| `JELLYFIN_API_KEY`   | required if `USERNAME`/`PASSWORD` are not set                | `_login_from_env()`                           |
-| `JELLYFIN_USERNAME`  | required if `API_KEY` is not set; also used as preferred user| `_login_from_env()`, `_user_id()`             |
-| `JELLYFIN_PASSWORD`  | paired with `USERNAME`                                       | `_login_from_env()`                           |
-| `JELLYFIN_DEVICE_ID` | optional (default `jelly-swipe-jellyfin-v1`)                 | module-level constant in `jellyfin_library.py`|
-| `DB_PATH`            | optional (default `<repo>/data/jellyswipe.db`)               | `__init__.py`                                 |
+| Variable             | Required when                                                 | Read by                                           |
+| -------------------- | ------------------------------------------------------------- | ------------------------------------------------- |
+| `FLASK_SECRET`       | always                                                        | `__init__.py` → `app.secret_key`                  |
+| `TMDB_API_KEY`       | always (despite README implying optional)                     | `__init__.py` → `/get-trailer`, `/cast`           |
+| `JELLYFIN_URL`       | always                                                        | `__init__.py`, `JellyfinLibraryProvider.__init__` |
+| `JELLYFIN_API_KEY`   | required if `USERNAME`/`PASSWORD` are not set                 | `_login_from_env()`                               |
+| `JELLYFIN_USERNAME`  | required if `API_KEY` is not set; also used as preferred user | `_login_from_env()`, `_user_id()`                 |
+| `JELLYFIN_PASSWORD`  | paired with `USERNAME`                                        | `_login_from_env()`                               |
+| `JELLYFIN_DEVICE_ID` | optional (default `jelly-swipe-jellyfin-v1`)                  | module-level constant in `jellyfin_library.py`    |
+| `DB_PATH`            | optional (default `<repo>/data/jellyswipe.db`)                | `__init__.py`                                     |
 
 Validation runs at import time and raises `RuntimeError("Missing env vars: [...]")` on failure, killing the worker before it serves any traffic.
 
@@ -484,47 +489,68 @@ flowchart LR
   Defaults to a single worker process; concurrency is via gevent.
 - Container runs as `root` (no `USER` directive in the Dockerfile).
 - Two image registries publish from CI:
-  - `andrewthetechie/jelly-swipe:latest` (Docker Hub) — built on every push to `main` (`docker-image.yml`).
-  - `ghcr.io/andrewthetechie/jelly-swipe:<semver>` — built on GitHub Releases (`release-ghcr.yml`).
+  - `ghcr.io/andrewthetechie/jelly-swipe:latest` (GHCR) — built on every push to `main` (`docker-main.yml`).
+  - `ghcr.io/andrewthetechie/jelly-swipe:<semver>` — built on version tags (`release-ghcr.yml`).
 - An Unraid Community Apps template ships in `unraid_template/jelly-swipe.html` (currently with broken Plex env defaults — see `REVIEW.md` EPIC-03).
 
----
+**Health probes:** The app exposes two unauthenticated endpoints for container orchestration:
 
-## 10. Cross-cutting concerns
-
-| Concern         | Today's reality                                                                                                              |
-|-----------------|------------------------------------------------------------------------------------------------------------------------------|
-| Logging         | Werkzeug's default request log, plus uncaught exceptions to stderr. No structured logging, no request id, no correlation id. |
-| Error handling  | `try / except Exception as e: return jsonify({'error': str(e)}), 5xx` is the dominant pattern.                               |
-| Validation      | `/proxy` regex-checks `path`. Most JSON bodies use `.get(...)` with no schema validation.                                    |
-| AuthN           | Session cookie + (sometimes) Jellyfin token in `Authorization` + (sometimes) trusted client header.                          |
-| AuthZ           | Resolved `user_id` is the only filter on multi-tenant queries (`WHERE user_id = ?`). See EPIC-01.                            |
-| Secrets         | Env vars at runtime. Live secrets are committed to the repo's `.env` (see EPIC-02).                                          |
-| Caching         | In-process untimed caches: `_access_token`, `_cached_user_id`, `_cached_library_id`, `_genre_cache`. Reset only on 401.      |
-| CSRF            | None — SameSite default cookie behavior is the only mitigation.                                                              |
-| Rate limiting   | None.                                                                                                                        |
-| Health checks   | None — no `/healthz`, no Docker `HEALTHCHECK`.                                                                                |
-| Tests           | Database (`test_db.py`) and Jellyfin provider (`test_jellyfin_library.py`) are covered. **Zero route tests.**                |
-| CI              | `test.yml` runs pytest on every push; `docker-image.yml` builds `:latest`; `release-ghcr.yml` publishes semver tags.         |
+- `GET /healthz` — **Liveness probe**. Returns `{"status": "ok", "version": "X.Y.Z"}` with HTTP 200. Never touches Jellyfin or SQLite, so it cannot false-negative on a transient dependency outage. Used by Docker/Kubernetes to decide whether to restart the container.
+- `GET /readyz` — **Readiness probe**. Checks SQLite (`SELECT 1` with 1 s timeout) and Jellyfin (`/System/Info/Public` with 2 s timeout) in parallel. Returns `{"status": "ok", "checks": {"sqlite": "ok", "jellyfin": "ok"}}` with HTTP 200 when both are healthy, or `{"status": "degraded", "checks": {"sqlite": "ok", "jellyfin": "fail: …"}}` with HTTP 503 if either dependency is unreachable. Used by orchestrators to decide whether to route traffic to the container.
 
 ---
 
-## 11. Quick reference: where each thing lives
+## 10. Release & Image Pipeline
 
-| If you want to change…                       | Edit…                                                            |
-|----------------------------------------------|------------------------------------------------------------------|
-| A REST endpoint                              | `jellyswipe/__init__.py` (one file)                              |
-| How matches are computed                     | `jellyswipe/__init__.py` → `swipe()`                             |
-| Deck composition / genre normalization       | `jellyswipe/jellyfin_library.py` → `fetch_deck`, `list_genres`   |
-| Image proxy allowlist                        | `jellyswipe/__init__.py` (`/proxy`) **and** `jellyfin_library.py` (`_JF_IMAGE_PATH`) — duplicated |
-| Schema or "migrations"                       | `jellyswipe/db.py` → `init_db()`                                  |
-| The whole UI                                 | `jellyswipe/templates/index.html`                                |
-| Service worker / PWA install                 | `data/sw.js`, `jellyswipe/static/manifest.json` (duplicated in `data/manifest.json`) |
-| Container build                              | `Dockerfile`                                                     |
-| Container runtime                            | `docker-compose.yml`                                             |
-| Unraid Community Apps listing                | `unraid_template/jelly-swipe.html`                               |
-| CI                                           | `.github/workflows/{test,docker-image,release-ghcr}.yml`         |
+Jelly-Swipe uses a fully automated release pipeline driven by Conventional Commits, Release Please, and GitHub Actions:
+
+1. **Conventional Commits → Release Please.** Every merge to `main` updates `CHANGELOG.md` and opens a release PR. When the release PR is merged, Release Please creates a versioned git tag (`vX.Y.Z`) based on [`.release-please-manifest.json`](./.release-please-manifest.json) and the [release-please-config.json](./release-please-config.json) configuration.
+
+2. **Tag-push triggers the release docker build.** The [`release-ghcr.yml`](./.github/workflows/release-ghcr.yml) workflow fires on `push: tags: ['v*']` (not on `release: published` — see [ADR 0002](./docs/adr/0002-operational-hardening-conventions.md) for why the `GITHUB_TOKEN` constraint forces this choice). It builds multi-arch images (amd64 + arm64) with SBOM, provenance, and a non-blocking Trivy vulnerability scan.
+
+3. **Main-branch builds publish `:latest`.** The [`docker-main.yml`](./.github/workflows/docker-main.yml) workflow fires on every push to `main` and publishes `ghcr.io/<owner>/jelly-swipe:latest` plus `main-<sha>`. This means `:latest` is the rolling tip of `main`, not the newest release.
+
+4. **Tag set.** On releases: `vX.Y.Z`, `vX.Y`, `vX`, and the long SHA. On main: `latest` and `main-<sha>`.
+
+Operators should pin to a versioned tag (`vX.Y.Z`) for production deployments. The `:latest` tag is intended for development and testing only.
 
 ---
 
-*Last updated: 2026-04-25. Companion document: [`REVIEW.md`](./REVIEW.md) (security & architecture issues identified during this review).*
+## 11. Cross-cutting concerns
+
+| Concern        | Today's reality                                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Logging        | Werkzeug's default request log, plus uncaught exceptions to stderr. No structured logging, no request id, no correlation id. |
+| Error handling | `try / except Exception as e: return jsonify({'error': str(e)}), 5xx` is the dominant pattern.                               |
+| Validation     | `/proxy` regex-checks `path`. Most JSON bodies use `.get(...)` with no schema validation.                                    |
+| AuthN          | Session cookie + (sometimes) Jellyfin token in `Authorization` + (sometimes) trusted client header.                          |
+| AuthZ          | Resolved `user_id` is the only filter on multi-tenant queries (`WHERE user_id = ?`). See EPIC-01.                            |
+| Secrets        | Env vars at runtime. Live secrets are committed to the repo's `.env` (see EPIC-02).                                          |
+| Caching        | In-process untimed caches: `_access_token`, `_cached_user_id`, `_cached_library_id`, `_genre_cache`. Reset only on 401.      |
+| CSRF           | None — SameSite default cookie behavior is the only mitigation.                                                              |
+| Rate limiting  | None.                                                                                                                        |
+| Health checks  | `/healthz` (liveness, no dependencies) and `/readyz` (readiness, probes SQLite + Jellyfin). See §9.                          |
+| Tests          | Database (`test_db.py`) and Jellyfin provider (`test_jellyfin_library.py`) are covered. **Zero route tests.**                |
+| CI             | `test.yml` runs pytest on every push; `docker-image.yml` builds `:latest`; `release-ghcr.yml` publishes semver tags.         |
+
+---
+
+## 12. Quick reference: where each thing lives
+
+| If you want to change…                 | Edit…                                                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| A REST endpoint                        | `jellyswipe/__init__.py` (one file)                                                               |
+| How matches are computed               | `jellyswipe/__init__.py` → `swipe()`                                                              |
+| Deck composition / genre normalization | `jellyswipe/jellyfin_library.py` → `fetch_deck`, `list_genres`                                    |
+| Image proxy allowlist                  | `jellyswipe/__init__.py` (`/proxy`) **and** `jellyfin_library.py` (`_JF_IMAGE_PATH`) — duplicated |
+| Schema or "migrations"                 | `jellyswipe/db.py` → `init_db()`                                                                  |
+| The whole UI                           | `jellyswipe/templates/index.html`                                                                 |
+| Service worker / PWA install           | `data/sw.js`, `jellyswipe/static/manifest.json` (duplicated in `data/manifest.json`)              |
+| Container build                        | `Dockerfile`                                                                                      |
+| Container runtime                      | `docker-compose.yml`                                                                              |
+| Unraid Community Apps listing          | `unraid_template/jelly-swipe.html`                                                                |
+| CI                                     | `.github/workflows/{test,docker-image,release-ghcr}.yml`                                          |
+
+---
+
+_Last updated: 2026-04-25. Companion document: [`REVIEW.md`](./REVIEW.md) (security & architecture issues identified during this review)._

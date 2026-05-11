@@ -12,12 +12,12 @@ from pathlib import Path
 RECOGNIZED_VARS = {
     "JELLYFIN_URL",
     "JELLYFIN_API_KEY",
-    "JELLYFIN_USERNAME",
-    "JELLYFIN_PASSWORD",
     "TMDB_ACCESS_TOKEN",
     "FLASK_SECRET",
     "DB_PATH",
     "JELLYFIN_DEVICE_ID",
+    "PUID",
+    "PGID",
 }
 
 
