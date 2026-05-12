@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/andrewthetechie/jelly-swipe/compare/v0.3.0...v0.3.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* release ci fixes ([#96](https://github.com/andrewthetechie/jelly-swipe/issues/96)) ([ef93d89](https://github.com/andrewthetechie/jelly-swipe/commit/ef93d894ec1fcf06b3fca9115fc676c7dc7d01c6))
+
 ## [0.3.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.2.0...v0.3.0) (2026-05-12)
 
 
