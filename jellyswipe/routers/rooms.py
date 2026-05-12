@@ -10,7 +10,6 @@ request-scoped connection dependency.
 
 import json
 import logging
-import traceback
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -29,45 +28,14 @@ from jellyswipe.services.room_lifecycle import (
 from jellyswipe.services.session_event_stream import session_event_stream
 from jellyswipe.services.swipe_match import SwipeMatchService
 
+from jellyswipe.routers._helpers import make_error_response, log_exception  # noqa: F401
+
 rooms_router = APIRouter()
 
 _logger = logging.getLogger(__name__)
 
 room_lifecycle_service = RoomLifecycleService()
 swipe_match_service = SwipeMatchService()
-
-
-# ============================================================================
-# Module-level helpers (per D-11)
-# ============================================================================
-
-
-def make_error_response(
-    message: str, status_code: int, request: Request, extra_fields: dict = None
-) -> XSSSafeJSONResponse:
-    """Create an error response with request_id."""
-    if status_code >= 500:
-        message = "Internal server error"
-    body = {"error": message}
-    body["request_id"] = getattr(request.state, "request_id", "unknown")
-    if extra_fields:
-        body.update(extra_fields)
-    return XSSSafeJSONResponse(content=body, status_code=status_code)
-
-
-def log_exception(exc: Exception, request: Request, context: dict = None) -> None:
-    """Log exception with request context."""
-    log_data = {
-        "request_id": getattr(request.state, "request_id", "unknown"),
-        "route": request.url.path,
-        "method": request.method,
-        "exception_type": type(exc).__name__,
-        "exception_message": str(exc),
-        "stack_trace": traceback.format_exc(),
-    }
-    if context:
-        log_data.update(context)
-    logging.getLogger().error("unhandled_exception", extra=log_data)
 
 
 # ============================================================================
