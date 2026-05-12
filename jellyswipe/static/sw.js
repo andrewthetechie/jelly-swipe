@@ -8,13 +8,18 @@ self.addEventListener('activate', (event) => {
 
 
 self.addEventListener('fetch', (event) => {
-    // Don't intercept SSE / streaming requests — pass through natively.
-    // ServiceWorker fetch() wraps the response in a regular Response object
-    // which breaks text/event-stream long-lived connections.
+    // Let the browser handle requests natively when re-issuing via fetch()
+    // would change semantics:
+    // - SSE / event-stream: wrapping breaks long-lived text/event-stream connections.
+    // - Cross-origin (e.g. image.tmdb.org cast photos): no-cors <img> requests
+    //   fail with NetworkError when re-issued through the ServiceWorker.
     const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) {
+        return;
+    }
     if (event.request.headers.get('Accept')?.includes('text/event-stream') ||
         url.pathname === '/room/stream') {
-        return; // Let the browser handle SSE natively
+        return;
     }
     event.respondWith(fetch(event.request));
 });
