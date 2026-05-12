@@ -5,14 +5,13 @@ constants, environment variables, and runtime configuration.
 
 Per D-01 through D-05:
 - D-01: config.py is the single source of truth for shared runtime constants
-- D-02: _token_user_id_cache lives in config.py as module-level dict
 - D-03: Config globals are initialized at import time
 - D-04: validate_jellyfin_url() and JELLYFIN_URL both live in config.py
 - D-05: Routers import from jellyswipe.config
 """
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Optional
 import logging
 import os
 
@@ -61,20 +60,6 @@ JELLYFIN_URL: str = _JELLYFIN_URL
 
 # TMDB authentication headers (moved from inside create_app to module level)
 TMDB_AUTH_HEADERS = {"Authorization": f"Bearer {os.getenv('TMDB_ACCESS_TOKEN')}"}
-
-# Token to user ID cache with TTL (D-02)
-_token_user_id_cache: Dict[str, Tuple[str, float]] = {}
-TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
-
-# Identity header aliases for Jellyfin/Emby compatibility
-IDENTITY_ALIAS_HEADERS = (
-    "X-Provider-User-Id",
-    "X-Jellyfin-User-Id",
-    "X-Emby-UserId",
-)
-
-# Client identifier for Jellyfin API
-CLIENT_ID = "JellySwipe-AndrewTheTechie-2026"
 
 # JellyfinLibraryProvider singleton (lazy initialization)
 # Use TYPE_CHECKING to avoid circular import with jellyfin_library.py
