@@ -6,7 +6,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import jellyswipe.db
 import jellyswipe.db_runtime as db_runtime
 from jellyswipe.db_runtime import (
     build_async_database_url,

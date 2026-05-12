@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import jellyswipe.db
 import pytest
 
 from jellyswipe.db_runtime import (

@@ -8,8 +8,6 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import update
 
-import jellyswipe.db
-import jellyswipe.db_runtime
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
     dispose_runtime,

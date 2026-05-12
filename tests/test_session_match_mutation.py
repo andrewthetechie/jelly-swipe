@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-import jellyswipe.db
 import pytest
 
 from jellyswipe.db_runtime import (

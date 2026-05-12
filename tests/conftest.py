@@ -302,7 +302,7 @@ def app(db_path, monkeypatch):
     Teardown clears dependency_overrides to prevent state leakage (D-01 success criterion 3).
     """
     from jellyswipe import create_app
-    from jellyswipe.dependencies import require_auth, get_provider, AuthUser, _provider_singleton as _dep_provider
+    from jellyswipe.dependencies import require_auth, get_provider, AuthUser
     import jellyswipe.dependencies as deps
 
     bootstrap = _bootstrap_temp_db_runtime(db_path)

@@ -18,7 +18,6 @@ import sqlite3
 import time
 from unittest.mock import MagicMock
 
-import jellyswipe.dependencies as deps
 import pytest
 from fastapi.testclient import TestClient
 from jellyswipe.dependencies import get_provider
