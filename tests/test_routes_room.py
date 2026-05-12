@@ -550,6 +550,7 @@ def test_swipe_right_no_match_yet(client, app):
 def test_set_genre_empty_deck_returns_400(client, app, mocker):
     """POST /room/{code}/genre returns 400 when genre filter results in empty deck."""
     from tests.conftest import FakeProvider
+    from jellyswipe.dependencies import get_provider
 
     # Seed a room
     _seed_room("TEST1", ready=1, solo_mode=0)
@@ -572,12 +573,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
 
     fake_provider.fetch_deck = mock_fetch
 
-    # Override the provider in the router module
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    app.dependency_overrides[get_provider] = lambda: fake_provider
     try:
         response = client.post(
             "/room/TEST1/genre",
@@ -587,8 +583,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
         assert response.status_code == 400
         assert "No items available" in response.json()["error"]
     finally:
-        # Restore original get_provider
-        rooms_router_module.get_provider = original_get_provider
+        app.dependency_overrides.pop(get_provider, None)
 
 
 def test_set_watched_filter_returns_new_deck_on_success(client, app):
@@ -647,6 +642,7 @@ def test_set_watched_filter_invalid_type_returns_400(client, app):
 def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
     """POST /room/{code}/watched-filter returns 422 when filter results in empty deck."""
     from tests.conftest import FakeProvider
+    from jellyswipe.dependencies import get_provider
 
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
@@ -668,11 +664,7 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
 
     fake_provider.fetch_deck = mock_fetch
 
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    app.dependency_overrides[get_provider] = lambda: fake_provider
     try:
         response = client.post(
             "/room/TEST1/watched-filter", json={"hide_watched": True}
@@ -680,7 +672,7 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
         assert response.status_code == 422
         assert "No unwatched items available" in response.json()["error"]
     finally:
-        rooms_router_module.get_provider = original_get_provider
+        app.dependency_overrides.pop(get_provider, None)
 
 
 def test_set_watched_filter_nonexistent_room_returns_404(client, app):

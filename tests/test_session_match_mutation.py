@@ -672,7 +672,6 @@ class TestUndoSwipe:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -711,7 +710,6 @@ class TestUndoSwipe:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -736,7 +734,6 @@ class TestUndoSwipe:
                 ),
                 media_id="m999",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -775,7 +772,6 @@ class TestUndoSwipe:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -810,7 +806,6 @@ class TestDeleteMatch:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -832,7 +827,6 @@ class TestDeleteMatch:
                 ),
                 media_id="m999",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -865,7 +859,6 @@ class TestDeleteMatch:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -924,7 +917,6 @@ class TestUndoAndEventStream:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -975,7 +967,6 @@ class TestDeleteAndEventStream:
                 ),
                 media_id="m1",
                 uow=uow,
-                jellyfin_url="http://test",
             )
             await session.commit()
 

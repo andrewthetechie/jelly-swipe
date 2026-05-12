@@ -518,6 +518,7 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
                 direction="right",
                 catalog_facts=catalog,
                 uow=uow,
+                jellyfin_url="http://test",
             )
             assert isinstance(result, SwipeAccepted)
             await session.commit()
@@ -602,6 +603,7 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
                 direction="right",
                 catalog_facts=catalog,
                 uow=uow,
+                jellyfin_url="http://test",
             )
             assert isinstance(result, SwipeAccepted)
             await session.commit()

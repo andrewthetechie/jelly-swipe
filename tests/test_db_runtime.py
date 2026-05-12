@@ -62,7 +62,7 @@ async def test_async_database_url_helpers_derive_from_sync_target(db_path, monke
 
 
 async def test_initialize_runtime_creates_usable_sessionmaker(db_path):
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
@@ -78,7 +78,7 @@ async def test_initialize_runtime_creates_usable_sessionmaker(db_path):
 
 
 async def test_cached_sessionmaker_creates_distinct_sessions(db_path):
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session_one, sessionmaker() as session_two:
@@ -88,7 +88,7 @@ async def test_cached_sessionmaker_creates_distinct_sessions(db_path):
 
 
 async def test_dispose_runtime_clears_cached_state(db_path):
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     assert db_runtime.RUNTIME_DATABASE_URL is not None
     assert db_runtime.RUNTIME_ENGINE is not None

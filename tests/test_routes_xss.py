@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import sqlite3
 
 from tests.conftest import set_session_cookie, sqlite_test_transaction
+from jellyswipe.dependencies import get_provider
 
 # ---------------------------------------------------------------------------
 # Module-level XSS payload constants (per D-03, D-04, D-05, D-06, D-07)
@@ -43,10 +44,8 @@ def _setup_vault_session(
 
 class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_supplied_title_thumb(
-        self, client, app, db_path, monkeypatch
+        self, client, app, db_path
     ):
-        import jellyswipe.dependencies as deps
-
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
@@ -67,41 +66,39 @@ class TestLayer1ServerSideValidation:
         mock_item.year = 1999
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-        monkeypatch.setattr(
-            deps, "_provider_singleton", mock_provider, raising=False
-        )
-
-        response = client.post(
-            "/room/TEST123/swipe",
-            json={
-                "media_id": "movie123",
-                "direction": "right",
-            },
-        )
-
-        assert response.status_code == 200
-        response_data = response.json()
-        assert response_data == {"accepted": True}
-
-        mock_provider.resolve_item_for_tmdb.assert_called_once_with("movie123")
-
-        with sqlite_test_transaction(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
-                ("TEST123", "movie123"),
+        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        try:
+            response = client.post(
+                "/room/TEST123/swipe",
+                json={
+                    "media_id": "movie123",
+                    "direction": "right",
+                },
             )
-            match = cursor.fetchone()
-            assert match is not None
-            assert match["title"] == "The Matrix"
-            assert match["title"] != '<script>alert("XSS")</script>'
-            assert match["thumb"] == "/proxy?path=jellyfin/movie123/Primary"
-            assert match["thumb"] != '<img src=x onerror=alert("XSS")>'
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert response_data == {"accepted": True}
+
+            mock_provider.resolve_item_for_tmdb.assert_called_once_with("movie123")
+
+            with sqlite_test_transaction(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
+                    ("TEST123", "movie123"),
+                )
+                match = cursor.fetchone()
+                assert match is not None
+                assert match["title"] == "The Matrix"
+                assert match["title"] != '<script>alert("XSS")</script>'
+                assert match["thumb"] == "/proxy?path=jellyfin/movie123/Primary"
+                assert match["thumb"] != '<img src=x onerror=alert("XSS")>'
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
     def test_swipe_ignores_client_params_silently(
-        self, client, app, db_path, monkeypatch
+        self, client, app, db_path
     ):
-        import jellyswipe.dependencies as deps
-
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
@@ -122,32 +119,32 @@ class TestLayer1ServerSideValidation:
         mock_item.year = 2020
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-        monkeypatch.setattr(
-            deps, "_provider_singleton", mock_provider, raising=False
-        )
-
-        response = client.post(
-            "/room/TEST456/swipe",
-            json={
-                "media_id": "movie456",
-                "direction": "right",
-            },
-        )
-
-        assert response.status_code == 200
-
-        response_data = response.json()
-        assert response_data == {"accepted": True}
-
-        with sqlite_test_transaction(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
-                ("TEST456", "movie456"),
+        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        try:
+            response = client.post(
+                "/room/TEST456/swipe",
+                json={
+                    "media_id": "movie456",
+                    "direction": "right",
+                },
             )
-            match = cursor.fetchone()
-            assert match is not None
-            assert match["title"] == "Safe Movie"
-            assert match["thumb"] == "/proxy?path=jellyfin/movie456/Primary"
+
+            assert response.status_code == 200
+
+            response_data = response.json()
+            assert response_data == {"accepted": True}
+
+            with sqlite_test_transaction(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
+                    ("TEST456", "movie456"),
+                )
+                match = cursor.fetchone()
+                assert match is not None
+                assert match["title"] == "Safe Movie"
+                assert match["thumb"] == "/proxy?path=jellyfin/movie456/Primary"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
 
 class TestLayer3CSPHeader:
@@ -177,13 +174,11 @@ class TestLayer3CSPHeader:
 
 
 class TestEndToEndXSSBlocking:
-    def test_xss_blocked_three_layer_defense(self, client, app, db_path, monkeypatch):
-        import jellyswipe.dependencies as deps
-
+    def test_xss_blocked_three_layer_defense(self, client, app, db_path):
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("E2E123", 1),
+                "INSERT INTO rooms (pairing_code, solo_mode, movie_data) VALUES (?, ?, ?)",
+                ("E2E123", 1, json.dumps([{"id": "movie_e2e", "title": "Inception", "year": 2010, "media_type": "movie", "rating": "8.8", "duration": "2h 28m"}])),
             )
 
         _setup_vault_session(
@@ -197,42 +192,40 @@ class TestEndToEndXSSBlocking:
         mock_item.year = 2010
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-        monkeypatch.setattr(
-            deps, "_provider_singleton", mock_provider, raising=False
-        )
-
-        response = client.post(
-            "/room/E2E123/swipe",
-            json={
-                "media_id": "movie_e2e",
-                "direction": "right",
-            },
-        )
-
-        assert response.status_code == 200
-        response_data = response.json()
-        assert response_data == {"accepted": True}
-
-        assert "Content-Security-Policy" in response.headers
-        assert "script-src 'self'" in response.headers["Content-Security-Policy"]
-        assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
-
-        with sqlite_test_transaction(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
-                ("E2E123", "movie_e2e"),
+        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        try:
+            response = client.post(
+                "/room/E2E123/swipe",
+                json={
+                    "media_id": "movie_e2e",
+                    "direction": "right",
+                },
             )
-            match = cursor.fetchone()
-            assert match is not None
-            assert match["title"] == "Inception"
-            assert "<script>" not in match["title"]
-            assert match["thumb"] == "/proxy?path=jellyfin/movie_e2e/Primary"
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert response_data == {"accepted": True}
+
+            assert "Content-Security-Policy" in response.headers
+            assert "script-src 'self'" in response.headers["Content-Security-Policy"]
+            assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
+
+            with sqlite_test_transaction(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
+                    ("E2E123", "movie_e2e"),
+                )
+                match = cursor.fetchone()
+                assert match is not None
+                assert match["title"] == "Inception"
+                assert "<script>" not in match["title"]
+                assert match["thumb"] == "/proxy?path=jellyfin/movie_e2e/Primary"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
     def test_swipe_handles_jellyfin_failure_gracefully(
-        self, client, app, db_path, monkeypatch, caplog
+        self, client, app, db_path, caplog
     ):
-        import jellyswipe.dependencies as deps
-
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
@@ -252,52 +245,52 @@ class TestEndToEndXSSBlocking:
             "Jellyfin item lookup failed"
         )
 
-        monkeypatch.setattr(
-            deps, "_provider_singleton", mock_provider, raising=False
-        )
-
-        with caplog.at_level("WARNING"):
-            response = client.post(
-                "/room/FAIL789/swipe",
-                json={
-                    "media_id": "movie_fail",
-                    "direction": "right",
-                },
-            )
-
-            assert response.status_code == 200
-            response_data = response.json()
-            assert (
-                response_data.get("accepted") is True or "accepted" not in response_data
-            )
-
-            error_logs = [
-                record
-                for record in caplog.records
-                if record.levelno >= 30
-                and "Failed to resolve metadata" in record.getMessage()
-            ]
-            assert len(error_logs) > 0, "Error was not logged"
-
-            with sqlite_test_transaction(db_path) as conn:
-                cursor = conn.execute(
-                    "SELECT COUNT(*) as count FROM matches WHERE room_code = ? AND movie_id = ?",
-                    ("FAIL789", "movie_fail"),
-                )
-                result = cursor.fetchone()
-                assert result["count"] == 0, (
-                    "Match should not be created when metadata resolution fails"
+        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        try:
+            with caplog.at_level("WARNING"):
+                response = client.post(
+                    "/room/FAIL789/swipe",
+                    json={
+                        "media_id": "movie_fail",
+                        "direction": "right",
+                    },
                 )
 
-            with sqlite_test_transaction(db_path) as conn:
-                cursor = conn.execute(
-                    "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
-                    ("FAIL789", "movie_fail"),
+                assert response.status_code == 200
+                response_data = response.json()
+                assert (
+                    response_data.get("accepted") is True or "accepted" not in response_data
                 )
-                result = cursor.fetchone()
-                assert result["count"] == 1, (
-                    "Swipe should still be recorded even if match creation fails"
-                )
+
+                error_logs = [
+                    record
+                    for record in caplog.records
+                    if record.levelno >= 30
+                    and "Failed to resolve metadata" in record.getMessage()
+                ]
+                assert len(error_logs) > 0, "Error was not logged"
+
+                with sqlite_test_transaction(db_path) as conn:
+                    cursor = conn.execute(
+                        "SELECT COUNT(*) as count FROM matches WHERE room_code = ? AND movie_id = ?",
+                        ("FAIL789", "movie_fail"),
+                    )
+                    result = cursor.fetchone()
+                    assert result["count"] == 0, (
+                        "Match should not be created when metadata resolution fails"
+                    )
+
+                with sqlite_test_transaction(db_path) as conn:
+                    cursor = conn.execute(
+                        "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
+                        ("FAIL789", "movie_fail"),
+                    )
+                    result = cursor.fetchone()
+                    assert result["count"] == 1, (
+                        "Swipe should still be recorded even if match creation fails"
+                    )
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
 
 # ---------------------------------------------------------------------------

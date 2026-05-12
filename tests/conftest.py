@@ -18,6 +18,10 @@ from jellyswipe.db_runtime import (
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 # Set required environment variables at module level to satisfy itsdangerous signing
+# and AppConfig construction for tests that check env vars directly.
+os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
+os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
+os.environ.setdefault("TMDB_ACCESS_TOKEN", "test-tmdb-token")
 os.environ.setdefault("FLASK_SECRET", "test-secret-key")
 os.environ.setdefault("ALLOW_PRIVATE_JELLYFIN", "1")
 
