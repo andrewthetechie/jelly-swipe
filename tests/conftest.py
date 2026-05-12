@@ -305,7 +305,7 @@ def app(db_path, monkeypatch):
     from jellyswipe.dependencies import require_auth, get_provider, AuthUser
     import jellyswipe.dependencies as deps
 
-    bootstrap = _bootstrap_temp_db_runtime(db_path)
+    _bootstrap_temp_db_runtime(db_path)
     test_config = _make_test_config(db_path)
     fast_app = create_app(config=test_config)
 
@@ -362,7 +362,7 @@ def app_real_auth(db_path, monkeypatch):
     from jellyswipe.dependencies import get_provider
     import jellyswipe.dependencies as deps
 
-    bootstrap = _bootstrap_temp_db_runtime(db_path)
+    _bootstrap_temp_db_runtime(db_path)
 
     # Set provider singleton BEFORE creating app
     fake_provider = FakeProvider()
