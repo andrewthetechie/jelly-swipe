@@ -367,7 +367,16 @@ class SessionMatchMutation:
         media_id: str,
         uow: DatabaseUnitOfWork,
     ) -> UndoSwipeResult:
-        raise NotImplementedError
+        swipe_deleted = await uow.swipes.delete_by_room_movie_session(
+            code, media_id, actor.session_id
+        )
+        if swipe_deleted == 0:
+            return UndoNoOp()
+
+        match_deleted = await uow.matches.delete_active_for_room_movie_user(
+            code, media_id, actor.user_id
+        )
+        return UndoChanged(match_removed=match_deleted > 0)
 
     async def delete_match(
         self,
@@ -376,7 +385,10 @@ class SessionMatchMutation:
         media_id: str,
         uow: DatabaseUnitOfWork,
     ) -> DeleteMatchResult:
-        raise NotImplementedError
+        deleted = await uow.matches.delete_for_user(media_id, actor.user_id)
+        if deleted == 0:
+            return DeleteNoOp()
+        return DeleteChanged()
 
 
 __all__ = [

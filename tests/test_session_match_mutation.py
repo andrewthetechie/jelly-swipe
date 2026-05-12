@@ -19,10 +19,14 @@ from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.services.session_match_mutation import (
     CatalogFacts,
+    DeleteChanged,
+    DeleteNoOp,
     SessionActor,
     SessionMatchMutation,
     SwipeAccepted,
     SwipeRejected,
+    UndoChanged,
+    UndoNoOp,
 )
 
 
@@ -559,3 +563,406 @@ class TestApplySwipe:
         async with runtime_sessionmaker() as session:
             match = await _get_match_for_user(session, "ROOM1", "m-shared", uid)
             assert match is not None
+
+
+async def _seed_swipe(
+    runtime_sessionmaker,
+    *,
+    code: str,
+    media_id: str,
+    user_id: str,
+    session_id: str | None,
+    direction: str = "right",
+):
+    from sqlalchemy import text
+
+    # Ensure auth session exists for the FK constraint
+    if session_id is not None:
+        await _auth_session(runtime_sessionmaker, session_id, jellyfin_user_id=user_id)
+
+    async with runtime_sessionmaker() as session:
+        await session.execute(
+            text(
+                "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) "
+                "VALUES (:code, :media_id, :user_id, :direction, :session_id)"
+            ),
+            {
+                "code": code,
+                "media_id": media_id,
+                "user_id": user_id,
+                "direction": direction,
+                "session_id": session_id,
+            },
+        )
+        await session.commit()
+
+
+async def _seed_match(
+    runtime_sessionmaker,
+    *,
+    code: str,
+    media_id: str,
+    user_id: str,
+    title: str = "Test Movie",
+    thumb: str = "/t.jpg",
+    status: str = "active",
+):
+    from sqlalchemy import text
+
+    async with runtime_sessionmaker() as session:
+        await session.execute(
+            text(
+                "INSERT INTO matches (room_code, movie_id, user_id, title, thumb, status) "
+                "VALUES (:code, :media_id, :user_id, :title, :thumb, :status)"
+            ),
+            {
+                "code": code,
+                "media_id": media_id,
+                "user_id": user_id,
+                "title": title,
+                "thumb": thumb,
+                "status": status,
+            },
+        )
+        await session.commit()
+
+
+async def _count_matches_for_user(session, media_id: str, user_id: str) -> int:
+    from sqlalchemy import text
+
+    result = await session.execute(
+        text(
+            "SELECT COUNT(*) FROM matches WHERE movie_id = :media_id AND user_id = :user_id"
+        ),
+        {"media_id": media_id, "user_id": user_id},
+    )
+    return result.scalar() or 0
+
+
+@pytest.mark.anyio
+class TestUndoSwipe:
+    async def test_undo_existing_swipe_returns_changed(self, runtime_sessionmaker):
+        """Seed a swipe, undo it → UndoChanged(match_removed=False). Verify swipe row gone."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+        await _seed_swipe(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+            session_id="sess-a",
+        )
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.undo_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, UndoChanged)
+        assert result.match_removed is False
+
+        async with runtime_sessionmaker() as session:
+            assert await _count_swipes(session, "SOLO1") == 0
+
+    async def test_undo_swipe_that_created_match_removes_match(
+        self, runtime_sessionmaker
+    ):
+        """Seed a right-swipe + match, undo → UndoChanged(match_removed=True). Verify swipe AND match rows gone."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+        await _seed_swipe(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+            session_id="sess-a",
+        )
+        await _seed_match(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+        )
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.undo_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, UndoChanged)
+        assert result.match_removed is True
+
+        async with runtime_sessionmaker() as session:
+            assert await _count_swipes(session, "SOLO1") == 0
+            assert await _count_matches(session, "SOLO1") == 0
+
+    async def test_undo_nonexistent_swipe_returns_noop(self, runtime_sessionmaker):
+        """Undo a swipe that never happened → UndoNoOp(). No rows changed."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.undo_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m999",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, UndoNoOp)
+
+    async def test_undo_does_not_remove_counterparty_match(self, runtime_sessionmaker):
+        """Seed mutual match (two match rows), actor undoes → only actor's match row removed."""
+        await _seed_hosted_room(runtime_sessionmaker, code="ROOM1")
+        await _seed_swipe(
+            runtime_sessionmaker,
+            code="ROOM1",
+            media_id="m1",
+            user_id="user-A",
+            session_id="sess-a",
+        )
+        await _seed_match(
+            runtime_sessionmaker,
+            code="ROOM1",
+            media_id="m1",
+            user_id="user-A",
+        )
+        await _seed_match(
+            runtime_sessionmaker,
+            code="ROOM1",
+            media_id="m1",
+            user_id="user-B",
+        )
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.undo_swipe(
+                code="ROOM1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="ROOM1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, UndoChanged)
+        assert result.match_removed is True
+
+        async with runtime_sessionmaker() as session:
+            match_a = await _get_match_for_user(session, "ROOM1", "m1", "user-A")
+            match_b = await _get_match_for_user(session, "ROOM1", "m1", "user-B")
+            assert match_a is None
+            assert match_b is not None
+
+
+@pytest.mark.anyio
+class TestDeleteMatch:
+    async def test_delete_existing_match_returns_changed(self, runtime_sessionmaker):
+        """Seed a match row, delete it → DeleteChanged(). Verify match row gone."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+        await _seed_match(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+        )
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.delete_match(
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, DeleteChanged)
+
+        async with runtime_sessionmaker() as session:
+            assert await _count_matches_for_user(session, "m1", "user-A") == 0
+
+    async def test_delete_nonexistent_match_returns_noop(self, runtime_sessionmaker):
+        """Delete a match that doesn't exist → DeleteNoOp(). No rows changed."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.delete_match(
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m999",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, DeleteNoOp)
+
+    async def test_delete_match_does_not_affect_counterparty(
+        self, runtime_sessionmaker
+    ):
+        """Seed match rows for two users, actor deletes → only actor's match row removed."""
+        await _seed_hosted_room(runtime_sessionmaker, code="ROOM1")
+        await _seed_match(
+            runtime_sessionmaker,
+            code="ROOM1",
+            media_id="m1",
+            user_id="user-A",
+        )
+        await _seed_match(
+            runtime_sessionmaker,
+            code="ROOM1",
+            media_id="m1",
+            user_id="user-B",
+        )
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.delete_match(
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="ROOM1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, DeleteChanged)
+
+        async with runtime_sessionmaker() as session:
+            match_a = await _get_match_for_user(session, "ROOM1", "m1", "user-A")
+            match_b = await _get_match_for_user(session, "ROOM1", "m1", "user-B")
+            assert match_a is None
+            assert match_b is not None
+
+
+@pytest.mark.anyio
+class TestUndoAndEventStream:
+    async def test_undo_does_not_emit_or_remove_events(self, runtime_sessionmaker):
+        """Seed match + match_found event, undo swipe → event still exists in session_events."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+        await _seed_swipe(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+            session_id="sess-a",
+        )
+        await _seed_match(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+        )
+
+        # Seed a match_found event
+        from sqlalchemy import text
+
+        async with runtime_sessionmaker() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO session_events (session_instance_id, event_type, payload_json, created_at) "
+                    "VALUES (:instance_id, 'match_found', :payload, :created_at)"
+                ),
+                {
+                    "instance_id": "inst-solo1",
+                    "payload": '{"media_id": "m1"}',
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            await session.commit()
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.undo_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, UndoChanged)
+        assert result.match_removed is True
+
+        async with runtime_sessionmaker() as session:
+            events = await _get_session_events(session, "inst-solo1")
+            assert len(events) == 1
+            assert events[0].event_type == "match_found"
+
+
+@pytest.mark.anyio
+class TestDeleteAndEventStream:
+    async def test_delete_does_not_emit_or_remove_events(self, runtime_sessionmaker):
+        """Seed match + match_found event, delete match → event still exists."""
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+        await _seed_match(
+            runtime_sessionmaker,
+            code="SOLO1",
+            media_id="m1",
+            user_id="user-A",
+        )
+
+        # Seed a match_found event
+        from sqlalchemy import text
+
+        async with runtime_sessionmaker() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO session_events (session_instance_id, event_type, payload_json, created_at) "
+                    "VALUES (:instance_id, 'match_found', :payload, :created_at)"
+                ),
+                {
+                    "instance_id": "inst-solo1",
+                    "payload": '{"media_id": "m1"}',
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            await session.commit()
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.delete_match(
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                uow=uow,
+            )
+            await session.commit()
+
+        assert isinstance(result, DeleteChanged)
+
+        async with runtime_sessionmaker() as session:
+            events = await _get_session_events(session, "inst-solo1")
+            assert len(events) == 1
+            assert events[0].event_type == "match_found"
