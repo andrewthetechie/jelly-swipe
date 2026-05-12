@@ -26,7 +26,14 @@ from jellyswipe.services.room_lifecycle import (
     UniqueRoomCodeExhaustedError,
 )
 from jellyswipe.services.session_event_stream import session_event_stream
-from jellyswipe.services.swipe_match import SwipeMatchService
+from jellyswipe.services.session_match_mutation import (
+    CatalogFacts,
+    DeleteChanged,
+    SessionActor,
+    SessionMatchMutation,
+    SwipeRejected,
+    UndoChanged,
+)
 
 from jellyswipe.routers._helpers import make_error_response, log_exception  # noqa: F401
 
@@ -35,7 +42,7 @@ rooms_router = APIRouter()
 _logger = logging.getLogger(__name__)
 
 room_lifecycle_service = RoomLifecycleService()
-swipe_match_service = SwipeMatchService()
+session_match_mutation = SessionMatchMutation()
 
 
 # ============================================================================
@@ -174,21 +181,23 @@ async def swipe(
             f"Failed to resolve metadata for media_id={mid}: {exc}"
         )
 
-    result = await swipe_match_service.swipe(
-        code=code,
-        request_session=request.session,
+    actor = SessionActor(
         user_id=user.user_id,
-        movie_id=mid,
+        session_id=request.session.get("session_id"),
+        active_room=request.session.get("active_room"),
+    )
+    catalog = CatalogFacts(title=title, thumb=thumb)
+    result = await session_match_mutation.apply_swipe(
+        code=code,
+        actor=actor,
+        media_id=mid,
         direction=data.get("direction"),
-        title=title,
-        thumb=thumb,
+        catalog_facts=catalog,
         uow=uow,
     )
-    if result is not None:
-        body, status_code = result
-        return XSSSafeJSONResponse(content=body, status_code=status_code)
-
-    # Commit before notifying to ensure events are persisted
+    if isinstance(result, SwipeRejected):
+        return XSSSafeJSONResponse(content={"error": result.reason}, status_code=404)
+    # SwipeAccepted — commit and notify
     await uow.session.commit()
     notifier.notify(code)
     return {"accepted": True}
@@ -231,12 +240,19 @@ async def delete_match(
     if not mid:
         return JSONResponse(content={"error": "media_id required"}, status_code=400)
     mid = str(mid)
-    return await swipe_match_service.delete_match(
-        movie_id=mid,
+    actor = SessionActor(
         user_id=user.user_id,
+        session_id=request.session.get("session_id"),
         active_room=request.session.get("active_room"),
+    )
+    result = await session_match_mutation.delete_match(
+        actor=actor,
+        media_id=mid,
         uow=uow,
     )
+    if isinstance(result, DeleteChanged):
+        await uow.session.commit()
+    return {"status": "deleted"}
 
 
 @rooms_router.post("/room/{code}/undo")
@@ -252,13 +268,21 @@ async def undo_swipe(
     if not mid:
         return JSONResponse(content={"error": "media_id required"}, status_code=400)
     mid = str(mid)
-    return await swipe_match_service.undo_swipe(
-        code=code,
-        request_session=request.session,
+    actor = SessionActor(
         user_id=user.user_id,
-        movie_id=mid,
+        session_id=request.session.get("session_id"),
+        active_room=request.session.get("active_room"),
+    )
+    result = await session_match_mutation.undo_swipe(
+        code=code,
+        actor=actor,
+        media_id=mid,
         uow=uow,
     )
+    if isinstance(result, UndoChanged):
+        await uow.session.commit()
+        notifier.notify(code)
+    return {"status": "undone"}
 
 
 @rooms_router.get("/room/{code}/deck")
