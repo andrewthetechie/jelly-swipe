@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 
 import sqlite3
 
-from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie, sqlite_test_transaction
 
 # ---------------------------------------------------------------------------
@@ -317,9 +316,7 @@ def _set_session(client, secret_key, *, active_room="ROOM1", solo_mode=False):
 
 def _seed_solo_room(db_path, room_code="ROOM1"):
     """Seed a solo-mode room ready for swiping."""
-    path = application_db_path.path
-    assert path is not None
-    conn = sqlite3.connect(path, check_same_thread=False)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     try:
@@ -336,7 +333,7 @@ def _seed_solo_room(db_path, room_code="ROOM1"):
 def _setup_solo_swipe_session(client):
     """Prepare a solo-mode room with vault-based auth for swipe XSS tests."""
     _set_session(client, os.environ["FLASK_SECRET"], solo_mode=True)
-    _seed_solo_room(None)
+    _seed_solo_room(os.environ["DB_PATH"])
 
 
 # ---------------------------------------------------------------------------

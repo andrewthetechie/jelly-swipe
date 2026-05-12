@@ -20,7 +20,6 @@ from unittest.mock import MagicMock
 
 import jellyswipe
 import pytest
-from jellyswipe.db_paths import application_db_path
 from fastapi.testclient import TestClient
 
 
@@ -335,8 +334,7 @@ class TestAdditionalRoutes:
         import os
 
         session_id = "test-session-" + secrets.token_hex(8)
-        path = application_db_path.path
-        assert path is not None
+        path = os.environ["DB_PATH"]
         conn = sqlite3.connect(path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")

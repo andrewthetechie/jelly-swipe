@@ -11,13 +11,11 @@ import os
 
 import sqlite3
 
-from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
 
 
 def _sqlite_conn_for_route_tests():
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")

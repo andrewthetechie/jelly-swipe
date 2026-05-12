@@ -28,10 +28,6 @@ DB_PATH = os.path.abspath(
     os.getenv("DB_PATH", os.path.join(_APP_ROOT, "..", "data", "jellyswipe.db"))
 )
 
-from jellyswipe.db_paths import application_db_path as _application_db_path  # noqa: E402
-
-_application_db_path.path = DB_PATH
-
 _logger = logging.getLogger(__name__)
 _provider_singleton = None
 
@@ -201,10 +197,6 @@ def create_app(test_config=None):
             set_runtime_database_url_override(test_config["DATABASE_URL"])
         else:
             set_runtime_database_url_override(None)
-        if "DB_PATH" in test_config:
-            import jellyswipe.db_paths as _db_paths
-
-            _db_paths.application_db_path.path = test_config["DB_PATH"]
     else:
         set_runtime_database_url_override(None)
 

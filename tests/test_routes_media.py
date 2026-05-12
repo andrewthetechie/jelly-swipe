@@ -11,13 +11,11 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 
-from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
 
 
 def _sqlite_conn():
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     import sqlite3
 
     conn = sqlite3.connect(path, check_same_thread=False)
