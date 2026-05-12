@@ -92,8 +92,8 @@ jobs:
           for f in /tmp/digests/*; do
             DIGESTS="$DIGESTS ${REGISTRY}/${IMAGE_NAME}@$(cat $f)"
           done
-          for tag in $(jq -r '.[]' <<< '${{ steps.meta.outputs.json }}' | jq -r '.tags[]?'); do
-            docker buildx imagetools create -t $tag $DIGESTS
+          jq -r '.tags[]' <<< '${{ steps.meta.outputs.json }}' | while read -r tag; do
+            docker buildx imagetools create -t "$tag" $DIGESTS
           done
       - name: Trivy scan (non-blocking)
         uses: aquasecurity/trivy-action@master
