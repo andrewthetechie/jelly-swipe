@@ -184,7 +184,7 @@ class TestRuntimeHelpersStillAvailable:
         self, db_path, monkeypatch
     ):
         upgrade_to_head(build_sqlite_url(db_path))
-        monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
+        monkeypatch.setenv("DB_PATH", db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -222,7 +222,7 @@ class TestRuntimeHelpersStillAvailable:
         self, db_path, monkeypatch
     ):
         upgrade_to_head(build_sqlite_url(db_path))
-        monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
+        monkeypatch.setenv("DB_PATH", db_path)
 
         conn = sqlite3.connect(db_path)
         try:

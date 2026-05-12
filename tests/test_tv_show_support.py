@@ -453,12 +453,9 @@ def test_round_robin_interleaving_empty_tv_shows():
 @pytest.mark.anyio
 async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
     """Test that SessionMatchMutation creates match records with media_type='tv_show'."""
-    import jellyswipe.db_paths as db_paths_mod
-
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -539,12 +536,9 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
 @pytest.mark.anyio
 async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
     """Test that SessionMatchMutation creates match records with media_type='movie'."""
-    import jellyswipe.db_paths as db_paths_mod
-
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -784,13 +778,11 @@ def _set_session(
 
 
 def _sqlite_conn_for_route_tests():
-    """Open sqlite3 directly to application_db_path."""
+    """Open sqlite3 directly to the test database."""
     import sqlite3
+    import os
 
-    from jellyswipe.db_paths import application_db_path
-
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")

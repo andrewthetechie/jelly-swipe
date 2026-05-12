@@ -86,10 +86,9 @@ def _seed_room_and_instance(
 def _sqlite_conn(app):
     """Get a direct sqlite3 connection to the app's database."""
     import sqlite3
-    from jellyswipe.db_paths import application_db_path
+    import os
 
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")

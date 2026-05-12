@@ -13,7 +13,10 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
-from jellyswipe.db_paths import application_db_path, default_database_file_path
+def _default_database_file_path() -> str:
+    """Default ``data/jellyswipe.db`` under the repo root."""
+    return str(Path(__file__).resolve().parent.parent / "data" / "jellyswipe.db")
+
 
 _SYNC_SQLITE_PREFIX = "sqlite:///"
 _ASYNC_SQLITE_PREFIX = "sqlite+aiosqlite:///"
@@ -45,10 +48,7 @@ def get_database_url(db_path: str | None = None) -> str:
     if os.getenv("DB_PATH"):
         return normalize_sync_database_url(build_sqlite_url(os.environ["DB_PATH"]))
 
-    if application_db_path.path:
-        return normalize_sync_database_url(build_sqlite_url(application_db_path.path))
-
-    return normalize_sync_database_url(build_sqlite_url(default_database_file_path()))
+    return normalize_sync_database_url(build_sqlite_url(_default_database_file_path()))
 
 
 def _alembic_config(database_url: str) -> Config:
