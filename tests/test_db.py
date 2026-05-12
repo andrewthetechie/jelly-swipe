@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 import sqlite3
 
 import pytest
@@ -12,7 +13,16 @@ from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 
 def _migrate(db_path: str) -> sqlite3.Connection:
-    upgrade_to_head(build_sqlite_url(db_path))
+    # Clear env vars that Alembic's env.py checks before the explicit URL
+    old_db_path = os.environ.pop("DB_PATH", None)
+    old_database_url = os.environ.pop("DATABASE_URL", None)
+    try:
+        upgrade_to_head(build_sqlite_url(db_path))
+    finally:
+        if old_db_path is not None:
+            os.environ["DB_PATH"] = old_db_path
+        if old_database_url is not None:
+            os.environ["DATABASE_URL"] = old_database_url
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
