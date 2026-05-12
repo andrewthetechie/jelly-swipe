@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.2.0...v0.3.0) (2026-05-12)
+
+
+### Features
+
+* **ORCH-020:** extract TMDB pure lookup module and refactor route handlers ([#83](https://github.com/andrewthetechie/jelly-swipe/issues/83)) ([d868178](https://github.com/andrewthetechie/jelly-swipe/commit/d868178c6c2ec46f0508eb116a62f894d2ee95b4))
+
+
+### Bug Fixes
+
+* Module Extraction and Responsibility Consolidation ([#93](https://github.com/andrewthetechie/jelly-swipe/issues/93)) ([00db2b1](https://github.com/andrewthetechie/jelly-swipe/commit/00db2b1cc8b018a8d391b0c0892ccc9688783fcf))
+
 ## [0.2.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.1.0...v0.2.0) (2026-05-11)
 
 
