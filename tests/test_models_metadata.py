@@ -11,6 +11,7 @@ def test_target_metadata_contains_phase36_tables():
         "session_events",
         "session_instances",
         "swipes",
+        "tmdb_cache",
     ]
 
 

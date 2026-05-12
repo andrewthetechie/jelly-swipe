@@ -644,7 +644,7 @@
 
             // Trailer box (empty container)
             const trailerBox = document.createElement('div');
-            trailerBox.id = `vid-${m.id}`;
+            trailerBox.id = `vid-${m.media_id}`;
             trailerBox.className = 'trailer-box';
             cardBack.appendChild(trailerBox);
 
@@ -652,7 +652,7 @@
             const trailerBtn = document.createElement('button');
             trailerBtn.className = 'trailer-btn';
             trailerBtn.textContent = 'WATCH TRAILER';
-            trailerBtn.onclick = (event) => watchTrailer(event, m.id, trailerBtn);
+            trailerBtn.onclick = (event) => watchTrailer(event, m.media_id, trailerBtn);
             cardBack.appendChild(trailerBtn);
 
             // Back content with summary
@@ -665,7 +665,7 @@
 
             // Cast row (empty container, populated later)
             const castRow = document.createElement('div');
-            castRow.id = `cast-${m.id}`;
+            castRow.id = `cast-${m.media_id}`;
             castRow.className = 'cast-row';
             cardBack.appendChild(castRow);
 
@@ -686,12 +686,12 @@
                 if (!e.target.classList.contains('trailer-btn') && Math.abs(globalCurrentX) < 5) {
                     c.classList.toggle('flipped');
                     if (c.classList.contains('flipped')) {
-                        const castEl = document.getElementById(`cast-${m.id}`);
+                        const castEl = document.getElementById(`cast-${m.media_id}`);
                         if (castEl && castEl.dataset.loaded !== 'true') {
                             castEl.dataset.loaded = 'true';
                             castEl.textContent = 'Loading cast...';
                             try {
-                                const res = await fetch(`/cast/${m.id}`);
+                                const res = await fetch(`/cast/${m.media_id}`);
                                 const data = await res.json();
                                 if (data.cast && data.cast.length > 0) {
                                     // Clear loading text

@@ -72,9 +72,9 @@ class TestBearerTokenHeaders:
         }
         second_response.status_code = 200
 
-        # Patch where make_http_request is looked up: jellyswipe.routers.media (D-14)
+        # Patch where make_http_request is looked up: jellyswipe.tmdb (refactored from media.py)
         with patch(
-            "jellyswipe.routers.media.make_http_request",
+            "jellyswipe.tmdb.make_http_request",
             side_effect=[mock_response, second_response],
         ) as mock_http:
             response = client.get("/get-trailer/test_movie_id")
@@ -112,9 +112,9 @@ class TestBearerTokenHeaders:
         }
         second_response.status_code = 200
 
-        # Patch where make_http_request is looked up: jellyswipe.routers.media (D-14)
+        # Patch where make_http_request is looked up: jellyswipe.tmdb (refactored from media.py)
         with patch(
-            "jellyswipe.routers.media.make_http_request",
+            "jellyswipe.tmdb.make_http_request",
             side_effect=[mock_response, second_response],
         ) as mock_http:
             response = client.get("/cast/test_movie_id")

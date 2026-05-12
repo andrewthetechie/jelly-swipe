@@ -12,7 +12,7 @@ from pathlib import Path
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-_EXPECTED_REVISION = "0004_session_event_ledger"
+_EXPECTED_REVISION = "0005_tmdb_cache"
 
 
 def _table_names(conn: sqlite3.Connection) -> set[str]:

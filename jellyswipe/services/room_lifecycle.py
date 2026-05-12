@@ -6,12 +6,21 @@ import asyncio
 import json
 import logging
 import secrets
-from typing import Any, Protocol
+from typing import Any
 from uuid import uuid4
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.room_types import MatchRecord
+from jellyswipe.services.deck_pipeline import build_deck, DeckProvider, EmptyDeckError
+
+# Re-export for backward compatibility
+__all__ = [
+    "DeckProvider",
+    "EmptyDeckError",
+    "RoomLifecycleService",
+    "UniqueRoomCodeExhaustedError",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +30,6 @@ class UniqueRoomCodeExhaustedError(Exception):
 
     def __init__(self) -> None:
         super().__init__("Could not generate unique room code")
-
-
-class EmptyDeckError(Exception):
-    """Deck rebuild produced zero items — no state change occurred."""
-
-    def __init__(self, reason: str = "No items matched the filter criteria") -> None:
-        super().__init__(reason)
-
-
-class DeckProvider(Protocol):
-    def fetch_deck(
-        self,
-        media_types: list[str],
-        genre_name: str | None = None,
-        hide_watched: bool = False,
-    ) -> list[dict[str, Any]]: ...
 
 
 class RoomLifecycleService:
@@ -97,26 +90,19 @@ class RoomLifecycleService:
                 media_types.append("movie")
             if include_tv_shows:
                 media_types.append("tv_show")
-            movie_list = provider.fetch_deck(media_types=media_types)
-
-            # Interleave movies and TV shows when both are requested (round-robin)
-            if include_movies and include_tv_shows:
-                movies = [m for m in movie_list if m.get("media_type") == "movie"]
-                tv_shows = [t for t in movie_list if t.get("media_type") == "tv_show"]
-                interleaved = []
-                max_len = max(len(movies), len(tv_shows))
-                for i in range(max_len):
-                    if i < len(movies):
-                        interleaved.append(movies[i])
-                    if i < len(tv_shows):
-                        interleaved.append(tv_shows[i])
-                movie_list = interleaved
+            deck = await build_deck(
+                provider=provider,
+                uow=uow,
+                room_code=pairing_code,
+                media_types=media_types,
+                persist=False,
+            )
 
             deck_json = json.dumps({user_id: 0})
             instance_id = uuid4().hex
             await uow.rooms.create(
                 pairing_code,
-                movie_data_json=json.dumps(movie_list),
+                movie_data_json=json.dumps(deck),
                 ready=solo,  # ready defaults to True when solo=True
                 current_genre="All",
                 solo_mode=solo,
@@ -154,12 +140,18 @@ class RoomLifecycleService:
                 continue
             # Build media_types list from boolean flags - solo mode defaults to movies only
             media_types = ["movie"]
-            movie_list = provider.fetch_deck(media_types=media_types)
+            deck = await build_deck(
+                provider=provider,
+                uow=uow,
+                room_code=pairing_code,
+                media_types=media_types,
+                persist=False,
+            )
             deck_json = json.dumps({user_id: 0})
             instance_id = uuid4().hex
             await uow.rooms.create(
                 pairing_code,
-                movie_data_json=json.dumps(movie_list),
+                movie_data_json=json.dumps(deck),
                 ready=True,
                 current_genre="All",
                 solo_mode=True,
@@ -272,99 +264,6 @@ class RoomLifecycleService:
             result.append(item)
         return result
 
-    async def _rebuild_deck(
-        self,
-        code: str,
-        provider: DeckProvider,
-        uow: DatabaseUnitOfWork,
-        genre: str | None = None,
-        hide_watched: bool | None = None,
-    ) -> list[dict[str, Any]]:
-        """Rebuild room deck with optional genre and watched filter changes.
-
-        Args:
-            code: Room pairing code
-            provider: Deck provider to fetch media
-            uow: Unit of work for DB access
-            genre: New genre filter (None = keep current)
-            hide_watched: New watched filter state (None = keep current)
-
-        Returns:
-            New deck list
-
-        Raises:
-            EmptyDeckError: If rebuilt deck has zero items (no state changed)
-        """
-        # Read room config from DB
-        room = await uow.rooms.get_room(code)
-        if room is None:
-            raise EmptyDeckError("Room not found")
-
-        # Determine effective values: use provided or keep current
-        effective_genre = genre if genre is not None else room.current_genre
-        effective_hide_watched = (
-            hide_watched if hide_watched is not None else room.hide_watched
-        )
-
-        # Build media_types from room config
-        media_types = []
-        if room.include_movies:
-            media_types.append("movie")
-        if room.include_tv_shows:
-            media_types.append("tv_show")
-
-        # Fetch deck from provider with genre + hide_watched filters
-        new_list = provider.fetch_deck(
-            media_types=media_types,
-            genre_name=effective_genre,
-            hide_watched=effective_hide_watched,
-        )
-
-        # Interleave movies and TV shows when both are requested (round-robin)
-        if room.include_movies and room.include_tv_shows:
-            movies = [m for m in new_list if m.get("media_type") == "movie"]
-            tv_shows = [t for t in new_list if t.get("media_type") == "tv_show"]
-            interleaved = []
-            max_len = max(len(movies), len(tv_shows))
-            for i in range(max_len):
-                if i < len(movies):
-                    interleaved.append(movies[i])
-                if i < len(tv_shows):
-                    interleaved.append(tv_shows[i])
-            new_list = interleaved
-
-        # Read swiped media IDs and exclude them from new deck
-        swiped_ids = await uow.swipes.list_swiped_media_ids(code)
-        filtered_deck = [item for item in new_list if item.get("id") not in swiped_ids]
-
-        # If deck is empty after filtering, raise error (no state change)
-        if not filtered_deck:
-            logger.warning(
-                "Empty deck for room %s: genre=%s, hide_watched=%s, excluded %d swiped items",
-                code,
-                effective_genre,
-                effective_hide_watched,
-                len(swiped_ids),
-            )
-            raise EmptyDeckError("No items available. Try a different filter.")
-
-        # Persist in internal format (with "id" field) so get_deck can transform correctly
-        await uow.rooms.set_filters_and_deck(
-            code,
-            genre=effective_genre,
-            hide_watched=effective_hide_watched,
-            movie_data_json=json.dumps(filtered_deck),
-            deck_position_json=json.dumps({}),
-        )
-
-        # Return API format (id → media_id) for immediate use by the router
-        api_deck = []
-        for item in filtered_deck:
-            api_item = {k: v for k, v in item.items() if k != "id"}
-            api_item["media_id"] = item.get("id")
-            api_deck.append(api_item)
-        return api_deck
-
     async def set_genre(
         self,
         code: str,
@@ -373,7 +272,25 @@ class RoomLifecycleService:
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
         """Set genre filter and rebuild deck."""
-        new_deck = await self._rebuild_deck(code, provider, uow, genre=genre)
+        room = await uow.rooms.get_room(code)
+        if room is None:
+            raise EmptyDeckError("Room not found")
+
+        media_types = []
+        if room.include_movies:
+            media_types.append("movie")
+        if room.include_tv_shows:
+            media_types.append("tv_show")
+
+        new_deck = await build_deck(
+            provider=provider,
+            uow=uow,
+            room_code=code,
+            media_types=media_types,
+            genre=genre,
+            hide_watched=room.hide_watched,
+            persist=True,
+        )
         # Append genre_changed event on success
         instance = await uow.session_instances.get_by_pairing_code(code)
         if instance:
@@ -390,8 +307,24 @@ class RoomLifecycleService:
         uow: DatabaseUnitOfWork,
     ) -> list[dict[str, Any]]:
         """Set watched filter and rebuild deck."""
-        new_deck = await self._rebuild_deck(
-            code, provider, uow, hide_watched=hide_watched
+        room = await uow.rooms.get_room(code)
+        if room is None:
+            raise EmptyDeckError("Room not found")
+
+        media_types = []
+        if room.include_movies:
+            media_types.append("movie")
+        if room.include_tv_shows:
+            media_types.append("tv_show")
+
+        new_deck = await build_deck(
+            provider=provider,
+            uow=uow,
+            room_code=code,
+            media_types=media_types,
+            genre=room.current_genre,
+            hide_watched=hide_watched,
+            persist=True,
         )
         # Append hide_watched_changed event on success
         instance = await uow.session_instances.get_by_pairing_code(code)
