@@ -22,7 +22,12 @@ from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.jellyfin_library import JellyfinLibraryProvider
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
-from jellyswipe.services.swipe_match import SwipeMatchService
+from jellyswipe.services.session_match_mutation import (
+    CatalogFacts,
+    SessionActor,
+    SessionMatchMutation,
+    SwipeAccepted,
+)
 from tests.conftest import FakeProvider, set_session_cookie
 
 
@@ -447,7 +452,7 @@ def test_round_robin_interleaving_empty_tv_shows():
 
 @pytest.mark.anyio
 async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
-    """Test that SwipeMatchService creates match records with media_type='tv_show'."""
+    """Test that SessionMatchMutation creates match records with media_type='tv_show'."""
     import jellyswipe.db_paths as db_paths_mod
 
     sync_database_url = build_sqlite_url(db_path)
@@ -462,7 +467,7 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
 
     try:
         sessionmaker = get_sessionmaker()
-        svc = SwipeMatchService()
+        svc = SessionMatchMutation()
 
         # Seed room with TV show in movie_data so media_type can be resolved
         movie_data = json.dumps(
@@ -505,17 +510,19 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
         # Swipe right on TV show
         async with sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            result = await svc.swipe(
+            actor = SessionActor(
+                user_id="user-1", session_id="sess-1", active_room="ROOM1"
+            )
+            catalog = CatalogFacts(title="TV Show 1", thumb="/t.jpg")
+            result = await svc.apply_swipe(
                 code="ROOM1",
-                request_session={"session_id": "sess-1"},
-                user_id="user-1",
-                movie_id="tv-1",
+                actor=actor,
+                media_id="tv-1",
                 direction="right",
-                title="TV Show 1",
-                thumb="/t.jpg",
+                catalog_facts=catalog,
                 uow=uow,
             )
-            assert result is None  # Solo match returns None
+            assert isinstance(result, SwipeAccepted)
             await session.commit()
 
         # Verify match has media_type
@@ -531,7 +538,7 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
-    """Test that SwipeMatchService creates match records with media_type='movie'."""
+    """Test that SessionMatchMutation creates match records with media_type='movie'."""
     import jellyswipe.db_paths as db_paths_mod
 
     sync_database_url = build_sqlite_url(db_path)
@@ -546,7 +553,7 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
 
     try:
         sessionmaker = get_sessionmaker()
-        svc = SwipeMatchService()
+        svc = SessionMatchMutation()
 
         # Seed room with movie in movie_data so media_type can be resolved
         movie_data = json.dumps(
@@ -590,17 +597,19 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
         # Swipe right on movie
         async with sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            result = await svc.swipe(
+            actor = SessionActor(
+                user_id="user-1", session_id="sess-1", active_room="ROOM1"
+            )
+            catalog = CatalogFacts(title="Movie 1", thumb="/m.jpg")
+            result = await svc.apply_swipe(
                 code="ROOM1",
-                request_session={"session_id": "sess-1"},
-                user_id="user-1",
-                movie_id="movie-1",
+                actor=actor,
+                media_id="movie-1",
                 direction="right",
-                title="Movie 1",
-                thumb="/m.jpg",
+                catalog_facts=catalog,
                 uow=uow,
             )
-            assert result is None  # Solo match returns None
+            assert isinstance(result, SwipeAccepted)
             await session.commit()
 
         # Verify match has media_type

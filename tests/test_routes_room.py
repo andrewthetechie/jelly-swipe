@@ -838,3 +838,40 @@ def test_create_room_returns_instance_id(client, app):
     assert "instance_id" in data
     assert data["instance_id"] is not None
     assert len(data["instance_id"]) > 0  # UUID hex string
+
+
+def test_swipe_nonexistent_room_returns_404(client, app):
+    """POST /room/<code>/swipe to a non-existent room returns 404 with error."""
+    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+
+    response = client.post(
+        "/room/NOROOM/swipe",
+        json={"media_id": "m1", "direction": "right"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"error": "room_not_found"}
+
+
+def test_swipe_notifies_after_commit(client, app):
+    """POST /room/<code>/swipe calls notifier.notify(code) after commit."""
+    from unittest.mock import patch
+
+    from jellyswipe.notifier import notifier
+
+    _set_session(
+        client,
+        os.environ["FLASK_SECRET"],
+        active_room="TEST1",
+        user_id="verified-user",
+        authenticated=True,
+    )
+    _seed_room("TEST1", ready=1, solo_mode=1)
+
+    with patch.object(notifier, "notify") as mock_notify:
+        response = client.post(
+            "/room/TEST1/swipe",
+            json={"media_id": "m1", "direction": "left"},
+        )
+        assert response.status_code == 200
+        mock_notify.assert_called_once_with("TEST1")

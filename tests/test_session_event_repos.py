@@ -18,6 +18,7 @@ from jellyswipe.db_runtime import (
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
+from jellyswipe.repositories.session_events import append_sync
 
 
 @pytest.fixture(autouse=True)
@@ -178,6 +179,91 @@ class TestSessionEventRepository:
         assert len(events) == 1
         assert events[0].event_type == "raw_event"
         assert json.loads(events[0].payload_json) == {"raw": True}
+
+    async def test_append_sync_returns_positive_event_id(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.session_instances.create("inst-sync", "SYNC1")
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            event_id = await session.run_sync(
+                lambda conn: append_sync(
+                    conn, "inst-sync", "sync_event", json.dumps({"sync": True})
+                )
+            )
+            await session.commit()
+
+        assert event_id is not None
+        assert event_id > 0
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            events = await uow.session_events.read_after("inst-sync", after_event_id=0)
+
+        assert len(events) == 1
+        assert events[0].event_type == "sync_event"
+        assert json.loads(events[0].payload_json) == {"sync": True}
+
+    async def test_append_sync_created_at_is_valid_iso8601(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.session_instances.create("inst-sync-iso", "SYNC2")
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await session.run_sync(
+                lambda conn: append_sync(
+                    conn, "inst-sync-iso", "iso_test", json.dumps({})
+                )
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            events = await uow.session_events.read_after(
+                "inst-sync-iso", after_event_id=0
+            )
+
+        assert len(events) == 1
+        # Verify created_at is a valid ISO 8601 string
+        dt = datetime.fromisoformat(events[0].created_at)
+        assert dt.tzinfo is not None
+
+    async def test_append_sync_inside_begin_immediate_transaction(
+        self, runtime_sessionmaker
+    ):
+        """Verify append_sync works inside a BEGIN IMMEDIATE transaction."""
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.session_instances.create("inst-sync-imm", "SYNC3")
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            # Use run_sync to get a sync connection and execute BEGIN IMMEDIATE
+            def _append_in_immediate(conn):
+                conn.execute(text("BEGIN IMMEDIATE"))
+                event_id = append_sync(
+                    conn, "inst-sync-imm", "immediate_event", json.dumps({"imm": True})
+                )
+                conn.execute(text("COMMIT"))
+                return event_id
+
+            event_id = await session.run_sync(_append_in_immediate)
+
+        assert event_id is not None
+        assert event_id > 0
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            events = await uow.session_events.read_after(
+                "inst-sync-imm", after_event_id=0
+            )
+
+        assert len(events) == 1
+        assert events[0].event_type == "immediate_event"
 
     async def test_delete_for_instance_removes_all_events(self, runtime_sessionmaker):
         async with runtime_sessionmaker() as session:
