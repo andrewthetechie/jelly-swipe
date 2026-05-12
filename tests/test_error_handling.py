@@ -18,7 +18,7 @@ import sqlite3
 import time
 from unittest.mock import MagicMock
 
-import jellyswipe
+import jellyswipe.dependencies as deps
 import pytest
 from fastapi.testclient import TestClient
 
@@ -89,7 +89,7 @@ class TestRequestIdPropagation:
     def test_error_response_body_contains_request_id(self, client, monkeypatch):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test internal error")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/get-trailer/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500
@@ -105,7 +105,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception(
             "SECRET_INTERNAL_DB_CONNECTION_STRING"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/get-trailer/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500
@@ -115,7 +115,7 @@ class TestErrorSanitization:
     def test_cast_500_no_exception_details(self, client, monkeypatch):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("SECRET_API_KEY_LEAKED")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/cast/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500
@@ -136,7 +136,7 @@ class TestErrorSanitization:
         mock_prov.add_to_user_favorites.side_effect = Exception(
             "SECRET_WATCHLIST_ERROR"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = auth_client.post(
             "/watchlist/add",
             json={"media_id": "test-id"},
@@ -154,7 +154,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception(
             "SECRET_SERVER_ERROR_DETAIL"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/get-trailer/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500
@@ -207,7 +207,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "Item lookup failed for id"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/get-trailer/test-movie-id")
         data = resp.json()
         assert resp.status_code == 404
@@ -219,7 +219,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "unexpected internal error"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/get-trailer/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500
@@ -231,7 +231,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "Item lookup failed for id"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/cast/test-movie-id")
         data = resp.json()
         assert resp.status_code == 404
@@ -242,7 +242,7 @@ class TestErrorResponseFormat:
     def test_cast_500_includes_cast_field(self, client, monkeypatch):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("something broke")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/cast/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500
@@ -268,10 +268,7 @@ class TestErrorLogging:
     ):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test logging error")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        import jellyswipe.config as app_config
-
-        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get("/get-trailer/test-movie-id")
 
@@ -288,10 +285,7 @@ class TestErrorLogging:
     def test_exception_log_includes_exception_type(self, client, caplog, monkeypatch):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("test runtime error")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        import jellyswipe.config as app_config
-
-        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get("/get-trailer/test-movie-id")
 
@@ -309,10 +303,7 @@ class TestErrorLogging:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "specific error detail for logging"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        import jellyswipe.config as app_config
-
-        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
             resp = client.get("/get-trailer/test-movie-id")
 
@@ -369,7 +360,7 @@ class TestAdditionalRoutes:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "some other runtime error"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
+        monkeypatch.setattr(deps, "_provider_singleton", mock_prov, raising=False)
         resp = client.get("/cast/test-movie-id")
         data = resp.json()
         assert resp.status_code == 500

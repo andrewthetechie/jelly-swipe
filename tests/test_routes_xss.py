@@ -45,7 +45,7 @@ class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_supplied_title_thumb(
         self, client, app, db_path, monkeypatch
     ):
-        import jellyswipe
+        import jellyswipe.dependencies as deps
 
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
@@ -68,7 +68,7 @@ class TestLayer1ServerSideValidation:
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
         monkeypatch.setattr(
-            jellyswipe, "_provider_singleton", mock_provider, raising=False
+            deps, "_provider_singleton", mock_provider, raising=False
         )
 
         response = client.post(
@@ -100,7 +100,7 @@ class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_params_silently(
         self, client, app, db_path, monkeypatch
     ):
-        import jellyswipe
+        import jellyswipe.dependencies as deps
 
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
@@ -123,7 +123,7 @@ class TestLayer1ServerSideValidation:
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
         monkeypatch.setattr(
-            jellyswipe, "_provider_singleton", mock_provider, raising=False
+            deps, "_provider_singleton", mock_provider, raising=False
         )
 
         response = client.post(
@@ -178,7 +178,7 @@ class TestLayer3CSPHeader:
 
 class TestEndToEndXSSBlocking:
     def test_xss_blocked_three_layer_defense(self, client, app, db_path, monkeypatch):
-        import jellyswipe
+        import jellyswipe.dependencies as deps
 
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
@@ -198,7 +198,7 @@ class TestEndToEndXSSBlocking:
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
         monkeypatch.setattr(
-            jellyswipe, "_provider_singleton", mock_provider, raising=False
+            deps, "_provider_singleton", mock_provider, raising=False
         )
 
         response = client.post(
@@ -231,7 +231,7 @@ class TestEndToEndXSSBlocking:
     def test_swipe_handles_jellyfin_failure_gracefully(
         self, client, app, db_path, monkeypatch, caplog
     ):
-        import jellyswipe
+        import jellyswipe.dependencies as deps
 
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
@@ -253,7 +253,7 @@ class TestEndToEndXSSBlocking:
         )
 
         monkeypatch.setattr(
-            jellyswipe, "_provider_singleton", mock_provider, raising=False
+            deps, "_provider_singleton", mock_provider, raising=False
         )
 
         with caplog.at_level("WARNING"):
@@ -354,9 +354,9 @@ def test_swipe_xss_title_escaped_in_match_response(client, monkeypatch):
     mock_item.year = 2024
     mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-    import jellyswipe
+    import jellyswipe.dependencies as deps
 
-    monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",
@@ -381,9 +381,9 @@ def test_swipe_xss_thumb_escaped_in_match_response(client, monkeypatch):
     mock_item.year = 2024
     mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-    import jellyswipe
+    import jellyswipe.dependencies as deps
 
-    monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",
@@ -408,9 +408,9 @@ def test_stored_xss_matches_endpoint(client, monkeypatch):
     mock_item.year = 2024
     mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-    import jellyswipe
+    import jellyswipe.dependencies as deps
 
-    monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     client.post(
         "/room/ROOM1/swipe",
@@ -437,9 +437,9 @@ def test_swipe_xss_img_tag_escaped(client, monkeypatch):
     mock_item.year = 2024
     mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-    import jellyswipe
+    import jellyswipe.dependencies as deps
 
-    monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",
@@ -464,9 +464,9 @@ def test_swipe_xss_event_handler_escaped(client, monkeypatch):
     mock_item.year = 2024
     mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-    import jellyswipe
+    import jellyswipe.dependencies as deps
 
-    monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_provider, raising=False)
+    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",

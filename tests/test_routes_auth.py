@@ -6,7 +6,7 @@ Covers /auth/jellyfin-use-server-identity with header-spoof protection tests (EP
 
 from unittest.mock import MagicMock
 
-import jellyswipe
+import jellyswipe.dependencies as deps
 import pytest
 
 SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
@@ -28,7 +28,7 @@ def test_jellyfin_use_server_identity_runtime_error_returns_401(
     client_real_auth, monkeypatch
 ):
     """RuntimeError from provider returns 401 and error message."""
-    fake = jellyswipe._provider_singleton
+    fake = deps._provider_singleton
     monkeypatch.setattr(
         fake,
         "server_access_token_for_delegate",

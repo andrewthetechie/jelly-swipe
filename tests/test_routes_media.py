@@ -152,19 +152,17 @@ class TestTrailerRoute:
         _set_session(client)
 
         from tests.conftest import FakeProvider
-        import jellyswipe.config as app_config
-        import jellyswipe as app_module
+        import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
 
-        original = app_config._provider_singleton
+        original = deps._provider_singleton
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
                 raise RuntimeError("item lookup failed")
 
         failing = FailingProvider()
-        app_config._provider_singleton = failing
-        app_module._provider_singleton = failing
+        deps._provider_singleton = failing
         app.dependency_overrides[get_provider] = lambda: failing
 
         try:
@@ -172,8 +170,7 @@ class TestTrailerRoute:
             assert resp.status_code == 404
             assert "Movie metadata not found" in resp.json()["error"]
         finally:
-            app_config._provider_singleton = original
-            app_module._provider_singleton = original
+            deps._provider_singleton = original
 
 
 # ---------------------------------------------------------------------------
@@ -261,19 +258,17 @@ class TestCastRoute:
         _set_session(client)
 
         from tests.conftest import FakeProvider
-        import jellyswipe.config as app_config
-        import jellyswipe as app_module
+        import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
 
-        original = app_config._provider_singleton
+        original = deps._provider_singleton
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
                 raise RuntimeError("item lookup failed")
 
         failing = FailingProvider()
-        app_config._provider_singleton = failing
-        app_module._provider_singleton = failing
+        deps._provider_singleton = failing
         app.dependency_overrides[get_provider] = lambda: failing
 
         try:
@@ -283,5 +278,4 @@ class TestCastRoute:
             assert "Movie metadata not found" in data["error"]
             assert data["cast"] == []
         finally:
-            app_config._provider_singleton = original
-            app_module._provider_singleton = original
+            deps._provider_singleton = original

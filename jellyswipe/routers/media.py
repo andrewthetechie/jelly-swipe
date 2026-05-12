@@ -6,18 +6,19 @@ Per D-06, D-07: 4 media routes with TMDB API integration and rate limiting.
 import json
 import logging
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Depends, Request
 from jellyswipe import XSSSafeJSONResponse
 
+from jellyswipe.config import AppConfig, get_config
 from jellyswipe.dependencies import (
-    require_auth,
     AuthUser,
+    DBUoW,
     check_rate_limit,
     get_provider,
-    DBUoW,
+    require_auth,
 )
-from jellyswipe.tmdb import lookup_trailer, lookup_cast
-from jellyswipe.routers._helpers import make_error_response, log_exception
+from jellyswipe.routers._helpers import log_exception, make_error_response
+from jellyswipe.tmdb import lookup_cast, lookup_trailer
 
 _logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ media_router = APIRouter()
 
 @media_router.get("/get-trailer/{movie_id}")
 async def get_trailer(
-    movie_id: str, request: Request, uow: DBUoW, _: None = Depends(check_rate_limit)
+    movie_id: str, request: Request, uow: DBUoW, config: AppConfig = Depends(get_config), provider = Depends(get_provider), _: None = Depends(check_rate_limit)
 ):
     """Get YouTube trailer key for a movie."""
     try:
@@ -40,8 +41,8 @@ async def get_trailer(
             return make_error_response("Not found", 404, request)
 
         # Cache miss — resolve item and call TMDB
-        item = get_provider().resolve_item_for_tmdb(movie_id)
-        youtube_key = lookup_trailer(item.title, item.year)
+        item = provider.resolve_item_for_tmdb(movie_id)
+        youtube_key = lookup_trailer(item.title, item.year, api_token=config.tmdb_access_token)
 
         if youtube_key:
             result = {"youtube_key": youtube_key}
@@ -63,7 +64,7 @@ async def get_trailer(
 
 @media_router.get("/cast/{movie_id}")
 async def get_cast(
-    movie_id: str, request: Request, uow: DBUoW, _: None = Depends(check_rate_limit)
+    movie_id: str, request: Request, uow: DBUoW, config: AppConfig = Depends(get_config), provider = Depends(get_provider), _: None = Depends(check_rate_limit)
 ):
     """Get cast information for a movie."""
     try:
@@ -73,8 +74,8 @@ async def get_cast(
             return {"cast": json.loads(cached.result_json)}
 
         # Cache miss — resolve item and call TMDB
-        item = get_provider().resolve_item_for_tmdb(movie_id)
-        cast = lookup_cast(item.title, item.year)
+        item = provider.resolve_item_for_tmdb(movie_id)
+        cast = lookup_cast(item.title, item.year, api_token=config.tmdb_access_token)
 
         # Store in cache (even if empty)
         await uow.tmdb_cache.put(movie_id, "cast", json.dumps(cast))
@@ -96,10 +97,10 @@ async def get_cast(
 
 
 @media_router.get("/genres")
-def get_genres(request: Request):
+def get_genres(request: Request, provider = Depends(get_provider)):
     """Get list of available genres from Jellyfin."""
     try:
-        return get_provider().list_genres()
+        return provider.list_genres()
     except Exception:
         return []
 
@@ -110,6 +111,7 @@ def add_to_watchlist(
     user: AuthUser = Depends(require_auth),
     _: None = Depends(check_rate_limit),
     body: dict = None,
+    provider = Depends(get_provider),
 ):
     """Add a movie to the user's watchlist/favorites."""
     try:
@@ -118,7 +120,7 @@ def add_to_watchlist(
             return XSSSafeJSONResponse(
                 content={"error": "media_id required"}, status_code=400
             )
-        get_provider().add_to_user_favorites(user.jf_token, media_id)
+        provider.add_to_user_favorites(user.jf_token, media_id)
         return {"status": "success"}
     except Exception as e:
         log_exception(e, request, logger=_logger)

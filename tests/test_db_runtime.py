@@ -12,7 +12,6 @@ from jellyswipe.db_runtime import (
     build_async_database_url,
     build_async_sqlite_url,
     dispose_runtime,
-    get_runtime_database_url,
     get_sessionmaker,
     initialize_runtime,
 )
@@ -60,9 +59,6 @@ async def test_async_database_url_helpers_derive_from_sync_target(db_path, monke
 
     assert build_async_database_url(expected_sync) == expected_async
     assert build_async_sqlite_url(db_path) == expected_async
-
-    monkeypatch.setenv("DATABASE_URL", expected_sync)
-    assert get_runtime_database_url() == expected_async
 
 
 async def test_initialize_runtime_creates_usable_sessionmaker(db_path):

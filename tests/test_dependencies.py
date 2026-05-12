@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import jellyswipe.dependencies as deps
 from jellyswipe.auth_types import AuthRecord
-from jellyswipe.db_runtime import dispose_runtime, get_sessionmaker, initialize_runtime
+from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, get_sessionmaker, initialize_runtime
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import (
     AuthUser,
@@ -37,7 +37,7 @@ def reset_runtime(monkeypatch):
 async def runtime_sessionmaker(db_path, monkeypatch):
     upgrade_to_head(build_sqlite_url(db_path))
     await dispose_runtime()
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
@@ -323,33 +323,38 @@ class TestDestroySessionDep:
 class TestGetProvider:
     """Tests for get_provider() dependency."""
 
-    def test_returns_jellyfin_library_provider_singleton(self):
+    @pytest.mark.anyio
+    async def test_returns_jellyfin_library_provider_singleton(self):
         """get_provider returns the JellyfinLibraryProvider singleton."""
-        import jellyswipe as app
-
         mock_provider = MagicMock()
-        app._provider_singleton = mock_provider
+        deps._provider_singleton = mock_provider
 
-        provider = get_provider()
+        # Create a mock config for the Depends parameter
+        class MockConfig:
+            jellyfin_url = "http://test"
+
+        provider = await get_provider(config=MockConfig())
         assert provider == mock_provider
 
-    def test_returns_same_instance_on_multiple_calls(self):
+    @pytest.mark.anyio
+    async def test_returns_same_instance_on_multiple_calls(self):
         """Calling get_provider() multiple times returns the same instance."""
-        import jellyswipe as app
-
-        app._provider_singleton = None
+        deps._provider_singleton = None
 
         mock_instance = MagicMock()
         with patch(
             "jellyswipe.jellyfin_library.JellyfinLibraryProvider",
             return_value=mock_instance,
         ):
-            provider1 = get_provider()
-            provider2 = get_provider()
+            class MockConfig:
+                jellyfin_url = "http://test"
+
+            provider1 = await get_provider(config=MockConfig())
+            provider2 = await get_provider(config=MockConfig())
 
         assert provider1 is provider2
         assert provider1 is mock_instance
-        assert app._provider_singleton is not None
+        assert deps._provider_singleton is not None
 
 
 # ---------------------------------------------------------------------------
