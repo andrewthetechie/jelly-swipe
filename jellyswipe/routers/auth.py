@@ -25,12 +25,11 @@ auth_router = APIRouter()
 
 
 @auth_router.post("/auth/jellyfin-use-server-identity")
-async def jellyfin_use_server_identity(request: Request, uow: DBUoW):
+async def jellyfin_use_server_identity(request: Request, uow: DBUoW, provider = Depends(get_provider)):
     """Authenticate using Jellyfin server delegate identity."""
-    prov = get_provider()
     try:
-        token = prov.server_access_token_for_delegate()
-        uid = prov.server_primary_user_id_for_delegate()
+        token = provider.server_access_token_for_delegate()
+        uid = provider.server_primary_user_id_for_delegate()
     except RuntimeError:
         return make_error_response("Jellyfin delegate unavailable", 401, request)
     await create_session(token, uid, request.session, uow)
@@ -51,10 +50,10 @@ async def logout(
 
 
 @auth_router.get("/me")
-async def get_me(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)):
+async def get_me(request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)):
     """Return current user information."""
     active_room = await resolve_active_room(request.session, uow)
-    info = get_provider().server_info()
+    info = provider.server_info()
     return {
         "userId": user.user_id,
         "displayName": user.user_id,
@@ -65,10 +64,10 @@ async def get_me(request: Request, uow: DBUoW, user: AuthUser = Depends(require_
 
 
 @auth_router.get("/jellyfin/server-info")
-def jellyfin_server_info(request: Request):
+def jellyfin_server_info(request: Request, provider = Depends(get_provider)):
     """Return Jellyfin server information."""
     try:
-        info = get_provider().server_info()
+        info = provider.server_info()
         return {
             "baseUrl": info.get("machineIdentifier", ""),
             "webUrl": info.get("webUrl", ""),

@@ -9,10 +9,10 @@ import asyncio
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import requests
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
 
-from jellyswipe.config import JELLYFIN_URL
+from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import RUNTIME_ENGINE
 
 try:
@@ -36,10 +36,10 @@ async def _check_sqlite() -> str:
         return f"fail: {exc}"
 
 
-async def _check_jellyfin() -> str:
+async def _check_jellyfin(jellyfin_url: str) -> str:
     """Hit Jellyfin's public info endpoint with 2s timeout."""
     try:
-        url = f"{JELLYFIN_URL}/System/Info/Public"
+        url = f"{jellyfin_url}/System/Info/Public"
         resp = await asyncio.to_thread(requests.get, url, timeout=2)
         if resp.status_code == 200:
             return "ok"
@@ -55,11 +55,11 @@ async def healthz() -> dict:
 
 
 @health_router.get("/readyz")
-async def readyz(response: Response) -> dict:
+async def readyz(response: Response, config: AppConfig = Depends(get_config)) -> dict:
     """Readiness probe — checks SQLite and Jellyfin in parallel."""
     sqlite_status, jellyfin_status = await asyncio.gather(
         _check_sqlite(),
-        _check_jellyfin(),
+        _check_jellyfin(config.jellyfin_url),
     )
     ok = sqlite_status == "ok" and jellyfin_status == "ok"
     response.status_code = 200 if ok else 503

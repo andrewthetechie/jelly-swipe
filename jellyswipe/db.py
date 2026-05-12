@@ -23,7 +23,7 @@ async def _initialize_maintenance_runtime(database_url: str | None = None) -> tu
         db_runtime.RUNTIME_ENGINE is not None
         and db_runtime.RUNTIME_DATABASE_URL == target_async_url
     )
-    await db_runtime.initialize_runtime(target_sync_url)
+    await db_runtime.initialize_runtime(target_async_url)
     return target_sync_url, runtime_already_initialized
 
 

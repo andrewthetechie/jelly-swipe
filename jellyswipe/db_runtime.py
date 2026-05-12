@@ -5,12 +5,11 @@ from __future__ import annotations
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
-from jellyswipe.migrations import build_sqlite_url, get_database_url, normalize_sync_database_url
+from jellyswipe.migrations import build_sqlite_url, normalize_sync_database_url
 
 RUNTIME_DATABASE_URL: str | None = None
 RUNTIME_ENGINE: AsyncEngine | None = None
 RUNTIME_SESSIONMAKER: async_sessionmaker[AsyncSession] | None = None
-RUNTIME_DATABASE_URL_OVERRIDE: str | None = None
 
 
 def build_async_database_url(database_url: str) -> str:
@@ -28,39 +27,16 @@ def build_async_sqlite_url(db_path: str) -> str:
     return build_async_database_url(build_sqlite_url(db_path))
 
 
-def get_runtime_database_url(db_path: str | None = None) -> str:
-    """Resolve the configured database target for the async runtime."""
-    if db_path:
-        return build_async_database_url(get_database_url(db_path))
-    if RUNTIME_DATABASE_URL_OVERRIDE is not None:
-        return RUNTIME_DATABASE_URL_OVERRIDE
-    return build_async_database_url(get_database_url(db_path))
-
-
-def set_runtime_database_url_override(database_url: str | None) -> None:
-    """Store a runtime-only database override for tests and app factory wiring."""
-    global RUNTIME_DATABASE_URL_OVERRIDE
-    if database_url is None:
-        RUNTIME_DATABASE_URL_OVERRIDE = None
-        return
-    RUNTIME_DATABASE_URL_OVERRIDE = build_async_database_url(database_url)
-
-
-async def initialize_runtime(database_url: str | None = None) -> None:
+async def initialize_runtime(database_url: str) -> None:
     """Create the process-wide async engine and sessionmaker once."""
     global RUNTIME_DATABASE_URL, RUNTIME_ENGINE, RUNTIME_SESSIONMAKER
 
-    target_url = (
-        build_async_database_url(database_url)
-        if database_url is not None
-        else get_runtime_database_url()
-    )
     if RUNTIME_ENGINE is not None:
-        if RUNTIME_DATABASE_URL == target_url:
+        if RUNTIME_DATABASE_URL == database_url:
             return
         await dispose_runtime()
 
-    engine = create_async_engine(target_url)
+    engine = create_async_engine(database_url)
 
     @event.listens_for(engine.sync_engine, "connect")
     def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
@@ -69,7 +45,7 @@ async def initialize_runtime(database_url: str | None = None) -> None:
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.close()
 
-    RUNTIME_DATABASE_URL = target_url
+    RUNTIME_DATABASE_URL = database_url
     RUNTIME_ENGINE = engine
     RUNTIME_SESSIONMAKER = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -102,15 +78,12 @@ def session_factory() -> async_sessionmaker[AsyncSession]:
 
 __all__ = [
     "RUNTIME_DATABASE_URL",
-    "RUNTIME_DATABASE_URL_OVERRIDE",
     "RUNTIME_ENGINE",
     "RUNTIME_SESSIONMAKER",
     "build_async_database_url",
     "build_async_sqlite_url",
     "dispose_runtime",
-    "get_runtime_database_url",
     "get_sessionmaker",
     "initialize_runtime",
-    "set_runtime_database_url_override",
     "session_factory",
 ]

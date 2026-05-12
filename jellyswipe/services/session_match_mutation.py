@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 
-from jellyswipe.config import JELLYFIN_URL
 from jellyswipe.repositories.session_events import append_sync
 from jellyswipe.room_types import SwipeCounterparty
 
@@ -244,6 +243,7 @@ def _sync_apply_swipe(
     media_id: str,
     direction: str | None,
     catalog_facts: CatalogFacts,
+    jellyfin_url: str,
 ) -> ApplySwipeResult:
     """Internal sync function that runs inside uow.run_sync(...)."""
     conn = sync_session.connection()
@@ -304,7 +304,7 @@ def _sync_apply_swipe(
 
     # 5. Derive match metadata from room's movie_data
     meta = _resolve_meta_from_deck(room_row["movie_data"], media_id)
-    deep_link = f"{JELLYFIN_URL}/web/#/details?id={media_id}" if JELLYFIN_URL else ""
+    deep_link = f"{jellyfin_url}/web/#/details?id={media_id}" if jellyfin_url else ""
 
     # 6. Solo mode: create match + event
     if room_row["solo_mode"]:
@@ -349,6 +349,7 @@ class SessionMatchMutation:
         direction: str | None,
         catalog_facts: CatalogFacts,
         uow: DatabaseUnitOfWork,
+        jellyfin_url: str,
     ) -> ApplySwipeResult:
         return await uow.run_sync(
             _sync_apply_swipe,
@@ -357,6 +358,7 @@ class SessionMatchMutation:
             media_id=media_id,
             direction=direction,
             catalog_facts=catalog_facts,
+            jellyfin_url=jellyfin_url,
         )
 
     async def undo_swipe(

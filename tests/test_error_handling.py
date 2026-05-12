@@ -18,9 +18,9 @@ import sqlite3
 import time
 from unittest.mock import MagicMock
 
-import jellyswipe
 import pytest
 from fastapi.testclient import TestClient
+from jellyswipe.dependencies import get_provider
 
 
 @pytest.fixture
@@ -86,80 +86,94 @@ class TestRequestIdPropagation:
         rid2 = resp2.headers.get("X-Request-Id", "")
         assert rid1 != rid2, "Consecutive requests should get different RequestIds"
 
-    def test_error_response_body_contains_request_id(self, client, monkeypatch):
+    def test_error_response_body_contains_request_id(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test internal error")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/get-trailer/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert "request_id" in data, "Error response missing request_id field"
-        assert re.match(r"^req_\d+_[0-9a-f]{8}$", data["request_id"])
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/get-trailer/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert "request_id" in data, "Error response missing request_id field"
+            assert re.match(r"^req_\d+_[0-9a-f]{8}$", data["request_id"])
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
 
 class TestErrorSanitization:
     """Verify no str(e) leakage in client-facing error responses."""
 
-    def test_trailer_500_no_exception_details(self, client, monkeypatch):
+    def test_trailer_500_no_exception_details(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception(
             "SECRET_INTERNAL_DB_CONNECTION_STRING"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/get-trailer/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert "SECRET_INTERNAL_DB_CONNECTION_STRING" not in str(data)
-        assert data.get("error") == "Internal server error"
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/get-trailer/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert "SECRET_INTERNAL_DB_CONNECTION_STRING" not in str(data)
+            assert data.get("error") == "Internal server error"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_cast_500_no_exception_details(self, client, monkeypatch):
+    def test_cast_500_no_exception_details(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("SECRET_API_KEY_LEAKED")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/cast/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert "SECRET_API_KEY_LEAKED" not in str(data)
-        assert data.get("error") == "Internal server error"
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/cast/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert "SECRET_API_KEY_LEAKED" not in str(data)
+            assert data.get("error") == "Internal server error"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_watchlist_500_no_exception_details(self, app_real_auth, monkeypatch):
+    def test_watchlist_500_no_exception_details(self, app_real_auth):
         from jellyswipe.dependencies import require_auth, AuthUser
 
         # Override auth for this test — we're testing error sanitization, not auth
         app_real_auth.dependency_overrides[require_auth] = lambda: AuthUser(
             jf_token="test-token", user_id="test-user"
         )
-        auth_client = TestClient(app_real_auth, raise_server_exceptions=False)
         mock_prov = MagicMock()
         mock_prov.resolve_user_id_from_token.return_value = "test-user"
         mock_prov.extract_media_browser_token.return_value = "test-token"
         mock_prov.add_to_user_favorites.side_effect = Exception(
             "SECRET_WATCHLIST_ERROR"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = auth_client.post(
-            "/watchlist/add",
-            json={"media_id": "test-id"},
-            headers={"Authorization": 'MediaBrowser Token="test-token"'},
-        )
-        data = resp.json()
-        assert resp.status_code == 500
-        assert "SECRET_WATCHLIST_ERROR" not in str(data)
-        assert data.get("error") == "Internal server error"
-        # Clean up the override
-        app_real_auth.dependency_overrides.pop(require_auth, None)
+        app_real_auth.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            auth_client = TestClient(app_real_auth, raise_server_exceptions=False)
+            resp = auth_client.post(
+                "/watchlist/add",
+                json={"media_id": "test-id"},
+                headers={"Authorization": 'MediaBrowser Token="test-token"'},
+            )
+            data = resp.json()
+            assert resp.status_code == 500
+            assert "SECRET_WATCHLIST_ERROR" not in str(data)
+            assert data.get("error") == "Internal server error"
+        finally:
+            app_real_auth.dependency_overrides.pop(require_auth, None)
+            app_real_auth.dependency_overrides.pop(get_provider, None)
 
-    def test_server_info_500_no_exception_details(self, client, monkeypatch):
+    def test_server_info_500_no_exception_details(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception(
             "SECRET_SERVER_ERROR_DETAIL"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/get-trailer/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert "SECRET_SERVER_ERROR_DETAIL" not in str(data)
-        assert data.get("error") == "Internal server error"
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/get-trailer/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert "SECRET_SERVER_ERROR_DETAIL" not in str(data)
+            assert data.get("error") == "Internal server error"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
     def test_ast_scan_no_str_e_in_returns(self):
         import pathlib
@@ -202,53 +216,65 @@ class TestErrorSanitization:
 class TestErrorResponseFormat:
     """Verify consistent error response format."""
 
-    def test_4xx_includes_specific_message_and_request_id(self, client, monkeypatch):
+    def test_4xx_includes_specific_message_and_request_id(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "Item lookup failed for id"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/get-trailer/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 404
-        assert data.get("error") == "Movie metadata not found"
-        assert "request_id" in data
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/get-trailer/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 404
+            assert data.get("error") == "Movie metadata not found"
+            assert "request_id" in data
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_5xx_includes_generic_message_and_request_id(self, client, monkeypatch):
+    def test_5xx_includes_generic_message_and_request_id(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "unexpected internal error"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/get-trailer/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert data.get("error") == "Internal server error"
-        assert "request_id" in data
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/get-trailer/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert data.get("error") == "Internal server error"
+            assert "request_id" in data
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_cast_404_includes_cast_field(self, client, monkeypatch):
+    def test_cast_404_includes_cast_field(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "Item lookup failed for id"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/cast/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 404
-        assert "cast" in data
-        assert data["cast"] == []
-        assert "request_id" in data
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/cast/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 404
+            assert "cast" in data
+            assert data["cast"] == []
+            assert "request_id" in data
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_cast_500_includes_cast_field(self, client, monkeypatch):
+    def test_cast_500_includes_cast_field(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("something broke")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/cast/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert "cast" in data
-        assert data["cast"] == []
-        assert "request_id" in data
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/cast/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert "cast" in data
+            assert data["cast"] == []
+            assert "request_id" in data
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
     def test_401_includes_request_id(self, client):
         resp = client.post("/watchlist/add", json={"media_id": "test-id"})
@@ -264,65 +290,65 @@ class TestErrorLogging:
     """Verify structured error logging with request_id."""
 
     def test_exception_triggers_error_log_with_request_id(
-        self, client, caplog, monkeypatch
+        self, client, caplog
     ):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test logging error")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        import jellyswipe.config as app_config
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
+                resp = client.get("/get-trailer/test-movie-id")
 
-        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
-            resp = client.get("/get-trailer/test-movie-id")
+            assert resp.status_code == 500
+            error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+            assert len(error_records) > 0, "Expected error log records"
 
-        assert resp.status_code == 500
-        error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-        assert len(error_records) > 0, "Expected error log records"
+            has_request_id = any(
+                getattr(r, "request_id", None) or "request_id" in str(r.__dict__)
+                for r in error_records
+            )
+            assert has_request_id, "Error log should include request_id"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
-        has_request_id = any(
-            getattr(r, "request_id", None) or "request_id" in str(r.__dict__)
-            for r in error_records
-        )
-        assert has_request_id, "Error log should include request_id"
-
-    def test_exception_log_includes_exception_type(self, client, caplog, monkeypatch):
+    def test_exception_log_includes_exception_type(self, client, caplog):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("test runtime error")
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        import jellyswipe.config as app_config
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
+                resp = client.get("/get-trailer/test-movie-id")
 
-        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
-            resp = client.get("/get-trailer/test-movie-id")
-
-        assert resp.status_code == 500
-        error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-        has_exc_type = any(
-            getattr(r, "exception_type", None) == "RuntimeError" for r in error_records
-        )
-        assert has_exc_type, "Error log should include exception_type"
+            assert resp.status_code == 500
+            error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+            has_exc_type = any(
+                getattr(r, "exception_type", None) == "RuntimeError" for r in error_records
+            )
+            assert has_exc_type, "Error log should include exception_type"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
     def test_exception_log_includes_exception_message(
-        self, client, caplog, monkeypatch
+        self, client, caplog
     ):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "specific error detail for logging"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        import jellyswipe.config as app_config
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
+                resp = client.get("/get-trailer/test-movie-id")
 
-        monkeypatch.setattr(app_config, "_provider_singleton", mock_prov, raising=False)
-        with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
-            resp = client.get("/get-trailer/test-movie-id")
-
-        assert resp.status_code == 500
-        error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-        has_exc_msg = any(
-            getattr(r, "exception_message", None) == "specific error detail for logging"
-            for r in error_records
-        )
-        assert has_exc_msg, "Error log should include exception_message"
+            assert resp.status_code == 500
+            error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+            has_exc_msg = any(
+                getattr(r, "exception_message", None) == "specific error detail for logging"
+                for r in error_records
+            )
+            assert has_exc_msg, "Error log should include exception_message"
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)
 
 
 class TestAdditionalRoutes:
@@ -364,15 +390,18 @@ class TestAdditionalRoutes:
         assert data.get("error") == "Invalid Code"
         assert "X-Request-Id" in resp.headers
 
-    def test_cast_runtime_error_500_includes_request_id(self, client, monkeypatch):
+    def test_cast_runtime_error_500_includes_request_id(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "some other runtime error"
         )
-        monkeypatch.setattr(jellyswipe, "_provider_singleton", mock_prov, raising=False)
-        resp = client.get("/cast/test-movie-id")
-        data = resp.json()
-        assert resp.status_code == 500
-        assert data.get("error") == "Internal server error"
-        assert "request_id" in data
-        assert "cast" in data
+        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        try:
+            resp = client.get("/cast/test-movie-id")
+            data = resp.json()
+            assert resp.status_code == 500
+            assert data.get("error") == "Internal server error"
+            assert "request_id" in data
+            assert "cast" in data
+        finally:
+            client.app.dependency_overrides.pop(get_provider, None)

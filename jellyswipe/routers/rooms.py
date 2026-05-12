@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from jellyswipe import XSSSafeJSONResponse
+from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
@@ -52,7 +53,7 @@ session_match_mutation = SessionMatchMutation()
 
 @rooms_router.post("/room")
 async def create_room(
-    request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
+    request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)
 ):
     """Create a new room with setup choices.
 
@@ -110,7 +111,7 @@ async def create_room(
         result = await room_lifecycle_service.create_room(
             request.session,
             user.user_id,
-            get_provider(),
+            provider,
             uow,
             include_movies=include_movies,
             include_tv_shows=include_tv_shows,
@@ -154,7 +155,7 @@ async def join_room_route(
 
 @rooms_router.post("/room/{code}/swipe")
 async def swipe(
-    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
+    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), config: AppConfig = Depends(get_config), provider = Depends(get_provider)
 ):
     """Swipe on a movie with BEGIN IMMEDIATE transaction.
 
@@ -173,7 +174,7 @@ async def swipe(
     title = None
     thumb = None
     try:
-        resolved = get_provider().resolve_item_for_tmdb(mid)
+        resolved = provider.resolve_item_for_tmdb(mid)
         title = resolved.title
         thumb = f"/proxy?path=jellyfin/{mid}/Primary"
     except RuntimeError as exc:
@@ -194,6 +195,7 @@ async def swipe(
         direction=data.get("direction"),
         catalog_facts=catalog,
         uow=uow,
+        jellyfin_url=config.jellyfin_url,
     )
     if isinstance(result, SwipeRejected):
         return XSSSafeJSONResponse(content={"error": result.reason}, status_code=404)
@@ -301,7 +303,7 @@ async def get_deck(
 
 @rooms_router.post("/room/{code}/genre")
 async def set_genre(
-    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
+    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)
 ):
     """Set the genre filter for the room and reload the deck."""
     try:
@@ -313,7 +315,7 @@ async def set_genre(
         return XSSSafeJSONResponse(content={"error": "Genre required"}, status_code=400)
     try:
         new_list = await room_lifecycle_service.set_genre(
-            code, genre, get_provider(), uow
+            code, genre, provider, uow
         )
         # Commit before notifying to ensure events are persisted
         await uow.session.commit()
@@ -325,7 +327,7 @@ async def set_genre(
 
 @rooms_router.post("/room/{code}/watched-filter")
 async def set_watched_filter_route(
-    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
+    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)
 ):
     """Set the watched filter for the room and reload the deck."""
     try:
@@ -343,7 +345,7 @@ async def set_watched_filter_route(
         )
     try:
         result = await room_lifecycle_service.set_watched_filter(
-            code, hide_watched, get_provider(), uow
+            code, hide_watched, provider, uow
         )
         # Commit before notifying to ensure events are persisted
         await uow.session.commit()

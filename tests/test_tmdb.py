@@ -31,7 +31,7 @@ class TestLookupTrailer:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, videos_response]
-            result = lookup_trailer("Test Movie", 2024)
+            result = lookup_trailer("Test Movie", 2024, api_token="test-token")
 
         assert result == "abc123"
         assert mock_http.call_count == 2
@@ -43,7 +43,7 @@ class TestLookupTrailer:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.return_value = search_response
-            result = lookup_trailer("Nonexistent Movie", 2024)
+            result = lookup_trailer("Nonexistent Movie", 2024, api_token="test-token")
 
         assert result is None
 
@@ -64,7 +64,7 @@ class TestLookupTrailer:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, videos_response]
-            result = lookup_trailer("Test Movie", 2024)
+            result = lookup_trailer("Test Movie", 2024, api_token="test-token")
 
         assert result is None
 
@@ -74,7 +74,7 @@ class TestLookupTrailer:
             mock_http.side_effect = requests.exceptions.ConnectionError(
                 "Connection refused"
             )
-            result = lookup_trailer("Test Movie", 2024)
+            result = lookup_trailer("Test Movie", 2024, api_token="test-token")
 
         assert result is None
 
@@ -85,7 +85,7 @@ class TestLookupTrailer:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.return_value = search_response
-            result = lookup_trailer("Test Movie", 2024)
+            result = lookup_trailer("Test Movie", 2024, api_token="test-token")
 
         assert result is None
 
@@ -103,7 +103,7 @@ class TestLookupTrailer:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, videos_response]
-            result = lookup_trailer("Test Movie", None)
+            result = lookup_trailer("Test Movie", None, api_token="test-token")
 
         assert result == "key123"
 
@@ -128,7 +128,7 @@ class TestLookupCast:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, credits_response]
-            result = lookup_cast("Test Movie", 2024)
+            result = lookup_cast("Test Movie", 2024, api_token="test-token")
 
         assert len(result) == 2
         assert result[0]["name"] == "Actor 1"
@@ -143,7 +143,7 @@ class TestLookupCast:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.return_value = search_response
-            result = lookup_cast("Nonexistent Movie", 2024)
+            result = lookup_cast("Nonexistent Movie", 2024, api_token="test-token")
 
         assert result == []
 
@@ -151,7 +151,7 @@ class TestLookupCast:
         """Returns [] on network error."""
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = requests.exceptions.Timeout("Request timed out")
-            result = lookup_cast("Test Movie", 2024)
+            result = lookup_cast("Test Movie", 2024, api_token="test-token")
 
         assert result == []
 
@@ -172,7 +172,7 @@ class TestLookupCast:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, credits_response]
-            result = lookup_cast("Test Movie", 2024)
+            result = lookup_cast("Test Movie", 2024, api_token="test-token")
 
         assert len(result) == 8
 
@@ -190,7 +190,7 @@ class TestLookupCast:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, credits_response]
-            result = lookup_cast("Test Movie", 2024)
+            result = lookup_cast("Test Movie", 2024, api_token="test-token")
 
         assert result[0]["character"] == ""
 
@@ -206,6 +206,6 @@ class TestLookupCast:
 
         with patch("jellyswipe.tmdb.make_http_request") as mock_http:
             mock_http.side_effect = [search_response, credits_response]
-            result = lookup_cast("Test Movie", 2024)
+            result = lookup_cast("Test Movie", 2024, api_token="test-token")
 
         assert result == []

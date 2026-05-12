@@ -8,18 +8,23 @@ Exports AuthUser dataclass and Depends()-compatible callables for:
 """
 
 from dataclasses import dataclass
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from fastapi import Depends, HTTPException, Request
 
 import threading
 
 import jellyswipe.auth as auth
+from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.rate_limiter import rate_limiter
 
+if TYPE_CHECKING:
+    from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+
 _provider_lock = threading.Lock()
+_provider_singleton: Optional["JellyfinLibraryProvider"] = None
 
 
 @dataclass
@@ -109,35 +114,18 @@ async def destroy_session_dep(request: Request, uow: DBUoW) -> None:
     await auth.destroy_session(request.session, uow)
 
 
-def get_provider():
-    """FastAPI dependency that returns the JellyfinLibraryProvider singleton.
+async def get_provider(config: AppConfig = Depends(get_config)):
+    """FastAPI dependency that returns the JellyfinLibraryProvider singleton."""
+    global _provider_singleton
+    if _provider_singleton is not None:
+        return _provider_singleton
 
-    Uses lazy import to avoid circular dependency with __init__.py.
-    """
-    try:
-        import jellyswipe as _app
-        import jellyswipe.config as _config
-    except RuntimeError as exc:
-        raise RuntimeError(
-            "Cannot initialise JellyfinLibraryProvider: jellyswipe package "
-            "failed to load. Ensure JELLYFIN_URL, JELLYFIN_API_KEY, and "
-            "TMDB_ACCESS_TOKEN environment variables are set."
-        ) from exc
+    with _provider_lock:
+        if _provider_singleton is None:
+            from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+            _provider_singleton = JellyfinLibraryProvider(config.jellyfin_url)
 
-    if _app._provider_singleton is not None:
-        return _app._provider_singleton
-
-    if _config._provider_singleton is None:
-        with _provider_lock:
-            # Double-check after acquiring lock
-            if _config._provider_singleton is None:
-                from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-                _config._provider_singleton = JellyfinLibraryProvider(_config._JELLYFIN_URL)
-            _app._provider_singleton = _config._provider_singleton
-    else:
-        _app._provider_singleton = _config._provider_singleton
-
-    return _app._provider_singleton
+    return _provider_singleton
 
 
 __all__ = [

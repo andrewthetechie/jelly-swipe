@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 
-import jellyswipe.db
-import jellyswipe.db_runtime
 import pytest
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
