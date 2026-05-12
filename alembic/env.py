@@ -23,7 +23,18 @@ def _resolve_url() -> str:
     configuration that triggers env-var validation or network calls.
     """
     if os.environ.get("DATABASE_URL"):
-        return os.environ["DATABASE_URL"]
+        url = os.environ["DATABASE_URL"]
+        _SYNC_SQLITE_PREFIX = "sqlite:///"
+        _ASYNC_SQLITE_PREFIX = "sqlite+aiosqlite:///"
+        if not (
+            url.startswith(_SYNC_SQLITE_PREFIX) or url.startswith(_ASYNC_SQLITE_PREFIX)
+        ):
+            raise ValueError(
+                "DATABASE_URL must use a SQLite database URL in sync or sqlite+aiosqlite form"
+            )
+        if url.startswith(_ASYNC_SQLITE_PREFIX):
+            return url.replace(_ASYNC_SQLITE_PREFIX, _SYNC_SQLITE_PREFIX, 1)
+        return url
     if os.environ.get("DB_PATH"):
         path = Path(os.environ["DB_PATH"]).expanduser().resolve()
         return f"sqlite:///{path}"

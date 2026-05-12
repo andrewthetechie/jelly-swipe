@@ -125,9 +125,9 @@ def sqlite_test_connection(db_path: str):
 
 
 @contextlib.contextmanager
-def sqlite_test_transaction():
+def sqlite_test_transaction(db_path: str):
     """Like ``get_db_closing``: commit-on-context-exit semantics for XSS/route seeds."""
-    with sqlite_test_connection() as conn:
+    with sqlite_test_connection(db_path) as conn:
         with conn:
             yield conn
 

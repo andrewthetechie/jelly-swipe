@@ -42,10 +42,12 @@ def _setup_vault_session(
 
 
 class TestLayer1ServerSideValidation:
-    def test_swipe_ignores_client_supplied_title_thumb(self, client, app, monkeypatch):
+    def test_swipe_ignores_client_supplied_title_thumb(
+        self, client, app, db_path, monkeypatch
+    ):
         import jellyswipe
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("TEST123", 1),
@@ -83,7 +85,7 @@ class TestLayer1ServerSideValidation:
 
         mock_provider.resolve_item_for_tmdb.assert_called_once_with("movie123")
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             cursor = conn.execute(
                 "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
                 ("TEST123", "movie123"),
@@ -95,10 +97,12 @@ class TestLayer1ServerSideValidation:
             assert match["thumb"] == "/proxy?path=jellyfin/movie123/Primary"
             assert match["thumb"] != '<img src=x onerror=alert("XSS")>'
 
-    def test_swipe_ignores_client_params_silently(self, client, app, monkeypatch):
+    def test_swipe_ignores_client_params_silently(
+        self, client, app, db_path, monkeypatch
+    ):
         import jellyswipe
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("TEST456", 1),
@@ -135,7 +139,7 @@ class TestLayer1ServerSideValidation:
         response_data = response.json()
         assert response_data == {"accepted": True}
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             cursor = conn.execute(
                 "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
                 ("TEST456", "movie456"),
@@ -173,10 +177,10 @@ class TestLayer3CSPHeader:
 
 
 class TestEndToEndXSSBlocking:
-    def test_xss_blocked_three_layer_defense(self, client, app, monkeypatch):
+    def test_xss_blocked_three_layer_defense(self, client, app, db_path, monkeypatch):
         import jellyswipe
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("E2E123", 1),
@@ -213,7 +217,7 @@ class TestEndToEndXSSBlocking:
         assert "script-src 'self'" in response.headers["Content-Security-Policy"]
         assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             cursor = conn.execute(
                 "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
                 ("E2E123", "movie_e2e"),
@@ -225,11 +229,11 @@ class TestEndToEndXSSBlocking:
             assert match["thumb"] == "/proxy?path=jellyfin/movie_e2e/Primary"
 
     def test_swipe_handles_jellyfin_failure_gracefully(
-        self, client, app, monkeypatch, caplog
+        self, client, app, db_path, monkeypatch, caplog
     ):
         import jellyswipe
 
-        with sqlite_test_transaction() as conn:
+        with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
                 ("FAIL789", 1),
@@ -275,7 +279,7 @@ class TestEndToEndXSSBlocking:
             ]
             assert len(error_logs) > 0, "Error was not logged"
 
-            with sqlite_test_transaction() as conn:
+            with sqlite_test_transaction(db_path) as conn:
                 cursor = conn.execute(
                     "SELECT COUNT(*) as count FROM matches WHERE room_code = ? AND movie_id = ?",
                     ("FAIL789", "movie_fail"),
@@ -285,7 +289,7 @@ class TestEndToEndXSSBlocking:
                     "Match should not be created when metadata resolution fails"
                 )
 
-            with sqlite_test_transaction() as conn:
+            with sqlite_test_transaction(db_path) as conn:
                 cursor = conn.execute(
                     "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
                     ("FAIL789", "movie_fail"),

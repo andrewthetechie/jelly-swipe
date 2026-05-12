@@ -11,8 +11,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
-import jellyswipe.auth
-import jellyswipe.db
 import jellyswipe.dependencies as deps
 from jellyswipe.auth_types import AuthRecord
 from jellyswipe.db_runtime import dispose_runtime, get_sessionmaker, initialize_runtime
@@ -248,7 +246,8 @@ class TestCheckRateLimit:
 
     def test_raises_429_when_limit_exceeded(self, db_path, monkeypatch):
         """Exceeding rate limit raises HTTPException(429)."""
-        monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
+        monkeypatch.setenv("DB_PATH", db_path)
+        monkeypatch.setenv("DATABASE_URL", build_sqlite_url(db_path))
         monkeypatch.setattr(deps, "_RATE_LIMITS", {"get-trailer": 5})
 
         app = FastAPI()
