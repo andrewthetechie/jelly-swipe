@@ -6,6 +6,8 @@ import traceback
 from fastapi import Request
 
 from jellyswipe import XSSSafeJSONResponse
+from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.notifier import notifier
 
 _logger = logging.getLogger(__name__)
 
@@ -42,3 +44,13 @@ def log_exception(
         log_data.update(context)
     target_logger = logger or _logger
     target_logger.error("unhandled_exception", extra=log_data)
+
+
+async def commit_and_wake(uow: DatabaseUnitOfWork, code: str) -> None:
+    """Commit the UoW transaction, then wake SSE subscribers for the room.
+
+    Must be called AFTER all database writes are complete.
+    Commit happens before notify to ensure subscribers read committed data.
+    """
+    await uow.session.commit()
+    notifier.notify(code)
