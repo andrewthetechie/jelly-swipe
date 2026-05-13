@@ -7,7 +7,7 @@ services:
     environment:
       - JELLYFIN_URL=http://your-jellyfin-host:8096
       - JELLYFIN_API_KEY=your-jellyfin-api-key
-      - FLASK_SECRET=pick-a-random-string
+      - SESSION_SECRET=pick-a-random-string
       - TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
       - PUID=99 # UID for app process — match your ./data directory owner
       - PGID=100 # GID for app process — match your ./data directory owner
