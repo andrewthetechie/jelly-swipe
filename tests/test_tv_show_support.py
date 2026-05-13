@@ -40,7 +40,7 @@ def test_create_room_with_tv_shows_only(client, app):
     """POST /room with {"movies": false, "tv_shows": true, "solo": true} creates solo room with TV shows."""
     import os
 
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": False, "tv_shows": True, "solo": True}
     )
@@ -68,7 +68,7 @@ def test_create_mixed_room_movies_and_tv_shows(client, app):
     """POST /room with {"movies": true, "tv_shows": true, "solo": false} creates hosted room with mixed media."""
     import os
 
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": True, "tv_shows": True, "solo": False}
     )
@@ -102,7 +102,7 @@ def test_swipe_tv_show_right_solo_match(client, app):
     import os
 
     # Create a room with TV shows
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": False, "tv_shows": True, "solo": True}
     )
@@ -181,7 +181,7 @@ def test_swipe_tv_show_dual_match(client, app):
     _seed_room("MIXED1", ready=1, solo_mode=0, movie_data=movie_data)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="MIXED1",
         user_id="verified-user",
         authenticated=True,
@@ -241,7 +241,7 @@ def test_swipe_mixed_deck_movie_and_tv_show(client, app):
     import os
 
     # Create mixed room
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": True, "tv_shows": True, "solo": True}
     )

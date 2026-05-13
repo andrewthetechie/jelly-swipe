@@ -22,7 +22,7 @@ from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
 os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
 os.environ.setdefault("TMDB_ACCESS_TOKEN", "test-tmdb-token")
-os.environ.setdefault("FLASK_SECRET", "test-secret-key")
+os.environ.setdefault("SESSION_SECRET", "test-secret-key")
 os.environ.setdefault("ALLOW_PRIVATE_JELLYFIN", "1")
 
 
@@ -84,7 +84,7 @@ def mock_env_vars(monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.jellyfin.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
     monkeypatch.setenv("TMDB_ACCESS_TOKEN", "test-tmdb-token")
-    monkeypatch.setenv("FLASK_SECRET", "test-secret-key")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-key")
     monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
     yield
 
@@ -283,7 +283,7 @@ def _make_test_config(db_path):
         jellyfin_url="http://test",
         jellyfin_api_key="k",
         tmdb_access_token="t",
-        flask_secret=os.environ["FLASK_SECRET"],
+        session_secret="test-secret-key",
         db_path=db_path,
     )
 
@@ -295,7 +295,7 @@ def app(db_path, monkeypatch):
     Each test gets its own isolated app with:
     - Temp SQLite database (via tmp_path)
     - TESTING mode enabled
-    - SECRET_KEY matching FLASK_SECRET env var (so set_session_cookie cookies are accepted)
+    - SECRET_KEY matching SESSION_SECRET env var (so set_session_cookie cookies are accepted)
     - dependency_overrides for require_auth (D-01) and get_provider (D-05)
     - Clean rate limiter state
 

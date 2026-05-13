@@ -123,9 +123,9 @@ async def lifespan(app: FastAPI):
         _logger.exception("Failed to clean up orphaned session instances on startup")
 
     yield
-    import jellyswipe.dependencies as _deps
+    from jellyswipe.dependencies import reset_provider_singleton
 
-    _deps._provider_singleton = None
+    reset_provider_singleton()
     await dispose_runtime()
     _logger.info("jellyswipe_shutdown")
 
@@ -172,7 +172,7 @@ def create_app(config: AppConfig | None = None):
     # Add 2nd: SessionMiddleware
     app.add_middleware(
         SessionMiddleware,
-        secret_key=config.flask_secret,
+        secret_key=config.session_secret,
         max_age=14 * 24 * 60 * 60,  # 14 days per D-05
         same_site="lax",
         https_only=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",

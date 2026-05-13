@@ -128,6 +128,12 @@ async def get_provider(config: AppConfig = Depends(get_config)):
     return _provider_singleton
 
 
+def reset_provider_singleton() -> None:
+    """Reset the provider singleton on application shutdown."""
+    global _provider_singleton
+    _provider_singleton = None
+
+
 __all__ = [
     "AuthUser",
     "require_auth",

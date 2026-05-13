@@ -380,7 +380,7 @@ class TestAdditionalRoutes:
         from base64 import b64encode
         import json
 
-        signer = itsdangerous.TimestampSigner(str(os.environ["FLASK_SECRET"]))
+        signer = itsdangerous.TimestampSigner(str(os.environ["SESSION_SECRET"]))
         payload = b64encode(json.dumps({"session_id": session_id}).encode("utf-8"))
         signed = signer.sign(payload)
         client.cookies.set("session", signed.decode("utf-8"))

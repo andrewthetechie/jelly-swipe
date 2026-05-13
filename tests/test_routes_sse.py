@@ -128,7 +128,7 @@ def test_stream_response_headers(client, monkeypatch):
         _seed_room_and_instance(conn, "HDR1")
     finally:
         conn.close()
-    _set_session_room(client, os.environ["FLASK_SECRET"], "HDR1")
+    _set_session_room(client, os.environ["SESSION_SECRET"], "HDR1")
     _setup_disconnect_after(client, monkeypatch, after_calls=2)
 
     # Mock notifier to resolve immediately
@@ -145,7 +145,7 @@ def test_stream_response_headers(client, monkeypatch):
 
 def test_stream_room_not_found_no_instance(client, monkeypatch):
     """Stream for room with no instance sends session_reset and closes."""
-    _set_session_room(client, os.environ["FLASK_SECRET"], "NOINSTANCE")
+    _set_session_room(client, os.environ["SESSION_SECRET"], "NOINSTANCE")
 
     monkeypatch.setattr(time, "time", lambda: 1000000.0)
 

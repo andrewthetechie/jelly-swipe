@@ -148,7 +148,7 @@ def test_spoofed_headers_ignored_when_vault_authenticated(
     _set_session(
         client_real_auth,
         db_connection,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="ROOM1",
         authenticated=True,
     )
@@ -170,7 +170,7 @@ def test_unauthenticated_swipe_no_side_effects(db_connection, client_real_auth):
     _set_session(
         client_real_auth,
         db_connection,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="ROOM1",
         authenticated=False,
     )
@@ -195,7 +195,7 @@ def test_unauthenticated_returns_401(
     _set_session(
         client_real_auth,
         db_connection,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="ROOM1",
         authenticated=False,
     )
@@ -212,7 +212,7 @@ def test_authenticated_vault_identity_succeeds(
     _set_session(
         client_real_auth,
         db_connection,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="ROOM1",
         authenticated=True,
     )
@@ -256,7 +256,7 @@ class TestDeckCursorTracking:
 
     def test_deck_returns_cards_from_start(self, db_connection, client_real_auth):
         """Create room, GET /room/{code}/deck returns non-empty card array."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
         resp = client_real_auth.get(f"/room/{code}/deck")
@@ -267,7 +267,7 @@ class TestDeckCursorTracking:
 
     def test_deck_paginated_20_cards(self, db_connection, client_real_auth):
         """Deck endpoint returns at most 20 cards per page (25-card deck)."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
         resp = client_real_auth.get(f"/room/{code}/deck")
@@ -277,7 +277,7 @@ class TestDeckCursorTracking:
 
     def test_cursor_advances_on_swipe(self, db_connection, client_real_auth):
         """After swiping, the next deck fetch starts from the next card."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
         # Get initial deck and note the first card
@@ -299,7 +299,7 @@ class TestDeckCursorTracking:
 
     def test_cursor_persists_across_requests(self, db_connection, client_real_auth):
         """Cursor position persists across multiple requests."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
         # Swipe 3 times
@@ -333,7 +333,7 @@ class TestDeckCursorTracking:
 
     def test_genre_change_resets_cursor(self, db_connection, client_real_auth):
         """Genre change resets cursor to position 0."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
         # Swipe on items at positions 1 and 2 (NOT the first item)
@@ -366,7 +366,7 @@ class TestDeckCursorTracking:
         _setup_deck_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user-A",
             token="token-A",
         )
@@ -389,7 +389,7 @@ class TestDeckCursorTracking:
         _setup_deck_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user-B",
             token="token-B",
         )
@@ -405,7 +405,7 @@ class TestDeckCursorTracking:
 
     def test_end_of_deck_returns_empty(self, db_connection, client_real_auth):
         """After swiping all cards, deck endpoint returns empty array."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
         code = _create_room_with_auth(client_real_auth)
 
         # Get the full deck to know how many cards (25 from FakeProvider)
@@ -481,7 +481,7 @@ class TestSSEMatchDelivery:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -502,7 +502,7 @@ class TestSSEMatchDelivery:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -519,7 +519,7 @@ class TestSSEMatchDelivery:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -534,14 +534,14 @@ class TestSSEMatchDelivery:
         session_id_b = _setup_deck_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user-B",
             token="token-B",
         )
         set_session_cookie(
             client_real_auth,
             {"session_id": session_id_b, "active_room": "ROOM1"},
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
         )
 
         # Second user swipes right
@@ -565,7 +565,7 @@ class TestSSEMatchDelivery:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -590,7 +590,7 @@ class TestSSEMatchDelivery:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -621,7 +621,7 @@ class TestSSEMatchDelivery:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -636,14 +636,14 @@ class TestSSEMatchDelivery:
         session_id_b = _setup_deck_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user-B",
             token="token-B",
         )
         set_session_cookie(
             client_real_auth,
             {"session_id": session_id_b, "active_room": "ROOM1"},
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
         )
 
         # Second user swipes right
@@ -675,7 +675,7 @@ class TestSSEMatchDelivery:
         self, db_connection, client_real_auth
     ):
         """Two browser sessions for the same Jellyfin user still count as room participants."""
-        secret_key = os.environ["FLASK_SECRET"]
+        secret_key = os.environ["SESSION_SECRET"]
 
         session_id_a = _setup_deck_session(
             client_real_auth,
@@ -741,7 +741,7 @@ class TestGetMe:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             authenticated=True,
         )
 
@@ -764,7 +764,7 @@ class TestGetMe:
         set_session_cookie(
             client_real_auth,
             {"session_id": "stale-session", "active_room": "ROOM1", "solo_mode": True},
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
         )
 
         resp = client_real_auth.get("/me")
@@ -782,7 +782,7 @@ class TestSoloRoom:
 
     def test_solo_room_creation(self, db_connection, client_real_auth):
         """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
 
         resp = client_real_auth.post("/room/solo")
         assert resp.status_code == 404
@@ -810,7 +810,7 @@ class TestLogout:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -837,7 +837,7 @@ class TestLogout:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -863,7 +863,7 @@ class TestLogout:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -899,7 +899,7 @@ class TestGetMeActiveRoom:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             authenticated=True,
         )
         # Verify activeRoom is null when no room is active
@@ -914,7 +914,7 @@ class TestGetMeActiveRoom:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -933,7 +933,7 @@ class TestGetMeActiveRoom:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -966,7 +966,7 @@ class TestGoSoloRemoved:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -1010,7 +1010,7 @@ class TestPhase27Compliance:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -1032,7 +1032,7 @@ class TestPhase27Compliance:
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             active_room="ROOM1",
             authenticated=True,
         )
@@ -1047,14 +1047,14 @@ class TestPhase27Compliance:
         session_id_b = _setup_deck_session(
             client_real_auth,
             db_connection,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user-B",
             token="token-B",
         )
         set_session_cookie(
             client_real_auth,
             {"session_id": session_id_b, "active_room": "ROOM1"},
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
         )
 
         # Second user swipes right — creates match
@@ -1070,7 +1070,7 @@ class TestPhase27Compliance:
 
     def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
         """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
 
         # POST /room/solo now returns 404 (deprecated)
         resp = client_real_auth.post("/room/solo")
@@ -1081,7 +1081,7 @@ class TestPhase27Compliance:
 
     def test_me_returns_active_room(self, db_connection, client_real_auth):
         """GET /me tracks activeRoom: null -> code -> null after quit."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["FLASK_SECRET"])
+        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
 
         # Before room: activeRoom is null
         resp = client_real_auth.get("/me")

@@ -46,7 +46,7 @@ def _seed_cache(media_id, lookup_type, result_json):
 
 def _set_session(client):
     """Inject session state for media route tests."""
-    set_session_cookie(client, {"user_id": "verified-user"}, os.environ["FLASK_SECRET"])
+    set_session_cookie(client, {"user_id": "verified-user"}, os.environ["SESSION_SECRET"])
 
 
 # ---------------------------------------------------------------------------

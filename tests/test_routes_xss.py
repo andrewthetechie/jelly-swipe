@@ -54,11 +54,11 @@ class TestLayer1ServerSideValidation:
 
         _setup_vault_session(
             client,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user_abc123",
             active_room="TEST123",
         )
-        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
+        set_session_cookie(client, {"solo_mode": True}, os.environ["SESSION_SECRET"])
 
         mock_provider = MagicMock()
         mock_item = MagicMock()
@@ -107,11 +107,11 @@ class TestLayer1ServerSideValidation:
 
         _setup_vault_session(
             client,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user_xyz789",
             active_room="TEST456",
         )
-        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
+        set_session_cookie(client, {"solo_mode": True}, os.environ["SESSION_SECRET"])
 
         mock_provider = MagicMock()
         mock_item = MagicMock()
@@ -182,9 +182,9 @@ class TestEndToEndXSSBlocking:
             )
 
         _setup_vault_session(
-            client, os.environ["FLASK_SECRET"], user_id="user_e2e", active_room="E2E123"
+            client, os.environ["SESSION_SECRET"], user_id="user_e2e", active_room="E2E123"
         )
-        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
+        set_session_cookie(client, {"solo_mode": True}, os.environ["SESSION_SECRET"])
 
         mock_provider = MagicMock()
         mock_item = MagicMock()
@@ -234,11 +234,11 @@ class TestEndToEndXSSBlocking:
 
         _setup_vault_session(
             client,
-            os.environ["FLASK_SECRET"],
+            os.environ["SESSION_SECRET"],
             user_id="user_fail",
             active_room="FAIL789",
         )
-        set_session_cookie(client, {"solo_mode": True}, os.environ["FLASK_SECRET"])
+        set_session_cookie(client, {"solo_mode": True}, os.environ["SESSION_SECRET"])
 
         mock_provider = MagicMock()
         mock_provider.resolve_item_for_tmdb.side_effect = RuntimeError(
@@ -329,7 +329,7 @@ def _seed_solo_room(db_path, room_code="ROOM1"):
 
 def _setup_solo_swipe_session(client):
     """Prepare a solo-mode room with vault-based auth for swipe XSS tests."""
-    _set_session(client, os.environ["FLASK_SECRET"], solo_mode=True)
+    _set_session(client, os.environ["SESSION_SECRET"], solo_mode=True)
     _seed_solo_room(os.environ["DB_PATH"])
 
 
@@ -523,7 +523,7 @@ def test_proxy_valid_uuid_with_dashes_accepted(client):
 
 def test_join_room_xss_code_not_echoed(client):
     _setup_vault_session(
-        client, os.environ["FLASK_SECRET"], user_id="xss-user", active_room="ROOM1"
+        client, os.environ["SESSION_SECRET"], user_id="xss-user", active_room="ROOM1"
     )
     response = client.post(
         f"/room/{XSS_SCRIPT_TAG}/join",

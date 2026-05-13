@@ -188,11 +188,10 @@ class TestBootValidation:
         # After ORCH-033, AppConfig in app_config.py validates via pydantic field_validator.
         # The field tmdb_access_token maps to TMDB_ACCESS_TOKEN env var via pydantic-settings.
         base_dir = os.path.dirname(os.path.dirname(__file__))
-        config_path = os.path.join(base_dir, "jellyswipe", "app_config.py")
-        legacy_config_path = os.path.join(base_dir, "jellyswipe", "config.py")
+        config_path = os.path.join(base_dir, "jellyswipe", "config.py")
         init_path = os.path.join(base_dir, "jellyswipe", "__init__.py")
 
-        for source_path in (config_path, legacy_config_path, init_path):
+        for source_path in (config_path, init_path):
             with open(source_path, "r") as f:
                 source = f.read()
             # Check for either the env var name or the pydantic field name
@@ -209,5 +208,5 @@ class TestBootValidation:
 
         raise AssertionError(
             "TMDB_ACCESS_TOKEN (or tmdb_access_token field) must exist in boot validation "
-            "(jellyswipe/app_config.py, jellyswipe/config.py, or jellyswipe/__init__.py)"
+            "(jellyswipe/config.py, jellyswipe/config.py, or jellyswipe/__init__.py)"
         )

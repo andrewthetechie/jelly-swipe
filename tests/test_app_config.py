@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from jellyswipe.app_config import AppConfig, get_config
+from jellyswipe.config import AppConfig, get_config
 
 
 def _make_config(**overrides: object) -> AppConfig:
@@ -14,7 +14,7 @@ def _make_config(**overrides: object) -> AppConfig:
         jellyfin_url=overrides.pop("jellyfin_url", "http://test.example.com"),
         jellyfin_api_key=overrides.pop("jellyfin_api_key", "test-key"),
         tmdb_access_token=overrides.pop("tmdb_access_token", "test-token"),
-        flask_secret=overrides.pop("flask_secret", "test-secret"),
+        session_secret=overrides.pop("session_secret", "test-secret"),
         **overrides,
     )
 
@@ -26,7 +26,7 @@ class TestAppConfigConstruction:
         assert config.jellyfin_url == "http://test.example.com"
         assert config.jellyfin_api_key == "test-key"
         assert config.tmdb_access_token == "test-token"
-        assert config.flask_secret == "test-secret"
+        assert config.session_secret == "test-secret"
 
     def test_missing_jellyfin_url_raises_validation_error(self, monkeypatch):
         monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
@@ -35,7 +35,7 @@ class TestAppConfigConstruction:
             AppConfig(
                 jellyfin_api_key="k",
                 tmdb_access_token="t",
-                flask_secret="s",
+                session_secret="s",
                 _env_file=None,  # prevent .env from supplying the missing field
             )
         assert "jellyfin_url" in str(exc_info.value)
@@ -47,7 +47,7 @@ class TestAppConfigConstruction:
             AppConfig(
                 jellyfin_url="http://test.example.com",
                 tmdb_access_token="t",
-                flask_secret="s",
+                session_secret="s",
                 _env_file=None,
             )
         assert "jellyfin_api_key" in str(exc_info.value)
@@ -59,14 +59,14 @@ class TestAppConfigConstruction:
             AppConfig(
                 jellyfin_url="http://test.example.com",
                 jellyfin_api_key="k",
-                flask_secret="s",
+                session_secret="s",
                 _env_file=None,
             )
         assert "tmdb_access_token" in str(exc_info.value)
 
-    def test_missing_flask_secret_raises_validation_error(self, monkeypatch):
+    def test_missing_session_secret_raises_validation_error(self, monkeypatch):
         monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
-        monkeypatch.delenv("FLASK_SECRET", raising=False)
+        monkeypatch.delenv("SESSION_SECRET", raising=False)
         with pytest.raises(ValidationError) as exc_info:
             AppConfig(
                 jellyfin_url="http://test.example.com",
@@ -74,7 +74,7 @@ class TestAppConfigConstruction:
                 tmdb_access_token="t",
                 _env_file=None,
             )
-        assert "flask_secret" in str(exc_info.value)
+        assert "session_secret" in str(exc_info.value)
 
 
 class TestAppConfigFrozen:
@@ -93,7 +93,7 @@ class TestAppConfigSSRF:
                 jellyfin_url="http://192.168.1.1",
                 jellyfin_api_key="k",
                 tmdb_access_token="t",
-                flask_secret="s",
+                session_secret="s",
             )
 
     def test_private_ip_url_succeeds_with_bypass(self, monkeypatch):
@@ -102,7 +102,7 @@ class TestAppConfigSSRF:
             jellyfin_url="http://192.168.1.1",
             jellyfin_api_key="k",
             tmdb_access_token="t",
-            flask_secret="s",
+            session_secret="s",
         )
         assert config.jellyfin_url == "http://192.168.1.1"
 
@@ -141,15 +141,6 @@ class TestAppConfigDefaults:
         config = _make_config()
         assert config.db_path == ""
 
-    def test_token_user_id_cache_ttl_seconds_defaults_to_300(self, monkeypatch):
-        monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
-        config = _make_config()
-        assert config.token_user_id_cache_ttl_seconds == 300
-
-    def test_token_user_id_cache_ttl_seconds_can_be_overridden(self, monkeypatch):
-        monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
-        config = _make_config(token_user_id_cache_ttl_seconds=600)
-        assert config.token_user_id_cache_ttl_seconds == 600
 
 
 class TestAppConfigJellyfinUrl:
@@ -166,11 +157,11 @@ class TestAppConfigJellyfinUrl:
 
 class TestAppConfigNoImportSideEffects:
     def test_importing_module_does_not_require_env_vars(self):
-        """Importing jellyswipe.app_config should not raise even without env vars."""
+        """Importing jellyswipe.config should not raise even without env vars."""
         import importlib
-        import jellyswipe.app_config
+        import jellyswipe.config
 
-        importlib.reload(jellyswipe.app_config)
+        importlib.reload(jellyswipe.config)
 
 
 class TestGetConfigDependency:

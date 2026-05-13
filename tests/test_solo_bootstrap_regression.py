@@ -20,7 +20,7 @@ def _set_session_room(client, code, user_id="verified-user"):
             "jf_delegate_server_identity": True,
             "solo_mode": True,
         },
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
     )
 
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import pytest
 
+import jellyswipe
 from jellyswipe import bootstrap
 
 
 def test_main_runs_migrations_runtime_and_uvicorn_in_order(monkeypatch):
     calls: list[tuple[str, object]] = []
+    fake_app = object()
 
     class FakeConfig:
         sync_db_url = "sqlite:////tmp/bootstrap.db"
@@ -15,7 +17,7 @@ def test_main_runs_migrations_runtime_and_uvicorn_in_order(monkeypatch):
         jellyfin_url = "http://test"
         jellyfin_api_key = "k"
         tmdb_access_token = "t"
-        flask_secret = "s"
+        session_secret = "s"
 
     monkeypatch.setattr(bootstrap, "AppConfig", lambda: FakeConfig())
     monkeypatch.setattr(
@@ -32,10 +34,11 @@ def test_main_runs_migrations_runtime_and_uvicorn_in_order(monkeypatch):
 
     monkeypatch.setattr(bootstrap, "initialize_runtime", fake_initialize_runtime)
     monkeypatch.setattr(bootstrap, "dispose_runtime", fake_dispose_runtime)
+    monkeypatch.setattr(jellyswipe, "create_app", lambda config: fake_app)
     monkeypatch.setattr(
         bootstrap.uvicorn,
         "run",
-        lambda target, host, port: calls.append(("uvicorn.run", (target, host, port))),
+        lambda target, **kwargs: calls.append(("uvicorn.run", (target, kwargs.get("host"), kwargs.get("port")))),
     )
 
     bootstrap.main()
@@ -43,7 +46,7 @@ def test_main_runs_migrations_runtime_and_uvicorn_in_order(monkeypatch):
     assert calls == [
         ("upgrade_to_head", FakeConfig.sync_db_url),
         ("initialize_runtime", FakeConfig.async_db_url),
-        ("uvicorn.run", ("jellyswipe:app", "0.0.0.0", 5005)),
+        ("uvicorn.run", (fake_app, "0.0.0.0", 5005)),
     ]
 
 
@@ -56,7 +59,7 @@ def test_main_re_raises_migration_failures_before_runtime_or_server(monkeypatch)
         jellyfin_url = "http://test"
         jellyfin_api_key = "k"
         tmdb_access_token = "t"
-        flask_secret = "s"
+        session_secret = "s"
 
     monkeypatch.setattr(bootstrap, "AppConfig", lambda: FakeConfig())
 
