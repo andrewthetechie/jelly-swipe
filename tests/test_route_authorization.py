@@ -256,7 +256,9 @@ class TestDeckCursorTracking:
 
     def test_deck_returns_cards_from_start(self, db_connection, client_real_auth):
         """Create room, GET /room/{code}/deck returns non-empty card array."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
         code = _create_room_with_auth(client_real_auth)
 
         resp = client_real_auth.get(f"/room/{code}/deck")
@@ -267,7 +269,9 @@ class TestDeckCursorTracking:
 
     def test_deck_paginated_20_cards(self, db_connection, client_real_auth):
         """Deck endpoint returns at most 20 cards per page (25-card deck)."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
         code = _create_room_with_auth(client_real_auth)
 
         resp = client_real_auth.get(f"/room/{code}/deck")
@@ -277,7 +281,9 @@ class TestDeckCursorTracking:
 
     def test_cursor_advances_on_swipe(self, db_connection, client_real_auth):
         """After swiping, the next deck fetch starts from the next card."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
         code = _create_room_with_auth(client_real_auth)
 
         # Get initial deck and note the first card
@@ -299,7 +305,9 @@ class TestDeckCursorTracking:
 
     def test_cursor_persists_across_requests(self, db_connection, client_real_auth):
         """Cursor position persists across multiple requests."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
         code = _create_room_with_auth(client_real_auth)
 
         # Swipe 3 times
@@ -333,7 +341,9 @@ class TestDeckCursorTracking:
 
     def test_genre_change_resets_cursor(self, db_connection, client_real_auth):
         """Genre change resets cursor to position 0."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
         code = _create_room_with_auth(client_real_auth)
 
         # Swipe on items at positions 1 and 2 (NOT the first item)
@@ -405,7 +415,9 @@ class TestDeckCursorTracking:
 
     def test_end_of_deck_returns_empty(self, db_connection, client_real_auth):
         """After swiping all cards, deck endpoint returns empty array."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
         code = _create_room_with_auth(client_real_auth)
 
         # Get the full deck to know how many cards (25 from FakeProvider)
@@ -782,7 +794,9 @@ class TestSoloRoom:
 
     def test_solo_room_creation(self, db_connection, client_real_auth):
         """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
 
         resp = client_real_auth.post("/room/solo")
         assert resp.status_code == 404
@@ -803,10 +817,10 @@ class TestSoloRoom:
 class TestLogout:
     """Tests for POST /auth/logout endpoint (CLNT-01)."""
 
-    def test_logout_delegates_destroy_to_auth_service(
+    def test_logout_clears_session_and_deletes_record(
         self, db_connection, client_real_auth, monkeypatch
     ):
-        """POST /auth/logout delegates session destruction to the auth service seam."""
+        """POST /auth/logout clears session and deletes the auth_sessions record."""
         _set_session(
             client_real_auth,
             db_connection,
@@ -814,23 +828,23 @@ class TestLogout:
             active_room="ROOM1",
             authenticated=True,
         )
-        calls: list[str | None] = []
 
-        async def fake_destroy_session(session_dict, uow):
-            calls.append(session_dict.get("session_id"))
-            session_dict.clear()
-
-        monkeypatch.setattr(
-            auth_routes, "destroy_session", fake_destroy_session, raising=False
-        )
+        # Verify session exists before logout
+        count_before = db_connection.execute(
+            "SELECT COUNT(*) FROM auth_sessions"
+        ).fetchone()[0]
+        assert count_before >= 1
 
         resp = client_real_auth.post("/auth/logout")
 
         assert resp.status_code == 200
         assert resp.json() == {"status": "logged_out"}
-        assert len(calls) == 1
-        assert calls[0] is not None
-        assert calls[0].startswith("test-session-")
+
+        # Verify session record was deleted
+        count_after = db_connection.execute(
+            "SELECT COUNT(*) FROM auth_sessions"
+        ).fetchone()[0]
+        assert count_after == count_before - 1
 
     def test_logout_clears_vault(self, db_connection, client_real_auth):
         """POST /auth/logout removes session_id from auth_sessions vault."""
@@ -1070,7 +1084,9 @@ class TestPhase27Compliance:
 
     def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
         """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
 
         # POST /room/solo now returns 404 (deprecated)
         resp = client_real_auth.post("/room/solo")
@@ -1081,7 +1097,9 @@ class TestPhase27Compliance:
 
     def test_me_returns_active_room(self, db_connection, client_real_auth):
         """GET /me tracks activeRoom: null -> code -> null after quit."""
-        _setup_deck_session(client_real_auth, db_connection, os.environ["SESSION_SECRET"])
+        _setup_deck_session(
+            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
+        )
 
         # Before room: activeRoom is null
         resp = client_real_auth.get("/me")
