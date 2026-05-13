@@ -28,7 +28,12 @@ media_router = APIRouter()
 
 @media_router.get("/get-trailer/{movie_id}")
 async def get_trailer(
-    movie_id: str, request: Request, uow: DBUoW, config: AppConfig = Depends(get_config), provider = Depends(get_provider), _: None = Depends(check_rate_limit)
+    movie_id: str,
+    request: Request,
+    uow: DBUoW,
+    config: AppConfig = Depends(get_config),
+    provider=Depends(get_provider),
+    _: None = Depends(check_rate_limit),
 ):
     """Get YouTube trailer key for a movie."""
     try:
@@ -42,15 +47,19 @@ async def get_trailer(
 
         # Cache miss — resolve item and call TMDB
         item = provider.resolve_item_for_tmdb(movie_id)
-        youtube_key = lookup_trailer(item.title, item.year, api_token=config.tmdb_access_token)
+        youtube_key = lookup_trailer(
+            item.title, item.year, api_token=config.tmdb_access_token
+        )
 
         if youtube_key:
             result = {"youtube_key": youtube_key}
             await uow.tmdb_cache.put(movie_id, "trailer", json.dumps(result))
+            await uow.session.commit()
             return result
 
         # No trailer found — cache the miss to avoid repeated lookups
         await uow.tmdb_cache.put(movie_id, "trailer", json.dumps({}))
+        await uow.session.commit()
         return make_error_response("Not found", 404, request)
     except RuntimeError as e:
         if "item lookup failed" in str(e).lower():
@@ -64,7 +73,12 @@ async def get_trailer(
 
 @media_router.get("/cast/{movie_id}")
 async def get_cast(
-    movie_id: str, request: Request, uow: DBUoW, config: AppConfig = Depends(get_config), provider = Depends(get_provider), _: None = Depends(check_rate_limit)
+    movie_id: str,
+    request: Request,
+    uow: DBUoW,
+    config: AppConfig = Depends(get_config),
+    provider=Depends(get_provider),
+    _: None = Depends(check_rate_limit),
 ):
     """Get cast information for a movie."""
     try:
@@ -79,6 +93,7 @@ async def get_cast(
 
         # Store in cache (even if empty)
         await uow.tmdb_cache.put(movie_id, "cast", json.dumps(cast))
+        await uow.session.commit()
         return {"cast": cast}
     except RuntimeError as e:
         if "item lookup failed" in str(e).lower():
@@ -97,7 +112,7 @@ async def get_cast(
 
 
 @media_router.get("/genres")
-def get_genres(request: Request, provider = Depends(get_provider)):
+def get_genres(request: Request, provider=Depends(get_provider)):
     """Get list of available genres from Jellyfin."""
     try:
         return provider.list_genres()
@@ -111,7 +126,7 @@ def add_to_watchlist(
     user: AuthUser = Depends(require_auth),
     _: None = Depends(check_rate_limit),
     body: dict = None,
-    provider = Depends(get_provider),
+    provider=Depends(get_provider),
 ):
     """Add a movie to the user's watchlist/favorites."""
     try:
