@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
-import jellyswipe.routers.auth as auth_routes
 from tests.conftest import set_session_cookie
 
 
@@ -940,10 +939,8 @@ class TestGetMeActiveRoom:
         assert "activeRoom" in data
         assert data["activeRoom"] == "ROOM1"
 
-    def test_me_delegates_active_room_resolution_to_auth_service(
-        self, db_connection, client_real_auth, monkeypatch
-    ):
-        """GET /me uses the auth service helper for active-room compatibility."""
+    def test_stale_active_room_cleared_on_get_me(self, db_connection, client_real_auth):
+        """GET /me clears stale active_room from session when room no longer exists."""
         _set_session(
             client_real_auth,
             db_connection,
@@ -951,22 +948,11 @@ class TestGetMeActiveRoom:
             active_room="ROOM1",
             authenticated=True,
         )
-        _seed_room(db_connection, "ROOM1")
-        calls: list[dict[str, Any]] = []
-
-        async def fake_resolve_active_room(session_dict, uow):
-            calls.append(dict(session_dict))
-            return None
-
-        monkeypatch.setattr(
-            auth_routes, "resolve_active_room", fake_resolve_active_room, raising=False
-        )
+        # Don't seed ROOM1 so pairing_code_exists returns False
 
         resp = client_real_auth.get("/me")
-
         assert resp.status_code == 200
         assert resp.json()["activeRoom"] is None
-        assert calls and calls[0]["active_room"] == "ROOM1"
 
 
 # --- Go-Solo Route Removal Test ---

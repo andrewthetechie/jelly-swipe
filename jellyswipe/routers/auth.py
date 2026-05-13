@@ -17,7 +17,6 @@ from jellyswipe.dependencies import (
     get_provider,
     require_auth,
 )
-from jellyswipe.auth import resolve_active_room
 from jellyswipe.auth_types import AuthRecord
 from jellyswipe.routers._helpers import make_error_response
 
@@ -85,7 +84,12 @@ async def get_me(
     provider=Depends(get_provider),
 ):
     """Return current user information."""
-    active_room = await resolve_active_room(request.session, uow)
+    active_room = request.session.get("active_room")
+    if active_room is not None:
+        if not await uow.rooms.pairing_code_exists(active_room):
+            request.session.pop("active_room", None)
+            request.session.pop("solo_mode", None)
+            active_room = None
     info = provider.server_info()
     return {
         "userId": user.user_id,
