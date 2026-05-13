@@ -10,7 +10,6 @@ import pytest
 import itsdangerous
 from fastapi.testclient import TestClient
 
-from jellyswipe.db_paths import application_db_path
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
     dispose_runtime,
@@ -18,12 +17,12 @@ from jellyswipe.db_runtime import (
 )
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
-# Set required environment variables at module level to satisfy jellyswipe/__init__.py
-# This must happen before any imports that trigger __init__.py validation
+# Set required environment variables at module level to satisfy itsdangerous signing
+# and AppConfig construction for tests that check env vars directly.
 os.environ.setdefault("JELLYFIN_URL", "http://test.jellyfin.local")
 os.environ.setdefault("JELLYFIN_API_KEY", "test-api-key")
 os.environ.setdefault("TMDB_ACCESS_TOKEN", "test-tmdb-token")
-os.environ.setdefault("FLASK_SECRET", "test-secret-key")
+os.environ.setdefault("SESSION_SECRET", "test-secret-key")
 os.environ.setdefault("ALLOW_PRIVATE_JELLYFIN", "1")
 
 
@@ -42,28 +41,6 @@ def set_session_cookie(client, data: dict, secret_key: str) -> None:
     host = getattr(client.base_url, "host", "")
     domain = f"{host}.local" if host and "." not in host else host
     client.cookies.set("session", signed.decode("utf-8"), domain=domain, path="/")
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_environment():
-    """
-    Set up test environment before any tests run.
-    This fixture auto-runs for all tests (autouse=True) and runs once per session.
-
-    Per D-04: Monkeypatch load_dotenv() and Flask() to allow framework-agnostic imports.
-    """
-    # Monkeypatch load_dotenv() to skip .env file loading
-    # This prevents loading .env from project root which may not exist or have wrong values
-    mock_load_dotenv = patch(
-        "dotenv.load_dotenv", side_effect=lambda *args, **kwargs: None
-    )
-    mock_load_dotenv.start()
-
-    # Yield control to tests - they can now import jellyswipe modules safely
-    yield
-
-    # Cleanup: stop all mocks
-    mock_load_dotenv.stop()
 
 
 @pytest.fixture
@@ -107,17 +84,15 @@ def mock_env_vars(monkeypatch):
     monkeypatch.setenv("JELLYFIN_URL", "http://test.jellyfin.local")
     monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
     monkeypatch.setenv("TMDB_ACCESS_TOKEN", "test-tmdb-token")
-    monkeypatch.setenv("FLASK_SECRET", "test-secret-key")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-key")
     monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
     yield
 
 
 @contextlib.contextmanager
-def sqlite_test_connection():
-    """Open sqlite3 directly to ``application_db_path`` (VAL-03: no jellyswipe.db.get_db())."""
-    path = application_db_path.path
-    assert path is not None, "fixture must bootstrap application_db_path"
-    conn = sqlite3.connect(path, check_same_thread=False)
+def sqlite_test_connection(db_path: str):
+    """Open sqlite3 directly to the given ``db_path``."""
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -128,9 +103,9 @@ def sqlite_test_connection():
 
 
 @contextlib.contextmanager
-def sqlite_test_transaction():
+def sqlite_test_transaction(db_path: str):
     """Like ``get_db_closing``: commit-on-context-exit semantics for XSS/route seeds."""
-    with sqlite_test_connection() as conn:
+    with sqlite_test_connection(db_path) as conn:
         with conn:
             yield conn
 
@@ -149,16 +124,12 @@ def db_path(tmp_path):
     yield str(db_file)
 
 
-def _bootstrap_temp_db_runtime(db_path, monkeypatch):
+def _bootstrap_temp_db_runtime(db_path):
     """Provision one temp database through Alembic plus the async runtime path."""
-    import jellyswipe.db_paths as db_paths_mod
-
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
-    monkeypatch.setenv("DB_PATH", db_path)
-    monkeypatch.setenv("DATABASE_URL", sync_database_url)
+    os.environ["DB_PATH"] = db_path
 
     upgrade_to_head(sync_database_url)
     asyncio.run(initialize_runtime(runtime_database_url))
@@ -181,20 +152,19 @@ def db_connection(db_path, monkeypatch):
     Provide a database connection with fresh schema for each test.
 
     This fixture:
-    1. Patches jellyswipe.db_paths.application_db_path.path to use the temporary database file
+    1. Patches DB_PATH and DATABASE_URL env vars to use the temporary database file
     2. Initializes the database schema by running Alembic upgrade head
     3. Yields a database connection to the test
     4. Closes the connection after the test
 
-    Per D-03: Use monkeypatch to set application_db_path.path.
     Per D-06: Each test receives a fresh database with Alembic already applied.
 
     The function scope ensures complete test isolation - no state leaks between tests.
     """
-    _bootstrap_temp_db_runtime(db_path, monkeypatch)
+    _bootstrap_temp_db_runtime(db_path)
 
     try:
-        with sqlite_test_connection() as conn:
+        with sqlite_test_connection(db_path) as conn:
             yield conn
     finally:
         _dispose_test_runtime()
@@ -305,6 +275,19 @@ class FakeProvider:
         return (b"", "image/jpeg")
 
 
+def _make_test_config(db_path):
+    """Construct an AppConfig for testing with explicit values."""
+    from jellyswipe.config import AppConfig
+
+    return AppConfig(
+        jellyfin_url="http://test",
+        jellyfin_api_key="k",
+        tmdb_access_token="t",
+        session_secret="test-secret-key",
+        db_path=db_path,
+    )
+
+
 @pytest.fixture
 def app(db_path, monkeypatch):
     """Create a fresh FastAPI app instance for route testing.
@@ -312,7 +295,7 @@ def app(db_path, monkeypatch):
     Each test gets its own isolated app with:
     - Temp SQLite database (via tmp_path)
     - TESTING mode enabled
-    - SECRET_KEY matching FLASK_SECRET env var (so set_session_cookie cookies are accepted)
+    - SECRET_KEY matching SESSION_SECRET env var (so set_session_cookie cookies are accepted)
     - dependency_overrides for require_auth (D-01) and get_provider (D-05)
     - Clean rate limiter state
 
@@ -320,23 +303,15 @@ def app(db_path, monkeypatch):
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import require_auth, get_provider, AuthUser
-    import jellyswipe as app_module
+    import jellyswipe.dependencies as deps
 
-    # Set provider singleton before creating app (matches app_real_auth fix)
+    _bootstrap_temp_db_runtime(db_path)
+    test_config = _make_test_config(db_path)
+    fast_app = create_app(config=test_config)
+
+    # Set provider singleton on dependencies module
     fake_provider = FakeProvider()
-    import jellyswipe.config as app_config
-
-    app_config._provider_singleton = fake_provider
-    app_module._provider_singleton = fake_provider
-
-    bootstrap = _bootstrap_temp_db_runtime(db_path, monkeypatch)
-    test_config = {
-        "DATABASE_URL": bootstrap["sync_database_url"],
-        "DB_PATH": bootstrap["db_path"],
-        "TESTING": True,
-        "SECRET_KEY": os.environ["FLASK_SECRET"],
-    }
-    fast_app = create_app(test_config=test_config)
+    deps._provider_singleton = fake_provider
 
     # Override auth — no DB vault needed (D-01)
     # Default identity matches FakeProvider's user_id/token (D-03)
@@ -358,8 +333,7 @@ def app(db_path, monkeypatch):
     _dispose_test_runtime()
     fast_app.dependency_overrides.clear()  # CRITICAL: prevents override state leakage
     # Clear provider singleton on teardown
-    app_config._provider_singleton = None
-    app_module._provider_singleton = None
+    deps._provider_singleton = None
 
 
 @pytest.fixture
@@ -386,24 +360,16 @@ def app_real_auth(db_path, monkeypatch):
     """
     from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
-    import jellyswipe as app_module
+    import jellyswipe.dependencies as deps
 
-    bootstrap = _bootstrap_temp_db_runtime(db_path, monkeypatch)
+    _bootstrap_temp_db_runtime(db_path)
 
-    # Set provider singleton BEFORE creating app (fixes Plan 03 bug)
+    # Set provider singleton BEFORE creating app
     fake_provider = FakeProvider()
-    import jellyswipe.config as app_config
+    deps._provider_singleton = fake_provider
 
-    app_config._provider_singleton = fake_provider
-    app_module._provider_singleton = fake_provider
-
-    test_config = {
-        "DATABASE_URL": bootstrap["sync_database_url"],
-        "DB_PATH": bootstrap["db_path"],
-        "TESTING": True,
-        "SECRET_KEY": os.environ["FLASK_SECRET"],
-    }
-    fast_app = create_app(test_config=test_config)
+    test_config = _make_test_config(db_path)
+    fast_app = create_app(config=test_config)
     # NOTE: NO dependency_overrides[require_auth] — real auth path (D-02)
     fast_app.dependency_overrides[get_provider] = lambda: fake_provider
 
@@ -416,9 +382,8 @@ def app_real_auth(db_path, monkeypatch):
     # later fixture can rebind cleanly to another temp SQLite database.
     _dispose_test_runtime()
     fast_app.dependency_overrides.clear()
-    # Clear provider singleton on teardown (reuse app_module from above, line 287)
-    app_config._provider_singleton = None
-    app_module._provider_singleton = None
+    # Clear provider singleton on teardown
+    deps._provider_singleton = None
     # Reset rate limiter to prevent cross-test pollution (matches app fixture teardown)
     from jellyswipe.rate_limiter import rate_limiter as _rl
 

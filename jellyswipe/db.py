@@ -10,8 +10,9 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
+from pathlib import Path
+
 import jellyswipe.db_runtime as db_runtime
-from jellyswipe.db_paths import application_db_path
 from jellyswipe.db_uow import DatabaseUnitOfWork
 
 
@@ -22,7 +23,7 @@ async def _initialize_maintenance_runtime(database_url: str | None = None) -> tu
         db_runtime.RUNTIME_ENGINE is not None
         and db_runtime.RUNTIME_DATABASE_URL == target_async_url
     )
-    await db_runtime.initialize_runtime(target_sync_url)
+    await db_runtime.initialize_runtime(target_async_url)
     return target_sync_url, runtime_already_initialized
 
 
@@ -89,12 +90,17 @@ async def prepare_runtime_database_async(database_url: str | None = None) -> Non
             await db_runtime.dispose_runtime()
 
 
+def _default_db_path() -> str:
+    """Default ``data/jellyswipe.db`` under the repo root."""
+    return str(Path(__file__).resolve().parent.parent / "data" / "jellyswipe.db")
+
+
 def ensure_sqlite_wal_mode(db_path: str | None = None) -> None:
     """Compatibility wrapper that applies runtime SQLite pragmas off-request."""
 
     async def _apply() -> None:
         _, runtime_already_initialized = await _initialize_maintenance_runtime(
-            _get_database_url(db_path or application_db_path.path)
+            _get_database_url(db_path or _default_db_path())
         )
         try:
             await _configure_runtime_sqlite_pragmas()

@@ -6,6 +6,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -13,6 +14,16 @@ from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_REVISION = "0005_tmdb_cache"
+
+
+def _wait_for_db_file(db_path: Path, timeout: float = 1.0) -> None:
+    """Retry checking for DB file existence to handle CI filesystem timing."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if db_path.is_file():
+            return
+        time.sleep(0.1)
+    raise AssertionError(f"Database file not created after {timeout}s: {db_path}")
 
 
 def _table_names(conn: sqlite3.Connection) -> set[str]:
@@ -33,9 +44,18 @@ def test_fresh_database_upgrade_then_subprocess_idempotent(tmp_path: Path) -> No
     url = build_sqlite_url(str(db_path))
     assert not db_path.exists(), "expected empty workspace before migration"
 
-    upgrade_to_head(url)
+    # Clear env vars that Alembic's env.py checks before the explicit URL
+    old_db_path = os.environ.pop("DB_PATH", None)
+    old_database_url = os.environ.pop("DATABASE_URL", None)
+    try:
+        upgrade_to_head(url)
+    finally:
+        if old_db_path is not None:
+            os.environ["DB_PATH"] = old_db_path
+        if old_database_url is not None:
+            os.environ["DATABASE_URL"] = old_database_url
 
-    assert db_path.is_file()
+    _wait_for_db_file(db_path)
 
     conn = sqlite3.connect(db_path)
     try:
@@ -92,10 +112,19 @@ def test_migration_adds_media_type_columns_with_defaults(tmp_path: Path) -> None
     db_path = tmp_path / "media_type_test.db"
     url = build_sqlite_url(str(db_path))
 
-    # Apply migration
-    upgrade_to_head(url)
+    # Clear env vars that Alembic's env.py checks before the explicit URL
+    old_db_path = os.environ.pop("DB_PATH", None)
+    old_database_url = os.environ.pop("DATABASE_URL", None)
+    try:
+        # Apply migration
+        upgrade_to_head(url)
+    finally:
+        if old_db_path is not None:
+            os.environ["DB_PATH"] = old_db_path
+        if old_database_url is not None:
+            os.environ["DATABASE_URL"] = old_database_url
 
-    assert db_path.is_file()
+    _wait_for_db_file(db_path)
 
     conn = sqlite3.connect(db_path)
     try:

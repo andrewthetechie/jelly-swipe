@@ -1,86 +1,62 @@
-"""Shared runtime configuration for Jelly Swipe.
+"""Immutable application configuration built on pydantic-settings.
 
-This module is the single source of truth for all shared module-level
-constants, environment variables, and runtime configuration.
-
-Per D-01 through D-05:
-- D-01: config.py is the single source of truth for shared runtime constants
-- D-02: _token_user_id_cache lives in config.py as module-level dict
-- D-03: Config globals are initialized at import time
-- D-04: validate_jellyfin_url() and JELLYFIN_URL both live in config.py
-- D-05: Routers import from jellyswipe.config
+No import-time side effects. SSRF validation runs only during AppConfig() construction.
 """
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
-import logging
-import os
 
-from dotenv import load_dotenv
+from fastapi import Request
+from pydantic import computed_field, field_validator
+from pydantic_settings import BaseSettings
 
-# Load environment variables at import time (D-03)
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-# Import validate_jellyfin_url from ssrf_validator module
-from jellyswipe.ssrf_validator import validate_jellyfin_url  # noqa: E402
+class AppConfig(BaseSettings):
+    """Immutable application configuration, constructed once at bootstrap.
 
-logger = logging.getLogger(__name__)
+    Tests construct AppConfig(...) with explicit values, bypassing env vars.
+    Production constructs AppConfig() which reads from env vars and .env file.
+    """
 
-# Validate required environment variables (same pattern as original monolith)
-missing = []
-for v in ("TMDB_ACCESS_TOKEN", "FLASK_SECRET"):
-    if not os.getenv(v):
-        missing.append(v)
+    jellyfin_url: str
+    jellyfin_api_key: str
+    tmdb_access_token: str
+    session_secret: str
+    db_path: str = ""  # empty string = compute default
 
-if not os.getenv("JELLYFIN_URL", "").strip():
-    missing.append("JELLYFIN_URL")
-if not os.getenv("JELLYFIN_API_KEY", "").strip():
-    missing.append("JELLYFIN_API_KEY")
+    @field_validator("jellyfin_url")
+    @classmethod
+    def _validate_jellyfin_url(cls, v: str) -> str:
+        from jellyswipe.ssrf_validator import validate_jellyfin_url
 
-if missing:
-    msg = f"Missing env vars: {missing}"
-    if (
-        "JELLYFIN_API_KEY" in missing
-        and os.getenv("JELLYFIN_USERNAME")
-        and os.getenv("JELLYFIN_PASSWORD")
-    ):
-        msg += (
-            ". JELLYFIN_API_KEY is required; username/password authentication has been removed. "
-            "Create an API key in your Jellyfin Dashboard → Advanced → API Keys."
-        )
-    raise RuntimeError(msg)
+        validate_jellyfin_url(v)
+        return v.rstrip("/")
 
-# SSRF protection: validate JELLYFIN_URL at boot (per D-04)
-validate_jellyfin_url(os.getenv("JELLYFIN_URL"))
+    @computed_field
+    @property
+    def sync_db_url(self) -> str:
+        """Canonical sync sqlite:///... URL for Alembic and runtime."""
+        path = Path(
+            self.db_path
+            or str(Path(__file__).resolve().parent.parent / "data" / "jellyswipe.db")
+        ).expanduser().resolve()
+        return f"sqlite:///{path}"
 
-# Capture validated URL for use throughout the application (D-04)
-_JELLYFIN_URL: str = os.getenv("JELLYFIN_URL", "").rstrip("/")
+    @computed_field
+    @property
+    def async_db_url(self) -> str:
+        """Async sqlite+aiosqlite:///... URL for the FastAPI runtime."""
+        return self.sync_db_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
 
-# Public export (routers import JELLYFIN_URL, not _JELLYFIN_URL)
-JELLYFIN_URL: str = _JELLYFIN_URL
+    model_config = {
+        "env_file": ".env",
+        "frozen": True,
+        "extra": "ignore",
+    }
 
-# TMDB authentication headers (moved from inside create_app to module level)
-TMDB_AUTH_HEADERS = {"Authorization": f"Bearer {os.getenv('TMDB_ACCESS_TOKEN')}"}
 
-# Token to user ID cache with TTL (D-02)
-_token_user_id_cache: Dict[str, Tuple[str, float]] = {}
-TOKEN_USER_ID_CACHE_TTL_SECONDS = 300
+def get_config(request: Request) -> AppConfig:
+    """FastAPI dependency that returns the cached AppConfig from app.state."""
+    return request.app.state.config
 
-# Identity header aliases for Jellyfin/Emby compatibility
-IDENTITY_ALIAS_HEADERS = (
-    "X-Provider-User-Id",
-    "X-Jellyfin-User-Id",
-    "X-Emby-UserId",
-)
 
-# Client identifier for Jellyfin API
-CLIENT_ID = "JellySwipe-AndrewTheTechie-2026"
-
-# JellyfinLibraryProvider singleton (lazy initialization)
-# Use TYPE_CHECKING to avoid circular import with jellyfin_library.py
-from typing import TYPE_CHECKING  # noqa: E402
-
-if TYPE_CHECKING:
-    from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-
-_provider_singleton: Optional["JellyfinLibraryProvider"] = None
+__all__ = ["AppConfig", "get_config"]

@@ -6,20 +6,22 @@ import asyncio
 
 import uvicorn
 
-from jellyswipe.db_runtime import build_async_database_url, dispose_runtime, initialize_runtime
-from jellyswipe.migrations import get_database_url, upgrade_to_head
+from jellyswipe.config import AppConfig
+from jellyswipe.db_runtime import dispose_runtime, initialize_runtime
+from jellyswipe.migrations import upgrade_to_head
 
 
 def main() -> None:
     """Migrate the target database, initialize async runtime, then start Uvicorn."""
-    sync_url = get_database_url()
-    async_url = build_async_database_url(sync_url)
+    config = AppConfig()
 
-    upgrade_to_head(sync_url)
+    upgrade_to_head(config.sync_db_url)
 
     try:
-        asyncio.run(initialize_runtime(async_url))
-        uvicorn.run("jellyswipe:app", host="0.0.0.0", port=5005)
+        asyncio.run(initialize_runtime(config.async_db_url))
+        from jellyswipe import create_app
+        app = create_app(config=config)
+        uvicorn.run(app, host="0.0.0.0", port=5005)
     except Exception:
         asyncio.run(dispose_runtime())
         raise

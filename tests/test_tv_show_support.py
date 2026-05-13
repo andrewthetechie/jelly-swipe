@@ -40,7 +40,7 @@ def test_create_room_with_tv_shows_only(client, app):
     """POST /room with {"movies": false, "tv_shows": true, "solo": true} creates solo room with TV shows."""
     import os
 
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": False, "tv_shows": True, "solo": True}
     )
@@ -68,7 +68,7 @@ def test_create_mixed_room_movies_and_tv_shows(client, app):
     """POST /room with {"movies": true, "tv_shows": true, "solo": false} creates hosted room with mixed media."""
     import os
 
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": True, "tv_shows": True, "solo": False}
     )
@@ -102,7 +102,7 @@ def test_swipe_tv_show_right_solo_match(client, app):
     import os
 
     # Create a room with TV shows
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": False, "tv_shows": True, "solo": True}
     )
@@ -181,7 +181,7 @@ def test_swipe_tv_show_dual_match(client, app):
     _seed_room("MIXED1", ready=1, solo_mode=0, movie_data=movie_data)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="MIXED1",
         user_id="verified-user",
         authenticated=True,
@@ -241,7 +241,7 @@ def test_swipe_mixed_deck_movie_and_tv_show(client, app):
     import os
 
     # Create mixed room
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": True, "tv_shows": True, "solo": True}
     )
@@ -453,12 +453,9 @@ def test_round_robin_interleaving_empty_tv_shows():
 @pytest.mark.anyio
 async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
     """Test that SessionMatchMutation creates match records with media_type='tv_show'."""
-    import jellyswipe.db_paths as db_paths_mod
-
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -521,6 +518,7 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
                 direction="right",
                 catalog_facts=catalog,
                 uow=uow,
+                jellyfin_url="http://test",
             )
             assert isinstance(result, SwipeAccepted)
             await session.commit()
@@ -539,12 +537,9 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
 @pytest.mark.anyio
 async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
     """Test that SessionMatchMutation creates match records with media_type='movie'."""
-    import jellyswipe.db_paths as db_paths_mod
-
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -608,6 +603,7 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
                 direction="right",
                 catalog_facts=catalog,
                 uow=uow,
+                jellyfin_url="http://test",
             )
             assert isinstance(result, SwipeAccepted)
             await session.commit()
@@ -784,13 +780,11 @@ def _set_session(
 
 
 def _sqlite_conn_for_route_tests():
-    """Open sqlite3 directly to application_db_path."""
+    """Open sqlite3 directly to the test database."""
     import sqlite3
+    import os
 
-    from jellyswipe.db_paths import application_db_path
-
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")

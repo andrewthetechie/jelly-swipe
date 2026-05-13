@@ -18,22 +18,13 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from jellyswipe.db_runtime import dispose_runtime, set_runtime_database_url_override
+from jellyswipe.config import AppConfig
+from jellyswipe.db_runtime import dispose_runtime
 
 # App root for static/template paths
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# DB path (kept here; config.py holds URL/token constants, __init__.py owns DB path)
-DB_PATH = os.path.abspath(
-    os.getenv("DB_PATH", os.path.join(_APP_ROOT, "..", "data", "jellyswipe.db"))
-)
-
-from jellyswipe.db_paths import application_db_path as _application_db_path  # noqa: E402
-
-_application_db_path.path = DB_PATH
-
 _logger = logging.getLogger(__name__)
-_provider_singleton = None
 
 
 def generate_request_id() -> str:
@@ -132,30 +123,32 @@ async def lifespan(app: FastAPI):
         _logger.exception("Failed to clean up orphaned session instances on startup")
 
     yield
-    global _provider_singleton
-    _provider_singleton = None
-    import jellyswipe.config as _config
+    from jellyswipe.dependencies import reset_provider_singleton
 
-    _config._provider_singleton = None
+    reset_provider_singleton()
     await dispose_runtime()
     _logger.info("jellyswipe_shutdown")
 
 
-def create_app(test_config=None):
+def create_app(config: AppConfig | None = None):
     """
     Create and configure a FastAPI application instance.
 
     Args:
-        test_config: Optional dictionary of test configuration to override defaults.
-                     If provided, DB_PATH will be overridden before database initialization.
+        config: Optional AppConfig instance. If None, constructed from env vars.
 
     Returns:
         A configured FastAPI application instance.
     """
+    if config is None:
+        config = AppConfig()
+
     app = FastAPI(
         lifespan=lifespan,
         default_response_class=XSSSafeJSONResponse,
     )
+
+    app.state.config = config
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
@@ -176,16 +169,10 @@ def create_app(test_config=None):
     # Add 1st: RequestIdMiddleware (innermost in request processing)
     app.add_middleware(RequestIdMiddleware)
 
-    # Determine session secret — test_config overrides env var (D-07)
-    if test_config and "SECRET_KEY" in test_config:
-        session_secret = test_config["SECRET_KEY"]
-    else:
-        session_secret = os.environ["FLASK_SECRET"]
-
     # Add 2nd: SessionMiddleware
     app.add_middleware(
         SessionMiddleware,
-        secret_key=session_secret,
+        secret_key=config.session_secret,
         max_age=14 * 24 * 60 * 60,  # 14 days per D-05
         same_site="lax",
         https_only=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
@@ -194,19 +181,6 @@ def create_app(test_config=None):
     # Add 3rd: ProxyHeadersMiddleware (outermost) per D-04
     trusted = os.getenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
-
-    # Test config override
-    if test_config:
-        if "DATABASE_URL" in test_config:
-            set_runtime_database_url_override(test_config["DATABASE_URL"])
-        else:
-            set_runtime_database_url_override(None)
-        if "DB_PATH" in test_config:
-            import jellyswipe.db_paths as _db_paths
-
-            _db_paths.application_db_path.path = test_config["DB_PATH"]
-    else:
-        set_runtime_database_url_override(None)
 
     # Static files mount (prevents path traversal vulnerabilities)
     app.mount(

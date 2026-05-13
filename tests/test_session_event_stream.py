@@ -24,8 +24,6 @@ from jellyswipe.db_runtime import (
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.services.session_event_stream import session_event_stream
 
-import jellyswipe.db_paths as db_paths_mod
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -37,7 +35,6 @@ def reset_runtime(monkeypatch):
     """Reset runtime state before each test."""
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", None)
     yield
 
 
@@ -47,7 +44,6 @@ async def runtime_sessionmaker(db_path, monkeypatch):
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(db_paths_mod.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 

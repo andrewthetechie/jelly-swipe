@@ -29,7 +29,6 @@ from tests.conftest import _bootstrap_temp_db_runtime
 def reset_runtime(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", None)
     yield
 
 
@@ -38,7 +37,6 @@ async def runtime_sessionmaker(db_path, monkeypatch):
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -215,20 +213,17 @@ class TestDestroySession:
 def test_shared_bootstrap_reinitializes_runtime_for_distinct_temp_dbs(tmp_path):
     first_db_path = str(tmp_path / "first.db")
     second_db_path = str(tmp_path / "second.db")
-    first_patch = pytest.MonkeyPatch()
-    second_patch = pytest.MonkeyPatch()
 
     try:
-        first_bootstrap = _bootstrap_temp_db_runtime(first_db_path, first_patch)
+        first_bootstrap = _bootstrap_temp_db_runtime(first_db_path)
         assert (
             jellyswipe.db_runtime.RUNTIME_DATABASE_URL
             == first_bootstrap["runtime_database_url"]
         )
 
         asyncio.run(jellyswipe.db_runtime.dispose_runtime())
-        first_patch.undo()
 
-        second_bootstrap = _bootstrap_temp_db_runtime(second_db_path, second_patch)
+        second_bootstrap = _bootstrap_temp_db_runtime(second_db_path)
         assert (
             jellyswipe.db_runtime.RUNTIME_DATABASE_URL
             == second_bootstrap["runtime_database_url"]
@@ -240,5 +235,4 @@ def test_shared_bootstrap_reinitializes_runtime_for_distinct_temp_dbs(tmp_path):
 
         asyncio.run(jellyswipe.db_runtime.dispose_runtime())
     finally:
-        second_patch.undo()
-        first_patch.undo()
+        pass

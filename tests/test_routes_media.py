@@ -11,13 +11,11 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 
-from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
 
 
 def _sqlite_conn():
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     import sqlite3
 
     conn = sqlite3.connect(path, check_same_thread=False)
@@ -48,7 +46,7 @@ def _seed_cache(media_id, lookup_type, result_json):
 
 def _set_session(client):
     """Inject session state for media route tests."""
-    set_session_cookie(client, {"user_id": "verified-user"}, os.environ["FLASK_SECRET"])
+    set_session_cookie(client, {"user_id": "verified-user"}, os.environ["SESSION_SECRET"])
 
 
 # ---------------------------------------------------------------------------
@@ -154,19 +152,17 @@ class TestTrailerRoute:
         _set_session(client)
 
         from tests.conftest import FakeProvider
-        import jellyswipe.config as app_config
-        import jellyswipe as app_module
+        import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
 
-        original = app_config._provider_singleton
+        original = deps._provider_singleton
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
                 raise RuntimeError("item lookup failed")
 
         failing = FailingProvider()
-        app_config._provider_singleton = failing
-        app_module._provider_singleton = failing
+        deps._provider_singleton = failing
         app.dependency_overrides[get_provider] = lambda: failing
 
         try:
@@ -174,8 +170,7 @@ class TestTrailerRoute:
             assert resp.status_code == 404
             assert "Movie metadata not found" in resp.json()["error"]
         finally:
-            app_config._provider_singleton = original
-            app_module._provider_singleton = original
+            deps._provider_singleton = original
 
 
 # ---------------------------------------------------------------------------
@@ -263,19 +258,17 @@ class TestCastRoute:
         _set_session(client)
 
         from tests.conftest import FakeProvider
-        import jellyswipe.config as app_config
-        import jellyswipe as app_module
+        import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
 
-        original = app_config._provider_singleton
+        original = deps._provider_singleton
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
                 raise RuntimeError("item lookup failed")
 
         failing = FailingProvider()
-        app_config._provider_singleton = failing
-        app_module._provider_singleton = failing
+        deps._provider_singleton = failing
         app.dependency_overrides[get_provider] = lambda: failing
 
         try:
@@ -285,5 +278,4 @@ class TestCastRoute:
             assert "Movie metadata not found" in data["error"]
             assert data["cast"] == []
         finally:
-            app_config._provider_singleton = original
-            app_module._provider_singleton = original
+            deps._provider_singleton = original

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-import jellyswipe.db
 import pytest
 
 from jellyswipe.db_runtime import (
@@ -34,7 +33,6 @@ from jellyswipe.services.session_match_mutation import (
 def reset_runtime(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", None)
     yield
 
 
@@ -43,7 +41,6 @@ async def runtime_sessionmaker(db_path, monkeypatch):
     sync_database_url = build_sqlite_url(db_path)
     runtime_database_url = build_async_sqlite_url(db_path)
 
-    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", db_path)
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATABASE_URL", sync_database_url)
 
@@ -206,6 +203,7 @@ class TestApplySwipe:
                 direction="left",
                 catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -245,6 +243,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -274,7 +273,7 @@ class TestApplySwipe:
             assert payload["duration"] == "2h 10m"
             assert payload["year"] == "2024"
             assert (
-                payload["deep_link"] == "http://test.jellyfin.local/web/#/details?id=m1"
+                payload["deep_link"] == "http://test/web/#/details?id=m1"
             )
 
     async def test_hosted_right_swipe_no_counterparty(self, runtime_sessionmaker):
@@ -294,6 +293,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -326,6 +326,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -344,6 +345,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -377,6 +379,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -403,6 +406,7 @@ class TestApplySwipe:
                 direction="left",
                 catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -429,6 +433,7 @@ class TestApplySwipe:
                 direction="left",
                 catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -463,6 +468,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Catalog Title", thumb="/catalog.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -505,6 +511,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -536,6 +543,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 
@@ -554,6 +562,7 @@ class TestApplySwipe:
                 direction="right",
                 catalog_facts=CatalogFacts(title="Movie", thumb="/t.jpg"),
                 uow=uow,
+                jellyfin_url="http://test",
             )
             await session.commit()
 

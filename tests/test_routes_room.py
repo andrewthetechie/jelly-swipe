@@ -11,13 +11,11 @@ import os
 
 import sqlite3
 
-from jellyswipe.db_paths import application_db_path
 from tests.conftest import set_session_cookie
 
 
 def _sqlite_conn_for_route_tests():
-    path = application_db_path.path
-    assert path is not None
+    path = os.environ["DB_PATH"]
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
@@ -78,7 +76,7 @@ def _create_room_via_api(client):
 
 def test_room_create_returns_pairing_code(client, app):
     """POST /room returns 200 with a 4-digit pairing code."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = _create_room_via_api(client)
     assert response.status_code == 200
     data = response.json()
@@ -90,7 +88,7 @@ def test_room_create_returns_pairing_code(client, app):
 
 def test_room_create_sets_session(client, app):
     """POST /room sets active_room and solo_mode=False in session."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = _create_room_via_api(client)
     assert response.status_code == 200
     code = response.json()["pairing_code"]
@@ -102,7 +100,7 @@ def test_room_create_sets_session(client, app):
 
 def test_room_create_stores_room_in_db(client, app):
     """POST /room stores the room in the database with correct initial state."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = _create_room_via_api(client)
     assert response.status_code == 200
     code = response.json()["pairing_code"]
@@ -128,7 +126,7 @@ def test_room_create_stores_room_in_db(client, app):
 
 def test_room_create_with_movies_only(client, app):
     """POST /room with {"movies": true, "tv_shows": false, "solo": false} creates hosted room."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": True, "tv_shows": False, "solo": False}
     )
@@ -154,7 +152,7 @@ def test_room_create_with_movies_only(client, app):
 
 def test_room_create_with_solo_mode(client, app):
     """POST /room with {"movies": true, "tv_shows": false, "solo": true} creates solo room with ready=1."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": True, "tv_shows": False, "solo": True}
     )
@@ -180,7 +178,7 @@ def test_room_create_with_solo_mode(client, app):
 
 def test_room_create_no_media_types_returns_400(client, app):
     """POST /room with {"movies": false, "tv_shows": false} returns 400."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": False, "tv_shows": False, "solo": False}
     )
@@ -191,7 +189,7 @@ def test_room_create_no_media_types_returns_400(client, app):
 
 def test_room_create_empty_body_defaults_to_movies_only(client, app):
     """POST /room with empty body defaults to movies-only hosted session."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post("/room", json={})
     assert response.status_code == 200
     data = response.json()
@@ -220,7 +218,7 @@ def test_room_create_empty_body_defaults_to_movies_only(client, app):
 
 def test_room_join_success(client, app):
     """POST /room/<code>/join with valid code returns 200 with status success."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     _seed_room("TEST1")
     response = client.post("/room/TEST1/join")
     assert response.status_code == 200
@@ -229,7 +227,7 @@ def test_room_join_success(client, app):
 
 def test_room_join_sets_session_and_ready(client, app):
     """POST /room/<code>/join sets session active_room and marks room ready in DB."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     _seed_room("TEST1")
     client.post("/room/TEST1/join")
 
@@ -248,7 +246,7 @@ def test_room_join_sets_session_and_ready(client, app):
 
 def test_room_join_invalid_code_returns_404(client, app):
     """POST /room/<code>/join with non-existent code returns 404 with error."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post("/room/9999/join")
     assert response.status_code == 404
     data = response.json()
@@ -262,7 +260,7 @@ def test_room_join_invalid_code_returns_404(client, app):
 
 def test_solo_room_endpoint_returns_404(client, app):
     """POST /room/solo returns 404 (endpoint removed)."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post("/room/solo")
     assert response.status_code == 404
     data = response.json()
@@ -278,7 +276,7 @@ def test_quit_room_success(client, app):
     """POST /room/<code>/quit with existing room returns 200 with session_ended."""
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         authenticated=True,
         solo_mode=True,
@@ -292,7 +290,7 @@ def test_quit_room_success(client, app):
 def test_quit_room_deletes_from_db(client, app):
     """POST /room/<code>/quit deletes the room and its swipes from the database."""
     _set_session(
-        client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True
+        client, os.environ["SESSION_SECRET"], active_room="TEST1", authenticated=True
     )
     _seed_room("TEST1")
 
@@ -326,7 +324,7 @@ def test_quit_room_deletes_from_db(client, app):
 def test_quit_room_archives_matches(client, app):
     """POST /room/<code>/quit archives active matches (status=archived, room_code=HISTORY)."""
     _set_session(
-        client, os.environ["FLASK_SECRET"], active_room="TEST1", authenticated=True
+        client, os.environ["SESSION_SECRET"], active_room="TEST1", authenticated=True
     )
     _seed_room("TEST1")
 
@@ -361,7 +359,7 @@ def test_quit_room_clears_session(client, app):
     """POST /room/<code>/quit clears active_room and solo_mode from the session."""
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         authenticated=True,
         solo_mode=True,
@@ -375,7 +373,7 @@ def test_quit_room_clears_session(client, app):
 
 def test_quit_nonexistent_room_still_succeeds(client, app):
     """POST /room/<code>/quit with nonexistent room code returns 200 (graceful no-op)."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post("/room/NONEXISTENT/quit")
     assert response.status_code == 200
     assert response.json() == {"status": "session_ended"}
@@ -428,7 +426,7 @@ def test_swipe_left_records_no_match(client, app):
     """POST /room/<code>/swipe with direction=left records swipe, returns accepted=True."""
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -458,7 +456,7 @@ def test_swipe_right_solo_match(client, app):
     """POST /room/<code>/swipe right in solo room creates match in DB."""
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -488,7 +486,7 @@ def test_swipe_right_dual_match(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -533,7 +531,7 @@ def test_swipe_right_no_match_yet(client, app):
     """POST /room/<code>/swipe right in shared room with no prior swipe returns accepted=True."""
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -552,12 +550,13 @@ def test_swipe_right_no_match_yet(client, app):
 def test_set_genre_empty_deck_returns_400(client, app, mocker):
     """POST /room/{code}/genre returns 400 when genre filter results in empty deck."""
     from tests.conftest import FakeProvider
+    from jellyswipe.dependencies import get_provider
 
     # Seed a room
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -574,12 +573,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
 
     fake_provider.fetch_deck = mock_fetch
 
-    # Override the provider in the router module
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    app.dependency_overrides[get_provider] = lambda: fake_provider
     try:
         response = client.post(
             "/room/TEST1/genre",
@@ -589,8 +583,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
         assert response.status_code == 400
         assert "No items available" in response.json()["error"]
     finally:
-        # Restore original get_provider
-        rooms_router_module.get_provider = original_get_provider
+        app.dependency_overrides.pop(get_provider, None)
 
 
 def test_set_watched_filter_returns_new_deck_on_success(client, app):
@@ -599,7 +592,7 @@ def test_set_watched_filter_returns_new_deck_on_success(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -617,7 +610,7 @@ def test_set_watched_filter_missing_hide_watched_returns_400(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -634,7 +627,7 @@ def test_set_watched_filter_invalid_type_returns_400(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -649,11 +642,12 @@ def test_set_watched_filter_invalid_type_returns_400(client, app):
 def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
     """POST /room/{code}/watched-filter returns 422 when filter results in empty deck."""
     from tests.conftest import FakeProvider
+    from jellyswipe.dependencies import get_provider
 
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -670,11 +664,7 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
 
     fake_provider.fetch_deck = mock_fetch
 
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    app.dependency_overrides[get_provider] = lambda: fake_provider
     try:
         response = client.post(
             "/room/TEST1/watched-filter", json={"hide_watched": True}
@@ -682,14 +672,14 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
         assert response.status_code == 422
         assert "No unwatched items available" in response.json()["error"]
     finally:
-        rooms_router_module.get_provider = original_get_provider
+        app.dependency_overrides.pop(get_provider, None)
 
 
 def test_set_watched_filter_nonexistent_room_returns_404(client, app):
     """POST /room/{code}/watched-filter returns 404 for non-existent room."""
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         user_id="verified-user",
         authenticated=True,
     )
@@ -705,7 +695,7 @@ def test_status_includes_hide_watched_field(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -722,7 +712,7 @@ def test_status_hide_watched_true_after_toggling(client, app):
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,
@@ -759,7 +749,7 @@ def test_join_room_notifies_after_commit(client, app):
     from jellyswipe.notifier import notifier
 
     # Create a room first
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     create_resp = client.post("/room")
     assert create_resp.status_code == 200
     code = create_resp.json()["pairing_code"]
@@ -768,7 +758,7 @@ def test_join_room_notifies_after_commit(client, app):
     from tests.conftest import set_session_cookie
 
     join_client_session = {"solo_mode": False}
-    set_session_cookie(client, join_client_session, os.environ["FLASK_SECRET"])
+    set_session_cookie(client, join_client_session, os.environ["SESSION_SECRET"])
 
     with patch.object(notifier, "notify") as mock_notify:
         response = client.post(f"/room/{code}/join")
@@ -782,7 +772,7 @@ def test_quit_room_notifies_after_commit(client, app):
     from jellyswipe.notifier import notifier
 
     # Create a room
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     create_resp = client.post("/room")
     assert create_resp.status_code == 200
     code = create_resp.json()["pairing_code"]
@@ -799,7 +789,7 @@ def test_set_genre_notifies_after_commit(client, app):
     from jellyswipe.notifier import notifier
 
     # Create a room
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     create_resp = client.post("/room")
     assert create_resp.status_code == 200
     code = create_resp.json()["pairing_code"]
@@ -816,7 +806,7 @@ def test_set_watched_filter_notifies_after_commit(client, app):
     from jellyswipe.notifier import notifier
 
     # Create a room
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     create_resp = client.post("/room")
     assert create_resp.status_code == 200
     code = create_resp.json()["pairing_code"]
@@ -831,7 +821,7 @@ def test_set_watched_filter_notifies_after_commit(client, app):
 
 def test_create_room_returns_instance_id(client, app):
     """POST /room returns instance_id in response."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post("/room")
     assert response.status_code == 200
     data = response.json()
@@ -842,7 +832,7 @@ def test_create_room_returns_instance_id(client, app):
 
 def test_swipe_nonexistent_room_returns_404(client, app):
     """POST /room/<code>/swipe to a non-existent room returns 404 with error."""
-    _set_session(client, os.environ["FLASK_SECRET"], authenticated=True)
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
 
     response = client.post(
         "/room/NOROOM/swipe",
@@ -861,7 +851,7 @@ def test_swipe_notifies_after_commit(client, app):
 
     _set_session(
         client,
-        os.environ["FLASK_SECRET"],
+        os.environ["SESSION_SECRET"],
         active_room="TEST1",
         user_id="verified-user",
         authenticated=True,

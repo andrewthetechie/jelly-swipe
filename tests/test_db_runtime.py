@@ -6,13 +6,11 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import jellyswipe.db
 import jellyswipe.db_runtime as db_runtime
 from jellyswipe.db_runtime import (
     build_async_database_url,
     build_async_sqlite_url,
     dispose_runtime,
-    get_runtime_database_url,
     get_sessionmaker,
     initialize_runtime,
 )
@@ -30,7 +28,6 @@ pytestmark = pytest.mark.anyio
 async def reset_runtime(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DB_PATH", raising=False)
-    monkeypatch.setattr(jellyswipe.db_paths.application_db_path, "path", None)
     await dispose_runtime()
     yield
     await dispose_runtime()
@@ -62,12 +59,9 @@ async def test_async_database_url_helpers_derive_from_sync_target(db_path, monke
     assert build_async_database_url(expected_sync) == expected_async
     assert build_async_sqlite_url(db_path) == expected_async
 
-    monkeypatch.setenv("DATABASE_URL", expected_sync)
-    assert get_runtime_database_url() == expected_async
-
 
 async def test_initialize_runtime_creates_usable_sessionmaker(db_path):
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
@@ -83,7 +77,7 @@ async def test_initialize_runtime_creates_usable_sessionmaker(db_path):
 
 
 async def test_cached_sessionmaker_creates_distinct_sessions(db_path):
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session_one, sessionmaker() as session_two:
@@ -93,7 +87,7 @@ async def test_cached_sessionmaker_creates_distinct_sessions(db_path):
 
 
 async def test_dispose_runtime_clears_cached_state(db_path):
-    await initialize_runtime(build_sqlite_url(db_path))
+    await initialize_runtime(build_async_sqlite_url(db_path))
 
     assert db_runtime.RUNTIME_DATABASE_URL is not None
     assert db_runtime.RUNTIME_ENGINE is not None

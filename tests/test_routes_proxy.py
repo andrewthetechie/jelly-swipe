@@ -6,7 +6,7 @@ server configuration, and provider error handling (EPIC-04).
 
 from unittest.mock import MagicMock
 
-import jellyswipe
+import jellyswipe.dependencies as deps
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -35,7 +35,7 @@ def test_proxy_valid_uuid36_path_returns_200(client):
 
 def test_proxy_returns_image_data_from_provider(client, monkeypatch):
     """Image data from provider is returned in the response body."""
-    fake = jellyswipe._provider_singleton
+    fake = deps._provider_singleton
     monkeypatch.setattr(
         fake,
         "fetch_library_image",
@@ -48,7 +48,7 @@ def test_proxy_returns_image_data_from_provider(client, monkeypatch):
 
 def test_proxy_content_type_matches_provider(client, monkeypatch):
     """Content-type from provider is passed through to the HTTP response."""
-    fake = jellyswipe._provider_singleton
+    fake = deps._provider_singleton
     monkeypatch.setattr(
         fake,
         "fetch_library_image",
@@ -138,9 +138,18 @@ def test_proxy_encoded_path_traversal_returns_403(client):
 
 def test_proxy_no_jellyfin_url_returns_503(client, monkeypatch):
     """Empty JELLYFIN_URL config returns 503."""
-    monkeypatch.setattr(jellyswipe.config, "JELLYFIN_URL", "")
-    response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
-    assert response.status_code == 503
+    from jellyswipe.config import get_config
+
+    # Override get_config to return a mock with empty jellyfin_url
+    class EmptyConfig:
+        jellyfin_url = ""
+
+    client.app.dependency_overrides[get_config] = lambda: EmptyConfig()
+    try:
+        response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
+        assert response.status_code == 503
+    finally:
+        client.app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +159,7 @@ def test_proxy_no_jellyfin_url_returns_503(client, monkeypatch):
 
 def test_proxy_provider_permission_error_returns_403(client, monkeypatch):
     """Provider PermissionError returns 403."""
-    fake = jellyswipe._provider_singleton
+    fake = deps._provider_singleton
     monkeypatch.setattr(
         fake,
         "fetch_library_image",

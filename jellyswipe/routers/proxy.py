@@ -7,12 +7,12 @@ Serves images from Jellyfin server through the app to avoid exposing server secr
 import logging
 import re
 
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from jellyswipe import XSSSafeJSONResponse
 
+from jellyswipe.config import AppConfig, get_config
 from jellyswipe.dependencies import check_rate_limit, get_provider
-from jellyswipe import config
 
 import requests
 
@@ -23,17 +23,17 @@ proxy_router = APIRouter()
 
 
 @proxy_router.get('/proxy')
-def proxy(request: Request, _: None = Depends(check_rate_limit)):
+def proxy(request: Request, config: AppConfig = Depends(get_config), provider = Depends(get_provider), _: None = Depends(check_rate_limit)):
     """Proxy image requests to Jellyfin server with path validation."""
     path = request.query_params.get('path')
     if not path:
         raise HTTPException(status_code=403)
-    if not config.JELLYFIN_URL:
+    if not config.jellyfin_url:
         raise HTTPException(status_code=503)
     if not re.match(r"^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$", path):
         raise HTTPException(status_code=403)
     try:
-        body, content_type = get_provider().fetch_library_image(path)
+        body, content_type = provider.fetch_library_image(path)
     except PermissionError:
         raise HTTPException(status_code=403)
     except FileNotFoundError:

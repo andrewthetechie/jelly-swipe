@@ -10,7 +10,6 @@ import logging
 from typing import Optional
 from urllib.parse import urlencode
 
-from jellyswipe.config import TMDB_AUTH_HEADERS
 from jellyswipe.http_client import make_http_request
 
 _logger = logging.getLogger(__name__)
@@ -19,18 +18,19 @@ TMDB_SEARCH_TIMEOUT = (5, 15)
 TMDB_BASE = "https://api.themoviedb.org/3"
 
 
-def lookup_trailer(title: str, year: Optional[int]) -> Optional[str]:
+def lookup_trailer(title: str, year: Optional[int], *, api_token: str) -> Optional[str]:
     """Search TMDB for a movie and return the YouTube trailer key.
 
     Returns None on any failure (network error, no match, no trailer).
     """
+    headers = {"Authorization": f"Bearer {api_token}"}
     try:
         params = urlencode({"query": title, "year": year})
         search_url = f"{TMDB_BASE}/search/movie?{params}"
         search_response = make_http_request(
             method="GET",
             url=search_url,
-            headers=TMDB_AUTH_HEADERS,
+            headers=headers,
             timeout=TMDB_SEARCH_TIMEOUT,
         )
         r = search_response.json()
@@ -42,7 +42,7 @@ def lookup_trailer(title: str, year: Optional[int]) -> Optional[str]:
         videos_response = make_http_request(
             method="GET",
             url=v_url,
-            headers=TMDB_AUTH_HEADERS,
+            headers=headers,
             timeout=TMDB_SEARCH_TIMEOUT,
         )
         v_res = videos_response.json()
@@ -62,18 +62,19 @@ def lookup_trailer(title: str, year: Optional[int]) -> Optional[str]:
         return None
 
 
-def lookup_cast(title: str, year: Optional[int]) -> list[dict]:
+def lookup_cast(title: str, year: Optional[int], *, api_token: str) -> list[dict]:
     """Search TMDB for a movie and return up to 8 cast members.
 
     Returns [] on any failure (network error, no match).
     """
+    headers = {"Authorization": f"Bearer {api_token}"}
     try:
         params = urlencode({"query": title, "year": year})
         search_url = f"{TMDB_BASE}/search/movie?{params}"
         search_response = make_http_request(
             method="GET",
             url=search_url,
-            headers=TMDB_AUTH_HEADERS,
+            headers=headers,
             timeout=TMDB_SEARCH_TIMEOUT,
         )
         r = search_response.json()
@@ -85,7 +86,7 @@ def lookup_cast(title: str, year: Optional[int]) -> list[dict]:
         credits_response = make_http_request(
             method="GET",
             url=credits_url,
-            headers=TMDB_AUTH_HEADERS,
+            headers=headers,
             timeout=TMDB_SEARCH_TIMEOUT,
         )
         c_res = credits_response.json()
