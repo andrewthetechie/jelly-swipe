@@ -4,6 +4,7 @@ Covers /auth/jellyfin-use-server-identity with header-spoof protection tests (EP
 404 regression tests for removed routes, and E2E delegate login/logout flow.
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import jellyswipe.dependencies as deps
@@ -101,3 +102,38 @@ async def test_delegate_login_me_logout_flow(client_real_auth):
     # Step 4: Unauthenticated
     me2 = client_real_auth.get("/me")
     assert me2.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Expired session cleanup tests
+# ---------------------------------------------------------------------------
+
+
+def test_expired_sessions_cleaned_up_on_delegate_login(client_real_auth, db_connection):
+    """Expired auth sessions are deleted when a new session is created."""
+    # Seed an expired session (created 15 days ago)
+    expired_sid = "expired-session-id"
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
+    db_connection.execute(
+        "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+        (expired_sid, "old-token", "old-user", cutoff),
+    )
+    db_connection.commit()
+
+    # Login creates a new session
+    response = client_real_auth.post("/auth/jellyfin-use-server-identity")
+    assert response.status_code == 200
+
+    # Expired session should be gone
+    row = db_connection.execute(
+        "SELECT session_id FROM auth_sessions WHERE session_id = ?", (expired_sid,)
+    ).fetchone()
+    assert row is None
+
+    # New session should exist
+    new_user_id = response.json()["userId"]
+    new_row = db_connection.execute(
+        "SELECT session_id FROM auth_sessions WHERE jellyfin_user_id = ?",
+        (new_user_id,),
+    ).fetchone()
+    assert new_row is not None
