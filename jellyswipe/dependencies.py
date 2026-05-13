@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Optional
 
 from fastapi import Depends, HTTPException, Request
 
+import logging
 import threading
 
 import jellyswipe.auth as auth
@@ -23,6 +24,8 @@ from jellyswipe.rate_limiter import rate_limiter
 if TYPE_CHECKING:
     from jellyswipe.jellyfin_library import JellyfinLibraryProvider
 
+_logger = logging.getLogger(__name__)
+
 _provider_lock = threading.Lock()
 _provider_singleton: Optional["JellyfinLibraryProvider"] = None
 
@@ -30,20 +33,29 @@ _provider_singleton: Optional["JellyfinLibraryProvider"] = None
 @dataclass
 class AuthUser:
     """Authenticated user data for FastAPI dependency injection."""
+
     jf_token: str
     user_id: str
 
 
 async def get_db_uow():
-    """Yield a request-scoped async unit of work."""
+    """Yield a request-scoped async unit of work.
+
+    The caller owns commit. This dependency owns session lifecycle
+    (open, rollback-on-error, close) but NOT commit.
+    """
     session = get_sessionmaker()()
     try:
         yield DatabaseUnitOfWork(session)
-        await session.commit()
     except Exception:
         await session.rollback()
         raise
     finally:
+        if session.dirty or session.new or session.deleted:
+            _logger.warning(
+                "UoW session closed with uncommitted dirty/new/deleted "
+                "objects — writes were silently lost. Did you forget to commit?"
+            )
         await session.close()
 
 
@@ -51,10 +63,10 @@ DBUoW = Annotated[DatabaseUnitOfWork, Depends(get_db_uow, scope="function")]
 
 
 _RATE_LIMITS = {
-    'get-trailer': 200,
-    'cast': 200,
-    'watchlist/add': 300,
-    'proxy': 200,
+    "get-trailer": 200,
+    "cast": 200,
+    "watchlist/add": 300,
+    "proxy": 200,
 }
 
 
@@ -123,6 +135,7 @@ async def get_provider(config: AppConfig = Depends(get_config)):
     with _provider_lock:
         if _provider_singleton is None:
             from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+
             _provider_singleton = JellyfinLibraryProvider(config.jellyfin_url)
 
     return _provider_singleton
