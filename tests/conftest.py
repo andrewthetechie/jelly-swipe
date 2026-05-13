@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 import sqlite3
 from base64 import b64encode
 from unittest.mock import MagicMock, patch
@@ -272,6 +273,11 @@ class FakeProvider:
         )
 
     def fetch_library_image(self, path):
+        _JF_IMAGE_PATH = re.compile(
+            r"^jellyfin/([0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$"
+        )
+        if not _JF_IMAGE_PATH.match(path):
+            raise PermissionError("Invalid Jellyfin image path")
         return (b"", "image/jpeg")
 
 
