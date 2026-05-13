@@ -36,6 +36,7 @@ class TestAppConfigConstruction:
                 jellyfin_api_key="k",
                 tmdb_access_token="t",
                 flask_secret="s",
+                _env_file=None,  # prevent .env from supplying the missing field
             )
         assert "jellyfin_url" in str(exc_info.value)
 
@@ -47,6 +48,7 @@ class TestAppConfigConstruction:
                 jellyfin_url="http://test.example.com",
                 tmdb_access_token="t",
                 flask_secret="s",
+                _env_file=None,
             )
         assert "jellyfin_api_key" in str(exc_info.value)
 
@@ -58,6 +60,7 @@ class TestAppConfigConstruction:
                 jellyfin_url="http://test.example.com",
                 jellyfin_api_key="k",
                 flask_secret="s",
+                _env_file=None,
             )
         assert "tmdb_access_token" in str(exc_info.value)
 
@@ -69,6 +72,7 @@ class TestAppConfigConstruction:
                 jellyfin_url="http://test.example.com",
                 jellyfin_api_key="k",
                 tmdb_access_token="t",
+                _env_file=None,
             )
         assert "flask_secret" in str(exc_info.value)
 
@@ -107,12 +111,14 @@ class TestAppConfigComputedFields:
     def test_sync_db_url_with_explicit_db_path(self, monkeypatch):
         monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
         config = _make_config(db_path="/tmp/test.db")
-        assert config.sync_db_url == "sqlite:////tmp/test.db"
+        expected = f"sqlite:///{Path('/tmp/test.db').resolve()}"
+        assert config.sync_db_url == expected
 
     def test_async_db_url_with_explicit_db_path(self, monkeypatch):
         monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")
         config = _make_config(db_path="/tmp/test.db")
-        assert config.async_db_url == "sqlite+aiosqlite:////tmp/test.db"
+        expected = f"sqlite+aiosqlite:///{Path('/tmp/test.db').resolve()}"
+        assert config.async_db_url == expected
 
     def test_sync_db_url_default_resolves_to_data_jellyswipe_db(self, monkeypatch):
         monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")

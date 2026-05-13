@@ -55,6 +55,7 @@ class AppConfig(BaseSettings):
     model_config = {
         "env_file": ".env",
         "frozen": True,
+        "extra": "ignore",
     }
 
 
