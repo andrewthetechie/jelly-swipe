@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.3.2...v0.4.0) (2026-05-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* update Readme to include SESSION_SECRET ([#113](https://github.com/andrewthetechie/jelly-swipe/issues/113))
+
+### Features
+
+* update Readme to include SESSION_SECRET ([#113](https://github.com/andrewthetechie/jelly-swipe/issues/113)) ([250313f](https://github.com/andrewthetechie/jelly-swipe/commit/250313f378990a0b9e10fd736a8c3fea4c1d6110))
+
+
+### Miscellaneous Chores
+
+* release 0.4.0 ([71e0a5b](https://github.com/andrewthetechie/jelly-swipe/commit/71e0a5bfb2f164d740ed7822fe4debfe13f7d06f))
+
 ## [0.3.2](https://github.com/andrewthetechie/jelly-swipe/compare/v0.3.1...v0.3.2) (2026-05-12)
 
 
