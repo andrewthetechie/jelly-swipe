@@ -13,7 +13,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import jellyswipe.dependencies as deps
 from jellyswipe.auth_types import AuthRecord
-from jellyswipe.db_runtime import build_async_sqlite_url, dispose_runtime, get_sessionmaker, initialize_runtime
+from jellyswipe.db_runtime import (
+    build_async_sqlite_url,
+    dispose_runtime,
+    get_sessionmaker,
+    initialize_runtime,
+)
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import (
     AuthUser,
@@ -74,6 +79,19 @@ def _instrument_session(session):
     session.rollback = rollback
     session.close = close
     return counts
+
+
+class _DirtySessionWrapper:
+    """Wraps a session to force dirty/new/deleted to truthy values."""
+
+    def __init__(self, session):
+        self._session = session
+        self.dirty = True
+        self.new = True
+        self.deleted = True
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
 
 
 def _begin_immediate_insert(sync_session, value: str) -> None:
@@ -162,10 +180,44 @@ class TestRequireAuth:
 class TestGetDbUow:
     """Tests for get_db_uow() dependency."""
 
-    async def test_yields_uow_and_commits_on_success(
-        self, runtime_sessionmaker, monkeypatch
-    ):
-        """Successful downstream work commits once and closes the session."""
+    async def test_no_auto_commit(self, runtime_sessionmaker, monkeypatch):
+        """No auto-commit on success — dirty session triggers warning, data not persisted."""
+        session = runtime_sessionmaker()
+        counts = _instrument_session(session)
+        dirty_session = _DirtySessionWrapper(session)
+        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: dirty_session)
+
+        generator = get_db_uow()
+        uow = await generator.__anext__()
+
+        assert isinstance(uow, DatabaseUnitOfWork)
+
+        await uow.run_sync(_begin_immediate_insert, "uncommitted")
+
+        with patch.object(deps._logger, "warning") as mock_warning:
+            with pytest.raises(StopAsyncIteration):
+                await generator.__anext__()
+            mock_warning.assert_called_once()
+            assert "uncommitted dirty/new/deleted" in mock_warning.call_args[0][0]
+
+        assert counts["commit"] == 0
+        assert counts["close"] == 1
+
+        # Data NOT persisted
+        async with runtime_sessionmaker() as verify_session:
+            rows = (
+                (
+                    await verify_session.execute(
+                        text("SELECT value FROM bridge_rows ORDER BY id")
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert rows == []
+
+    async def test_explicit_commit_persists(self, runtime_sessionmaker, monkeypatch):
+        """Explicit commit persists data and no warning is logged."""
         session = runtime_sessionmaker()
         counts = _instrument_session(session)
         monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: session)
@@ -173,15 +225,18 @@ class TestGetDbUow:
         generator = get_db_uow()
         uow = await generator.__anext__()
 
-        assert isinstance(uow, DatabaseUnitOfWork)
-
         await uow.run_sync(_begin_immediate_insert, "committed")
+        await uow.session.commit()
 
-        with pytest.raises(StopAsyncIteration):
-            await generator.__anext__()
+        with patch.object(deps._logger, "warning") as mock_warning:
+            with pytest.raises(StopAsyncIteration):
+                await generator.__anext__()
+            mock_warning.assert_not_called()
 
-        assert counts == {"commit": 1, "rollback": 0, "close": 1}
+        assert counts["commit"] == 1
+        assert counts["close"] == 1
 
+        # Data IS persisted
         async with runtime_sessionmaker() as verify_session:
             rows = (
                 (
@@ -194,9 +249,7 @@ class TestGetDbUow:
             )
         assert rows == ["committed"]
 
-    async def test_rolls_back_on_error_after_begin_immediate_bridge(
-        self, runtime_sessionmaker, monkeypatch
-    ):
+    async def test_rollback_on_error_preserved(self, runtime_sessionmaker, monkeypatch):
         """A downstream failure rolls back once after BEGIN IMMEDIATE bridge work."""
         session = runtime_sessionmaker()
         counts = _instrument_session(session)
@@ -222,6 +275,46 @@ class TestGetDbUow:
                 .all()
             )
         assert rows == []
+
+    async def test_warning_on_uncommitted_dirty(
+        self, runtime_sessionmaker, monkeypatch
+    ):
+        """Dirty session without commit logs a warning about uncommitted writes."""
+        session = runtime_sessionmaker()
+        counts = _instrument_session(session)
+        dirty_session = _DirtySessionWrapper(session)
+        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: dirty_session)
+
+        generator = get_db_uow()
+        uow = await generator.__anext__()
+
+        await uow.run_sync(_begin_immediate_insert, "dirty")
+
+        with patch.object(deps._logger, "warning") as mock_warning:
+            with pytest.raises(StopAsyncIteration):
+                await generator.__anext__()
+            mock_warning.assert_called_once()
+            assert "uncommitted dirty/new/deleted" in mock_warning.call_args[0][0]
+
+        assert counts["commit"] == 0
+
+    async def test_no_warning_on_clean_exit(self, runtime_sessionmaker, monkeypatch):
+        """Clean session (no writes) exits without warning."""
+        session = runtime_sessionmaker()
+        counts = _instrument_session(session)
+        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: session)
+
+        generator = get_db_uow()
+        await generator.__anext__()
+
+        # No writes — just yield and close
+        with patch.object(deps._logger, "warning") as mock_warning:
+            with pytest.raises(StopAsyncIteration):
+                await generator.__anext__()
+            mock_warning.assert_not_called()
+
+        assert counts["commit"] == 0
+        assert counts["close"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +439,7 @@ class TestGetProvider:
             "jellyswipe.jellyfin_library.JellyfinLibraryProvider",
             return_value=mock_instance,
         ):
+
             class MockConfig:
                 jellyfin_url = "http://test"
 
