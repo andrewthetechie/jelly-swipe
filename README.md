@@ -44,7 +44,7 @@ This application connects directly to a **Jellyfin** server to pull random movie
 
 | Variable             | Required when | Description                                                                                                                |
 | -------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `FLASK_SECRET`       | Always        | Flask session secret.                                                                                                      |
+| `SESSION_SECRET`       | Always        | session secret.                                                                                                      |
 | `TMDB_ACCESS_TOKEN`  | Always        | TMDB API key (trailers / cast).                                                                                            |
 | `JELLYFIN_URL`       | Always        | Base URL of your Jellyfin server (no trailing slash).                                                                      |
 | `JELLYFIN_API_KEY`   | Always        | API key for unattended server access.                                                                                      |
@@ -76,7 +76,7 @@ and for user-scoped list actions must include a Jellyfin user token via:
 JELLYFIN_URL=http://your-jellyfin-host:8096
 JELLYFIN_API_KEY=your-jellyfin-api-key
 TMDB_ACCESS_TOKEN=your-tmdb-read-access-token
-FLASK_SECRET=long-random-string
+SESSION_SECRET=long-random-string
 ```
 
 ## Requirements
@@ -135,7 +135,7 @@ services:
     environment:
       - JELLYFIN_URL=http://YOUR_JELLYFIN_IP:8096
       - JELLYFIN_API_KEY=your-jellyfin-api-key
-      - FLASK_SECRET=SomeRandomString
+      - SESSION_SECRET=SomeRandomString
       - TMDB_ACCESS_TOKEN=your_copied_tmdb_token_here
       - PUID=99 # UID for app process — match your ./data directory owner
       - PGID=100 # GID for app process — match your ./data directory owner
@@ -152,7 +152,7 @@ docker run -d \
   -p 5005:5005 \
   -e JELLYFIN_URL=http://YOUR_JELLYFIN_IP:8096 \
   -e JELLYFIN_API_KEY=your-jellyfin-api-key \
-  -e FLASK_SECRET=SomeRandomString \
+  -e SESSION_SECRET=SomeRandomString \
   -e TMDB_ACCESS_TOKEN=your_copied_tmdb_token_here \
   -e PUID=99 \
   -e PGID=100 \
@@ -168,7 +168,7 @@ For Unraid users, a pre-configured template is provided at `unraid_template/jell
 - **JELLYFIN_URL** — Base URL of your Jellyfin server (no trailing slash)
 - **JELLYFIN_API_KEY** — API key for unattended server access
 - **TMDB_ACCESS_TOKEN** — TMDB Read Access Token for trailers and cast information
-- **FLASK_SECRET** — Random secret string for Flask session security
+- **SESSION_SECRET** — Random secret string for session security
 
 All fields are blank by default and must be filled in by the user. The template does not expose username/password authentication options — it uses API key authentication only.
 
