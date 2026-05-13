@@ -36,7 +36,9 @@ from jellyswipe.services.session_match_mutation import (
     UndoChanged,
 )
 
-from jellyswipe.routers._helpers import make_error_response, log_exception  # noqa: F401
+from jellyswipe.routers._helpers import (
+    commit_and_wake,
+)  # noqa: F401
 
 rooms_router = APIRouter()
 
@@ -53,7 +55,10 @@ session_match_mutation = SessionMatchMutation()
 
 @rooms_router.post("/room")
 async def create_room(
-    request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)
+    request: Request,
+    uow: DBUoW,
+    user: AuthUser = Depends(require_auth),
+    provider=Depends(get_provider),
 ):
     """Create a new room with setup choices.
 
@@ -148,14 +153,18 @@ async def join_room_route(
     if payload is None:
         return XSSSafeJSONResponse(content={"error": "Invalid Code"}, status_code=404)
     # Commit before notifying to ensure events are persisted
-    await uow.session.commit()
-    notifier.notify(code)
+    await commit_and_wake(uow, code)
     return payload
 
 
 @rooms_router.post("/room/{code}/swipe")
 async def swipe(
-    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), config: AppConfig = Depends(get_config), provider = Depends(get_provider)
+    code: str,
+    request: Request,
+    uow: DBUoW,
+    user: AuthUser = Depends(require_auth),
+    config: AppConfig = Depends(get_config),
+    provider=Depends(get_provider),
 ):
     """Swipe on a movie with BEGIN IMMEDIATE transaction.
 
@@ -200,8 +209,7 @@ async def swipe(
     if isinstance(result, SwipeRejected):
         return XSSSafeJSONResponse(content={"error": result.reason}, status_code=404)
     # SwipeAccepted — commit and notify
-    await uow.session.commit()
-    notifier.notify(code)
+    await commit_and_wake(uow, code)
     return {"accepted": True}
 
 
@@ -224,8 +232,7 @@ async def quit_room(
         code, request.session, user.user_id, uow
     )
     # Commit before notifying to ensure events are persisted
-    await uow.session.commit()
-    notifier.notify(code)
+    await commit_and_wake(uow, code)
     return result
 
 
@@ -282,8 +289,7 @@ async def undo_swipe(
         uow=uow,
     )
     if isinstance(result, UndoChanged):
-        await uow.session.commit()
-        notifier.notify(code)
+        await commit_and_wake(uow, code)
     return {"status": "undone"}
 
 
@@ -303,7 +309,11 @@ async def get_deck(
 
 @rooms_router.post("/room/{code}/genre")
 async def set_genre(
-    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)
+    code: str,
+    request: Request,
+    uow: DBUoW,
+    user: AuthUser = Depends(require_auth),
+    provider=Depends(get_provider),
 ):
     """Set the genre filter for the room and reload the deck."""
     try:
@@ -314,12 +324,9 @@ async def set_genre(
     if not genre:
         return XSSSafeJSONResponse(content={"error": "Genre required"}, status_code=400)
     try:
-        new_list = await room_lifecycle_service.set_genre(
-            code, genre, provider, uow
-        )
+        new_list = await room_lifecycle_service.set_genre(code, genre, provider, uow)
         # Commit before notifying to ensure events are persisted
-        await uow.session.commit()
-        notifier.notify(code)
+        await commit_and_wake(uow, code)
         return new_list
     except EmptyDeckError as e:
         return XSSSafeJSONResponse(content={"error": str(e)}, status_code=400)
@@ -327,7 +334,11 @@ async def set_genre(
 
 @rooms_router.post("/room/{code}/watched-filter")
 async def set_watched_filter_route(
-    code: str, request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth), provider = Depends(get_provider)
+    code: str,
+    request: Request,
+    uow: DBUoW,
+    user: AuthUser = Depends(require_auth),
+    provider=Depends(get_provider),
 ):
     """Set the watched filter for the room and reload the deck."""
     try:
@@ -348,8 +359,7 @@ async def set_watched_filter_route(
             code, hide_watched, provider, uow
         )
         # Commit before notifying to ensure events are persisted
-        await uow.session.commit()
-        notifier.notify(code)
+        await commit_and_wake(uow, code)
         return result
     except EmptyDeckError:
         return XSSSafeJSONResponse(
