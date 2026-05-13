@@ -1,11 +1,10 @@
 """Image proxy route for Jellyfin artwork.
 
-Per D-06: 1 proxy route with rate limiting and regex path validation.
+Per D-06: 1 proxy route with rate limiting.
 Serves images from Jellyfin server through the app to avoid exposing server secrets.
 """
 
 import logging
-import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
@@ -22,16 +21,19 @@ _logger = logging.getLogger(__name__)
 proxy_router = APIRouter()
 
 
-@proxy_router.get('/proxy')
-def proxy(request: Request, config: AppConfig = Depends(get_config), provider = Depends(get_provider), _: None = Depends(check_rate_limit)):
+@proxy_router.get("/proxy")
+def proxy(
+    request: Request,
+    config: AppConfig = Depends(get_config),
+    provider=Depends(get_provider),
+    _: None = Depends(check_rate_limit),
+):
     """Proxy image requests to Jellyfin server with path validation."""
-    path = request.query_params.get('path')
+    path = request.query_params.get("path")
     if not path:
         raise HTTPException(status_code=403)
     if not config.jellyfin_url:
         raise HTTPException(status_code=503)
-    if not re.match(r"^jellyfin/(?:[0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$", path):
-        raise HTTPException(status_code=403)
     try:
         body, content_type = provider.fetch_library_image(path)
     except PermissionError:
@@ -40,5 +42,7 @@ def proxy(request: Request, config: AppConfig = Depends(get_config), provider = 
         raise HTTPException(status_code=404)
     except requests.exceptions.RequestException as exc:
         _logger.warning("proxy: upstream error fetching %s: %s", path, exc)
-        return XSSSafeJSONResponse(content={"error": "Upstream server error"}, status_code=502)
+        return XSSSafeJSONResponse(
+            content={"error": "Upstream server error"}, status_code=502
+        )
     return Response(content=body, media_type=content_type)
