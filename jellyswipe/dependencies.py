@@ -1,7 +1,7 @@
 """FastAPI dependency injection layer — Phase 32.
 
 Exports AuthUser dataclass and Depends()-compatible callables for:
-- Authentication (require_auth, destroy_session_dep)
+- Authentication (require_auth)
 - Database access (get_db_uow, DBUoW)
 - Rate limiting (check_rate_limit)
 - Jellyfin provider singleton (get_provider)
@@ -15,7 +15,6 @@ from fastapi import Depends, HTTPException, Request
 import logging
 import threading
 
-import jellyswipe.auth as auth
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
@@ -107,23 +106,19 @@ def check_rate_limit(request: Request) -> None:
 async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
     """FastAPI dependency that requires authentication."""
     prior_session_id = request.session.get("session_id")
-    record = await auth.get_current_token(request.session, uow)
+    record = (
+        await uow.auth_sessions.get_by_session_id(prior_session_id)
+        if prior_session_id
+        else None
+    )
     if record is not None:
         return AuthUser(jf_token=record.jf_token, user_id=record.user_id)
 
     if prior_session_id is not None:
-        auth.clear_session_state(request.session)
+        request.session.clear()
         request.state.clear_session_cookie = True
 
     raise HTTPException(status_code=401, detail="Authentication required")
-
-
-async def destroy_session_dep(request: Request, uow: DBUoW) -> None:
-    """FastAPI dependency that destroys the current session.
-
-    Calls auth.destroy_session(request.session).
-    """
-    await auth.destroy_session(request.session, uow)
 
 
 async def get_provider(config: AppConfig = Depends(get_config)):
@@ -153,6 +148,5 @@ __all__ = [
     "get_db_uow",
     "DBUoW",
     "check_rate_limit",
-    "destroy_session_dep",
     "get_provider",
 ]
