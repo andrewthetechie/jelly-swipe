@@ -12,8 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from .http_client import make_http_request
-
 logger = logging.getLogger(__name__)
 
 
@@ -445,10 +443,9 @@ class JellyfinLibraryProvider:
                 "webUrl": self._base,
             }
         except RuntimeError:
-            response = make_http_request(
-                method="GET",
-                url=f"{self._base}/System/Info/Public",
-                timeout=(5, 15),  # Convert single timeout to (connect, read) tuple
+            response = self._session.get(
+                f"{self._base}/System/Info/Public",
+                timeout=(5, 15),
             )
             pub = response.json()
             return {

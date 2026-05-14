@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -23,7 +23,6 @@ from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import (
     AuthUser,
     check_rate_limit,
-    destroy_session_dep,
     get_db_uow,
     get_provider,
     require_auth,
@@ -382,30 +381,6 @@ class TestCheckRateLimit:
         client = TestClient(app)
         resp = client.get("/get-trailer/test")
         assert resp.status_code == 200
-
-
-# ---------------------------------------------------------------------------
-# TestDestroySessionDep
-# ---------------------------------------------------------------------------
-
-
-class TestDestroySessionDep:
-    """Tests for destroy_session_dep() dependency."""
-
-    @pytest.mark.anyio
-    async def test_calls_auth_destroy_session(self, runtime_sessionmaker):
-        """destroy_session_dep awaits auth.destroy_session(request.session, uow)."""
-        request = MagicMock(spec=Request)
-        request.session = {"session_id": "destroy-session"}
-
-        async with runtime_sessionmaker() as session:
-            uow = DatabaseUnitOfWork(session)
-            with patch(
-                "jellyswipe.auth.destroy_session", new=AsyncMock()
-            ) as mock_destroy:
-                await destroy_session_dep(request, uow)
-
-        mock_destroy.assert_awaited_once_with(request.session, uow)
 
 
 # ---------------------------------------------------------------------------
