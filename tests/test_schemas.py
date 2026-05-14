@@ -394,24 +394,6 @@ class TestSwipingSchemas:
         with pytest.raises(ValidationError):
             SetWatchedFilterRequest(hide_watched="true")
 
-    def test_deck_page_response_is_list_of_card_items(self):
-        """DeckPageResponse holds a list of CardItem objects."""
-        from jellyswipe.schemas.rooms import DeckPageResponse
-        from jellyswipe.schemas.common import CardItem
-
-        card = CardItem(
-            media_id="m1",
-            title="Film",
-            summary="A film",
-            thumb="/thumb",
-            year=2020,
-            media_type="movie",
-            rating="7.0",
-        )
-        resp = DeckPageResponse(items=[card])
-        assert len(resp.items) == 1
-        assert resp.items[0].media_id == "m1"
-
     def test_swiping_schemas_exported_from_init(self):
         """Swiping schemas are exported from jellyswipe.schemas."""
         from jellyswipe import schemas
@@ -422,7 +404,6 @@ class TestSwipingSchemas:
         assert hasattr(schemas, "UndoResponse")
         assert hasattr(schemas, "SetGenreRequest")
         assert hasattr(schemas, "SetWatchedFilterRequest")
-        assert hasattr(schemas, "DeckPageResponse")
 
 
 class TestMediaSchemas:

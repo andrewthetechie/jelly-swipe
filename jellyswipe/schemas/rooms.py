@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, StrictBool, model_validator
 
-from jellyswipe.schemas.common import CardItem, MatchItem
+from jellyswipe.schemas.common import MatchItem
 
 
 class CreateRoomRequest(BaseModel):
@@ -90,12 +90,6 @@ class SetWatchedFilterRequest(BaseModel):
     """Request body for POST /room/{code}/watched-filter."""
 
     hide_watched: StrictBool = Field(..., description="Whether to hide watched items")
-
-
-class DeckPageResponse(BaseModel):
-    """Response from GET /room/{code}/deck."""
-
-    items: list["CardItem"] = Field(..., description="Page of cards from the deck")
 
 
 class DeleteMatchRequest(BaseModel):

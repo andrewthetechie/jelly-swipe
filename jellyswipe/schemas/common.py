@@ -13,15 +13,20 @@ class ErrorResponse(BaseModel):
 
 
 class CardItem(BaseModel):
-    """Card shape returned by deck and genre-change endpoints."""
+    """Card shape returned by deck, genre-change, and watched-filter endpoints.
+
+    ``rating`` is the raw Jellyfin community/critic rating (a float). TV-series
+    cards omit ``rating`` and ``duration`` and instead carry ``season_count``.
+    ``year`` may be ``null`` when Jellyfin lacks a production year.
+    """
 
     media_id: str
     title: str
     summary: str
     thumb: str
-    year: int
+    year: Optional[int] = None
     media_type: str
-    rating: str
+    rating: Optional[float] = None
     duration: Optional[str] = None
     season_count: Optional[int] = None
 

@@ -39,7 +39,7 @@ from jellyswipe.services.session_match_mutation import (
 from jellyswipe.routers._helpers import (
     commit_and_wake,
 )  # noqa: F401
-from jellyswipe.schemas.common import ErrorResponse
+from jellyswipe.schemas.common import CardItem, ErrorResponse
 from jellyswipe.schemas.rooms import (
     CreateRoomRequest,
     CreateRoomResponse,
@@ -358,7 +358,7 @@ async def undo_swipe(
 @rooms_router.get(
     "/room/{code}/deck",
     tags=["Swiping"],
-    response_model=list,
+    response_model=list[CardItem],
     responses={
         200: {"description": "Page of cards from the deck"},
         400: {"model": ErrorResponse, "description": "Invalid page parameter"},
@@ -386,7 +386,7 @@ async def get_deck(
 @rooms_router.post(
     "/room/{code}/genre",
     tags=["Swiping"],
-    response_model=list,
+    response_model=list[CardItem],
     responses={
         200: {"description": "Genre updated; new deck returned"},
         400: {
@@ -423,7 +423,7 @@ async def set_genre(
 @rooms_router.post(
     "/room/{code}/watched-filter",
     tags=["Swiping"],
-    response_model=list,
+    response_model=list[CardItem],
     responses={
         200: {"description": "Watched filter updated; new deck returned"},
         422: {"model": ErrorResponse, "description": "No unwatched items available"},

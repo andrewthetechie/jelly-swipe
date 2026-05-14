@@ -189,7 +189,7 @@ def create_app(config: AppConfig | None = None):
         description="Tinder-style swiping for Jellyfin media. Users authenticate via Jellyfin server identity and join rooms to collaboratively swipe on movies and TV shows. Matches are media items liked by multiple users. Real-time updates via Server-Sent Events (SSE). Session cookie required for all authenticated endpoints. Rate-limited endpoints are marked in route descriptions. XSS-safe JSON escaping: HTML-sensitive characters (<, &) are escaped in JSON output to prevent injection attacks.",
         license_info={
             "name": "MIT",
-            "url": "https://github.com/nate-parrott/jelly-swipe/blob/main/LICENSE",
+            "url": "https://github.com/andrewthetechie/jelly-swipe/blob/main/LICENSE",
         },
         openapi_tags=openapi_tags,
         lifespan=lifespan,

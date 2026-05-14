@@ -17,7 +17,6 @@ from jellyswipe.schemas.media import (
 from jellyswipe.schemas.rooms import (
     CreateRoomRequest,
     CreateRoomResponse,
-    DeckPageResponse,
     JoinRoomResponse,
     QuitRoomResponse,
     RoomStatusResponse,
@@ -53,5 +52,4 @@ __all__ = [
     "UndoResponse",
     "SetGenreRequest",
     "SetWatchedFilterRequest",
-    "DeckPageResponse",
 ]
