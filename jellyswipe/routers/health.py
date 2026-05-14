@@ -48,15 +48,36 @@ async def _check_jellyfin(jellyfin_url: str) -> str:
         return f"fail: {exc}"
 
 
-@health_router.get("/healthz")
+@health_router.get(
+    "/healthz",
+    tags=["Health"],
+    summary="Liveness probe",
+    responses={200: {"description": "Service is alive"}},
+)
 async def healthz() -> dict:
     """Liveness probe — returns 200 with version. Never touches Jellyfin or SQLite."""
     return {"status": "ok", "version": __version__}
 
 
-@health_router.get("/readyz")
+@health_router.get(
+    "/readyz",
+    tags=["Health"],
+    summary="Readiness probe",
+    responses={
+        200: {
+            "description": "Service is ready; SQLite and Jellyfin are both accessible"
+        },
+        503: {
+            "description": "Service is degraded; one or more dependencies are unavailable"
+        },
+    },
+)
 async def readyz(response: Response, config: AppConfig = Depends(get_config)) -> dict:
-    """Readiness probe — checks SQLite and Jellyfin in parallel."""
+    """Readiness probe — checks SQLite and Jellyfin in parallel.
+
+    Returns 200 if both SQLite and Jellyfin are accessible.
+    Returns 503 if either dependency is unavailable.
+    """
     sqlite_status, jellyfin_status = await asyncio.gather(
         _check_sqlite(),
         _check_jellyfin(config.jellyfin_url),

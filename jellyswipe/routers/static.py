@@ -20,40 +20,41 @@ static_router = APIRouter()
 _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Templates directory
-templates = Jinja2Templates(directory=os.path.join(_APP_ROOT, 'templates'))
+templates = Jinja2Templates(directory=os.path.join(_APP_ROOT, "templates"))
 
 
-@static_router.get('/')
+@static_router.get("/", include_in_schema=False)
 def index(request: Request):
     """Serve the main index.html page."""
     # Starlette 1.0.0 changed TemplateResponse signature to (request, name, context=None).
     # Old API: TemplateResponse(name, {"request": req, ...})
     # New API: TemplateResponse(request, name, context={...})
-    return templates.TemplateResponse(request, 'index.html', {"media_provider": "jellyfin"})
+    return templates.TemplateResponse(
+        request, "index.html", {"media_provider": "jellyfin"}
+    )
 
 
-@static_router.get('/manifest.json')
+@static_router.get("/manifest.json", include_in_schema=False)
 def serve_manifest(request: Request):
     """Serve the PWA manifest.json file."""
     return FileResponse(
-        path=os.path.join(_APP_ROOT, 'static', 'manifest.json'),
-        media_type='application/manifest+json'
+        path=os.path.join(_APP_ROOT, "static", "manifest.json"),
+        media_type="application/manifest+json",
     )
 
 
-@static_router.get('/sw.js')
+@static_router.get("/sw.js", include_in_schema=False)
 def serve_sw(request: Request):
     """Serve the service worker JavaScript file."""
     return FileResponse(
-        path=os.path.join(_APP_ROOT, 'static', 'sw.js'),
-        media_type='application/javascript'
+        path=os.path.join(_APP_ROOT, "static", "sw.js"),
+        media_type="application/javascript",
     )
 
 
-@static_router.get('/favicon.ico')
+@static_router.get("/favicon.ico", include_in_schema=False)
 def serve_favicon(request: Request):
     """Serve the favicon.ico file."""
     return FileResponse(
-        path=os.path.join(_APP_ROOT, 'static', 'favicon.ico'),
-        media_type='image/x-icon'
+        path=os.path.join(_APP_ROOT, "static", "favicon.ico"), media_type="image/x-icon"
     )
