@@ -177,14 +177,14 @@ def test_room_create_with_solo_mode(client, app):
 
 
 def test_room_create_no_media_types_returns_400(client, app):
-    """POST /room with {"movies": false, "tv_shows": false} returns 400."""
+    """POST /room with {movies: false, tv_shows: false} returns 422 (Pydantic validation)."""
     _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post(
         "/room", json={"movies": False, "tv_shows": False, "solo": False}
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
     data = response.json()
-    assert "error" in data
+    assert "detail" in data
 
 
 def test_room_create_empty_body_defaults_to_movies_only(client, app):
@@ -605,8 +605,8 @@ def test_set_watched_filter_returns_new_deck_on_success(client, app):
     assert isinstance(response.json(), list)
 
 
-def test_set_watched_filter_missing_hide_watched_returns_400(client, app):
-    """POST /room/{code}/watched-filter returns 400 when hide_watched missing."""
+def test_set_watched_filter_missing_hide_watched_returns_422(client, app):
+    """POST /room/{code}/watched-filter returns 422 when hide_watched missing (Pydantic validation)."""
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
@@ -618,12 +618,11 @@ def test_set_watched_filter_missing_hide_watched_returns_400(client, app):
 
     response = client.post("/room/TEST1/watched-filter", json={})
 
-    assert response.status_code == 400
-    assert response.json()["error"] == "hide_watched required"
+    assert response.status_code == 422
 
 
-def test_set_watched_filter_invalid_type_returns_400(client, app):
-    """POST /room/{code}/watched-filter returns 400 when hide_watched is not boolean."""
+def test_set_watched_filter_invalid_type_returns_422(client, app):
+    """POST /room/{code}/watched-filter returns 422 when hide_watched is not boolean (StrictBool)."""
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
         client,
@@ -635,8 +634,7 @@ def test_set_watched_filter_invalid_type_returns_400(client, app):
 
     response = client.post("/room/TEST1/watched-filter", json={"hide_watched": "true"})
 
-    assert response.status_code == 400
-    assert response.json()["error"] == "hide_watched must be a boolean"
+    assert response.status_code == 422
 
 
 def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
@@ -865,3 +863,93 @@ def test_swipe_notifies_after_commit(client, app):
         )
         assert response.status_code == 200
         mock_notify.assert_called_once_with("TEST1")
+
+
+# ---------------------------------------------------------------------------
+# Section 7: 422 validation for migrated POST handlers
+# ---------------------------------------------------------------------------
+
+
+def test_swipe_missing_media_id_returns_422(client, app):
+    """POST /room/{code}/swipe with no body returns 422 (Pydantic validation)."""
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+    _seed_room("TEST1", ready=1)
+
+    response = client.post("/room/TEST1/swipe", json={})
+    assert response.status_code == 422
+
+
+def test_undo_missing_media_id_returns_422(client, app):
+    """POST /room/{code}/undo with no body returns 422 (Pydantic validation)."""
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+    _seed_room("TEST1", ready=1)
+
+    response = client.post("/room/TEST1/undo", json={})
+    assert response.status_code == 422
+
+
+def test_genre_missing_genre_returns_422(client, app):
+    """POST /room/{code}/genre with no body returns 422 (Pydantic validation)."""
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+    _seed_room("TEST1", ready=1)
+
+    response = client.post("/room/TEST1/genre", json={})
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Matches endpoints
+# ---------------------------------------------------------------------------
+
+
+def test_delete_match_missing_media_id_returns_422(client, app):
+    """POST /matches/delete with no media_id returns 422 (Pydantic validation)."""
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+
+    response = client.post("/matches/delete", json={})
+    assert response.status_code == 422
+
+
+def test_delete_match_success(client, app):
+    """POST /matches/delete with valid media_id returns 200 {"status": "deleted"}."""
+    conn = _sqlite_conn_for_route_tests()
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+    _seed_room("TEST1", ready=1)
+    conn.execute(
+        "INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) "
+        "VALUES ('HISTORY', 'm1', 'Movie', '/t', 'active', 'verified-user')"
+    )
+    conn.commit()
+
+    response = client.post("/matches/delete", json={"media_id": "m1"})
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "deleted"}
+
+
+def test_get_matches_empty_when_no_active_room(client, app):
+    """GET /matches with no active room returns 200 {"matches": []}."""
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+
+    response = client.get("/matches")
+
+    assert response.status_code == 200
+    assert response.json() == {"matches": []}
+
+
+def test_get_matches_view_history_returns_list(client, app):
+    """GET /matches?view=history returns the user's archived matches."""
+    conn = _sqlite_conn_for_route_tests()
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+    conn.execute(
+        "INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) "
+        "VALUES ('HISTORY', 'm42', 'Archived Movie', '/img', 'archived', 'verified-user')"
+    )
+    conn.commit()
+
+    response = client.get("/matches?view=history")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "matches" in data
+    assert any(m["media_id"] == "m42" for m in data["matches"])

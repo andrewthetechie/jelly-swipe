@@ -63,7 +63,7 @@ class RoomLifecycleService:
             "deep_link": record.deep_link,
             "rating": record.rating or "",
             "duration": record.duration or "",
-            "year": record.year or "",
+            "year": record.year if record.year else None,
         }
 
     async def create_room(

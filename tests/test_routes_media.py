@@ -46,7 +46,9 @@ def _seed_cache(media_id, lookup_type, result_json):
 
 def _set_session(client):
     """Inject session state for media route tests."""
-    set_session_cookie(client, {"user_id": "verified-user"}, os.environ["SESSION_SECRET"])
+    set_session_cookie(
+        client, {"user_id": "verified-user"}, os.environ["SESSION_SECRET"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -279,3 +281,26 @@ class TestCastRoute:
             assert data["cast"] == []
         finally:
             deps._provider_singleton = original
+
+
+class TestWatchlistRoute:
+    """Tests for POST /watchlist/add."""
+
+    def test_add_to_watchlist_success(self, client, app):
+        """Valid media_id adds to favorites and returns status success."""
+        _set_session(client)
+        resp = client.post("/watchlist/add", json={"media_id": "movie-99"})
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "success"}
+
+    def test_add_to_watchlist_missing_media_id_returns_422(self, client, app):
+        """Empty body returns 422 (Pydantic validation), not 400."""
+        _set_session(client)
+        resp = client.post("/watchlist/add", json={})
+        assert resp.status_code == 422
+
+    def test_add_to_watchlist_null_body_returns_422(self, client, app):
+        """No body at all returns 422."""
+        _set_session(client)
+        resp = client.post("/watchlist/add")
+        assert resp.status_code == 422

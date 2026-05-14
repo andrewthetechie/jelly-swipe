@@ -613,7 +613,8 @@ class TestSSEMatchDelivery:
 
         resp = client_real_auth.get("/matches")
         assert resp.status_code == 200
-        matches = resp.json()
+        data = resp.json()
+        matches = data["matches"]
         assert len(matches) == 1
         m = matches[0]
         assert "deep_link" in m
@@ -623,7 +624,7 @@ class TestSSEMatchDelivery:
         assert "duration" in m
         assert m["duration"] == "2h 15m"
         assert "year" in m
-        assert m["year"] == "2024"
+        assert m["year"] == 2024
 
     def test_concurrent_right_swipes_one_match_per_user(
         self, db_connection, client_real_auth

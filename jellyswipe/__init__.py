@@ -143,7 +143,55 @@ def create_app(config: AppConfig | None = None):
     if config is None:
         config = AppConfig()
 
+    # Get version for OpenAPI schema
+    from importlib.metadata import PackageNotFoundError, version as pkg_version
+
+    try:
+        version = pkg_version("jellyswipe")
+    except PackageNotFoundError:
+        version = "0.0.0-dev"
+
+    # Define OpenAPI tags with descriptions
+    openapi_tags = [
+        {
+            "name": "Authentication",
+            "description": "User authentication and session management using Jellyfin server identity.",
+        },
+        {
+            "name": "Rooms",
+            "description": "Room creation, joining, and management. Rooms contain multiple users and shared swipe sessions.",
+        },
+        {
+            "name": "Swiping",
+            "description": "Media swiping endpoints for liking and rejecting items in a room.",
+        },
+        {
+            "name": "Matches",
+            "description": "Match retrieval and management. Matches are media items liked by multiple users in the same room.",
+        },
+        {
+            "name": "Media",
+            "description": "Media browsing endpoints including genres, cast, trailers, and watchlist management.",
+        },
+        {
+            "name": "Proxy",
+            "description": "Proxy image and file requests to the Jellyfin server with path validation.",
+        },
+        {
+            "name": "Health",
+            "description": "Health check endpoints for monitoring system status and readiness.",
+        },
+    ]
+
     app = FastAPI(
+        title="Jellyswipe API",
+        version=version,
+        description="Tinder-style swiping for Jellyfin media. Users authenticate via Jellyfin server identity and join rooms to collaboratively swipe on movies and TV shows. Matches are media items liked by multiple users. Real-time updates via Server-Sent Events (SSE). Session cookie required for all authenticated endpoints. Rate-limited endpoints are marked in route descriptions. XSS-safe JSON escaping: HTML-sensitive characters (<, &) are escaped in JSON output to prevent injection attacks.",
+        license_info={
+            "name": "MIT",
+            "url": "https://github.com/nate-parrott/jelly-swipe/blob/main/LICENSE",
+        },
+        openapi_tags=openapi_tags,
         lifespan=lifespan,
         default_response_class=XSSSafeJSONResponse,
     )
