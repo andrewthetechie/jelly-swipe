@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.4.0...v0.5.0) (2026-05-14)
+
+
+### Features
+
+* add schemas for documentation via openapi ([#132](https://github.com/andrewthetechie/jelly-swipe/issues/132)) ([878a442](https://github.com/andrewthetechie/jelly-swipe/commit/878a4421f735670aebb84aff01f3c4e0054862b7))
+
+
+### Documentation
+
+* add new PRD ([#115](https://github.com/andrewthetechie/jelly-swipe/issues/115)) ([fcb8e8c](https://github.com/andrewthetechie/jelly-swipe/commit/fcb8e8cf2a96b6721603e05b49c46df71443753b))
+* update AGENTS.md ([#131](https://github.com/andrewthetechie/jelly-swipe/issues/131)) ([d88ee33](https://github.com/andrewthetechie/jelly-swipe/commit/d88ee3345ca3c840f648affb736861377e7abffa))
+
 ## [0.4.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.3.2...v0.4.0) (2026-05-13)
 
 
