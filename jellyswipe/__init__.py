@@ -77,11 +77,29 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         "frame-src https://www.youtube.com"
     )
 
+    # FastAPI's /docs (Swagger UI) and /redoc load assets from jsdelivr and
+    # use inline scripts/styles; ReDoc additionally spawns a blob: worker and
+    # the favicon is served from fastapi.tiangolo.com. The main app CSP would
+    # break these pages, so we serve a scoped policy for the docs paths only.
+    DOCS_CSP_POLICY = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https://fastapi.tiangolo.com https://image.tmdb.org; "
+        "worker-src 'self' blob:; "
+        "object-src 'none'"
+    )
+    DOCS_PATHS = ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect")
+
     async def dispatch(self, request: Request, call_next):
         request.state.request_id = generate_request_id()
         response = await call_next(request)
         response.headers["X-Request-Id"] = request.state.request_id
-        response.headers["Content-Security-Policy"] = self.CSP_POLICY
+        if request.url.path in self.DOCS_PATHS:
+            response.headers["Content-Security-Policy"] = self.DOCS_CSP_POLICY
+        else:
+            response.headers["Content-Security-Policy"] = self.CSP_POLICY
         return response
 
 
