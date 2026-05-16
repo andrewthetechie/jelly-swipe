@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy import delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.swipe import Swipe
-from jellyswipe.room_types import SwipeCounterparty
+
+
+@dataclass(slots=True)
+class SwipeCounterparty:
+    user_id: str
+    session_id: str | None
 
 
 class SwipeRepository:

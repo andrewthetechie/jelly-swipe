@@ -2,11 +2,28 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy import delete, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.match import Match
-from jellyswipe.room_types import MatchRecord
+
+
+@dataclass(slots=True)
+class MatchRecord:
+    room_code: str
+    movie_id: str
+    title: str
+    thumb: str
+    status: str
+    user_id: str
+    deep_link: str | None
+    rating: str | None
+    duration: str | None
+    year: str | None
+    media_type: str | None
+    match_order: int | None
 
 
 _ROWID_ORDER = literal_column("matches.rowid").label("match_order")

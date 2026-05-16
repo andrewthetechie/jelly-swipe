@@ -14,7 +14,7 @@ from jellyswipe.db_runtime import (
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.match import Match
-from jellyswipe.room_types import MatchRecord
+from jellyswipe.repositories.matches import MatchRecord
 from jellyswipe.services.room_lifecycle import RoomLifecycleService
 from tests.conftest import FakeProvider
 

@@ -2,11 +2,34 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.room import Room
-from jellyswipe.room_types import RoomRecord, RoomStatusSnapshot
+
+
+@dataclass(slots=True)
+class RoomRecord:
+    pairing_code: str
+    movie_data_json: str
+    ready: bool
+    current_genre: str
+    solo_mode: bool
+    deck_position_json: str | None
+    deck_order_json: str | None
+    include_movies: bool
+    include_tv_shows: bool
+    hide_watched: bool
+
+
+@dataclass(slots=True)
+class RoomStatusSnapshot:
+    ready: bool
+    genre: str
+    solo: bool
+    hide_watched: bool
 
 
 class RoomRepository:

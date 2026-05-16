@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.db_runtime import get_sessionmaker
-from jellyswipe.room_types import MatchRecord
+from jellyswipe.repositories.matches import MatchRecord
 from jellyswipe.services.deck_pipeline import build_deck, DeckProvider, EmptyDeckError
 
 # Re-export for backward compatibility

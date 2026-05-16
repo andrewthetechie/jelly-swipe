@@ -20,7 +20,8 @@ from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.models.match import Match
 from jellyswipe.models.room import Room
 from jellyswipe.models.swipe import Swipe
-from jellyswipe.room_types import MatchRecord, RoomRecord, RoomStatusSnapshot
+from jellyswipe.repositories.matches import MatchRecord
+from jellyswipe.repositories.rooms import RoomRecord, RoomStatusSnapshot
 
 
 @pytest.fixture(autouse=True)
