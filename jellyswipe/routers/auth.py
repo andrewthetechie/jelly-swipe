@@ -17,7 +17,7 @@ from jellyswipe.dependencies import (
     get_provider,
     require_auth,
 )
-from jellyswipe.auth_types import AuthRecord
+from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.routers._helpers import make_error_response
 from jellyswipe.schemas import (
     ErrorResponse,
