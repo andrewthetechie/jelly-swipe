@@ -3,10 +3,13 @@ name: Unraid Template Lint
 "on":
   push:
     paths:
-      - 'unraid_template/jelly-swipe.html'
+      - "unraid_template/jelly-swipe.html"
   pull_request:
     paths:
-      - 'unraid_template/jelly-swipe.html'
+      - "unraid_template/jelly-swipe.html"
+
+permissions:
+  contents: read
 
 jobs:
   lint:
@@ -19,7 +22,7 @@ jobs:
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: Lint Unraid template
         run: python scripts/lint-unraid-template.py unraid_template/jelly-swipe.html
