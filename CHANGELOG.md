@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.1](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.0...v0.5.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* github codescanning alerts ([#142](https://github.com/andrewthetechie/jelly-swipe/issues/142)) ([59d3900](https://github.com/andrewthetechie/jelly-swipe/commit/59d3900695677aa1233d83e1e90e1f113136f049))
+
+
+### Documentation
+
+* add issue templates ([#144](https://github.com/andrewthetechie/jelly-swipe/issues/144)) ([689f87a](https://github.com/andrewthetechie/jelly-swipe/commit/689f87af4fa297ae6a1d859f86819f6b5dcbf382))
+* add next PRD ([#136](https://github.com/andrewthetechie/jelly-swipe/issues/136)) ([d8b580f](https://github.com/andrewthetechie/jelly-swipe/commit/d8b580f36754acd0676138bb7f740450c320d2dc))
+* add PRD, guide, and docs for Frontend work ([#133](https://github.com/andrewthetechie/jelly-swipe/issues/133)) ([196b88d](https://github.com/andrewthetechie/jelly-swipe/commit/196b88dac93883fac033c32465092e1992b5dceb))
+* cleanup old cursor docs ([#135](https://github.com/andrewthetechie/jelly-swipe/issues/135)) ([656b04e](https://github.com/andrewthetechie/jelly-swipe/commit/656b04e8b830377de01ed6f4b326e7f182c2ff4d))
+
 ## [0.5.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.4.0...v0.5.0) (2026-05-14)
 
 
