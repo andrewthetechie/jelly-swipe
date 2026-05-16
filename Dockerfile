@@ -1,5 +1,5 @@
 # Builder stage
-FROM python:3.13-slim as builder
+FROM python:3.14-slim as builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY . .
 RUN uv sync --frozen
 
 # Final stage
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
