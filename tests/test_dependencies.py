@@ -12,7 +12,7 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 import jellyswipe.dependencies as deps
-from jellyswipe.auth_types import AuthRecord
+from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
     dispose_runtime,
