@@ -12,6 +12,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from jellyswipe.jellyfin_media_item import (
+    display_genre_name,
+    movie_to_media_item,
+    query_genre_name,
+    series_to_media_item,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,16 +34,6 @@ def _media_browser_header(access_token: str) -> str:
         'MediaBrowser Client="JellySwipe", Device="FlaskApp", '
         f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{access_token}"'
     )
-
-
-def _format_runtime(seconds: int) -> str:
-    if seconds <= 0:
-        return ""
-    hrs, rem = divmod(seconds, 3600)
-    mins = rem // 60
-    if hrs > 0:
-        return f"{hrs}h {mins}m"
-    return f"{mins}m"
 
 
 class JellyfinLibraryProvider:
@@ -261,40 +258,9 @@ class JellyfinLibraryProvider:
                     pass
 
         names = sorted({n for n in names if n})
-        display = ["Sci-Fi" if n == "Science Fiction" else n for n in names]
+        display = [display_genre_name(n) for n in names]
         self._genre_cache[cache_key] = display
         return display
-
-    def _item_to_card(self, it: dict) -> dict:
-        mid = it.get("Id")
-        ticks = int(it.get("RunTimeTicks") or 0)
-        seconds = ticks // 10_000_000 if ticks else 0
-        rating = it.get("CommunityRating")
-        if rating is None:
-            rating = it.get("CriticRating")
-        return {
-            "id": mid,
-            "title": it.get("Name") or "",
-            "summary": it.get("Overview") or "",
-            "thumb": f"/proxy?path=jellyfin/{mid}/Primary",
-            "rating": rating,
-            "duration": _format_runtime(seconds),
-            "year": it.get("ProductionYear"),
-            "media_type": "movie",
-        }
-
-    def _series_to_card(self, it: dict) -> dict:
-        """Transform a TV Series item to a card."""
-        mid = it.get("Id")
-        return {
-            "id": mid,
-            "title": it.get("Name") or "",
-            "summary": it.get("Overview") or "",
-            "thumb": f"/proxy?path=jellyfin/{mid}/Primary",
-            "year": it.get("ProductionYear"),
-            "media_type": "tv_show",
-            "season_count": it.get("ChildCount"),
-        }
 
     def fetch_deck(
         self,
@@ -346,12 +312,12 @@ class JellyfinLibraryProvider:
         for it in all_items:
             item_type = it.get("Type", "")
             if item_type == "Series":
-                cards.append(self._series_to_card(it))
+                cards.append(series_to_media_item(it))
             else:
-                cards.append(self._item_to_card(it))
+                cards.append(movie_to_media_item(it))
 
         # Shuffle if not recently added
-        search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
+        search_genre = query_genre_name(genre_name)
         if search_genre not in ("Recently Added", None, "All"):
             random.shuffle(cards)
 
@@ -378,7 +344,7 @@ class JellyfinLibraryProvider:
         if hide_watched:
             params["Filters"] = "IsNotPlayed"
 
-        search_genre = "Science Fiction" if genre_name == "Sci-Fi" else genre_name
+        search_genre = query_genre_name(genre_name)
 
         if genre_name == "Recently Added":
             params["Limit"] = 100
