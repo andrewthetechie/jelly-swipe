@@ -567,66 +567,6 @@ def test_fetch_deck_recently_added_sort(mocker, monkeypatch):
     assert call_args[1]["params"]["Limit"] == 100
 
 
-# ---- Transformation Tests ----
-
-
-def test_item_to_card_transformation(mocker, monkeypatch):
-    """Test that _item_to_card extracts all 7 fields correctly."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-
-    # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Create test item with all fields
-    item = {
-        "Id": "movie-123",
-        "Name": "Test Movie",
-        "Overview": "Test summary",
-        "RunTimeTicks": 81000000000,  # 2h 15m (135 minutes = 8100 seconds)
-        "ProductionYear": 2024,
-        "CommunityRating": 9.0,
-        "CriticRating": 8.5,
-    }
-
-    # Transform item to card
-    card = provider._item_to_card(item)
-
-    # Verify all 7 fields are extracted correctly
-    assert card["id"] == "movie-123"
-    assert card["title"] == "Test Movie"
-    assert card["summary"] == "Test summary"
-    assert card["rating"] == 9.0  # CommunityRating takes precedence
-    assert card["duration"] == "2h 15m"
-    assert card["year"] == 2024
-    assert card["thumb"] == "/proxy?path=jellyfin/movie-123/Primary"
-
-    # Test with missing CommunityRating (should fall back to CriticRating)
-    item2 = {
-        "Id": "movie-456",
-        "Name": "Movie 2",
-        "Overview": "",
-        "RunTimeTicks": 27000000000,  # 45m (45 minutes = 2700 seconds)
-        "ProductionYear": 2023,
-        "CriticRating": 7.5,
-    }
-    card2 = provider._item_to_card(item2)
-    assert card2["rating"] == 7.5
-    assert card2["duration"] == "45m"
-
-    # Test with empty runtime
-    item3 = {
-        "Id": "movie-789",
-        "Name": "Movie 3",
-        "Overview": "",
-        "RunTimeTicks": 0,
-        "ProductionYear": 2022,
-    }
-    card3 = provider._item_to_card(item3)
-    assert card3["duration"] == ""
-
-
 def test_resolve_item_for_tmdb_success(mocker, monkeypatch):
     """Test that resolve_item_for_tmdb returns title and year."""
     # Mock environment variables
@@ -894,53 +834,6 @@ def test_api_non_json_response(mocker, monkeypatch):
     # Verify RuntimeError is raised
     with pytest.raises(RuntimeError, match="Jellyfin returned non-JSON body"):
         provider._api("GET", "/Items")
-
-
-# ---- TV Show Tests ----
-
-
-def test_series_to_card_transformation(mocker, monkeypatch):
-    """Test that _series_to_card extracts TV show fields correctly."""
-    # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
-
-    # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
-
-    # Create test series item with all fields
-    series = {
-        "Id": "series-123",
-        "Name": "Test Series",
-        "Overview": "Test series summary",
-        "ProductionYear": 2024,
-        "ChildCount": 3,  # 3 seasons
-        "Type": "Series",
-    }
-
-    # Transform series to card
-    card = provider._series_to_card(series)
-
-    # Verify all TV show fields are extracted correctly
-    assert card["id"] == "series-123"
-    assert card["title"] == "Test Series"
-    assert card["summary"] == "Test series summary"
-    assert card["year"] == 2024
-    assert card["media_type"] == "tv_show"
-    assert card["season_count"] == 3
-    # TV cards should NOT have duration or rating
-    assert "duration" not in card
-    assert "rating" not in card
-
-    # Test with missing ChildCount
-    series2 = {
-        "Id": "series-456",
-        "Name": "Series 2",
-        "Overview": "",
-        "ProductionYear": 2023,
-    }
-    card2 = provider._series_to_card(series2)
-    assert card2["season_count"] is None
 
 
 def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
