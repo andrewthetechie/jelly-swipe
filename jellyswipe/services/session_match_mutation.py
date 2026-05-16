@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import text
 
 from jellyswipe.repositories.session_events import append_sync
-from jellyswipe.room_types import SwipeCounterparty
+from jellyswipe.repositories.swipes import SwipeCounterparty
 
 if TYPE_CHECKING:
     from jellyswipe.db_uow import DatabaseUnitOfWork
