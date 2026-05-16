@@ -581,7 +581,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
         )
 
         assert response.status_code == 400
-        assert "No items available" in response.json()["error"]
+        assert response.json()["error"] == "An internal error has occurred!"
     finally:
         app.dependency_overrides.pop(get_provider, None)
 
@@ -668,7 +668,7 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
             "/room/TEST1/watched-filter", json={"hide_watched": True}
         )
         assert response.status_code == 422
-        assert "No unwatched items available" in response.json()["error"]
+        assert response.json()["error"] == "An internal error has occurred!"
     finally:
         app.dependency_overrides.pop(get_provider, None)
 

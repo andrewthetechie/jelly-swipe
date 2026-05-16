@@ -417,7 +417,10 @@ async def set_genre(
         await commit_and_wake(uow, code)
         return new_list
     except EmptyDeckError as e:
-        return XSSSafeJSONResponse(content={"error": str(e)}, status_code=400)
+        _logger.warning(f"EmptyDeckError for room {code}: {e}")
+        return XSSSafeJSONResponse(
+            content={"error": "An internal error has occurred!"}, status_code=400
+        )
 
 
 @rooms_router.post(
@@ -451,9 +454,10 @@ async def set_watched_filter_route(
         )
         await commit_and_wake(uow, code)
         return result
-    except EmptyDeckError:
+    except EmptyDeckError as exc:
+        _logger.warning(f"EmptyDeckError for room {code} (watched filter): {exc}")
         return XSSSafeJSONResponse(
-            content={"error": "No unwatched items available"}, status_code=422
+            content={"error": "An internal error has occurred!"}, status_code=422
         )
 
 
