@@ -1,6 +1,6 @@
 services:
   jelly-swipe:
-    image: ghcr.io/andrewthetechie/jelly-swipe:v0.1.0 # Pin to a release. :latest tracks main and may include unreleased changes.
+    image: ghcr.io/andrewthetechie/jelly-swipe:v0.5.0 # Pin to a release. :latest tracks main and may include unreleased changes.
     container_name: jelly-swipe
     ports:
       - "5005:5005"
