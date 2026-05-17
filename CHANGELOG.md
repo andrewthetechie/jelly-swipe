@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.1...v0.5.2) (2026-05-17)
+
+
+### Documentation
+
+* prd 011 ([#159](https://github.com/andrewthetechie/jelly-swipe/issues/159)) ([31641c0](https://github.com/andrewthetechie/jelly-swipe/commit/31641c070688f0ca9568733d8dcc827802996201))
+
 ## [0.5.1](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.0...v0.5.1) (2026-05-16)
 
 
