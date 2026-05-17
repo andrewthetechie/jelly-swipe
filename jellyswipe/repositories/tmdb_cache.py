@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.tmdb_cache import TmdbCache
-from jellyswipe.room_types import TmdbCacheRecord
+
+
+@dataclass(slots=True)
+class TmdbCacheRecord:
+    media_id: str
+    lookup_type: str
+    result_json: str
+    fetched_at: str
 
 
 class TmdbCacheRepository:
