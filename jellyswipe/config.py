@@ -22,6 +22,14 @@ class AppConfig(BaseSettings):
     tmdb_access_token: str
     session_secret: str
     db_path: str = ""  # empty string = compute default
+    cors_origins: list[str] = []
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
     @field_validator("jellyfin_url")
     @classmethod
@@ -35,10 +43,16 @@ class AppConfig(BaseSettings):
     @property
     def sync_db_url(self) -> str:
         """Canonical sync sqlite:///... URL for Alembic and runtime."""
-        path = Path(
-            self.db_path
-            or str(Path(__file__).resolve().parent.parent / "data" / "jellyswipe.db")
-        ).expanduser().resolve()
+        path = (
+            Path(
+                self.db_path
+                or str(
+                    Path(__file__).resolve().parent.parent / "data" / "jellyswipe.db"
+                )
+            )
+            .expanduser()
+            .resolve()
+        )
         return f"sqlite:///{path}"
 
     @computed_field
