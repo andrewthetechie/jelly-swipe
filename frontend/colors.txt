@@ -1,0 +1,62 @@
+For a website that matches the glossy jelly mascot and logo, I’d lean into a bright “liquid candy” palette with strong contrast so the blue jelly really pops.
+
+Main Colors
+Deep Jelly Blue
+#0A3D91
+Use for: headers, nav bars, buttons, footer backgrounds
+
+This gives the site depth and keeps it from feeling too pastel or childish.
+
+Electric Aqua
+#35D6FF
+Use for: gradients, hover states, highlights, cards, interactive elements
+
+This matches the shiny translucent feel of the mascot and logo lettering.
+
+Accent Colors
+Soft Glow Cyan
+#9BF2FF
+Use for: borders, glow effects, subtle backgrounds, input focus states
+
+Adds that glossy “wet jelly” shine without overpowering the design.
+
+Jelly Pink (optional accent)
+#FF7ACF
+Use sparingly for: CTA buttons, notifications, badges, tiny details
+
+This works because the mascot already has subtle pink tones in the mouth, so it ties in naturally and gives the palette some energy.
+
+Suggested Gradient
+
+A signature gradient for hero sections/buttons:
+
+#0A3D91 → #1B7BFF → #35D6FF
+
+
+For this style, I’d avoid pure black and instead use a very dark navy-blue background so the jelly colors glow naturally without looking harsh.
+
+My top recommendation:
+
+#071426
+
+This gives:
+
+strong contrast with the bright aqua logo
+a modern game/app feel
+enough blue undertone to support the jelly aesthetic
+room for glow effects and gradients without disappearing into black
+
+You could also use subtle gradients like:
+
+#071426 → #0A1F3D
+or
+#08111F → #102A52
+Good Supporting Background Options
+Primary Background
+#071426
+Slightly Lighter Section Backgrounds
+#10203A
+Card/Panel Backgrounds
+#163055
+Hover/Interactive Surface
+#1C4273
