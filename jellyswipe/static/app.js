@@ -62,11 +62,12 @@
             currentRoomCode = null;
             location.reload();
         }
-
+        // pops up a modal to confirm quitting the session, since it's destructive and can't be undone
         function confirmQuit() {
             document.getElementById('quit-modal').classList.remove('hidden');
         }
-
+        // fetches the quit endpoint, which handles both leaving and deleting rooms as appropriate based on the user's role and session state
+        // resets all relevant state and returns to the main menu
         async function doQuit() {
             await apiFetch(`/room/${currentRoomCode}/quit`, { method: 'POST' });
             currentRoomCode = null;
