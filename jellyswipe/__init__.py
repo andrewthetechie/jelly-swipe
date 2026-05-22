@@ -12,6 +12,7 @@ import typing
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -244,9 +245,19 @@ def create_app(config: AppConfig | None = None):
         https_only=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
     )
 
-    # Add 3rd: ProxyHeadersMiddleware (outermost) per D-04
+    # Add 3rd: ProxyHeadersMiddleware per D-04
     trusted = os.getenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
+
+    # Add 4th: CORSMiddleware (outermost) — only when CORS_ORIGINS is configured
+    if config.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=config.cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     # Static files mount (prevents path traversal vulnerabilities)
     app.mount(
