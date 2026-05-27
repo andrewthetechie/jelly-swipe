@@ -642,15 +642,55 @@ div.genres:hover {
   gap: 1rem;
   margin-top: .5rem;
   padding: 10px;
-  
+}
+
+.swipe-deck {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 650px;
 }
 
 .movie-card-container {
   perspective: 1200px;
   width: 100%;
-  max-width: 400px;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  /* max-width: 400px;
   height: 650px;
   margin: 1rem 0 0.5rem 0;
+  position: relative; */
+  user-select: none;
+}
+
+.glow {
+  position: fixed;
+  top: 0;
+  height: 100vh;
+  width: 40vw;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.glow-left {
+  left: 0;
+  background: linear-gradient(to right, rgba(211, 47, 47, 0.8), transparent);
+}
+
+.glow-right {
+  right: 0;
+  background: linear-gradient(to left, rgba(76, 175, 80, 0.8), transparent); 
+}
+
+.movie-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 div.movie-card {
@@ -670,13 +710,7 @@ div.movie-card {
   -webkit-backface-visibility: hidden;
 }
 
-.movie-card-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
+
 
 .movie-card-container.flipped .movie-card-inner {
   transform: rotateY(180deg);
@@ -696,6 +730,8 @@ img.movie-poster {
   max-width: 100%;
   height: auto;
   display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 div.media-type {
@@ -921,6 +957,10 @@ button.shortlist {
   .room-code-input,
   .jelly-toggle {
     width: 40%;
+  }
+
+  .swipe-deck {
+    height: 700px;
   }
 
   .movie-card-container {

@@ -44,9 +44,6 @@ export default function HostModal({ onClose }) {
             console.error("Error creating session:", err)
         }
 
-        // should move this try block to a useEffect that listens for changes to currentRoomCode, and only runs if currentRoomCode is not null. Otherwise, if the session isn't ready by the time we fetch the status, we might get a false negative and think the room doesn't exist
-        
-
     }
 
     return (

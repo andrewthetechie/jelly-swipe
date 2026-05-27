@@ -40,7 +40,7 @@ export default function Main() {
             }
         }
 
-        checkSessionStatus()
+        // checkSessionStatus()
         getCardDeck()
 
     }, [currentRoomCode])
