@@ -1,17 +1,23 @@
 import React from "react"
 import MovieCard from "./MovieCard"
-import { RoomContext } from "./App"
+import { useRoomContext } from "./RoomContextProvider"
 import { apiFetch } from "./api"
+import type { JSX } from "react"
+import type { Card } from './types'
+import type { CardDeck } from './types'
 
-export default function SwipePage( {cardDeck} ) {
-    const [dragX, setDragX] = React.useState(0)
-    const { currentRoomCode, setCurrentRoomCode } = React.useContext(RoomContext)
+// it is time to figure out SSE
 
-    const rightOpacity = 
+
+export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.Element {
+    const [dragX, setDragX] = React.useState<number>(0)
+    const { currentRoomCode, setCurrentRoomCode } = useRoomContext()
+
+    const rightOpacity: number = 
         dragX > 20
             ? Math.min(Math.abs(dragX) / 200, 1)
             : 0
-    const leftOpacity = 
+    const leftOpacity: number = 
         dragX < -20
             ? Math.min(Math.abs(dragX) / 200, 1)
             : 0
@@ -19,12 +25,12 @@ export default function SwipePage( {cardDeck} ) {
 
     async function handleEndSession() {
         try {
-            const res = await apiFetch(`/room/${currentRoomCode}/quit`, {
+            const res: Response = await apiFetch(`/room/${currentRoomCode}/quit`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
             })
             if (res.ok) {
-                const data = await res.json()
+                const data: { pairing_code: string } = await res.json()
                 console.log("Session ended", data)
                 setCurrentRoomCode(null)
             }
@@ -43,7 +49,7 @@ export default function SwipePage( {cardDeck} ) {
 
             <div className="swipe-main">
                 <div className="swipe-deck">
-                    {visibleCards.map((movie, index) => (
+                    {visibleCards.map((movie: Card, index: number) => (
                         <MovieCard 
                             key={movie.media_id}
                             card={movie}

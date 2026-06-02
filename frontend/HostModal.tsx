@@ -1,17 +1,22 @@
 import React from "react"
-import { RoomContext } from "./App"
+import { useRoomContext } from "./RoomContextProvider"
 import { apiFetch } from "./api"
+import type { JSX } from "react"
 
-export default function HostModal({ onClose }) {
-    const { movies, setMovies, tvShows, setTvShows, isSoloMode, setIsSoloMode, currentRoomCode, setCurrentRoomCode } = React.useContext(RoomContext)
+interface HostModalProps {
+    onClose: React.MouseEventHandler<HTMLButtonElement | HTMLDivElement>
+}
+
+export default function HostModal({ onClose }: HostModalProps): JSX.Element {
+    const { movies, setMovies, tvShows, setTvShows, isSoloMode, setIsSoloMode, setCurrentRoomCode } = useRoomContext()
     const roomOptions = {
             "movies": movies,
             "tv_shows": tvShows,
             "solo": isSoloMode
         }
 
-    const handleChange = (e) => {
-        const { name, checked } = e.target
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, checked } = e.currentTarget
         if (name === "movies") {
             setMovies(checked)
         } else if (name === "tv") {
@@ -23,15 +28,15 @@ export default function HostModal({ onClose }) {
     }
 
     async function createSession() {
-        let fetchedCode = null
+        let fetchedCode: string | null = null
         try {
-            const res = await apiFetch('/room', {
+            const res: Response = await apiFetch('/room', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(roomOptions)
             })
             if (res.ok) {
-                const data = await res.json()
+                const data: { pairing_code: string } = await res.json()
                 console.log("Session created with code:", data.pairing_code)
                 fetchedCode = data.pairing_code
                 setCurrentRoomCode(data.pairing_code)

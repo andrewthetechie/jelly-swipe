@@ -3,27 +3,43 @@ import { actorElements } from "./assets/test-info"
 import moanaPoster from "./assets/moana-poster.jpg"
 import sadLogo from "./assets/sad.png"
 import { apiUrl } from "./api"
-const DEFAULT_POSITION = {
+import type { JSX } from "react"
+import type { Card } from './types'
+
+type Position = {
+    x: number,
+    y: number,
+    rotation: number
+}
+
+const DEFAULT_POSITION: Position = {
     x: 0,
     y: 0,
     rotation: 0
 }
 
-export default function MovieCard({ card, setDragX, isTopCard, zIndex }) {
-    const [position, setPosition] = React.useState(DEFAULT_POSITION)
-    const [showDetails, setShowDetails] = React.useState(false)
-    const divRef = React.useRef(null)
-    const isDragging = React.useRef(false)
-    const hasDragged = React.useRef(false)
-    const startX = React.useRef(0)
-    const currentX = React.useRef(0)
+interface MovieCardProps {
+    card: Card,
+    setDragX: React.Dispatch<React.SetStateAction<number>>,
+    isTopCard: boolean,
+    zIndex: number
+}
 
-    const { duration, media_id: mediaId, media_type: mediaType, rating, season_count, summary, thumb, title, year } = card
-    const mediaText = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
-    const seasonsText = season_count === 1 ? ` • ${season_count} Season` : season_count > 1 ? ` • ${season_count} Seasons` : ""
+export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCardProps): JSX.Element {
+    const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
+    const [showDetails, setShowDetails] = React.useState<boolean>(false)
+    const divRef = React.useRef<HTMLDivElement | null>(null)
+    const isDragging = React.useRef<boolean>(false)
+    const hasDragged = React.useRef<boolean>(false)
+    const startX = React.useRef<number>(0)
+    const currentX = React.useRef<number>(0)
+
+    const { duration, media_id: mediaId, media_type: mediaType, rating, season_count, summary, thumb, title, year }: Card = card
+    const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
+    const seasonsText: string = season_count !== undefined && season_count === 1 ? ` • ${season_count} Season` : season_count !== undefined && season_count > 1 ? ` • ${season_count} Seasons` : ""
     
 
-    const handlePointerDown = (e) => {
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         isDragging.current = true
         hasDragged.current = false
         startX.current = e.clientX
@@ -31,10 +47,10 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }) {
         e.currentTarget.setPointerCapture(e.pointerId)
     }
 
-    const handlePointerMove = (e) => {
+    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!isDragging.current) return
 
-        const deltaX = e.clientX - startX.current
+        const deltaX: number = e.clientX - startX.current
         currentX.current = deltaX
         setDragX(deltaX)
 
@@ -49,12 +65,12 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }) {
         })
      }
 
-     const handlePointerUp = (e) => {
+     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
         isDragging.current = false
         e.currentTarget.releasePointerCapture(e.pointerId)
         setDragX(0)
 
-        const swipeThreshold = 120
+        const swipeThreshold: number = 120
 
         if (Math.abs(currentX.current) > swipeThreshold) {
             const direction = currentX.current > 0 ? 1 : -1
@@ -71,8 +87,8 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }) {
      }
 
     
-    const toggleDetails = (e) => {
-        if (e.target.tagName === "BUTTON") return
+    const toggleDetails = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.currentTarget.tagName === "BUTTON") return
         if (hasDragged.current) return
         setShowDetails(prev => !prev)
     } 
@@ -113,7 +129,13 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }) {
                         {year && <div className="movie-year">{year}</div>}
                     </div>
                     <div className="trailer">
-                        <button onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} className="watch-trailer">WATCH TRAILER</button>
+                        <button 
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} 
+                            onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()} 
+                            className="watch-trailer"
+                        >
+                            WATCH TRAILER
+                        </button>
                     </div>
                     <p className="movie-description">
                         {summary}

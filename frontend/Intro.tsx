@@ -1,17 +1,18 @@
 import React from "react"
 import JoinModal from "./JoinModal"
 import HostModal from "./HostModal"
-import { RoomContext } from "./App"
+import { useRoomContext } from "./RoomContextProvider"
+import type { JSX } from "react"
 
 
-export default function Intro() {
-    const [showJoinModal, setShowJoinModal] = React.useState(false)
-    const [showHostModal, setShowHostModal] = React.useState(false)
-    const { movies, setMovies, tvShows, setTvShows, isSoloMode, setIsSoloMode, userInputCode, setUserInputCode } = React.useContext(RoomContext)
+export default function Intro(): JSX.Element {
+    const [showJoinModal, setShowJoinModal] = React.useState<boolean>(false)
+    const [showHostModal, setShowHostModal] = React.useState<boolean>(false)
+    const { setMovies, setTvShows, setIsSoloMode, setUserInputCode } = useRoomContext()
     
 
-    function handleSessionClick(e) {
-        const sessionType = e.target.dataset.sessionType
+    function handleSessionClick(e: React.MouseEvent<HTMLButtonElement>) {
+        const sessionType: string | undefined = e.currentTarget.dataset.sessionType
         // console.log(sessionType)
         if (sessionType === "host") {
             setShowHostModal(true)
@@ -20,8 +21,8 @@ export default function Intro() {
         }
     }
 
-    function handleModalClose(e) {
-        const modalType = e.target.dataset.modalType
+    function handleModalClose(e: React.MouseEvent<HTMLDivElement>) {
+        const modalType: string | undefined = e.currentTarget.dataset.modalType
         // console.log(modalType)
         if (modalType === "host") {
             setShowHostModal(false)

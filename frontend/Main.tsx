@@ -1,22 +1,31 @@
 import React from "react"
 import Intro from "./Intro"
 import SwipePage from "./SwipePage"
-import { RoomContext } from "./App"
+import { useRoomContext } from "./RoomContextProvider"
 import { apiFetch } from "./api"
+import type { JSX } from "react"
+import type { CardDeck } from "./types"
 
-export default function Main() {
-    const { currentRoomCode, setCurrentRoomCode } = React.useContext(RoomContext)
-    const [cardDeck, setCardDeck] = React.useState([])
+type RoomStatusResponse = {
+    ready: boolean
+    genre?: string
+    solo?: boolean
+    hide_watched?: boolean
+}
+
+export default function Main(): JSX.Element {
+    const { currentRoomCode } = useRoomContext()
+    const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
 
     React.useEffect(() => {
         async function checkSessionStatus() {
             try {
-                const res = await apiFetch(`/room/${currentRoomCode}/status`, {
+                const res: Response = await apiFetch(`/room/${currentRoomCode}/status`, {
                     method: 'GET',
                     headers: {'Content-Type': 'application/json'},
                 })
                 if (res.ok) {
-                    const data = await res.json()
+                    const data: RoomStatusResponse = await res.json()
                     console.log("Session status:", data)
                     // If the room does not exist, returns {"ready": false} with no other fields. When ready, the response also includes genre, solo, and hide_watched settings
                 }
@@ -27,12 +36,12 @@ export default function Main() {
 
         async function getCardDeck() {
             try {
-                const res = await apiFetch(`/room/${currentRoomCode}/deck`, { 
+                const res: Response = await apiFetch(`/room/${currentRoomCode}/deck`, { 
                     method: 'GET',
                     headers: {'Content-Type': 'application/json'},
                 })
                 if (res.ok) {
-                    const data = await res.json()
+                    const data: CardDeck = await res.json()
                     setCardDeck(data)
                 }
             } catch (err) {

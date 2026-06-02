@@ -1,19 +1,23 @@
 import React from 'react'
-import { RoomContext } from './App'
+import { useRoomContext } from "./RoomContextProvider"
 import { apiFetch } from "./api"
+import type { JSX } from "react"
 
-export default function JoinModal({ onClose }) {
-    const { currentRoomCode, setCurrentRoomCode } = React.useContext(RoomContext)
-    const { userInputCode, setUserInputCode } = React.useContext(RoomContext)
+interface JoinModalProps {
+    onClose: React.MouseEventHandler<HTMLButtonElement | HTMLDivElement>
+}
+
+export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
+    const { setCurrentRoomCode, userInputCode, setUserInputCode } = useRoomContext()
 
     async function joinRoom() {
         try {
-            const res = await apiFetch(`/room/${userInputCode}/join`, {
+            const res: Response = await apiFetch(`/room/${userInputCode}/join`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'}
             })
             if (res.ok) {
-                const data = await res.json()
+                const data: { status: string } = await res.json()
                 setCurrentRoomCode(userInputCode)
                 console.log(`Joined room ${userInputCode}:`, data)
             }
@@ -27,8 +31,8 @@ export default function JoinModal({ onClose }) {
             <input 
                 type="text"
                 inputMode="numeric" 
-                minLength="4"
-                maxLength="4"
+                minLength={4}
+                maxLength={4}
                 placeholder="Enter Host Code" 
                 className="room-code-input" 
                 value={userInputCode} 
