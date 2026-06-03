@@ -100,6 +100,8 @@ need to run migrations manually just to start the app.
 
 ## Tests, Linting, and Formatting
 
+> Frontend tests live in `frontend/` and are documented separately — see the [Testing section of `frontend/README.md`](frontend/README.md#testing).
+
 Run the full test suite:
 
 ```bash
