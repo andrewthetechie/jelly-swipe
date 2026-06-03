@@ -6,34 +6,36 @@
 //     not local state. The input is therefore CONTROLLED by the context value.
 //     In tests, `setUserInputCode` is a vi.fn() spy that does NOT update state,
 //     so the input's value stays put — meaning we can't read sanitized text back
-//     out of the DOM. Instead we assert sanitization through the SPY's
-//     arguments: every onChange strips non-digits via
-//     `value.replace(/[^0-9]/g, '')`, so every call arg must be digit-only.
+//     out of the DOM, AND a `user.type("a1b2")` would only ever deliver ONE
+//     character per onChange (the value never accumulates). To actually exercise
+//     the regex on a real multi-character string we fire a single `change` event
+//     carrying the full mixed value and assert the spy received the sanitized,
+//     digit-only, in-order result.
 //   • joinRoom follows the 3-part network contract: POST
 //     /room/{userInputCode}/join; success → setCurrentRoomCode(userInputCode);
 //     one failure path leaves it uncalled. We preset userInputCode via overrides.
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import JoinModal from "./JoinModal";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { mockFetch } from "./test/mockFetch";
 
 describe("JoinModal — input sanitization", () => {
-  it("strips non-digits on every keystroke (asserted via the setter spy)", async () => {
-    const user = userEvent.setup();
+  it("strips non-digits and preserves digit order (asserted via the setter spy)", () => {
     const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "",
     });
 
-    await user.type(screen.getByPlaceholderText("Enter Host Code"), "a1b2");
+    // One change with a mixed value — letters interleaved with digits — so the
+    // `value.replace(/[^0-9]/g, '')` regex is tested on a genuine multi-char
+    // string rather than the single characters a controlled-input `type()`
+    // would produce.
+    fireEvent.change(screen.getByPlaceholderText("Enter Host Code"), {
+      target: { value: "1a2b3" },
+    });
 
-    // At least one change fired, and EVERY value passed to setUserInputCode is
-    // digits-only (letters were stripped before the setter ran).
-    expect(ctx.setUserInputCode).toHaveBeenCalled();
-    for (const call of (ctx.setUserInputCode as ReturnType<typeof vi.fn>).mock
-      .calls) {
-      expect(call[0]).toMatch(/^[0-9]*$/);
-    }
+    // Letters dropped, digits kept in order.
+    expect(ctx.setUserInputCode).toHaveBeenLastCalledWith("123");
   });
 });
 

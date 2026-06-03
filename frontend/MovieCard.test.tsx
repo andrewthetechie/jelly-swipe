@@ -158,7 +158,17 @@ describe("MovieCard — rating === 0 (KNOWN BUG, documented via skipped test)", 
   it.skip("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
     const { container } = renderCard({ rating: 0 });
     expect(screen.getByText("IMDb 0.00")).toBeInTheDocument();
-    // No bare "0" text node leaking into the movie-info row.
-    expect(container.querySelector(".movie-info")?.textContent).not.toContain("0");
+    // The bug renders `0` as a DIRECT text-node child of `.movie-info` (the
+    // falsy `&&` evaluates to `0`), whereas the real score/runtime/year are each
+    // wrapped in their own <div>. So we must inspect only the row's direct text
+    // nodes — a substring check on `.textContent` would wrongly trip on the
+    // legitimate "IMDb 0.00" or the year "2016", which both contain a "0".
+    const directText = Array.from(
+      container.querySelector(".movie-info")?.childNodes ?? [],
+    )
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim())
+      .filter(Boolean);
+    expect(directText).not.toContain("0");
   });
 });
