@@ -1,6 +1,6 @@
 import React from "react"
 
-interface RoomContextType {
+export interface RoomContextType {
     currentRoomCode: string | null
     setCurrentRoomCode: React.Dispatch<React.SetStateAction<string | null>>
     movies: boolean
@@ -13,7 +13,7 @@ interface RoomContextType {
     setUserInputCode: React.Dispatch<React.SetStateAction<string>>
 }
 
-const RoomContext = React.createContext<RoomContextType | undefined>(undefined)
+export const RoomContext = React.createContext<RoomContextType | undefined>(undefined)
 
 interface RoomProviderProps {
     children: React.ReactNode
@@ -27,18 +27,18 @@ export function RoomContextProvider({ children }: RoomProviderProps) {
     const [userInputCode, setUserInputCode] = React.useState<string>("")
 
     return (
-        <RoomContext.Provider 
-            value={{ 
-                currentRoomCode, 
-                setCurrentRoomCode, 
-                movies, 
-                setMovies, 
-                tvShows, 
-                setTvShows, 
-                isSoloMode, 
-                setIsSoloMode, 
-                userInputCode, 
-                setUserInputCode 
+        <RoomContext.Provider
+            value={{
+                currentRoomCode,
+                setCurrentRoomCode,
+                movies,
+                setMovies,
+                tvShows,
+                setTvShows,
+                isSoloMode,
+                setIsSoloMode,
+                userInputCode,
+                setUserInputCode
         }}>
             {children}
         </RoomContext.Provider>
