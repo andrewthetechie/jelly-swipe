@@ -15,7 +15,7 @@
 //     test so no test touches the real network, and focus assertions on the
 //     code-set path. checkSessionStatus is commented out in the source and is
 //     intentionally untested.
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import Main from "./Main";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { mockFetch } from "./test/mockFetch";
@@ -69,6 +69,21 @@ describe("Main — deck fetch (3-part network contract)", () => {
       screen.getByRole("button", { name: /end session/i }),
     ).toBeInTheDocument();
     expect(container.querySelectorAll(".movie-card-container")).toHaveLength(0);
+
+    errSpy.mockRestore();
+  });
+
+  it("renders no cards and does not crash when the fetch rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockFetch({ reject: true });
+    const { container } = renderWithRoom(<Main />, { currentRoomCode: "1234" });
+
+    expect(
+      screen.getByRole("button", { name: /end session/i }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(container.querySelectorAll(".movie-card-container")).toHaveLength(0),
+    );
 
     errSpy.mockRestore();
   });

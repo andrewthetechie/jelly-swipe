@@ -24,11 +24,14 @@ export default function Main(): JSX.Element {
                     method: 'GET',
                     headers: {'Content-Type': 'application/json'},
                 })
-                if (res.ok) {
-                    const data: RoomStatusResponse = await res.json()
-                    console.log("Session status:", data)
-                    // If the room does not exist, returns {"ready": false} with no other fields. When ready, the response also includes genre, solo, and hide_watched settings
+                if (!res.ok) {
+                    throw new Error(`Error fetching session status: ${res.status} ${res.statusText}`)
                 }
+                
+                const data: RoomStatusResponse = await res.json()
+                console.log("Session status:", data)
+                // If the room does not exist, returns {"ready": false} with no other fields. When ready, the response also includes genre, solo, and hide_watched settings
+            
             } catch (err) {
                 console.error("Error fetching session status:", err)
             }
@@ -40,10 +43,13 @@ export default function Main(): JSX.Element {
                     method: 'GET',
                     headers: {'Content-Type': 'application/json'},
                 })
-                if (res.ok) {
-                    const data: CardDeck = await res.json()
-                    setCardDeck(data)
+                if (!res.ok) {
+                    throw new Error(`Error fetching card deck: ${res.status} ${res.statusText}`)
                 }
+                
+                const data: CardDeck = await res.json()
+                setCardDeck(data)
+                
             } catch (err) {
                 console.error("Error fetching card deck:", err)
             }
