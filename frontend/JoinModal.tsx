@@ -16,11 +16,14 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'}
             })
-            if (res.ok) {
-                const data: { status: string } = await res.json()
-                setCurrentRoomCode(userInputCode)
-                console.log(`Joined room ${userInputCode}:`, data)
+            if (!res.ok) {
+                throw new Error(`Error joining room: ${res.status} ${res.statusText}`)
             }
+            
+            const data: { status: string } = await res.json()
+            setCurrentRoomCode(userInputCode)
+            console.log(`Joined room ${userInputCode}:`, data)
+            
         } catch (err) {
             console.error("Error joining room:", err)
         }

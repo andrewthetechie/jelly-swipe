@@ -39,6 +39,21 @@ describe("JoinModal — input sanitization", () => {
   });
 });
 
+describe("JoinModal — cancel button", () => {
+  it("calls onClose when Cancel is clicked", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    renderWithRoom(<JoinModal onClose={onClose} />)
+
+    const cancelButton = screen.getByRole("button", { name: /cancel/i })
+    await user.click(cancelButton)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(cancelButton).toHaveAttribute("data-modal-type", "join")
+  })
+})
+
 describe("JoinModal — join (3-part network contract)", () => {
   it("POSTs to /room/{code}/join and sets the room code on success", async () => {
     const user = userEvent.setup();
@@ -61,6 +76,22 @@ describe("JoinModal — join (3-part network contract)", () => {
     await waitFor(() =>
       expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("1234"),
     );
+  });
+
+  it("does not set a room code and does not throw when the request returns non-ok", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const spy = mockFetch({ ok: false });
+    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "1234",
+    });
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+
+    await waitFor(() => expect(errSpy).toHaveBeenCalled());
+    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled();
+
+    errSpy.mockRestore();
   });
 
   it("does not set a room code and does not throw when the request rejects", async () => {
