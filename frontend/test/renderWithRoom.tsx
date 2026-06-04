@@ -16,6 +16,7 @@
 // and they would hit the `useRoomContext` throw. See frontend/README.md.
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
+import React, { useState } from "react";
 import { RoomContext, type RoomContextType } from "../RoomContextProvider";
 
 // Build a default context: plausible starting values plus a vi.fn() spy for
@@ -53,5 +54,54 @@ export function renderWithRoom(
   const result = render(
     <RoomContext.Provider value={ctx}>{ui}</RoomContext.Provider>,
   );
+  return { ...result, ctx };
+}
+
+// A stateful variant of the helper for tests that need user interactions to
+// actually update the context values (checkbox toggles followed by submit).
+export function renderWithRoomStateful(
+  ui: ReactElement,
+  overrides: Partial<RoomContextType> = {},
+): RenderWithRoomResult {
+  function Provider({ children }: { children: React.ReactNode }) {
+    const [movies, setMoviesState] = useState<boolean>(
+      overrides.movies ?? true,
+    );
+    const [tvShows, setTvShowsState] = useState<boolean>(
+      overrides.tvShows ?? false,
+    );
+    const [isSoloMode, setIsSoloModeState] = useState<boolean>(
+      overrides.isSoloMode ?? false,
+    );
+    const [currentRoomCode, setCurrentRoomCodeState] = useState<
+      string | null
+    >(overrides.currentRoomCode ?? null);
+
+    const ctx: RoomContextType = {
+      currentRoomCode,
+      setCurrentRoomCode: vi.fn((v: string | null) =>
+        setCurrentRoomCodeState(v as string | null),
+      ),
+      movies,
+      setMovies: vi.fn((v: boolean) => setMoviesState(v)),
+      tvShows,
+      setTvShows: vi.fn((v: boolean) => setTvShowsState(v)),
+      isSoloMode,
+      setIsSoloMode: vi.fn((v: boolean) => setIsSoloModeState(v)),
+      userInputCode: overrides.userInputCode ?? "",
+      setUserInputCode: vi.fn(),
+    } as unknown as RoomContextType;
+
+    return (
+      <RoomContext.Provider value={ctx}>{children}</RoomContext.Provider>
+    );
+  }
+
+  const result = render(<Provider>{ui}</Provider>);
+  // We cannot return the exact ctx object here (it is recreated per render),
+  // but tests that need it can still rely on the provider's behavior; return a
+  // minimal shape where setters are spies by reading from the DOM or mocking
+  // when necessary. For simplicity, return an object with spy placeholders.
+  const ctx = { ...makeDefaultCtx(), ...overrides } as RoomContextType;
   return { ...result, ctx };
 }

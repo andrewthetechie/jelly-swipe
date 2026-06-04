@@ -9,40 +9,42 @@ interface HostModalProps {
 
 export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     const { movies, setMovies, tvShows, setTvShows, isSoloMode, setIsSoloMode, setCurrentRoomCode } = useRoomContext()
-    const roomOptions = {
-            "movies": movies,
-            "tv_shows": tvShows,
-            "solo": isSoloMode
-        }
+    
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, checked } = e.currentTarget
         if (name === "movies") {
             setMovies(checked)
-        } else if (name === "tv") {
+        } else if (name === "tvShows") {
             setTvShows(checked)
         } else if (name === "solo") {
             setIsSoloMode(checked)
         }
-        console.log(roomOptions)
     }
 
     async function createSession() {
         let fetchedCode: string | null = null
+        const roomOptions = {
+            movies,
+            tv_shows: tvShows,
+            solo: isSoloMode,
+        }
         try {
             const res: Response = await apiFetch('/room', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(roomOptions)
             })
-            if (res.ok) {
-                const data: { pairing_code: string } = await res.json()
-                console.log("Session created with code:", data.pairing_code)
-                fetchedCode = data.pairing_code
-                setCurrentRoomCode(data.pairing_code)
-                // data returns pairing_code and instance_id
+            
+            if (!res.ok) {
+                throw new Error(`Error creating session: ${res.status} ${res.statusText}`)
             }
-
+            
+            const data: { pairing_code: string } = await res.json()
+            console.log("Session created with code:", data.pairing_code)
+            fetchedCode = data.pairing_code
+            setCurrentRoomCode(data.pairing_code)
+            // data returns pairing_code and instance_id
             
 
         } catch (err) {
@@ -61,9 +63,9 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
                 <span className="slider"></span>
             </label>
             
-            <label htmlFor="tv" className="jelly-toggle"> 
+            <label htmlFor="tvShows" className="jelly-toggle"> 
                 <span>TV Shows</span>
-                <input type="checkbox" id="tv" name="tv" value="tv" defaultChecked={tvShows} onChange={handleChange} />
+                <input type="checkbox" id="tvShows" name="tvShows" value="tvShows" defaultChecked={tvShows} onChange={handleChange} />
                 <span className="slider"></span>
             </label>
             

@@ -4,8 +4,7 @@
 // Things to note:
 //   • The checkboxes are UNCONTROLLED (`defaultChecked`), so we don't read their
 //     checked state back — we click them and assert the matching context setter
-//     spy was called with the NEW boolean. Watch the name mismatch: the TV input
-//     is name="tv" but it drives `setTvShows`.
+//     spy was called with the NEW boolean.
 //   • createSession follows the 3-part network contract (request body included):
 //     the request is POST /room with body {movies, tv_shows, solo} built from
 //     the context values at render time; success calls setCurrentRoomCode with
@@ -15,7 +14,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HostModal from "./HostModal";
-import { renderWithRoom } from "./test/renderWithRoom";
+import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom";
 import { mockFetch } from "./test/mockFetch";
 
 describe("HostModal — toggles", () => {
@@ -28,7 +27,7 @@ describe("HostModal — toggles", () => {
     expect(ctx.setMovies).toHaveBeenCalledWith(false);
   });
 
-  it("clicking the TV toggle (input name='tv') drives setTvShows", async () => {
+  it("clicking the TV toggle (input name='tvShows') drives setTvShows", async () => {
     const user = userEvent.setup();
     const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />, {
       tvShows: false,
@@ -45,6 +44,19 @@ describe("HostModal — toggles", () => {
     await user.click(screen.getByRole("checkbox", { name: /solo/i }));
     expect(ctx.setIsSoloMode).toHaveBeenCalledWith(true);
   });
+
+  it("calls onClose when Cancel is clicked", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    renderWithRoom(<HostModal onClose={onClose} />)
+
+    const cancelButton = screen.getByRole("button", { name: /cancel/i })
+    await user.click(cancelButton)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(cancelButton).toHaveAttribute("data-modal-type", "host")
+  })
 });
 
 describe("HostModal — create session (3-part network contract)", () => {
@@ -98,7 +110,73 @@ describe("HostModal — create session (3-part network contract)", () => {
     });
   });
 
-  it("does not set a room code and does not throw when the request fails", async () => {
+  it("submits updated movies option after toggling before create", async () => {
+    const user = userEvent.setup()
+    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" }})
+
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
+      movies: true,
+      tvShows: true,
+      isSoloMode: false,
+    })
+
+    await user.click(screen.getByRole("checkbox", { name: /movies/i }))
+    await user.click(screen.getByRole("button", { name: /create session/i }))
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    const [, options] = spy.mock.calls[0]
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      movies: false,
+      tv_shows: true,
+      solo: false,
+    })
+  })
+
+  it("submits updated tvShows option after toggling before create", async () => {
+    const user = userEvent.setup()
+    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" }})
+
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
+      movies: true,
+      tvShows: true,
+      isSoloMode: false,
+    })
+
+    await user.click(screen.getByRole("checkbox", { name: /tv shows/i }))
+    await user.click(screen.getByRole("button", { name: /create session/i }))
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    const [, options] = spy.mock.calls[0]
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      movies: true,
+      tv_shows: false,
+      solo: false,
+    })
+  })  
+
+  it("submits updated isSoloMode option after toggling before create", async () => {
+    const user = userEvent.setup()
+    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" }})
+
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
+      movies: true,
+      tvShows: true,
+      isSoloMode: false,
+    })
+
+    await user.click(screen.getByRole("checkbox", { name: /solo/i }))
+    await user.click(screen.getByRole("button", { name: /create session/i }))
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    const [, options] = spy.mock.calls[0]
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      movies: true,
+      tv_shows: true,
+      solo: true,
+    })
+  })
+
+  it("does not set a room code and does not throw when the request returns non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     const spy = mockFetch({ ok: false });
@@ -106,11 +184,24 @@ describe("HostModal — create session (3-part network contract)", () => {
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
 
-    // The success branch is gated on res.ok, so a non-ok response leaves the
-    // room code untouched.
-    await waitFor(() => expect(spy).toHaveBeenCalled());
+    await waitFor(() => expect(errSpy).toHaveBeenCalled());
     expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled();
 
     errSpy.mockRestore();
   });
+
+  it("does not set a room code when fetch rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const user = userEvent.setup()
+    const spy = mockFetch({ reject: true })
+    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole("button", { name: /create session/i }))
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+    expect(errSpy).toHaveBeenCalled()
+
+    errSpy.mockRestore()
+  })
 });
