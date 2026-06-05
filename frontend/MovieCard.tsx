@@ -124,7 +124,7 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCa
                 <div className="movie-card back">
                     <h2 className="movie-title">{title}</h2>
                     <div className="movie-info">
-                        {rating && <div className="movie-score">IMDb {rating != null ? rating.toFixed(2) : "N/A"}</div>}
+                        {rating != null && <div className="movie-score">IMDb {rating.toFixed(2)}</div>}
                         {duration && <div className="movie-runtime">{duration}</div>}
                         {year && <div className="movie-year">{year}</div>}
                     </div>

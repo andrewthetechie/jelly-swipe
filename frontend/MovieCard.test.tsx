@@ -140,29 +140,11 @@ describe("MovieCard — pointer drag (documented, hard to test)", () => {
 // comment). This todo marks the spot test-first for whoever builds it.
 it.todo("swiping right should POST to /room/{code}/swipe");
 
-describe("MovieCard — rating === 0 (KNOWN BUG, documented via skipped test)", () => {
-  // THE BUG: the score is rendered as
-  //   {rating && <div className="movie-score">IMDb {rating != null ? rating.toFixed(2) : "N/A"}</div>}
-  // `&&` short-circuits on any falsy left-hand value. When rating === 0,
-  // `0 && <div/>` evaluates to `0`, so React renders a STRAY "0" and the
-  // `IMDb 0.00` div never appears. (The inner `rating != null` ternary is dead
-  // code for the zero case — the outer `&&` already swallowed it.) This is the
-  // classic React falsy-zero JSX pitfall.
-  //
-  // WHY SKIPPED: this test asserts the DESIRED behaviour, not today's buggy
-  // output. Keeping it skipped means nothing is red right now, and the moment
-  // the guard is fixed the test goes green — a small reward for the fix.
-  //
-  // TO FIX (then delete the .skip): guard on null, not truthiness, e.g.
-  //   {rating != null && <div className="movie-score">IMDb {rating.toFixed(2)}</div>}
-  it.skip("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
+describe("MovieCard — rating === 0", () => {
+  it("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
     const { container } = renderCard({ rating: 0 });
     expect(screen.getByText("IMDb 0.00")).toBeInTheDocument();
-    // The bug renders `0` as a DIRECT text-node child of `.movie-info` (the
-    // falsy `&&` evaluates to `0`), whereas the real score/runtime/year are each
-    // wrapped in their own <div>. So we must inspect only the row's direct text
-    // nodes — a substring check on `.textContent` would wrongly trip on the
-    // legitimate "IMDb 0.00" or the year "2016", which both contain a "0".
+
     const directText = Array.from(
       container.querySelector(".movie-info")?.childNodes ?? [],
     )
