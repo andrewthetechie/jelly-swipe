@@ -68,7 +68,7 @@ describe("Main — deck fetch (3-part network contract)", () => {
     expect(
       screen.getByRole("button", { name: /end session/i }),
     ).toBeInTheDocument();
-    expect(container.querySelectorAll(".movie-card-container")).toHaveLength(0);
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(0);
 
     errSpy.mockRestore();
   });
@@ -82,7 +82,7 @@ describe("Main — deck fetch (3-part network contract)", () => {
       screen.getByRole("button", { name: /end session/i }),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(container.querySelectorAll(".movie-card-container")).toHaveLength(0),
+      expect(container.querySelectorAll(".card-item-container")).toHaveLength(0),
     );
 
     errSpy.mockRestore();

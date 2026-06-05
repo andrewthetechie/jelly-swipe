@@ -23,8 +23,8 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     }
 
     async function createSession() {
-        let fetchedCode: string | null = null
-        const roomOptions = {
+        let pairingCode: string | null = null
+        const createRoomRequest = {
             movies,
             tv_shows: tvShows,
             solo: isSoloMode,
@@ -33,18 +33,18 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
             const res: Response = await apiFetch('/room', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(roomOptions)
+                body: JSON.stringify(createRoomRequest)
             })
             
             if (!res.ok) {
                 throw new Error(`Error creating session: ${res.status} ${res.statusText}`)
             }
             
-            const data: { pairing_code: string } = await res.json()
-            console.log("Session created with code:", data.pairing_code)
-            fetchedCode = data.pairing_code
-            setCurrentRoomCode(data.pairing_code)
-            // data returns pairing_code and instance_id
+            const createRoomResponse: { pairing_code: string } = await res.json()
+            console.log("Session created with code:", createRoomResponse.pairing_code)
+            pairingCode = createRoomResponse.pairing_code
+            setCurrentRoomCode(createRoomResponse.pairing_code)
+            // createRoomResponse returns pairing_code and instance_id
             
 
         } catch (err) {

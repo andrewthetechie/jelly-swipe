@@ -5,7 +5,7 @@
 //   • makeDeck(n) from fixtures builds a deck with distinct titles, so we can
 //     assert both the COUNT of rendered cards and their ORDER.
 //   • The glow opacity is derived from `dragX`, and `dragX` only changes when
-//     the top MovieCard's pointer handlers fire. jsdom can't do a real drag,
+//     the top CardItemView's pointer handlers fire. jsdom can't do a real drag,
 //     but test/setup.ts stubs the Pointer Capture methods so we can fire
 //     pointerDown/pointerMove events and let the component compute opacity. We
 //     take that route here (rather than skipping) because the glow MATH is the
@@ -26,13 +26,13 @@ describe("SwipePage — card-stack slicing", () => {
     const { container } = renderWithRoom(<SwipePage cardDeck={makeDeck(7)} />, {
       currentRoomCode: "1234",
     });
-    const cards = container.querySelectorAll(".movie-card-container");
+    const cards = container.querySelectorAll(".card-item-container");
     // 7 in the deck, but only the first 5 are visible.
     expect(cards).toHaveLength(5);
 
     // visibleCards is `slice(0,5).reverse()`, so DOM order is Movie 5..Movie 1.
     const titles = Array.from(cards).map(
-      (c) => c.querySelector(".movie-title")?.textContent,
+      (c) => c.querySelector(".card-item-title")?.textContent,
     );
     expect(titles).toEqual([
       "Movie 5",
@@ -47,7 +47,7 @@ describe("SwipePage — card-stack slicing", () => {
     const { container } = renderWithRoom(<SwipePage cardDeck={makeDeck(3)} />, {
       currentRoomCode: "1234",
     });
-    expect(container.querySelectorAll(".movie-card-container")).toHaveLength(3);
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(3);
   });
 });
 
@@ -68,7 +68,7 @@ describe("SwipePage — glow opacity", () => {
     });
     // The top card is the LAST rendered container (isTopCard === true), and is
     // the only one with pointer handlers attached.
-    const cards = container.querySelectorAll(".movie-card-container");
+    const cards = container.querySelectorAll(".card-item-container");
     const topCard = cards[cards.length - 1];
 
     // Simulate a rightward drag of 250px: start at 0, move to 250.
@@ -88,7 +88,7 @@ describe("SwipePage — glow opacity", () => {
     });
     // The top card is the LAST rendered container (isTopCard === true), and is
     // the only one with pointer handlers attached.
-    const cards = container.querySelectorAll(".movie-card-container");
+    const cards = container.querySelectorAll(".card-item-container");
     const topCard = cards[cards.length - 1];
 
     // Simulate a leftward drag of 250px: start at 0, move to -250.
@@ -106,7 +106,7 @@ describe("SwipePage — glow opacity", () => {
     const { container } = renderWithRoom(<SwipePage cardDeck={makeDeck(2)} />, {
       currentRoomCode: "1234",
     });
-    const cards = container.querySelectorAll(".movie-card-container");
+    const cards = container.querySelectorAll(".card-item-container");
     const topCard = cards[cards.length - 1];
 
     // dragX === 20 is NOT > 20, so the glow stays off (strict inequality).

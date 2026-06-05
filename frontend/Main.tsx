@@ -8,9 +8,9 @@ import type { CardDeck } from "./types"
 
 type RoomStatusResponse = {
     ready: boolean
-    genre?: string
-    solo?: boolean
-    hide_watched?: boolean
+    genre?: string | null
+    solo?: boolean | null
+    hide_watched?: boolean | null
 }
 
 export default function Main(): JSX.Element {
@@ -28,8 +28,8 @@ export default function Main(): JSX.Element {
                     throw new Error(`Error fetching session status: ${res.status} ${res.statusText}`)
                 }
                 
-                const data: RoomStatusResponse = await res.json()
-                console.log("Session status:", data)
+                const roomStatusResponse: RoomStatusResponse = await res.json()
+                console.log("Session status:", roomStatusResponse)
                 // If the room does not exist, returns {"ready": false} with no other fields. When ready, the response also includes genre, solo, and hide_watched settings
             
             } catch (err) {

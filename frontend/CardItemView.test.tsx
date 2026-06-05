@@ -1,4 +1,4 @@
-// MovieCard.test.tsx — covers the card's *derived display* and its non-drag
+// CardItemView.test.tsx — covers the card's *derived display* and its non-drag
 // flip, and DOCUMENTS (rather than rewrites) the parts that are hard to test or
 // known to be buggy. This file is the canonical example for two patterns:
 //
@@ -10,11 +10,11 @@
 //
 // Both front and back faces of the card are always in the DOM (CSS handles the
 // visual flip), so we can query back-face text like "IMDb 7.50" without
-// simulating the flip. MovieCard doesn't read context, but we render it through
+// simulating the flip. CardItem doesn't read context, but we render it through
 // `renderWithRoom` for consistency with the rest of the suite; `setDragX` is a
 // throwaway `vi.fn()` since these tests don't drag.
 import { fireEvent, screen } from "@testing-library/react";
-import MovieCard from "./MovieCard";
+import CardItemView from "./CardItemView";
 import { apiUrl } from "./api";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard } from "./test/fixtures";
@@ -23,8 +23,8 @@ import { makeCard } from "./test/fixtures";
 // only the card fields a given test cares about.
 function renderCard(cardOverrides = {}) {
   return renderWithRoom(
-    <MovieCard
-      card={makeCard(cardOverrides)}
+    <CardItemView
+      cardItem={makeCard(cardOverrides)}
       setDragX={vi.fn()}
       isTopCard={true}
       zIndex={0}
@@ -32,7 +32,7 @@ function renderCard(cardOverrides = {}) {
   );
 }
 
-describe("MovieCard — derived display (mediaText)", () => {
+describe("CardItem — derived display (mediaText)", () => {
   it("maps media_type 'movie' to 'Movie'", () => {
     const { container } = renderCard({ media_type: "movie", season_count: undefined });
     expect(container.querySelector(".media-type")?.textContent).toBe("Movie");
@@ -49,7 +49,7 @@ describe("MovieCard — derived display (mediaText)", () => {
   });
 });
 
-describe("MovieCard — derived display (seasonsText)", () => {
+describe("CardItem — derived display (seasonsText)", () => {
   // seasonsText is only meaningful behind the `season_count !== undefined` guard.
   it("uses the singular 'Season' for a count of 1", () => {
     const { container } = renderCard({ media_type: "tv_show", season_count: 1 });
@@ -68,14 +68,14 @@ describe("MovieCard — derived display (seasonsText)", () => {
   });
 });
 
-describe("MovieCard — rating formatting", () => {
+describe("CardItem — rating formatting", () => {
   it("formats rating with toFixed(2): 7.5 → 'IMDb 7.50'", () => {
     renderCard({ rating: 7.5 });
     expect(screen.getByText("IMDb 7.50")).toBeInTheDocument();
   });
 });
 
-describe("MovieCard — poster", () => {
+describe("CardItem — poster", () => {
   it("renders the poster with the title as alt text and the apiUrl src", () => {
     const thumb = "/proxy?path=/poster.jpg";
     renderCard({ title: "Moana", thumb });
@@ -94,10 +94,10 @@ describe("MovieCard — poster", () => {
   });
 });
 
-describe("MovieCard — flip toggle (non-drag click)", () => {
+describe("CardItem — flip toggle (non-drag click)", () => {
   it("toggles the 'flipped' class on the container in both directions", () => {
     const { container } = renderCard();
-    const card = container.querySelector(".movie-card-container") as HTMLElement;
+    const card = container.querySelector(".card-item-container") as HTMLElement;
 
     // Starts un-flipped.
     expect(card).not.toHaveClass("flipped");
@@ -115,10 +115,10 @@ describe("MovieCard — flip toggle (non-drag click)", () => {
 // Eventually, the Watch Trailer button should also open the trailer div and display the video
 // For now, this test just asserts that clicking the button doesn't flip the card 
 
-describe("MovieCard - clicking Watch Trailer does not flip the card", () => {
+describe("CardItem - clicking Watch Trailer does not flip the card", () => {
   it("does not toggle the 'flipped' class when the trailer button is clicked", () => {
     const { container } = renderCard()
-    const card = container.querySelector(".movie-card-container") as HTMLElement
+    const card = container.querySelector(".card-item-container") as HTMLElement
     const trailerButton = screen.getByRole("button", { name: /watch trailer/i })
 
     // Starts un-flipped.
@@ -136,13 +136,13 @@ describe("MovieCard - clicking Watch Trailer does not flip the card", () => {
   })
 })
 
-describe("MovieCard — rating === 0", () => {
+describe("CardItem — rating === 0", () => {
   it("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
     const { container } = renderCard({ rating: 0 });
     expect(screen.getByText("IMDb 0.00")).toBeInTheDocument();
 
     const directText = Array.from(
-      container.querySelector(".movie-info")?.childNodes ?? [],
+      container.querySelector(".card-item-info")?.childNodes ?? [],
     )
       .filter((n) => n.nodeType === Node.TEXT_NODE)
       .map((n) => n.textContent?.trim())
@@ -153,7 +153,7 @@ describe("MovieCard — rating === 0", () => {
 
 // --- Documented gaps: do NOT rewrite the source to make these testable -------
 
-describe("MovieCard — pointer drag (documented, hard to test)", () => {
+describe("CardItem — pointer drag (documented, hard to test)", () => {
   // WHY THIS IS SKIPPED, not deleted:
   // The drag gesture relies on the Pointer Capture API
   // (setPointerCapture / releasePointerCapture) and real PointerEvents, which

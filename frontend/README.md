@@ -34,8 +34,8 @@ PRs the same way the Python suite does.
 
 ### Conventions
 
-- **Co-located tests.** A component's test sits next to it: `MovieCard.tsx` →
-  `MovieCard.test.tsx`. A new contributor sees the test beside the code it covers.
+- **Co-located tests.** A component's test sits next to it: `CardItemView.tsx` →
+  `CardItemView.test.tsx`. A new contributor sees the test beside the code it covers.
 - **One JavaScript exception.** `api.js` was deliberately left as JavaScript, so
   its test is `api.test.js` (also JS). Everything else is `*.test.tsx`.
 - **Shared helpers live in `test/`.** Copy these when writing a new test:
@@ -90,7 +90,7 @@ you fix X."_ Nothing is red today, the bug is documented in the test file, and
 fixing it is rewarded with a green test — a gentle, low-pressure way to improve
 code later without breaking anything that works now.
 
-Worked example: the **rating-zero** test in `MovieCard.test.tsx`. The score is
+Worked example: the **rating-zero** test in `CardItemView.test.tsx`. The score is
 rendered with `{rating && …}`, and `&&` short-circuits on falsy values — so a
 card with `rating === 0` renders a stray `0` instead of `IMDb 0.00` (the classic
 React falsy-zero JSX pitfall). The skipped test asserts the correct output and
@@ -102,7 +102,7 @@ Some code is genuinely hard to test in jsdom, and the policy here is to write th
 best test we can and **document the gap** rather than rewrite working source to
 make it convenient.
 
-Worked example: the **pointer-drag stub** in `MovieCard.test.tsx`. The drag
+Worked example: the **pointer-drag stub** in `CardItemView.test.tsx`. The drag
 gesture uses the Pointer Capture API (`setPointerCapture` /
 `releasePointerCapture`) and real `PointerEvent`s, which jsdom doesn't fully
 implement. `test/setup.ts` stubs the capture methods so firing pointer events
@@ -113,6 +113,6 @@ limitation and what a future change (extracting the pointer math into a pure
 function, or an end-to-end test in a real browser) would require.
 
 There is also an `it.todo("swiping right should POST to /room/{code}/swipe")`
-breadcrumb in `MovieCard.test.tsx`: the swipe gesture animates the card away but
+breadcrumb in `CardItemView.test.tsx`: the swipe gesture animates the card away but
 doesn't yet POST to the swipe endpoint or advance the deck. The todo marks that
 spot test-first for whoever builds it next.

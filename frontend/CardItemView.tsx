@@ -4,7 +4,7 @@ import moanaPoster from "./assets/moana-poster.jpg"
 import sadLogo from "./assets/sad.png"
 import { apiUrl } from "./api"
 import type { JSX } from "react"
-import type { Card } from './types'
+import type { CardItem } from './types'
 
 type Position = {
     x: number,
@@ -18,14 +18,14 @@ const DEFAULT_POSITION: Position = {
     rotation: 0
 }
 
-interface MovieCardProps {
-    card: Card,
+interface CardItemViewProps {
+    cardItem: CardItem,
     setDragX: React.Dispatch<React.SetStateAction<number>>,
     isTopCard: boolean,
     zIndex: number
 }
 
-export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCardProps): JSX.Element {
+export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex }: CardItemViewProps): JSX.Element {
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
@@ -34,9 +34,9 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCa
     const startX = React.useRef<number>(0)
     const currentX = React.useRef<number>(0)
 
-    const { duration, media_id: mediaId, media_type: mediaType, rating, season_count, summary, thumb, title, year }: Card = card
+    const { duration, media_id: mediaId, media_type: mediaType, rating, season_count = null, summary, thumb, title, year }: CardItem = cardItem
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
-    const seasonsText: string = season_count !== undefined && season_count === 1 ? ` • ${season_count} Season` : season_count !== undefined && season_count > 1 ? ` • ${season_count} Seasons` : ""
+    const seasonsText: string = season_count !== null && season_count === 1 ? ` • ${season_count} Season` : season_count !== null && season_count > 1 ? ` • ${season_count} Seasons` : ""
     
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -96,7 +96,7 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCa
     return (
         <div 
             ref={divRef}
-            className={`movie-card-container ${showDetails ? "flipped" : ""}`} 
+            className={`card-item-container ${showDetails ? "flipped" : ""}`} 
             onClick={toggleDetails} 
             onPointerDown={isTopCard ? handlePointerDown : undefined}
             onPointerMove={isTopCard ? handlePointerMove : undefined}
@@ -114,19 +114,19 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCa
                 transition: isDragging.current ? "none" : "transform 0.4s ease"
             }}
         >
-          <div className="movie-card-inner">
-                <div className="movie-card front">
+          <div className="card-item-inner">
+                <div className="card-item front">
                     <div className="media-type">{mediaText}{seasonsText}</div>
-                    <img src={thumb ? apiUrl(thumb).toString() : sadLogo} alt={title} className="movie-poster" draggable="false" />
+                    <img src={thumb ? apiUrl(thumb).toString() : sadLogo} alt={title} className="card-item-poster" draggable="false" />
                     {!thumb && <div className="no-poster">No poster available</div>}
                 </div>
 
-                <div className="movie-card back">
-                    <h2 className="movie-title">{title}</h2>
-                    <div className="movie-info">
-                        {rating != null && <div className="movie-score">IMDb {rating.toFixed(2)}</div>}
-                        {duration && <div className="movie-runtime">{duration}</div>}
-                        {year && <div className="movie-year">{year}</div>}
+                <div className="card-item back">
+                    <h2 className="card-item-title">{title}</h2>
+                    <div className="card-item-info">
+                        {rating != null && <div className="card-item-score">IMDb {rating.toFixed(2)}</div>}
+                        {duration && <div className="card-item-runtime">{duration}</div>}
+                        {year && <div className="card-item-year">{year}</div>}
                     </div>
                     <div className="trailer">
                         <button 
@@ -137,10 +137,10 @@ export default function MovieCard({ card, setDragX, isTopCard, zIndex }: MovieCa
                             WATCH TRAILER
                         </button>
                     </div>
-                    <p className="movie-description">
+                    <p className="card-item-description">
                         {summary}
                     </p>
-                    <div className="movie-cast">
+                    <div className="card-item-cast">
                         {actorElements}
                     </div>
                 </div>

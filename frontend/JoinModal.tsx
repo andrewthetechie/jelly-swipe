@@ -20,9 +20,9 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
                 throw new Error(`Error joining room: ${res.status} ${res.statusText}`)
             }
             
-            const data: { status: string } = await res.json()
+            const joinRoomResponse: { status: string } = await res.json()
             setCurrentRoomCode(userInputCode)
-            console.log(`Joined room ${userInputCode}:`, data)
+            console.log(`Joined room ${userInputCode}:`, joinRoomResponse)
             
         } catch (err) {
             console.error("Error joining room:", err)

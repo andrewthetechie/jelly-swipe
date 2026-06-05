@@ -1,9 +1,9 @@
 import React from "react"
-import MovieCard from "./MovieCard"
+import CardItemView from "./CardItemView"
 import { useRoomContext } from "./RoomContextProvider"
 import { apiFetch } from "./api"
 import type { JSX } from "react"
-import type { Card } from './types'
+import type { CardItem } from './types'
 import type { CardDeck } from './types'
 
 
@@ -31,8 +31,8 @@ export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.E
                 throw new Error(`Error quitting room: ${res.status} ${res.statusText}`)
             }
             
-            const data: { pairing_code: string } = await res.json()
-            console.log("Session ended", data)
+            const quitRoomResponse: { status: string } = await res.json()
+            console.log("Session ended", quitRoomResponse)
             setCurrentRoomCode(null)
             
         } catch (err) {
@@ -50,10 +50,10 @@ export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.E
 
             <div className="swipe-main">
                 <div className="swipe-deck">
-                    {visibleCards.map((movie: Card, index: number) => (
-                        <MovieCard 
-                            key={movie.media_id}
-                            card={movie}
+                    {visibleCards.map((cardItem: CardItem, index: number) => (
+                        <CardItemView 
+                            key={cardItem.media_id}
+                            cardItem={cardItem}
                             isTopCard={index === visibleCards.length - 1}
                             setDragX={setDragX}
                             zIndex={index}
@@ -64,7 +64,7 @@ export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.E
                 
 
                 <button className="undo-button">Undo</button>
-                <p className="movie-instructions">Tap poster for full details</p>
+                <p className="card-item-instructions">Tap poster for full details</p>
             </div>
 
             <div className="swipe-footer">

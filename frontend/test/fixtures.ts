@@ -11,10 +11,10 @@
 //   - `media_id` is a STRING (not a number)
 //   - `duration` is a STRING (e.g. "1h 47m", not minutes)
 //   - `season_count` is `number | undefined` — use `undefined`, never `null`
-import type { Card, CardDeck } from "../types";
+import type { CardItem, CardDeck } from "../types";
 
 // A complete, sensible default card. Override any field via `overrides`.
-export function makeCard(overrides: Partial<Card> = {}): Card {
+export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
   return {
     media_id: "1",
     title: "Moana",

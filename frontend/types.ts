@@ -1,13 +1,13 @@
-export interface Card {
+export interface CardItem {
     media_id: string,
     title: string,
     summary?: string,
     thumb?: string,
-    year?: number,
+    year?: number | null,
     media_type?: string,
-    rating?: number,
-    duration?: string,
-    season_count?: number | undefined
+    rating?: number | null,
+    duration?: string | null,
+    season_count?: number | null
 }
 
-export type CardDeck = Card[]
+export type CardDeck = CardItem[]

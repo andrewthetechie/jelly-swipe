@@ -9,7 +9,7 @@
 //     the request is POST /room with body {movies, tv_shows, solo} built from
 //     the context values at render time; success calls setCurrentRoomCode with
 //     the returned pairing_code; one failure path leaves it uncalled.
-//   • roomOptions is computed from context at render, so to test a specific body
+//   • createRoomRequest is computed from context at render, so to test a specific body
 //     we preset the context via renderWithRoom overrides.
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

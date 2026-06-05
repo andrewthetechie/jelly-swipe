@@ -651,7 +651,7 @@ div.genres:hover {
   height: 650px;
 }
 
-.movie-card-container {
+.card-item-container {
   perspective: 1200px;
   width: 100%;
   height: 100%;
@@ -685,7 +685,7 @@ div.genres:hover {
   background: linear-gradient(to left, rgba(76, 175, 80, 0.8), transparent); 
 }
 
-.movie-card-inner {
+.card-item-inner {
   position: relative;
   width: 100%;
   height: 100%;
@@ -693,7 +693,7 @@ div.genres:hover {
   transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-div.movie-card {
+div.card-item {
   position: absolute;
   box-sizing: border-box;
   inset: 0;
@@ -712,7 +712,7 @@ div.movie-card {
 
 
 
-.movie-card-container.flipped .movie-card-inner {
+.card-item-container.flipped .card-item-inner {
   transform: rotateY(180deg);
 }
 
@@ -726,7 +726,7 @@ div.back  {
   padding: 1.5rem;
 }
 
-img.movie-poster {
+img.card-item-poster {
   max-width: 100%;
   height: auto;
   display: block;
@@ -754,7 +754,7 @@ div.back {
   gap: .5rem;
 }
 
-h2.movie-title {
+h2.card-item-title {
   font-size: 2.5rem;
   margin-bottom: 0;
   color: #35D6FF;
@@ -765,15 +765,15 @@ h2.movie-title {
     1px 1px 2px #0A1F3D;
 }
 
-div.movie-info {
+div.card-item-info {
   display: flex;
   gap: .5rem;
   margin-bottom: 0.5rem;
 }
 
-div.movie-score,
-div.movie-runtime,
-div.movie-year {
+div.card-item-score,
+div.card-item-runtime,
+div.card-item-year {
   background: #071426AA;
   color: #35D6FF;
   border-radius: 10px;
@@ -812,14 +812,14 @@ button.watch-trailer {
   width: 100%;
 }
 
-p.movie-description {
+p.card-item-description {
   font-size: 1rem;
   font-weight: 300;
   font-style: italic;
   margin: 0;
 }
 
-div.movie-cast {
+div.card-item-cast {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -890,7 +890,7 @@ button.watch-trailer:active {
   filter: brightness(0.97);
 }
 
-p.movie-instructions {
+p.card-item-instructions {
   text-shadow: 
     -1px -1px 2px #0A1F3D,
     1px -1px 2px #0A1F3D,
@@ -963,7 +963,7 @@ button.shortlist {
     height: 700px;
   }
 
-  .movie-card-container {
+  .card-item-container {
     height: 700px;
   }
 
