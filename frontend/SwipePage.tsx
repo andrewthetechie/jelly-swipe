@@ -6,8 +6,6 @@ import type { JSX } from "react"
 import type { Card } from './types'
 import type { CardDeck } from './types'
 
-// it is time to figure out SSE
-
 
 export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
@@ -29,11 +27,14 @@ export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.E
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
             })
-            if (res.ok) {
-                const data: { pairing_code: string } = await res.json()
-                console.log("Session ended", data)
-                setCurrentRoomCode(null)
+            if (!res.ok) {
+                throw new Error(`Error quitting room: ${res.status} ${res.statusText}`)
             }
+            
+            const data: { pairing_code: string } = await res.json()
+            console.log("Session ended", data)
+            setCurrentRoomCode(null)
+            
         } catch (err) {
             console.error("Error quitting room:", err)
         }

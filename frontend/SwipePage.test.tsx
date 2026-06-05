@@ -82,6 +82,26 @@ describe("SwipePage — glow opacity", () => {
     expect(left.style.opacity).toBe("0");
   });
 
+  it("clamps left-glow opacity to 1 once dragged well past the threshold", () => {
+    const { container } = renderWithRoom(<SwipePage cardDeck={makeDeck(2)} />, {
+      currentRoomCode: "1234",
+    });
+    // The top card is the LAST rendered container (isTopCard === true), and is
+    // the only one with pointer handlers attached.
+    const cards = container.querySelectorAll(".movie-card-container");
+    const topCard = cards[cards.length - 1];
+
+    // Simulate a leftward drag of 250px: start at 0, move to -250.
+    // leftOpacity = min(|250|/200, 1) = 1.
+    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerMove(topCard, { clientX: -250, pointerId: 1 });
+
+    const right = container.querySelector(".glow-right") as HTMLElement;
+    const left = container.querySelector(".glow-left") as HTMLElement;
+    expect(left.style.opacity).toBe("1");
+    expect(right.style.opacity).toBe("0");
+  });
+
   it("keeps glow at 0 at the exact threshold boundary (dragX === 20)", () => {
     const { container } = renderWithRoom(<SwipePage cardDeck={makeDeck(2)} />, {
       currentRoomCode: "1234",
@@ -116,6 +136,19 @@ describe("SwipePage — end session (3-part network contract)", () => {
     // 2. The success effect: setCurrentRoomCode(null).
     await waitFor(() => expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith(null));
   });
+
+  it("leaves the room code untouched when quit responds non-ok", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const spy = mockFetch({ ok: false })
+    const { ctx } = renderWithRoom(<SwipePage cardDeck={makeDeck(2)} />, { currentRoomCode: "1234" })
+
+    fireEvent.click(screen.getByText("End Session"))
+
+    await waitFor(() => expect(spy).toHaveBeenCalled())
+    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+
+    errSpy.mockRestore()    
+  })
 
   it("leaves the room code untouched and does not throw when the request fails", async () => {
     // Silence the expected console.error so the failure path stays quiet.
