@@ -112,6 +112,45 @@ describe("MovieCard — flip toggle (non-drag click)", () => {
   });
 });
 
+// Eventually, the Watch Trailer button should also open the trailer div and display the video
+// For now, this test just asserts that clicking the button doesn't flip the card 
+
+describe("MovieCard - clicking Watch Trailer does not flip the card", () => {
+  it("does not toggle the 'flipped' class when the trailer button is clicked", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".movie-card-container") as HTMLElement
+    const trailerButton = screen.getByRole("button", { name: /watch trailer/i })
+
+    // Starts un-flipped.
+    expect(card).not.toHaveClass("flipped")
+
+    // Click the card to flip it.
+    fireEvent.click(card)
+    expect(card).toHaveClass("flipped")
+
+    // Click the trailer button.
+    fireEvent.click(trailerButton)
+
+    // The card should not flipped.
+    expect(card).toHaveClass("flipped")
+  })
+})
+
+describe("MovieCard — rating === 0", () => {
+  it("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
+    const { container } = renderCard({ rating: 0 });
+    expect(screen.getByText("IMDb 0.00")).toBeInTheDocument();
+
+    const directText = Array.from(
+      container.querySelector(".movie-info")?.childNodes ?? [],
+    )
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim())
+      .filter(Boolean);
+    expect(directText).not.toContain("0");
+  });
+});
+
 // --- Documented gaps: do NOT rewrite the source to make these testable -------
 
 describe("MovieCard — pointer drag (documented, hard to test)", () => {
@@ -140,17 +179,4 @@ describe("MovieCard — pointer drag (documented, hard to test)", () => {
 // comment). This todo marks the spot test-first for whoever builds it.
 it.todo("swiping right should POST to /room/{code}/swipe");
 
-describe("MovieCard — rating === 0", () => {
-  it("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
-    const { container } = renderCard({ rating: 0 });
-    expect(screen.getByText("IMDb 0.00")).toBeInTheDocument();
 
-    const directText = Array.from(
-      container.querySelector(".movie-info")?.childNodes ?? [],
-    )
-      .filter((n) => n.nodeType === Node.TEXT_NODE)
-      .map((n) => n.textContent?.trim())
-      .filter(Boolean);
-    expect(directText).not.toContain("0");
-  });
-});
