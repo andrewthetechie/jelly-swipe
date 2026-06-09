@@ -19,3 +19,23 @@ export async function apiFetch(path, options = {}) {
 
   return fetch(apiUrl(path), options);
 }
+
+export async function postJson(path, body, options = {}) {
+  options = { ...options };
+  options.credentials = import.meta.env.DEV ? 'include' : 'same-origin';
+
+  if (options.headers == null) {
+    options.headers = {};
+  }
+
+  options.headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  return fetch(apiUrl(path), {
+    method: 'POST',
+    body: JSON.stringify(body),
+    ...options,
+  });
+}

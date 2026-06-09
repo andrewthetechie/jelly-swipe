@@ -11,3 +11,18 @@ export interface CardItem {
 }
 
 export type CardDeck = CardItem[]
+
+export interface SessionBootstrapResponse {
+    event_type: string,
+    instance_id: string
+    ready: boolean,
+    genre: string,
+    solo: boolean,
+    hide_watched: boolean,
+    replay_boundary: number
+}
+
+export interface SwipeRequest {
+    media_id: string,
+    direction: string | null
+}

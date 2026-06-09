@@ -1,15 +1,39 @@
 import React from "react"
 import CardItemView from "./CardItemView"
 import { useRoomContext } from "./RoomContextProvider"
-import { apiFetch } from "./api"
+import { useSSEContext } from "./SSEContextProvider"
+import { apiFetch, apiUrl } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import type { CardDeck } from './types'
+import type { SessionBootstrapResponse } from './types'
 
 
-export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.Element {
+interface SwipePageProps {
+    cardDeck: CardDeck
+    refreshCardDeck?: () => Promise<void>
+}
+
+export default function SwipePage({ cardDeck, refreshCardDeck }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
+    const [genre, setGenre] = React.useState<string>("All")
+    const [hideWatched, setHideWatched] = React.useState<boolean>(false)
     const { currentRoomCode, setCurrentRoomCode } = useRoomContext()
+    const { sseData, sseError, isConnected } = useSSEContext()
+
+    React.useEffect(() => {
+        if (sseData && typeof sseData === "object" && sseData !== null) {
+            console.log("Received SSE data:", sseData)
+            if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
+                const bootstrapData = sseData as SessionBootstrapResponse
+                console.log("Session bootstrap data:", bootstrapData)
+            }
+        }
+
+        if (sseError) {
+            console.error("SSE error:", sseError)
+        }
+    }, [sseData, sseError])
 
     const rightOpacity: number = 
         dragX > 20
@@ -57,11 +81,10 @@ export default function SwipePage( { cardDeck }: { cardDeck: CardDeck } ): JSX.E
                             isTopCard={index === visibleCards.length - 1}
                             setDragX={setDragX}
                             zIndex={index}
+                            onSwipeSuccess={refreshCardDeck}
                         />
                     ))}
                 </div>
-                
-                
 
                 <button className="undo-button">Undo</button>
                 <p className="card-item-instructions">Tap poster for full details</p>

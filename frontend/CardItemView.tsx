@@ -3,8 +3,11 @@ import { actorElements } from "./assets/test-info"
 import moanaPoster from "./assets/moana-poster.jpg"
 import sadLogo from "./assets/sad.png"
 import { apiUrl } from "./api"
+import { useRoomContext } from "./RoomContextProvider"
+import { useApi } from "./useApi"
 import type { JSX } from "react"
 import type { CardItem } from './types'
+import type { SwipeRequest } from './types'
 
 type Position = {
     x: number,
@@ -23,9 +26,10 @@ interface CardItemViewProps {
     setDragX: React.Dispatch<React.SetStateAction<number>>,
     isTopCard: boolean,
     zIndex: number
+    onSwipeSuccess?: () => void
 }
 
-export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex }: CardItemViewProps): JSX.Element {
+export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, onSwipeSuccess }: CardItemViewProps): JSX.Element {
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
@@ -33,6 +37,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex }: 
     const hasDragged = React.useRef<boolean>(false)
     const startX = React.useRef<number>(0)
     const currentX = React.useRef<number>(0)
+    const { currentRoomCode } = useRoomContext()
 
     const { duration, media_id: mediaId, media_type: mediaType, rating, season_count = null, summary, thumb, title, year }: CardItem = cardItem
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
@@ -65,7 +70,9 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex }: 
         })
      }
 
-     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const { post: doPost } = useApi()
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
         isDragging.current = false
         e.currentTarget.releasePointerCapture(e.pointerId)
         setDragX(0)
@@ -79,8 +86,22 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex }: 
                 y: 0,
                 rotation: currentX.current / 5
             })
+            const swipeData: SwipeRequest = {
+                media_id: mediaId,
+                direction: direction === 1 ? "right" : "left"
+            }
 
-            // remove card after animation, trigger next card, API call
+            if (!currentRoomCode) {
+                console.error("Cannot send swipe without currentRoomCode")
+            } else {
+                void doPost(`/room/${currentRoomCode}/swipe`, swipeData)
+                    .then((result) => {
+                        if (result) {
+                            onSwipeSuccess?.()
+                        }
+                    })
+            }
+
         } else {
             setPosition(DEFAULT_POSITION)
         }
