@@ -13,6 +13,8 @@ type RoomStatusResponse = {
     hide_watched?: boolean | null
 }
 
+// joint session needs loading page until ready status is true, solo session can go straight to swipe page
+
 export default function Main(): JSX.Element {
     const { currentRoomCode } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
