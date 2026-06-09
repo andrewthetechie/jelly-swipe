@@ -42,3 +42,4 @@ export function mockFetch(options: MockFetchOptions = {}): MockInstance {
 
   return spy;
 }
+
