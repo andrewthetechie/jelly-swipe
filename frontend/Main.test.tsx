@@ -15,12 +15,16 @@
 //     test so no test touches the real network, and focus assertions on the
 //     code-set path. checkSessionStatus is commented out in the source and is
 //     intentionally untested.
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, fireEvent } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import Main from "./Main"
+import SwipePage from "./SwipePage"
 import { renderWithRoom } from "./test/renderWithRoom"
 import { SSEContextProvider } from "./SSEContextProvider"
 import { mockFetch } from "./test/mockFetch"
-import { makeDeck } from "./test/fixtures"
+import { makeDeck, makeCard } from "./test/fixtures"
+import { type CardDeck } from "./types"
+
 
 describe("Main — screen switching", () => {
   it("renders Intro (not SwipePage) when there is no room code", async () => {
@@ -104,3 +108,82 @@ describe("Main — deck fetch (3-part network contract)", () => {
     errSpy.mockRestore()
   })
 })
+
+describe("Main - SSE and CardDeck integration", () => {
+  it("refreshes the deck after a successful swipe", async () => {
+    const firstDeck = makeDeck(1)
+
+    const secondDeck = [
+      makeCard({
+        media_id: "999",
+        title: "New Top Card",
+      }),
+    ]
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+    // Initial GET /room/1234/deck
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => firstDeck,
+    } as Response)
+
+    // POST /room/1234/swipe
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success:true }),
+    } as Response)
+
+    // Refresh GET /room/1234/deck
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => secondDeck,
+    } as Response)
+
+    renderWithRoom(
+      <SSEContextProvider>
+        <Main />
+      </SSEContextProvider>,
+      { currentRoomCode: "1234" }
+    )
+
+    // Initial card is rendered
+    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+    const card = document.querySelector(".card-item-container") as HTMLElement
+
+    expect(card).toBeTruthy()
+
+    // Swipe right beyond threshold (120px)
+    fireEvent.pointerDown(card, {
+      pointerId: 1,
+      clientX: 0,
+    })
+
+    fireEvent.pointerMove(card, {
+      pointerId: 1,
+      clientX: 150,
+    })
+
+    fireEvent.pointerUp(card, {
+      pointerId: 1,
+      clientX: 150,
+    })
+
+    // Verify the refreshed deck appears
+    await waitFor(() => {
+      expect(screen.getByAltText("New Top Card")).toBeInTheDocument()
+    })
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+
+    const firstUrl = fetchSpy.mock.calls[0][0] as URL
+    const secondUrl = fetchSpy.mock.calls[1][0] as URL
+    const thirdUrl = fetchSpy.mock.calls[2][0] as URL
+
+    expect(firstUrl.href).toMatch(/\/room\/1234\/deck$/)
+    expect(secondUrl.href).toMatch(/\/room\/1234\/swipe$/)
+    expect(thirdUrl.href).toMatch(/\/room\/1234\/deck$/)
+  })
+})
+
