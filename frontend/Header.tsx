@@ -4,10 +4,10 @@ import { useRoomContext } from "./RoomContextProvider"
 import type { JSX } from "react"
 
 export default function Header(): JSX.Element {
-    const { currentRoomCode } = useRoomContext()
+    const { roomReady } = useRoomContext()
     return (
         <header className="app-header">
-            {!currentRoomCode && <img src={nameLogo} alt="Jelly-Swipe logo" className="app-logo" />}
+            {!roomReady && <img src={nameLogo} alt="Jelly-Swipe logo" className="app-logo" />}
         </header>
-    );
+    )
 }

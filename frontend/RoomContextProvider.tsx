@@ -3,6 +3,8 @@ import React from "react"
 export interface RoomContextType {
     currentRoomCode: string | null
     setCurrentRoomCode: React.Dispatch<React.SetStateAction<string | null>>
+    roomReady: boolean
+    setRoomReady: React.Dispatch<React.SetStateAction<boolean>>
     movies: boolean
     setMovies: React.Dispatch<React.SetStateAction<boolean>>
     tvShows: boolean
@@ -21,6 +23,7 @@ interface RoomProviderProps {
 
 export function RoomContextProvider({ children }: RoomProviderProps) {
     const [currentRoomCode, setCurrentRoomCode] = React.useState<string | null>(null)
+    const [roomReady, setRoomReady] = React.useState<boolean>(false)
     const [movies, setMovies] = React.useState<boolean>(true)
     const [tvShows, setTvShows] = React.useState<boolean>(false)
     const [isSoloMode, setIsSoloMode] = React.useState<boolean>(false)
@@ -31,6 +34,8 @@ export function RoomContextProvider({ children }: RoomProviderProps) {
             value={{
                 currentRoomCode,
                 setCurrentRoomCode,
+                roomReady,
+                setRoomReady,
                 movies,
                 setMovies,
                 tvShows,

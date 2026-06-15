@@ -579,7 +579,66 @@ img {
 }
 
 
+.host-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
 
+.host-waiting h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0;
+}
+
+.host-waiting p {
+  font-size: 1.6rem;
+}
+
+@keyframes jello-vertical-normal {
+  0% { 
+    transform: scale3d(1, 1, 1); 
+  } 
+  15% { 
+    transform: scale3d(0.75, 1.25, 1); 
+  } 
+  20% { 
+    transform: scale3d(1.25, 0.75, 1); 
+  } 
+  25% { 
+    transform: scale3d(0.85, 1.15, 1); 
+  } 
+  33% { 
+    transform: scale3d(1.05, 0.95, 1); 
+  } 
+  38% { 
+    transform: scale3d(0.95, 1.05, 1); 
+  } 
+  50% { 
+    transform: scale3d(1, 1, 1);
+  } 
+  100% { 
+    transform: scale3d(1, 1, 1);
+  } 
+}
+
+.waiting-text {
+  animation: jello-vertical-normal 3s ease-in 1s infinite normal none;
+}
+
+.waiting-logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5%;
+  margin-bottom: 10px;
+  padding: 25px 0;
+}
+
+.waiting-logo-container img {
+  width: 40%;
+}
 
 .swipe-header {
   display: flex;
