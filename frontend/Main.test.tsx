@@ -30,7 +30,12 @@ describe("Main — screen switching", () => {
   it("renders Intro (not SwipePage) when there is no room code", async () => {
     // Mock fetch so the mount-time effect (fetching /room/null/deck) is inert.
     mockFetch({ ok: true, body: [] })
-    renderWithRoom(<Main />, { currentRoomCode: null })
+    renderWithRoom(
+      <SSEContextProvider>
+        <Main />
+      </SSEContextProvider>, 
+      { currentRoomCode: null }
+    )
 
     // Use findBy… (async) rather than getBy… so the mount effect's eventual
     // setCardDeck([]) flushes inside React's act() — otherwise React logs a
@@ -51,7 +56,7 @@ describe("Main — deck fetch (3-part network contract)", () => {
       <SSEContextProvider>
         <Main />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
 
     // SwipePage is the active screen once a code is set.
@@ -144,7 +149,7 @@ describe("Main - SSE and CardDeck integration", () => {
       <SSEContextProvider>
         <Main />
       </SSEContextProvider>,
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
 
     // Initial card is rendered

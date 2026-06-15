@@ -22,13 +22,49 @@ import { mockFetch } from "./test/mockFetch"
 import { makeDeck } from "./test/fixtures"
 import { SSEContextProvider } from "./SSEContextProvider"
 
+describe("SwipePage - HostWaiting rendering logic", () => {
+  it("renders only HostWaiting when roomReady is false", async () => {
+    mockFetch({ ok: true, body: [] })
+    renderWithRoom(
+      <SSEContextProvider>
+        <SwipePage cardDeck={makeDeck(2)} />
+      </SSEContextProvider>,
+      { currentRoomCode: "1234", roomReady: false }
+    )
+
+    expect(
+      screen.queryByText("Waiting for partner...")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /show watched/i })
+    ).not.toBeInTheDocument
+  })
+
+  it("does not render HostWaiting and renders the rest of SwipePage when roomReady is true", async () => {
+    mockFetch({ ok: true, body: [] })
+    renderWithRoom(
+      <SSEContextProvider>
+        <SwipePage cardDeck={makeDeck(2)} />
+      </SSEContextProvider>,
+      { currentRoomCode: "1234", roomReady: true }
+    )
+
+    expect(
+      screen.queryByRole("button", { name: /show watched/i })
+    ).toBeInTheDocument
+    expect(
+      screen.queryByText("Waiting for partner...")
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe("SwipePage — card-stack slicing", () => {
   it("renders at most 5 cards (visibleCards = deck.slice(0,5)) in reverse order", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(7)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
     const cards = container.querySelectorAll(".card-item-container")
     // 7 in the deck, but only the first 5 are visible.
@@ -52,7 +88,7 @@ describe("SwipePage — card-stack slicing", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(3)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
     expect(container.querySelectorAll(".card-item-container")).toHaveLength(3)
   })
@@ -64,7 +100,7 @@ describe("SwipePage — glow opacity", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
     const left = container.querySelector(".glow-left") as HTMLElement
     const right = container.querySelector(".glow-right") as HTMLElement
@@ -77,7 +113,7 @@ describe("SwipePage — glow opacity", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
     // The top card is the LAST rendered container (isTopCard === true), and is
     // the only one with pointer handlers attached.
@@ -100,7 +136,7 @@ describe("SwipePage — glow opacity", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
     // The top card is the LAST rendered container (isTopCard === true), and is
     // the only one with pointer handlers attached.
@@ -123,7 +159,7 @@ describe("SwipePage — glow opacity", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
     const cards = container.querySelectorAll(".card-item-container")
     const topCard = cards[cards.length - 1]
@@ -144,7 +180,7 @@ describe("SwipePage — end session (3-part network contract)", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
 
     fireEvent.click(screen.getByText("End Session"))
@@ -166,7 +202,7 @@ describe("SwipePage — end session (3-part network contract)", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
 
     fireEvent.click(screen.getByText("End Session"))
@@ -185,7 +221,7 @@ describe("SwipePage — end session (3-part network contract)", () => {
       <SSEContextProvider>
         <SwipePage cardDeck={makeDeck(2)} />
       </SSEContextProvider>, 
-      { currentRoomCode: "1234" }
+      { currentRoomCode: "1234", roomReady: true }
     )
 
     fireEvent.click(screen.getByText("End Session"))

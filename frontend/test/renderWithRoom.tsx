@@ -25,6 +25,8 @@ function makeDefaultCtx(): RoomContextType {
   return {
     currentRoomCode: null,
     setCurrentRoomCode: vi.fn(),
+    roomReady: false,
+    setRoomReady: vi.fn(),
     movies: true,
     setMovies: vi.fn(),
     tvShows: false,
