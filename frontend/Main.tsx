@@ -15,30 +15,31 @@ type RoomStatusResponse = {
     hide_watched?: boolean | null
 }
 
-// joint session need to handle what happens when end_session is initiated by partner
-
 export default function Main(): JSX.Element {
-    const { currentRoomCode, setRoomReady } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, setRoomReady } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
     const { sseData, sseError, isConnected } = useSSEContext()
 
-    React.useEffect(() => {
-            if (sseData && typeof sseData === "object" && sseData !== null) {
-                console.log("Received SSE data:", sseData)
-                if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
-                    const bootstrapData = sseData as SessionBootstrapResponse
-                    console.log("Session bootstrap data:", bootstrapData)
-                    setRoomReady(bootstrapData.ready)
-                }
-                if ("event_type" in sseData && sseData.event_type === "session_ready") {
-                    setRoomReady(true)
-                }
+    React.useEffect(() => {    
+        if (sseData && typeof sseData === "object" && sseData !== null) {
+            if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
+                const bootstrapData = sseData as SessionBootstrapResponse
+                console.log("Session bootstrap data:", bootstrapData)
+                setRoomReady(bootstrapData.ready)
             }
-    
-            if (sseError) {
-                console.error("SSE error:", sseError)
+            if ("event_type" in sseData && sseData.event_type === "session_ready") {
+                setRoomReady(true)
             }
-        }, [sseData, sseError])
+            if("event_type" in sseData && sseData.event_type === "session_closed") {
+                setRoomReady(false)
+                setCurrentRoomCode(null)
+            }
+        }
+
+        if (sseError) {
+            console.error("SSE error:", sseError)
+        }
+    }, [sseData, sseError])
 
     const getCardDeck = React.useCallback(async () => {
         if (!currentRoomCode) {

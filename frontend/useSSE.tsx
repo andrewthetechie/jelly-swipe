@@ -18,6 +18,7 @@ export const useSSE = (url: string | null) => {
             // Close existing connection if present
             if (eventSourceRef.current) {
                 eventSourceRef.current.close()
+                eventSourceRef.current = null
             }
 
             // Create new EventSource object with credentials for authentication
@@ -74,6 +75,8 @@ export const useSSE = (url: string | null) => {
         if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current)
         }
+        setError(null)
+        setData({})
         setIsConnected(false)
     }, [])
 
