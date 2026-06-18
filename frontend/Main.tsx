@@ -8,12 +8,6 @@ import type { JSX } from "react"
 import type { CardDeck } from "./types"
 import type { SessionBootstrapResponse } from './types'
 
-type RoomStatusResponse = {
-    ready: boolean
-    genre?: string | null
-    solo?: boolean | null
-    hide_watched?: boolean | null
-}
 
 export default function Main(): JSX.Element {
     const { currentRoomCode, setCurrentRoomCode, setRoomReady } = useRoomContext()
@@ -22,6 +16,7 @@ export default function Main(): JSX.Element {
 
     React.useEffect(() => {    
         if (sseData && typeof sseData === "object" && sseData !== null) {
+            console.log("SSE data received:", sseData)
             if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
                 const bootstrapData = sseData as SessionBootstrapResponse
                 console.log("Session bootstrap data:", bootstrapData)

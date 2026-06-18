@@ -31,7 +31,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
     act(() => {
       mockEventSource.simulateMessage({ data: JSON.stringify({ message: "Hello, SSE!" }) })
     })
-    expect(result.current.data).toEqual({ message: "Hello, SSE!" })
+    expect(result.current.lastMessage).toEqual({ message: "Hello, SSE!" })
 
     // Simulate receiving an invalid SSE message
     act(() => {
@@ -100,7 +100,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
     act(() => {
       mockEventSource.simulateMessage({ data: JSON.stringify({ message: "Hello, SSE!" }) })
     })
-    expect(result.current.data).toEqual({ message: "Hello, SSE!" })
+    expect(result.current.lastMessage).toEqual({ message: "Hello, SSE!" })
 
     act(() => {
       mockEventSource.simulateMessage({ data: "Invalid JSON" })
