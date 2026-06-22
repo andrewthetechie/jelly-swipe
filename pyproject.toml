@@ -33,7 +33,7 @@ addopts = "-v --tb=short --cov=jellyswipe -n=auto --cov-report=term-missing --ti
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "pytest>=9.0.0",
+    "pytest>=9.1.1",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
     "pytest-xdist>=3.8.0",
