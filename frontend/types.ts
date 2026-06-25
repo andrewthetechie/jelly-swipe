@@ -19,6 +19,11 @@ export interface RoomStatusResponse {
     hide_watched?: boolean | null
 }
 
+export interface SwipeRequest {
+    media_id: string,
+    direction: string | null
+}
+
 interface BaseSSEEvent {
     event_type: string
 }
@@ -37,10 +42,6 @@ export interface SessionBootstrapResponse extends BaseSSEEvent {
     replay_boundary: number
 }
 
-export interface SwipeRequest extends LedgerEvent {
-    media_id: string,
-    direction: string | null
-}
 
 export interface SessionReadyEvent extends LedgerEvent {
     event_type: "session_ready"
