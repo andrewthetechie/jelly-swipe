@@ -5,6 +5,7 @@ import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch } from "./api"
 import type { JSX } from "react"
+import type { CardItem } from "./types"
 import type { CardDeck } from "./types"
 import type { SessionBootstrapResponse } from './types'
 
@@ -58,9 +59,38 @@ export default function Main(): JSX.Element {
         }
     }, [currentRoomCode])
 
-    const removeTopCard = React.useCallback(() => {
+    const advanceDeck = React.useCallback(() => {
         setCardDeck(prev => prev.slice(1))
     }, [])
+
+    const handleSwipe = React.useCallback(async (
+        cardItem: CardItem,
+        direction: "left" | "right") => {
+
+        if (!currentRoomCode) {
+            console.error("Cannot send swipe without currentRoomCode")
+            return
+        }
+
+        try {
+            const res  = await apiFetch(`/room/${currentRoomCode}/swipe`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    media_id: cardItem.media_id,
+                    direction,
+                }),
+            })
+            if (!res.ok) {
+                throw new Error(`Error POSTing swipe: ${res.status} ${res.statusText}`)
+            }
+
+            advanceDeck()
+        } catch (err) {
+            console.error("Error POSTing swipe", err)
+        }
+
+    }, [currentRoomCode, advanceDeck])
 
     React.useEffect(() => {
         getCardDeck()
@@ -69,7 +99,7 @@ export default function Main(): JSX.Element {
     return (
         <main>
             {!currentRoomCode && <Intro />}
-            {currentRoomCode && <SwipePage cardDeck={cardDeck} removeTopCard={removeTopCard} />}
+            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} />}
         </main>
     )
 }

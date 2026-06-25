@@ -3,11 +3,8 @@ import { actorElements } from "./assets/test-info"
 import moanaPoster from "./assets/moana-poster.jpg"
 import sadLogo from "./assets/sad.png"
 import { apiUrl } from "./api"
-import { useRoomContext } from "./RoomContextProvider"
-import { useApi } from "./useApi"
 import type { JSX } from "react"
 import type { CardItem } from './types'
-import type { SwipeRequest } from './types'
 
 type Position = {
     x: number,
@@ -40,7 +37,6 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     const hasDragged = React.useRef<boolean>(false)
     const startX = React.useRef<number>(0)
     const currentX = React.useRef<number>(0)
-    const { currentRoomCode } = useRoomContext()
 
     const { duration, media_id: mediaId, media_type: mediaType, rating, season_count = null, summary, thumb, title, year }: CardItem = cardItem
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
@@ -73,7 +69,6 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
         })
      }
 
-    const { post: doPost } = useApi()
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
         isDragging.current = false
@@ -89,25 +84,11 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                 y: 0,
                 rotation: currentX.current / 5
             })
-            const swipeData: SwipeRequest = {
-                media_id: mediaId,
-                direction: direction === 1 ? "right" : "left"
-            }
 
-            if (!currentRoomCode) {
-                console.error("Cannot send swipe without currentRoomCode")
-            } else {
-                void doPost(`/room/${currentRoomCode}/swipe`, swipeData)
-                    .then((result) => {
-                        if (result) {
-                            onSwipe?.(
-                                cardItem,
-                                direction === 1 ? "right" : "left"
-                            )
-                        }
-                    })
-            }
-
+            void onSwipe?.(
+                cardItem,
+                direction === 1 ? "right" : "left"
+            )
         } else {
             setPosition(DEFAULT_POSITION)
         }

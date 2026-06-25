@@ -12,10 +12,13 @@ import type { SessionBootstrapResponse } from './types'
 
 interface SwipePageProps {
     cardDeck: CardDeck
-    removeTopCard?: () => void
+    onSwipe?: (
+        cardItem: CardItem,
+        direction: "left" | "right"
+    ) => Promise<void>
 }
 
-export default function SwipePage({ cardDeck, removeTopCard }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
@@ -83,7 +86,7 @@ export default function SwipePage({ cardDeck, removeTopCard }: SwipePageProps): 
                                 isTopCard={index === visibleCards.length - 1}
                                 setDragX={setDragX}
                                 zIndex={index}
-                                onSwipe={(cardItem, direction) => {removeTopCard?.()}}
+                                onSwipe={onSwipe}
                             />
                         ))}
                     </div>
