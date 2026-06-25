@@ -58,6 +58,10 @@ export default function Main(): JSX.Element {
         }
     }, [currentRoomCode])
 
+    const removeTopCard = React.useCallback(() => {
+        setCardDeck(prev => prev.slice(1))
+    }, [])
+
     React.useEffect(() => {
         getCardDeck()
     }, [getCardDeck])
@@ -65,7 +69,7 @@ export default function Main(): JSX.Element {
     return (
         <main>
             {!currentRoomCode && <Intro />}
-            {currentRoomCode && <SwipePage cardDeck={cardDeck} refreshCardDeck={getCardDeck} />}
+            {currentRoomCode && <SwipePage cardDeck={cardDeck} removeTopCard={removeTopCard} />}
         </main>
     )
 }

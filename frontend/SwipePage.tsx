@@ -12,10 +12,10 @@ import type { SessionBootstrapResponse } from './types'
 
 interface SwipePageProps {
     cardDeck: CardDeck
-    refreshCardDeck?: () => Promise<void>
+    removeTopCard?: () => void
 }
 
-export default function SwipePage({ cardDeck, refreshCardDeck }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, removeTopCard }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
@@ -83,7 +83,7 @@ export default function SwipePage({ cardDeck, refreshCardDeck }: SwipePageProps)
                                 isTopCard={index === visibleCards.length - 1}
                                 setDragX={setDragX}
                                 zIndex={index}
-                                onSwipeSuccess={refreshCardDeck}
+                                onSwipeSuccess={removeTopCard}
                             />
                         ))}
                     </div>
