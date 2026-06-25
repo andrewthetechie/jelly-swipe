@@ -83,7 +83,7 @@ export default function SwipePage({ cardDeck, removeTopCard }: SwipePageProps): 
                                 isTopCard={index === visibleCards.length - 1}
                                 setDragX={setDragX}
                                 zIndex={index}
-                                onSwipeSuccess={removeTopCard}
+                                onSwipe={(cardItem, direction) => {removeTopCard?.()}}
                             />
                         ))}
                     </div>

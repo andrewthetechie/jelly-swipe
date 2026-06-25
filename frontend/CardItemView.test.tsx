@@ -169,7 +169,7 @@ describe("CardItem - swipe behavior", () => {
         setDragX={vi.fn()}
         isTopCard={true}
         zIndex={0}
-        onSwipeSuccess={refreshCardDeckSpy}
+        onSwipe={refreshCardDeckSpy}
       />,
       { currentRoomCode: "1234" }
     )
@@ -208,7 +208,7 @@ describe("CardItem - swipe behavior", () => {
         setDragX={vi.fn()}
         isTopCard={true}
         zIndex={0}
-        onSwipeSuccess={refreshCardDeckSpy}
+        onSwipe={refreshCardDeckSpy}
       />,
       { currentRoomCode: "1234" }
     )

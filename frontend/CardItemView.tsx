@@ -26,10 +26,13 @@ interface CardItemViewProps {
     setDragX: React.Dispatch<React.SetStateAction<number>>,
     isTopCard: boolean,
     zIndex: number
-    onSwipeSuccess?: () => void
+    onSwipe?: (
+        cardItem: CardItem,
+        direction: "left" | "right"
+    ) => void
 }
 
-export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, onSwipeSuccess }: CardItemViewProps): JSX.Element {
+export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, onSwipe }: CardItemViewProps): JSX.Element {
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
@@ -97,7 +100,10 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                 void doPost(`/room/${currentRoomCode}/swipe`, swipeData)
                     .then((result) => {
                         if (result) {
-                            onSwipeSuccess?.()
+                            onSwipe?.(
+                                cardItem,
+                                direction === 1 ? "right" : "left"
+                            )
                         }
                     })
             }
