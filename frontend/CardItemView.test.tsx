@@ -29,6 +29,7 @@ function renderCard(cardOverrides = {}) {
       setDragX={vi.fn()}
       isTopCard={true}
       zIndex={0}
+      onSwipe={vi.fn()}
     />,
   );
 }
@@ -153,138 +154,77 @@ describe("CardItem — rating === 0", () => {
 })
 
 describe("CardItem - swipe behavior", () => {
-  it("calls doPost with the correct URL and data when a right swipe is successful", async () => {
-    const postSpy = vi.fn().mockResolvedValue({ success: true })
-    vi.spyOn(useApiModule, "useApi").mockReturnValue({
-      data: null,
-      error: null,
-      isLoading: false,
-      post: postSpy,
-    })
-
-    const refreshCardDeckSpy = vi.fn().mockResolvedValue(undefined)
-    const { container } = renderWithRoom(
-      <CardItemView
-        cardItem={makeCard()}
-        setDragX={vi.fn()}
-        isTopCard={true}
-        zIndex={0}
-        onSwipe={refreshCardDeckSpy}
-      />,
-      { currentRoomCode: "1234" }
-    )
-
-    // Simulate a rightward swipe by directly calling the pointer up handler with a position past the threshold.
-    const topCard = container.querySelector(".card-item-container") as HTMLElement;
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: 250, pointerId: 1 }) // dragX > 20 to trigger right swipe
-    fireEvent.pointerUp(topCard, { clientX: 250, pointerId: 1 })
-
-    await waitFor(() => expect(postSpy).toHaveBeenCalled())
-    expect(postSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/\/room\/\w+\/swipe$/),
-      expect.objectContaining({
-        media_id: expect.anything(),
-        direction: "right",
-      })
-    )
-
-    await waitFor(() => expect(refreshCardDeckSpy).toHaveBeenCalled())
-  })
-
-  it("calls doPost with the correct URL and data when a left swipe is successful", async () => {
-    const postSpy = vi.fn().mockResolvedValue({ success: true })
-    vi.spyOn(useApiModule, "useApi").mockReturnValue({
-      data: null,
-      error: null,
-      isLoading: false,
-      post: postSpy,
-    })
-
-    const refreshCardDeckSpy = vi.fn().mockResolvedValue(undefined)
-    const { container } = renderWithRoom(
-      <CardItemView
-        cardItem={makeCard()}
-        setDragX={vi.fn()}
-        isTopCard={true}
-        zIndex={0}
-        onSwipe={refreshCardDeckSpy}
-      />,
-      { currentRoomCode: "1234" }
-    )
-
-    // Simulate a leftward swipe by directly calling the pointer up handler with a position past the threshold.
-    const topCard = container.querySelector(".card-item-container") as HTMLElement
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: -250, pointerId: 1 }) // dragX > 20 to trigger left swipe
-    fireEvent.pointerUp(topCard, { clientX: -250, pointerId: 1 })
-
-    await waitFor(() => expect(postSpy).toHaveBeenCalled())
-    expect(postSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/\/room\/\w+\/swipe$/),
-      expect.objectContaining({
-        media_id: expect.anything(),
-        direction: "left",
-      })
-    )
-
-    await waitFor(() => expect(refreshCardDeckSpy).toHaveBeenCalled())
-  })
-
-  it("does not call doPost when the swipe does not pass the threshold", async () => {
-    const postSpy = vi.fn()
-    vi.spyOn(useApiModule, "useApi").mockReturnValue({
-      data: null,
-      error: null,
-      isLoading: false,
-      post: postSpy,
-    })
-
-    const { container } = renderWithRoom(
-      <CardItemView
-        cardItem={makeCard()}
-        setDragX={vi.fn()}
-        isTopCard={true}
-        zIndex={0}
-      />,
-      { currentRoomCode: "1234" }
-    )
-
-    // Simulate a small drag that does not pass the threshold.
-    const topCard = container.querySelector(".card-item-container") as HTMLElement
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: 10, pointerId: 1 }) // dragX <= 20 should not trigger a swipe
-    fireEvent.pointerUp(topCard, { clientX: 10, pointerId: 1 })
-
-    await waitFor(() => expect(postSpy).not.toHaveBeenCalled())
-  });
-
-  it("does not call doPost when there is no currentRoomCode", async () => {
-    const postSpy = vi.fn()
-    vi.spyOn(useApiModule, "useApi").mockReturnValue({
-      data: null,
-      error: null,
-      isLoading: false,
-      post: postSpy,
-    })
-
+  it("calls onSwipe with the correct card and direction - right", async () => {
+    const onSwipe = vi.fn()
     const { container } = renderWithRoom(
       <CardItemView 
         cardItem={makeCard()}
         setDragX={vi.fn()}
         isTopCard={true}
         zIndex={0}
+        onSwipe={onSwipe}
       />,
-      { currentRoomCode: null } // Ensure there's no currentRoomCode
+      { currentRoomCode: "1234" }
     )
 
-    // Simulate a swipe that meets the threshold
     const topCard = container.querySelector(".card-item-container") as HTMLElement
     fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
     fireEvent.pointerMove(topCard, { clientX: 250, pointerId: 1 })
     fireEvent.pointerUp(topCard, { clientX: 250, pointerId: 1 })
 
-    await waitFor(() => expect(postSpy).not.toHaveBeenCalled())
+    expect(onSwipe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        media_id: "1",
+      }),
+      "right"
+    )
+  })
+
+  it("calls onSwipe with the correct card and direction - left", async () => {
+    const onSwipe = vi.fn()
+    const { container } = renderWithRoom(
+      <CardItemView 
+        cardItem={makeCard()}
+        setDragX={vi.fn()}
+        isTopCard={true}
+        zIndex={0}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" }
+    )
+
+    const topCard = container.querySelector(".card-item-container") as HTMLElement
+    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
+    fireEvent.pointerMove(topCard, { clientX: -250, pointerId: 1 })
+    fireEvent.pointerUp(topCard, { clientX: -250, pointerId: 1 })
+
+    expect(onSwipe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        media_id: "1",
+      }),
+      "left"
+    )
+  })
+
+  it("does not call onSwipe when the swipe does not pass the threshold", async () => {
+    const onSwipe = vi.fn()
+    const { container } = renderWithRoom(
+      <CardItemView 
+        cardItem={makeCard()}
+        setDragX={vi.fn()}
+        isTopCard={true}
+        zIndex={0}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" }
+    )
+
+    const topCard = container.querySelector(".card-item-container") as HTMLElement
+    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
+    fireEvent.pointerMove(topCard, { clientX: 10, pointerId: 1 })
+    fireEvent.pointerUp(topCard, { clientX: 10, pointerId: 1 })
+
+    expect(onSwipe).not.toHaveBeenCalled()
   })
 })
 
@@ -309,13 +249,6 @@ describe("CardItem — pointer drag (documented, hard to test)", () => {
     // Intentionally left unimplemented — see the comment above.
   });
 });
-
-// Breadcrumb for the not-yet-built swipe→API wiring. handlePointerUp animates
-// the card away but never POSTs to /room/{code}/swipe and never advances the
-// deck (see its `// remove card after animation, trigger next card, API call`
-// comment). This todo marks the spot test-first for whoever builds it.
-it.todo("swiping right should POST to /room/{code}/swipe");
-
 
 
 
