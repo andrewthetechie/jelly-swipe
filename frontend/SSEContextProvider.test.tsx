@@ -15,7 +15,7 @@ function TestConsumer() {
 
     return (
         <>
-            <div data-testid="data">{JSON.stringify(sseData)}</div>
+            <div data-testid="lastMessage">{JSON.stringify(sseData)}</div>
             <div data-testid="error">{String(sseError)}</div>
             <div data-testid="connected">{String(isConnected)}</div>
         </>
@@ -38,7 +38,7 @@ describe("SSEContextProvider - provider behavior", () => {
         )
 
         mockUseSSE.mockReturnValue({
-            data: null,
+            lastMessage: null,
             error: null,
             isConnected: true,
             connect: vi.fn(),
@@ -59,7 +59,7 @@ describe("SSEContextProvider - provider behavior", () => {
 
     it("passes null to useSSE when currentRoomCode is null", () => {
         mockUseSSE.mockReturnValue({
-            data: {},
+            lastMessage: null,
             error: null,
             isConnected: false,
             connect: vi.fn(),
@@ -84,7 +84,7 @@ describe("SSEContextProvider - provider behavior", () => {
         )
 
         mockUseSSE.mockReturnValue({
-            data: { roomCode: "1234" },
+            lastMessage: { event_type: "session_ready", event_id: 1 },
             error: "boom",
             isConnected: true,
             connect: vi.fn(),
@@ -98,8 +98,8 @@ describe("SSEContextProvider - provider behavior", () => {
             { currentRoomCode: "1234" }
         )
 
-        expect(getByTestId("data").textContent).toBe(
-            JSON.stringify({ roomCode: "1234" })
+        expect(getByTestId("lastMessage").textContent).toBe(
+            JSON.stringify({ event_type: "session_ready", event_id: 1 })
         )
 
         expect(getByTestId("error").textContent).toBe("boom")
