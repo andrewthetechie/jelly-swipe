@@ -11,6 +11,7 @@
 //   - `media_id` is a STRING (not a number)
 //   - `duration` is a STRING (e.g. "1h 47m", not minutes)
 //   - `season_count` is `number | undefined` — use `undefined`, never `null`
+import { fireEvent } from "@testing-library/dom";
 import type { CardItem, CardDeck } from "../types";
 
 // A complete, sensible default card. Override any field via `overrides`.
@@ -35,4 +36,23 @@ export function makeDeck(n: number): CardDeck {
   return Array.from({ length: n }, (_, i) =>
     makeCard({ media_id: String(i + 1), title: `Movie ${i + 1}` }),
   );
+}
+
+
+export async function swipeRight(card: HTMLElement) {
+  fireEvent.pointerDown(card, { clientX: 0, pointerId: 1 })
+  fireEvent.pointerMove(card, { clientX: 250, pointerId: 1 })
+  fireEvent.pointerUp(card, { clientX: 250, pointerId: 1 })
+}
+
+export async function swipeLeft(card: HTMLElement) {
+  fireEvent.pointerDown(card, { clientX: 0, pointerId: 1 })
+  fireEvent.pointerMove(card, { clientX: -250, pointerId: 1 })
+  fireEvent.pointerUp(card, { clientX: -250, pointerId: 1 })
+}
+
+export async function swipeUnderThreshold(card: HTMLElement) {
+  fireEvent.pointerDown(card, { clientX: 0, pointerId: 1 })
+  fireEvent.pointerMove(card, { clientX: 10, pointerId: 1 })
+  fireEvent.pointerUp(card, { clientX: 10, pointerId: 1 })
 }

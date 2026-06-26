@@ -17,7 +17,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import CardItemView from "./CardItemView";
 import { apiUrl } from "./api";
 import { renderWithRoom } from "./test/renderWithRoom";
-import { makeCard } from "./test/fixtures";
+import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold } from "./test/fixtures";
 import * as useApiModule from "./useApi"
 
 // Small helper: render a card with the required props filled in, overriding
@@ -168,9 +168,7 @@ describe("CardItem - swipe behavior", () => {
     )
 
     const topCard = container.querySelector(".card-item-container") as HTMLElement
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: 250, pointerId: 1 })
-    fireEvent.pointerUp(topCard, { clientX: 250, pointerId: 1 })
+    swipeRight(topCard)
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -194,9 +192,7 @@ describe("CardItem - swipe behavior", () => {
     )
 
     const topCard = container.querySelector(".card-item-container") as HTMLElement
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: -250, pointerId: 1 })
-    fireEvent.pointerUp(topCard, { clientX: -250, pointerId: 1 })
+    swipeLeft(topCard)
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -220,9 +216,7 @@ describe("CardItem - swipe behavior", () => {
     )
 
     const topCard = container.querySelector(".card-item-container") as HTMLElement
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: 10, pointerId: 1 })
-    fireEvent.pointerUp(topCard, { clientX: 10, pointerId: 1 })
+    swipeUnderThreshold(topCard)
 
     expect(onSwipe).not.toHaveBeenCalled()
   })
