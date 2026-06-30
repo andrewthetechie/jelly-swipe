@@ -1,6 +1,7 @@
 import React from "react"
 import HostWaiting from "./HostWaiting"
 import CardItemView from "./CardItemView"
+import MatchFoundModal from "./MatchFoundModal"
 import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch, apiUrl } from "./api"
@@ -16,9 +17,10 @@ interface SwipePageProps {
         cardItem: CardItem,
         direction: "left" | "right"
     ) => Promise<void>
+    matchFound: boolean
 }
 
-export default function SwipePage({ cardDeck, onSwipe }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
@@ -102,6 +104,7 @@ export default function SwipePage({ cardDeck, onSwipe }: SwipePageProps): JSX.El
 
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
+                {matchFound && <MatchFoundModal />}
             </>
         )
     } else {

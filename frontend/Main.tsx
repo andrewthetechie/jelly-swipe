@@ -13,6 +13,7 @@ import type { SessionBootstrapResponse } from './types'
 export default function Main(): JSX.Element {
     const { currentRoomCode, setCurrentRoomCode, setRoomReady } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
+    const [matchFound, setMatchFound] = React.useState<boolean>(false)
     const { sseData, sseError, isConnected } = useSSEContext()
 
     React.useEffect(() => {    
@@ -22,6 +23,10 @@ export default function Main(): JSX.Element {
                 const bootstrapData = sseData as SessionBootstrapResponse
                 console.log("Session bootstrap data:", bootstrapData)
                 setRoomReady(bootstrapData.ready)
+            }
+            if ("event_type" in sseData && sseData.event_type === "match_found") {
+                console.log("match found")
+                setMatchFound(true)
             }
             if ("event_type" in sseData && sseData.event_type === "session_ready") {
                 setRoomReady(true)
@@ -84,7 +89,7 @@ export default function Main(): JSX.Element {
             if (!res.ok) {
                 throw new Error(`Error POSTing swipe: ${res.status} ${res.statusText}`)
             }
-
+            console.log(res)
             advanceDeck()
         } catch (err) {
             console.error("Error POSTing swipe", err)
@@ -99,7 +104,7 @@ export default function Main(): JSX.Element {
     return (
         <main>
             {!currentRoomCode && <Intro />}
-            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} />}
+            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} matchFound={matchFound} />}
         </main>
     )
 }
