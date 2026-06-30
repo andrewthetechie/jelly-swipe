@@ -18,9 +18,10 @@ interface SwipePageProps {
         direction: "left" | "right"
     ) => Promise<void>
     matchFound: boolean
+    handleMatchClose: () => void
 }
 
-export default function SwipePage({ cardDeck, onSwipe, matchFound }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
@@ -104,7 +105,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound }: SwipePagePr
 
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
-                {matchFound && <MatchFoundModal />}
+                {matchFound && <MatchFoundModal onClick={handleMatchClose} />}
             </>
         )
     } else {

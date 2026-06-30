@@ -97,6 +97,10 @@ export default function Main(): JSX.Element {
 
     }, [currentRoomCode, advanceDeck])
 
+    const handleMatchClose = () => {
+        setMatchFound(false)
+    }
+
     React.useEffect(() => {
         getCardDeck()
     }, [getCardDeck])
@@ -104,7 +108,7 @@ export default function Main(): JSX.Element {
     return (
         <main>
             {!currentRoomCode && <Intro />}
-            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} matchFound={matchFound} />}
+            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} matchFound={matchFound} handleMatchClose={handleMatchClose} />}
         </main>
     )
 }
