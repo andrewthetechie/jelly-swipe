@@ -29,7 +29,8 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
         }
     }
     return (
-        <div className="join-modal modal">
+        <div className="modal">
+            <div className="modal-inner">
             <h2>Enter Room Code</h2>
             <input 
                 type="text"
@@ -43,6 +44,7 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
             />
             <button className="modal-button" onClick={joinRoom}>Join Session</button>
             <button className="modal-button" onClick={onClose} data-modal-type="join">Cancel</button>
+            </div>
         </div>
     )
 }

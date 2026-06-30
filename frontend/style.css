@@ -250,9 +250,10 @@ img {
   align-items: center;
   gap: 1rem;
   background: rgba(7, 20, 38, 0.75);
-  border: 2px solid #fdfdfd;
+  border: 2px solid #f0f4f8;
   border-radius: 20px;
-  padding: 2rem;
+  box-shadow: 2px 2px 5px 2px #3a67ed;
+  padding: 1.5rem 0;
 }
 
 img.match-logo {
@@ -261,6 +262,7 @@ img.match-logo {
 
 img.match-poster {
   width: 150px;
+  border-radius: 10px;
 }
 
 .modal h2,
