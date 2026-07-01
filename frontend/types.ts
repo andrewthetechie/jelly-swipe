@@ -10,6 +10,17 @@ export interface CardItem {
     season_count?: number | null
 }
 
+export interface MatchItem {
+    title: string | null
+    thumb: string | null
+    media_id: string | null
+    media_type: string | null
+    deep_link: string | null
+    rating: string | null
+    duration: string | null
+    year: number | null
+}
+
 export type CardDeck = CardItem[]
 
 export interface RoomStatusResponse {
@@ -51,9 +62,14 @@ export interface SessionReadyEvent extends LedgerEvent {
 
 export interface MatchFoundEvent extends LedgerEvent {
     event_type: "match_found"
-    title: string
-    thumb?: string
-    media_type?: string
+    title?: string | null
+    thumb?: string | null
+    media_id?: string | null
+    media_type?: string | null
+    deep_link?: string | null
+    rating?: string | null
+    duration?: string | null
+    year?: number | null
 }
 
 export interface GenreChangedEvent extends LedgerEvent {

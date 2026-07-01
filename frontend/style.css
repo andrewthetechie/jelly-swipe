@@ -347,6 +347,14 @@ img.match-poster {
   width: 70%;
 }
 
+.modal-button-link {
+  text-decoration: none;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  width: auto;
+  font-size: 1.15rem;
+}
+
 .modal-button:hover {
   background:
     linear-gradient(

@@ -7,6 +7,7 @@ import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch, apiUrl } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
+import type { MatchItem } from "./types"
 import type { CardDeck } from './types'
 import type { SessionBootstrapResponse } from './types'
 
@@ -19,9 +20,10 @@ interface SwipePageProps {
     ) => Promise<void>
     matchFound: boolean
     handleMatchClose: () => void
+    matchItem: MatchItem
 }
 
-export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
@@ -105,7 +107,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
 
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
-                {matchFound && <MatchFoundModal onClick={handleMatchClose} />}
+                {matchFound && <MatchFoundModal onClick={handleMatchClose} matchItem={matchItem} />}
             </>
         )
     } else {
