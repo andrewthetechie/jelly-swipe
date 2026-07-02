@@ -21,13 +21,25 @@ import { renderWithRoom } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck } from "./test/fixtures"
 import { SSEContextProvider } from "./SSEContextProvider"
+import { MatchItem } from "./types"
+
+const DEFAULT_MATCHITEM: MatchItem = {
+    title: null,
+    thumb: null,
+    media_id: null,
+    media_type: null,
+    deep_link: null,
+    rating: null,
+    duration: null,
+    year: null
+}
 
 describe("SwipePage - HostWaiting rendering logic", () => {
   it("renders only HostWaiting when roomReady is false", async () => {
     mockFetch({ ok: true, body: [] })
     renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>,
       { currentRoomCode: "1234", roomReady: false }
     )
@@ -44,7 +56,7 @@ describe("SwipePage - HostWaiting rendering logic", () => {
     mockFetch({ ok: true, body: [] })
     renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>,
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -62,7 +74,7 @@ describe("SwipePage — card-stack slicing", () => {
   it("renders at most 5 cards (visibleCards = deck.slice(0,5)) in reverse order", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(7)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(7)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -86,7 +98,7 @@ describe("SwipePage — card-stack slicing", () => {
   it("renders every card when the deck is smaller than 5", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(3)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(3)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -98,7 +110,7 @@ describe("SwipePage — glow opacity", () => {
   it("has zero glow opacity at rest (dragX === 0)", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -111,7 +123,7 @@ describe("SwipePage — glow opacity", () => {
   it("clamps right-glow opacity to 1 once dragged well past the threshold", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -134,7 +146,7 @@ describe("SwipePage — glow opacity", () => {
   it("clamps left-glow opacity to 1 once dragged well past the threshold", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -157,7 +169,7 @@ describe("SwipePage — glow opacity", () => {
   it("keeps glow at 0 at the exact threshold boundary (dragX === 20)", () => {
     const { container } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -178,7 +190,7 @@ describe("SwipePage — end session (3-part network contract)", () => {
     const spy = mockFetch({ ok: true, body: { pairing_code: "1234" } })
     const { ctx } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM}  />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -200,7 +212,7 @@ describe("SwipePage — end session (3-part network contract)", () => {
     const spy = mockFetch({ ok: false })
     const { ctx } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )
@@ -219,7 +231,7 @@ describe("SwipePage — end session (3-part network contract)", () => {
     const spy = mockFetch({ reject: true })
     const { ctx } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: true }
     )

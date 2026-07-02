@@ -5,6 +5,18 @@ import { renderWithRoom } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck } from "./test/fixtures"
 import { SSEContextProvider } from "./SSEContextProvider"
+import { MatchItem } from "./types"
+
+const DEFAULT_MATCHITEM: MatchItem = {
+    title: null,
+    thumb: null,
+    media_id: null,
+    media_type: null,
+    deep_link: null,
+    rating: null,
+    duration: null,
+    year: null
+}
 
 describe("HostWaiting - Room Code rendering", () => {
     it("renders the correct room code", () => {
@@ -23,7 +35,7 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     const spy = mockFetch({ ok: true, body: { pairing_code: "1234" } })
     const { ctx } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: false}
     )
@@ -45,7 +57,7 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     const spy = mockFetch({ ok: false })
     const { ctx } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: false }
     )
@@ -64,7 +76,7 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     const spy = mockFetch({ reject: true })
    const { ctx } = renderWithRoom(
       <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} />
+        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
       </SSEContextProvider>, 
       { currentRoomCode: "1234", roomReady: false }
     )
