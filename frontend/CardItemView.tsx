@@ -1,5 +1,6 @@
 import React from 'react'
 import { actorElements } from "./assets/test-info"
+import ActorElements from './ActorElements'
 import moanaPoster from "./assets/moana-poster.jpg"
 import sadLogo from "./assets/sad.png"
 import { apiUrl } from "./api"
@@ -149,7 +150,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                         {summary}
                     </p>
                     <div className="card-item-cast">
-                        {actorElements}
+                        <ActorElements mediaId={mediaId} />
                     </div>
                 </div>
             </div>

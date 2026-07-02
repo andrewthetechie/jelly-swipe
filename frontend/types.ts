@@ -23,6 +23,16 @@ export interface MatchItem {
 
 export type CardDeck = CardItem[]
 
+export interface CastMember {
+    name: string
+    character: string
+    profile_path?: string | null
+}
+
+export interface CastResponse {
+    cast: CastMember[]
+}
+
 export interface RoomStatusResponse {
     ready: boolean
     genre?: string | null
