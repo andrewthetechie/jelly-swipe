@@ -11,8 +11,9 @@
 //   - `media_id` is a STRING (not a number)
 //   - `duration` is a STRING (e.g. "1h 47m", not minutes)
 //   - `season_count` is `number | undefined` — use `undefined`, never `null`
-import { fireEvent } from "@testing-library/dom";
-import type { CardItem, CardDeck } from "../types";
+import { fireEvent } from "@testing-library/dom"
+import type { CardItem, CardDeck } from "../types"
+import type { MatchItem } from "../types"
 
 // A complete, sensible default card. Override any field via `overrides`.
 export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
@@ -27,7 +28,7 @@ export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
     duration: "1h 47m",
     season_count: undefined,
     ...overrides,
-  };
+  }
 }
 
 // Build a deck of `n` cards with distinct media_id/title, so tests can assert
@@ -35,7 +36,21 @@ export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
 export function makeDeck(n: number): CardDeck {
   return Array.from({ length: n }, (_, i) =>
     makeCard({ media_id: String(i + 1), title: `Movie ${i + 1}` }),
-  );
+  )
+}
+
+export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
+  return {
+    media_id: "movie-1",
+    media_type: "movie",
+    title: "Movie 1",
+    thumb: "/poster.jpg",
+    deep_link: "https://jellyfin.example.com/web/index.html#!/details?id=movie-1",
+    rating: "8.25",
+    duration: "107 min",
+    year: 2016,
+    ...overrides,
+  }
 }
 
 

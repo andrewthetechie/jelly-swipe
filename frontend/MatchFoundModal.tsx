@@ -11,14 +11,13 @@ interface MatchFoundModalProps {
 }
 
 export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalProps): JSX.Element {
-    console.log("matchItem:", matchItem)
     const { title, thumb, media_id: mediaId, media_type: mediaType, deep_link: deepLink, rating, duration, year }: MatchItem = matchItem
     return (
         <div className="modal">
             <div className="modal-inner">
-                <img src={logo} className="match-logo" />
+                <img src={logo} className="match-logo" alt="Jelly-Swipe logo" />
                 <h2>It's a match!</h2>
-                <img src={apiUrl(thumb).toString()} className="match-poster" />
+                <img src={apiUrl(thumb).toString()} className="match-poster" alt={title?.toString()} />
                 <h3 className="match-title">{title}</h3>
                 <div className="card-item-info match-info">
                     <div className="card-item-score">IMDb {Number(rating).toFixed(2)}</div>
@@ -34,5 +33,5 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
     )
 }
 
-// still needs testing
+
 // need to update css queries to adjust for mid-size screens - mobile and desktop are okay but ipad does not look good
