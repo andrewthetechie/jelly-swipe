@@ -1,8 +1,9 @@
 import React from "react"
 import { JSX } from "react"
 import type { CastMember } from "./types";
-import logoImage from "./logo.png";
-import sadLogo from "./sad.png"
+import useMovieCast from "./useMovieCast";
+import logoImage from "./assets/logo.png";
+import sadLogo from "./assets/sad.png"
 
 interface ActorElementsProps {
     mediaId: string
@@ -42,9 +43,20 @@ const actorArray: CastMember[] = [
 ]
 
 export default function ActorElements({ mediaId }: ActorElementsProps): JSX.Element {
-    return (
-        <>
-            {actorArray.map((actor, index) => (
+    const { cast, isLoading, error } = useMovieCast(mediaId)
+    
+    if (isLoading) {
+        return (
+            <h3 className="cast-loading">Loading cast...</h3>
+        )
+    } else if (!cast.length || error) {
+        return (
+            <h3 className="cast-loading">Unable to load cast</h3>
+        )
+    } else {
+        return (
+            <>
+            {cast.map((actor, index) => (
                 <div key={`${mediaId}-${index}`} className="actor-card">
                     {actor.profile_path ? (
                         <img 
@@ -63,6 +75,8 @@ export default function ActorElements({ mediaId }: ActorElementsProps): JSX.Elem
                     <p className="actor-name">{actor.name}</p>
                 </div>
             ))}
-        </>
-    )
+            </>
+        )
+    }
+    
 }

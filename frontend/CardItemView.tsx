@@ -150,7 +150,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                         {summary}
                     </p>
                     <div className="card-item-cast">
-                        <ActorElements mediaId={mediaId} />
+                        {showDetails && <ActorElements mediaId={mediaId} />}
                     </div>
                 </div>
             </div>

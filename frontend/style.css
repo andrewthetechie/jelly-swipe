@@ -934,6 +934,10 @@ div.card-item-cast {
   margin-top: auto;
 }
 
+h3.cast-loading {
+  padding-bottom: 70%;
+}
+
 div.actor-card {
   width: 60px;
   display: flex;
@@ -948,7 +952,7 @@ img.actor-image {
   height: 60px;
   object-fit: cover;
   border-radius: 50%;
-  border: 1px solid #35D6FF;
+  border: 2px solid #35D6FF;
 }
 
 p.actor-name {
