@@ -9,39 +9,6 @@ interface ActorElementsProps {
     mediaId: string
 }
 
-const actorArray: CastMember[] = [
-    {
-        name: "Actor 1",
-        character: "Character 1",
-        profile_path: logoImage
-    }, 
-    {
-        name: "Actor 2",
-        character: "Character 1",
-        profile_path: logoImage
-    },
-    {
-        name: "Actor 3",
-        character: "Character 1",
-        profile_path: logoImage
-    },
-    {
-        name: "Actor 4",
-        character: "Character 1",
-        profile_path: logoImage
-    },
-    {
-        name: "Actor 5",
-        character: "Character 1",
-        profile_path: logoImage
-    },
-    {
-        name: "Actor 6",
-        character: "Character 1",
-        profile_path: logoImage
-    },
-]
-
 export default function ActorElements({ mediaId }: ActorElementsProps): JSX.Element {
     const { cast, isLoading, error } = useMovieCast(mediaId)
     

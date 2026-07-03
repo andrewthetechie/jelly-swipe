@@ -157,3 +157,5 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
         </div>
     )
 }
+
+// add testing for ActorElements rendering

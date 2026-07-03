@@ -54,7 +54,6 @@ export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
   }
 }
 
-// Build a default cast member. Override any field via `overrides`.
 export function makeCastMember(overrides: Partial<CastMember> = {}): CastMember {
   return {
     name: "Jane Actor",
@@ -64,7 +63,6 @@ export function makeCastMember(overrides: Partial<CastMember> = {}): CastMember 
   }
 }
 
-// Build a list of cast members, useful for seeding a full cast response.
 export function makeCast(n: number, overridesFn?: (i: number) => Partial<CastMember>): CastMember[] {
   return Array.from({ length: n }, (_, i) =>
     makeCastMember(overridesFn?.(i) || { name: `Actor ${i + 1}` }),
