@@ -14,15 +14,19 @@ export default function ActorElements({ mediaId }: ActorElementsProps): JSX.Elem
     
     if (isLoading) {
         return (
-            <h3 className="cast-loading">Loading cast...</h3>
+            <div className="card-item-cast" data-testid="actor-elements">
+                <h3 className="cast-loading">Loading cast...</h3>
+            </div>
         )
     } else if (!cast.length || error) {
         return (
-            <h3 className="cast-loading">Unable to load cast</h3>
+            <div className="card-item-cast" data-testid="actor-elements">
+                <h3 className="cast-loading">Unable to load cast</h3>
+            </div>
         )
     } else {
         return (
-            <>
+            <div className="card-item-cast" data-testid="actor-elements">
             {cast.map((actor, index) => (
                 <div key={`${mediaId}-${index}`} className="actor-card">
                     {actor.profile_path ? (
@@ -42,7 +46,7 @@ export default function ActorElements({ mediaId }: ActorElementsProps): JSX.Elem
                     <p className="actor-name">{actor.name}</p>
                 </div>
             ))}
-            </>
+            </div>
         )
     }
     

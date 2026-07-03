@@ -149,13 +149,13 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                     <p className="card-item-description">
                         {summary}
                     </p>
-                    <div className="card-item-cast">
-                        {showDetails && <ActorElements mediaId={mediaId} />}
-                    </div>
+                    
+                    {showDetails && (
+                        <ActorElements mediaId={mediaId} />
+                    )}
+                    
                 </div>
             </div>
         </div>
     )
 }
-
-// add testing for ActorElements rendering

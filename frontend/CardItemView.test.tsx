@@ -34,7 +34,7 @@ function renderCard(cardOverrides = {}) {
   );
 }
 
-describe("CardItem — derived display (mediaText)", () => {
+describe("CardItemView — derived display (mediaText)", () => {
   it("maps media_type 'movie' to 'Movie'", () => {
     const { container } = renderCard({ media_type: "movie", season_count: undefined });
     expect(container.querySelector(".media-type")?.textContent).toBe("Movie");
@@ -51,7 +51,7 @@ describe("CardItem — derived display (mediaText)", () => {
   });
 });
 
-describe("CardItem — derived display (seasonsText)", () => {
+describe("CardItemView — derived display (seasonsText)", () => {
   // seasonsText is only meaningful behind the `season_count !== undefined` guard.
   it("uses the singular 'Season' for a count of 1", () => {
     const { container } = renderCard({ media_type: "tv_show", season_count: 1 });
@@ -70,14 +70,38 @@ describe("CardItem — derived display (seasonsText)", () => {
   });
 });
 
-describe("CardItem — rating formatting", () => {
+// later - combine these tests with flip toggle tests --> is unflipped and not rendered, is flipped and rendered
+describe("CardItemView - ActorElements", () => {
+  it("does not render ActorElements before the card is flipped", () => {
+    renderCard()
+
+    expect(
+      screen.queryByTestId("actor-elements")
+    ).not.toBeInTheDocument()
+  })
+
+  it("renders ActorElements after the card is flipped", async () => {
+    const { container } = renderCard()
+    const card = container.querySelector(
+      ".card-item-container"
+    ) as HTMLElement
+
+    fireEvent.click(card)
+
+    expect(
+      screen.getByTestId("actor-elements")
+    ).toBeInTheDocument()
+  })
+})
+
+describe("CardItemView — rating formatting", () => {
   it("formats rating with toFixed(2): 7.5 → 'IMDb 7.50'", () => {
     renderCard({ rating: 7.5 });
     expect(screen.getByText("IMDb 7.50")).toBeInTheDocument();
   });
 });
 
-describe("CardItem — poster", () => {
+describe("CardItemView — poster", () => {
   it("renders the poster with the title as alt text and the apiUrl src", () => {
     const thumb = "/proxy?path=/poster.jpg";
     renderCard({ title: "Moana", thumb });
@@ -117,7 +141,7 @@ describe("CardItem — flip toggle (non-drag click)", () => {
 // Eventually, the Watch Trailer button should also open the trailer div and display the video
 // For now, this test just asserts that clicking the button doesn't flip the card 
 
-describe("CardItem - clicking Watch Trailer does not flip the card", () => {
+describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
   it("does not toggle the 'flipped' class when the trailer button is clicked", () => {
     const { container } = renderCard()
     const card = container.querySelector(".card-item-container") as HTMLElement
@@ -138,7 +162,7 @@ describe("CardItem - clicking Watch Trailer does not flip the card", () => {
   })
 })
 
-describe("CardItem — rating === 0", () => {
+describe("CardItemView — rating === 0", () => {
   it("shows 'IMDb 0.00' and no stray '0' for a zero rating", () => {
     const { container } = renderCard({ rating: 0 })
     expect(screen.getByText("IMDb 0.00")).toBeInTheDocument()
@@ -153,7 +177,7 @@ describe("CardItem — rating === 0", () => {
   })
 })
 
-describe("CardItem - swipe behavior", () => {
+describe("CardItemView - swipe behavior", () => {
   it("calls onSwipe with the correct card and direction - right", async () => {
     const onSwipe = vi.fn()
     const { container } = renderWithRoom(
