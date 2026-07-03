@@ -14,6 +14,7 @@
 import { fireEvent } from "@testing-library/dom"
 import type { CardItem, CardDeck } from "../types"
 import type { MatchItem } from "../types"
+import type { CastMember } from "../types"
 
 // A complete, sensible default card. Override any field via `overrides`.
 export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
@@ -51,6 +52,23 @@ export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
     year: 2016,
     ...overrides,
   }
+}
+
+// Build a default cast member. Override any field via `overrides`.
+export function makeCastMember(overrides: Partial<CastMember> = {}): CastMember {
+  return {
+    name: "Jane Actor",
+    character: "Jane Doe",
+    profile_path: "https://tmdb.example.com/profile.jpg",
+    ...overrides,
+  }
+}
+
+// Build a list of cast members, useful for seeding a full cast response.
+export function makeCast(n: number, overridesFn?: (i: number) => Partial<CastMember>): CastMember[] {
+  return Array.from({ length: n }, (_, i) =>
+    makeCastMember(overridesFn?.(i) || { name: `Actor ${i + 1}` }),
+  )
 }
 
 
