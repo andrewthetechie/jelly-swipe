@@ -20,8 +20,8 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
                 <img src={apiUrl(thumb).toString()} className="match-poster" alt={title?.toString()} />
                 <h3 className="match-title">{title}</h3>
                 <div className="card-item-info match-info">
-                    <div className="card-item-score">IMDb {Number(rating).toFixed(2)}</div>
-                    <div className="card-item-runtime">{duration}</div>
+                    {rating && <div className="card-item-score">IMDb {Number(rating).toFixed(2)}</div>}
+                    {duration && <div className="card-item-runtime">{duration}</div>}
                     <div className="card-item-year">{year}</div>
                 </div>
                 <a href={deepLink ? deepLink : "#"} target="_blank" rel="noopener noreferrer" className="modal-button modal-button-link">
