@@ -21,9 +21,10 @@ interface SwipePageProps {
     matchFound: boolean
     handleMatchClose: () => void
     matchItem: MatchItem
+    handleUndo: () => void
 }
 
-export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
@@ -96,7 +97,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                         ))}
                     </div>
 
-                    <button className="undo-button">Undo</button>
+                    <button className="undo-button" onClick={handleUndo}>Undo</button>
                     <p className="card-item-instructions">Tap poster for full details</p>
                 </div>
 

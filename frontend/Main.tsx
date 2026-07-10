@@ -25,9 +25,11 @@ const DEFAULT_MATCHITEM: MatchItem = {
 export default function Main(): JSX.Element {
     const { currentRoomCode, setCurrentRoomCode, setRoomReady } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
+    const [swipeHistory, setSwipeHistory] = React.useState<CardDeck>([])
     const [matchFound, setMatchFound] = React.useState<boolean>(false)
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
     const { sseData, sseError, isConnected } = useSSEContext()
+    const lastSwipe: CardItem = swipeHistory[swipeHistory.length - 1]
 
     React.useEffect(() => {    
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -103,13 +105,37 @@ export default function Main(): JSX.Element {
             if (!res.ok) {
                 throw new Error(`Error POSTing swipe: ${res.status} ${res.statusText}`)
             }
-            console.log(res)
+            setSwipeHistory(prev => [...prev, cardItem])
             advanceDeck()
         } catch (err) {
             console.error("Error POSTing swipe", err)
         }
 
     }, [currentRoomCode, advanceDeck])
+
+    const handleUndo = React.useCallback(async () => {
+        if(!swipeHistory.length) {
+            console.error("Cannot undo without swipe history")
+            return
+        }
+
+        try {
+            const res: Response = await apiFetch(`room/${currentRoomCode}/undo`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    media_id: lastSwipe.media_id,
+                }),
+            })
+            if (!res.ok) {
+                throw new Error(`Error undoing swipe: ${res.status} ${res.statusText}`)
+            }
+            setCardDeck(prev => [lastSwipe, ...prev] )
+        } catch (err) {
+            console.error("Error undoing swipe:", err)
+        }
+        
+    }, [currentRoomCode, lastSwipe])
 
     const handleMatchClose = () => {
         setMatchFound(false)
@@ -122,7 +148,7 @@ export default function Main(): JSX.Element {
     return (
         <main>
             {!currentRoomCode && <Intro />}
-            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} matchFound={matchFound} handleMatchClose={handleMatchClose} matchItem={matchItem} />}
+            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} matchFound={matchFound} handleMatchClose={handleMatchClose} matchItem={matchItem} handleUndo={handleUndo} />}
         </main>
     )
 }
