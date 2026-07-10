@@ -29,7 +29,7 @@ export default function Main(): JSX.Element {
     const [matchFound, setMatchFound] = React.useState<boolean>(false)
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
     const { sseData, sseError, isConnected } = useSSEContext()
-    const lastSwipe: CardItem = swipeHistory[swipeHistory.length - 1]
+    
 
     React.useEffect(() => {    
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -116,7 +116,9 @@ export default function Main(): JSX.Element {
     }, [currentRoomCode, advanceDeck])
 
     const handleUndo = React.useCallback(async () => {
-        if(!swipeHistory.length) {
+        const lastSwipe: CardItem = swipeHistory[swipeHistory.length - 1]
+
+        if(!lastSwipe) {
             console.error("Cannot undo without swipe history")
             return
         }
@@ -138,7 +140,7 @@ export default function Main(): JSX.Element {
             console.error("Error undoing swipe:", err)
         }
         
-    }, [currentRoomCode, lastSwipe])
+    }, [currentRoomCode, swipeHistory])
 
     const handleMatchClose = () => {
         setMatchFound(false)
