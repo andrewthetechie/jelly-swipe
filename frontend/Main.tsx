@@ -131,6 +131,7 @@ export default function Main(): JSX.Element {
                 throw new Error(`Error undoing swipe: ${res.status} ${res.statusText}`)
             }
             setCardDeck(prev => [lastSwipe, ...prev] )
+            setSwipeHistory(prev => prev.slice(0, -1))
         } catch (err) {
             console.error("Error undoing swipe:", err)
         }
