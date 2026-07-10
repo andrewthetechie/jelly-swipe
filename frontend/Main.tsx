@@ -61,6 +61,7 @@ export default function Main(): JSX.Element {
     const getCardDeck = React.useCallback(async () => {
         if (!currentRoomCode) {
             setCardDeck([])
+            setSwipeHistory([])
             return
         }
 
@@ -75,6 +76,7 @@ export default function Main(): JSX.Element {
 
             const data: CardDeck = await res.json()
             setCardDeck(data)
+            setSwipeHistory([])
         } catch (err) {
             console.error("Error fetching card deck:", err)
         }
