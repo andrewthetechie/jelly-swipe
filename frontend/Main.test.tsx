@@ -23,8 +23,50 @@ import { renderWithRoom } from "./test/renderWithRoom"
 import { SSEContextProvider } from "./SSEContextProvider"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck, makeCard, swipeRight, swipeLeft } from "./test/fixtures"
-import { type CardDeck } from "./types"
 
+
+async function setupUndoTest(deck = makeDeck(3)) {
+  const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+  fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => deck,
+    } as Response)
+
+  fetchSpy.mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ success: true }),
+  } as Response)
+
+  renderWithRoom(
+    <SSEContextProvider>
+      <Main />
+    </SSEContextProvider>,
+    { currentRoomCode: "1234", roomReady: true }
+  )
+
+  expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+  const cards = document.querySelectorAll(".card-item-container")
+  expect(cards).toHaveLength(3)
+  const topCard = cards[cards.length - 1] as HTMLElement
+
+  await swipeLeft(topCard)
+
+  await waitFor(() => {
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  const undoButton = screen.getByRole("button", {
+      name: /undo/i,
+    })
+
+  return {
+    deck, 
+    fetchSpy, 
+    undoButton,
+  }
+}
 
 describe("Main — screen switching", () => {
   it("renders Intro (not SwipePage) when there is no room code", async () => {
@@ -305,6 +347,123 @@ describe("Main - swipe handling", () => {
     // Verify movie 1 is still in the document
     expect(screen.queryByAltText("Movie 1")).toBeInTheDocument()
     
+    errSpy.mockRestore()
+  })
+})
+
+describe("Main - undo button", () => {
+  it("successful undo restores last swiped card", async () => {
+    const { fetchSpy, undoButton } = await setupUndoTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: "undone" }),
+    } as Response)
+
+    await userEvent.click(undoButton)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(3)
+    })
+
+    expect(screen.getByAltText("Movie 1")).toBeInTheDocument()
+  })
+
+  it("undo sends the correct POST request", async () => {
+    const { deck, fetchSpy, undoButton } = await setupUndoTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: "undone" }),
+    } as Response)
+
+    await userEvent.click(undoButton)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        3,
+        expect.any(URL),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            media_id: deck[0].media_id
+          })
+        })
+      )
+    })
+
+    const undoUrl = fetchSpy.mock.calls[2][0] as URL
+    expect(undoUrl.href).toMatch(
+      /\/room\/1234\/undo$/
+    )
+  })
+
+  it("failed undo does not restore the card", async () => {
+    const { deck, fetchSpy, undoButton } = await setupUndoTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+    } as Response)
+
+    await userEvent.click(undoButton)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        3,
+        expect.any(URL),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            media_id: deck[0].media_id
+          })
+        })
+      )
+    })
+
+    const undoUrl = fetchSpy.mock.calls[2][0] as URL
+    expect(undoUrl.href).toMatch(
+      /\/room\/1234\/undo$/
+    )    
+
+    await waitFor(() => {
+      expect(
+        screen.queryByAltText("Movie 1")
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it("undo does nothing when there is no swipe history", async () => {
+    const deck = makeDeck(3)
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => deck,
+    } as Response)
+
+    renderWithRoom(
+      <SSEContextProvider>
+        <Main />
+      </SSEContextProvider>,
+      { currentRoomCode: "1234", roomReady: true }
+    )
+
+    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+    const undoButton = screen.getByRole("button", {
+      name: /undo/i,
+    })
+
+    await userEvent.click(undoButton)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    expect(console.error)
+      .toHaveBeenCalledWith(
+        "Cannot undo without swipe history"
+      )
+
     errSpy.mockRestore()
   })
 })

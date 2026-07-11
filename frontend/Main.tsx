@@ -124,7 +124,7 @@ export default function Main(): JSX.Element {
         }
 
         try {
-            const res: Response = await apiFetch(`room/${currentRoomCode}/undo`, {
+            const res: Response = await apiFetch(`/room/${currentRoomCode}/undo`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
