@@ -25,6 +25,53 @@ import { mockFetch } from "./test/mockFetch"
 import { makeDeck, makeCard, swipeRight, swipeLeft } from "./test/fixtures"
 
 
+async function setupSuccessfulSwipeTest(
+  direction: "left" | "right" = "right",
+  deck = makeDeck(3),
+) {
+  const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+  fetchSpy.mockResolvedValueOnce({
+    ok: true,
+    json: async () => deck,
+  } as Response)
+
+  fetchSpy.mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ success: true }),
+  } as Response)
+
+  renderWithRoom(
+    <SSEContextProvider>
+      <Main />
+    </SSEContextProvider>,
+    { currentRoomCode: "1234", roomReady: true }
+  )
+
+  expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+  expect(screen.getByAltText("Movie 2")).toBeInTheDocument()
+
+  const cards = document.querySelectorAll(".card-item-container")
+  expect(cards).toHaveLength(3)
+  const topCard = cards[cards.length - 1] as HTMLElement
+
+  if (direction === "right") {
+    await swipeRight(topCard)
+  } else {
+    await swipeLeft(topCard)
+  }
+
+  await waitFor(() => {
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  return {
+    deck, 
+    fetchSpy,
+    topCard,
+  }
+}
+
 async function setupUndoTest(deck = makeDeck(3)) {
   const fetchSpy = vi.spyOn(globalThis, "fetch")
 
@@ -158,41 +205,7 @@ describe("Main — deck fetch (3-part network contract)", () => {
 
 describe("Main - swipe handling", () => {
   it("successful swipe POSTs and removes the top card", async () => {
-    const deck = makeDeck(3)
-    const fetchSpy = vi.spyOn(globalThis, "fetch")
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => deck,
-    } as Response)
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true }),
-    } as Response)
-
-    renderWithRoom(
-      <SSEContextProvider>
-        <Main />
-      </SSEContextProvider>,
-      { currentRoomCode: "1234", roomReady: true }
-    )
-
-    // Check that the deck has appeared
-    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
-    expect(screen.getByAltText("Movie 2")).toBeInTheDocument()
-
-    const cards = document.querySelectorAll(".card-item-container")
-    expect(cards).toHaveLength(3)
-    const topCard = cards[cards.length - 1] as HTMLElement
-
-    // Perform swipe
-    await swipeRight(topCard)
-
-    // Verify POST happened
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledTimes(2)
-    })
+    const { fetchSpy } = await setupSuccessfulSwipeTest()
 
     const [, options] = fetchSpy.mock.calls[1]
 
@@ -209,37 +222,8 @@ describe("Main - swipe handling", () => {
     expect(screen.getByAltText("Movie 2")).toBeInTheDocument()
   })
 
-  it("succesful swipe POSTs with correct body", async () => {
-    const deck = makeDeck(3)
-    const fetchSpy = vi.spyOn(globalThis, "fetch")
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => deck,
-    } as Response)
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true }),
-    } as Response)
-
-    renderWithRoom(
-      <SSEContextProvider>
-        <Main />
-      </SSEContextProvider>,
-      { currentRoomCode: "1234", roomReady: true }
-    )
-
-    // Check that the deck has appeared
-    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
-    expect(screen.getByAltText("Movie 2")).toBeInTheDocument()
-
-    const cards = document.querySelectorAll(".card-item-container")
-    expect(cards).toHaveLength(3)
-    const topCard = cards[cards.length - 1] as HTMLElement
-
-    // Perform swipe
-    await swipeRight(topCard)
+  it("succesful swipe POSTs with correct body and URL", async () => {
+    const { deck, fetchSpy } = await setupSuccessfulSwipeTest()
 
     // Verify POST and body matches top card and direction
     await waitFor(() => {
@@ -249,48 +233,15 @@ describe("Main - swipe handling", () => {
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
-            media_id: "1",
+            media_id: deck[0].media_id,
             direction: "right",
           }),
         }),
       )
     })
-  })
 
-  it("succesful swipe POSTs with correct URL", async () => {
-    const deck = makeDeck(3)
-    const fetchSpy = vi.spyOn(globalThis, "fetch")
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => deck,
-    } as Response)
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true }),
-    } as Response)
-
-    renderWithRoom(
-      <SSEContextProvider>
-        <Main />
-      </SSEContextProvider>,
-      { currentRoomCode: "1234", roomReady: true }
-    )
-
-    // Check that the deck has appeared
-    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
-    expect(screen.getByAltText("Movie 2")).toBeInTheDocument()
-
-    const cards = document.querySelectorAll(".card-item-container")
-    expect(cards).toHaveLength(3)
-    const topCard = cards[cards.length - 1] as HTMLElement
-
-    // Perform swipe
-    await swipeRight(topCard)    
-
-    // Verify URL matches expected endpoint
     const swipeUrl = fetchSpy.mock.calls[1][0] as URL
+
     expect(swipeUrl.href).toMatch(
       /\/room\/1234\/swipe$/
     )
