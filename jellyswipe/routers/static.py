@@ -3,6 +3,12 @@
 Per D-06: 4 static routes serving index.html, manifest.json, sw.js, and favicon.ico.
 Routes serving Vite build output (index.html, /assets) are only functional when
 frontend_dist is available; absent frontend returns 404.
+
+The frontend_dist path is resolved exactly once per app instance in create_app()
+(see jellyswipe/__init__.py) and stored on app.state.frontend_dist. Reading it
+per-request from app.state keeps the "/" route and the "/assets" mount
+consistent within a single app instance instead of letting the two resolve at
+different times (module-import vs. create_app call).
 """
 
 import logging
@@ -10,8 +16,6 @@ import os
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
-
-from jellyswipe.utils.frontend import find_frontend_dist_path
 
 _logger = logging.getLogger(__name__)
 
@@ -21,9 +25,6 @@ static_router = APIRouter()
 # Compute app root for static file paths (goes up from routers/ to jellyswipe/)
 _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Find frontend_dist at module load time
-_frontend_dist = find_frontend_dist_path(_APP_ROOT)
-
 
 @static_router.get("/", include_in_schema=False)
 def index(request: Request):
@@ -31,10 +32,11 @@ def index(request: Request):
 
     Returns 404 if frontend_dist is not available (frontend has not been built).
     """
-    if _frontend_dist is None:
+    frontend_dist = getattr(request.app.state, "frontend_dist", None)
+    if frontend_dist is None:
         raise HTTPException(status_code=404, detail="Frontend build not found")
     return FileResponse(
-        path=os.path.join(_frontend_dist, "index.html"),
+        path=os.path.join(frontend_dist, "index.html"),
         media_type="text/html",
     )
 

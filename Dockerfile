@@ -36,7 +36,7 @@ WORKDIR /app
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy package data (templates/static)
+# Copy package data (static PWA assets; frontend_dist copied separately below)
 COPY --from=builder /app/jellyswipe /app/jellyswipe
 
 # Copy frontend dist from node-builder

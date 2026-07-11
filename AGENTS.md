@@ -16,22 +16,25 @@ Jellyswipe is a Jellyfin-based media swiping app. Users join or create a room, s
 ## Architecture
 
 ```text
+frontend/            React + Vite frontend (source, tests, build config)
 jellyswipe/
 ├── routers/         FastAPI route handlers
 ├── services/        Business logic
 ├── repositories/    SQLAlchemy data access
 ├── models/          SQLAlchemy ORM models
+├── utils/frontend.py  Resolves Vite dist output path
 ├── jellyfin_library.py
 ├── config.py
 ├── db.py
 ├── db_runtime.py
 ├── db_uow.py
-└── static/app.js    Frontend logic, no build step
+├── frontend_dist/   Built Vite output (production/Docker; populated by Dockerfile)
+└── static/          PWA assets only (manifest.json, sw.js, favicon.ico, icons)
 ```
 
 - Entry point: `jellyswipe/__init__.py` builds the FastAPI app and registers routers.
 - The app is a package, not a loose script. Use `uv run python -m jellyswipe.bootstrap`.
-- Frontend changes normally live in `jellyswipe/static/app.js` and `jellyswipe/static/styles.css`.
+- Frontend changes normally live in `frontend/` (React + Vite). Build output is emitted to `frontend/dist/` (local dev) or `jellyswipe/frontend_dist/` (production/Docker); FastAPI serves `/` from its `index.html` and `/assets/*` from its `assets/` dir. See `jellyswipe/utils/frontend.py` (`find_frontend_dist_path`) for the resolution order.
 
 ## Database Rules
 
@@ -115,6 +118,7 @@ Card dict shape:
   - `.gitnexus/`
 
 <!-- gitnexus:start -->
+
 # GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **jelly-swipe**. Use GitNexus to understand code, assess impact, and navigate safely.

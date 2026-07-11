@@ -10,3 +10,9 @@ LICENSE
 README.md
 screenshots/
 unraid_template/
+
+# Frontend build artifacts and deps are produced inside the image's node-builder
+# stage. Including the host's copies can overwrite the freshly-installed Linux
+# node_modules (esbuild's platform-specific binary) and break npm run build.
+frontend/node_modules/
+frontend/dist/
