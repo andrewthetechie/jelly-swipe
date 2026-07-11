@@ -1,7 +1,7 @@
 """Static file serving routes.
 
 Per D-06: 4 static routes serving index.html, manifest.json, sw.js, and favicon.ico.
-Uses Jinja2Templates for HTML rendering.
+Routes are registered conditionally based on frontend_dist availability.
 """
 
 import logging
@@ -9,7 +9,6 @@ import os
 
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
-from starlette.templating import Jinja2Templates
 
 _logger = logging.getLogger(__name__)
 
@@ -19,18 +18,38 @@ static_router = APIRouter()
 # Compute app root for static file paths (goes up from routers/ to jellyswipe/)
 _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Templates directory
-templates = Jinja2Templates(directory=os.path.join(_APP_ROOT, "templates"))
+
+def _find_frontend_dist() -> str | None:
+    """Find frontend_dist directory with two-path fallback.
+
+    Returns the path to frontend_dist if found, None otherwise.
+    Searches: jellyswipe/frontend_dist/ (production/Docker) then ../frontend/dist/ (local dev).
+    """
+    prod_path = os.path.join(_APP_ROOT, "frontend_dist")
+    if os.path.isdir(prod_path):
+        return prod_path
+
+    dev_path = os.path.join(_APP_ROOT, "..", "frontend", "dist")
+    if os.path.isdir(dev_path):
+        return dev_path
+
+    return None
+
+
+_frontend_dist = _find_frontend_dist()
 
 
 @static_router.get("/", include_in_schema=False)
 def index(request: Request):
-    """Serve the main index.html page."""
-    # Starlette 1.0.0 changed TemplateResponse signature to (request, name, context=None).
-    # Old API: TemplateResponse(name, {"request": req, ...})
-    # New API: TemplateResponse(request, name, context={...})
-    return templates.TemplateResponse(
-        request, "index.html", {"media_provider": "jellyfin"}
+    """Serve the main index.html page from Vite build output."""
+    if _frontend_dist is None:
+        return FileResponse(
+            path=os.path.join(_APP_ROOT, "templates", "index.html"),
+            media_type="text/html",
+        )
+    return FileResponse(
+        path=os.path.join(_frontend_dist, "index.html"),
+        media_type="text/html",
     )
 
 

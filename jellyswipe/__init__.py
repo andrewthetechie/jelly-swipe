@@ -28,6 +28,23 @@ _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 _logger = logging.getLogger(__name__)
 
 
+def _find_frontend_dist_path() -> str | None:
+    """Find frontend_dist directory with two-path fallback.
+
+    Returns the path to frontend_dist if found, None otherwise.
+    Searches: jellyswipe/frontend_dist/ (production/Docker) then ../frontend/dist/ (local dev).
+    """
+    prod_path = os.path.join(_APP_ROOT, "frontend_dist")
+    if os.path.isdir(prod_path):
+        return prod_path
+
+    dev_path = os.path.join(_APP_ROOT, "..", "frontend", "dist")
+    if os.path.isdir(dev_path):
+        return dev_path
+
+    return None
+
+
 def generate_request_id() -> str:
     return f"req_{int(time.time())}_{secrets.token_hex(4)}"
 
@@ -265,6 +282,15 @@ def create_app(config: AppConfig | None = None):
         StaticFiles(directory=os.path.join(_APP_ROOT, "static")),
         name="static",
     )
+
+    # Vite assets mount (conditional based on frontend_dist availability)
+    _frontend_dist = _find_frontend_dist_path()
+    if _frontend_dist is not None:
+        app.mount(
+            "/assets",
+            StaticFiles(directory=os.path.join(_frontend_dist, "assets")),
+            name="assets",
+        )
 
     # Mount all 5 domain routers (D-14: no prefix — routes define full paths)
     from jellyswipe.routers.auth import auth_router
