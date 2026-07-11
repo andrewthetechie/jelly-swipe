@@ -219,7 +219,7 @@ Preserve or replace these intentionally:
 - `/sw.js` serving path.
 - Installability on phones.
 
-Initial bias: preserve the current simple `sw.js` until the React app is stable. A Vite PWA plugin can be evaluated later, but avoid adding caching complexity before the core app works.
+Use `vite-plugin-pwa` to generate the manifest and service worker. See `002-frontend-production-tasks.md` for the step-by-step task.
 
 ## Accessibility Requirements
 
