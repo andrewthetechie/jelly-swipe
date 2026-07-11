@@ -21,28 +21,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from jellyswipe.config import AppConfig
 from jellyswipe.db_runtime import dispose_runtime
+from jellyswipe.utils.frontend import find_frontend_dist_path
 
 # App root for static/template paths
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 _logger = logging.getLogger(__name__)
-
-
-def _find_frontend_dist_path() -> str | None:
-    """Find frontend_dist directory with two-path fallback.
-
-    Returns the path to frontend_dist if found, None otherwise.
-    Searches: jellyswipe/frontend_dist/ (production/Docker) then ../frontend/dist/ (local dev).
-    """
-    prod_path = os.path.join(_APP_ROOT, "frontend_dist")
-    if os.path.isdir(prod_path):
-        return prod_path
-
-    dev_path = os.path.join(_APP_ROOT, "..", "frontend", "dist")
-    if os.path.isdir(dev_path):
-        return dev_path
-
-    return None
 
 
 def generate_request_id() -> str:
@@ -284,7 +268,7 @@ def create_app(config: AppConfig | None = None):
     )
 
     # Vite assets mount (conditional based on frontend_dist availability)
-    _frontend_dist = _find_frontend_dist_path()
+    _frontend_dist = find_frontend_dist_path(_APP_ROOT)
     if _frontend_dist is not None:
         app.mount(
             "/assets",
