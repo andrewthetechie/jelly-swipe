@@ -2,6 +2,7 @@ import React from "react"
 import HostWaiting from "./HostWaiting"
 import CardItemView from "./CardItemView"
 import MatchFoundModal from "./MatchFoundModal"
+import GenreModal from "./GenreModal"
 import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch, apiUrl } from "./api"
@@ -26,6 +27,7 @@ interface SwipePageProps {
 
 export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
+    const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady } = useRoomContext()
@@ -74,13 +76,17 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         }
     }
 
+    const handleGenreClick = () => {
+        setShowGenreModal(prev => !prev)
+    }
+
     if (roomReady) {
         return (
             <>
                 <div className="swipe-header">
                     <div className="mode-badge">Solo</div>
                     <button className="show-watched hide-watched">Show Watched</button>
-                    <div className="genres">Genres</div>
+                    <div className="genres" onClick={handleGenreClick}>Genres</div>
                 </div>
 
                 <div className="swipe-main">
@@ -109,6 +115,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
                 {matchFound && <MatchFoundModal onClick={handleMatchClose} matchItem={matchItem} />}
+                {showGenreModal && <GenreModal genre={genre} setGenre={setGenre} handleGenreClick={handleGenreClick} />}
             </>
         )
     } else {

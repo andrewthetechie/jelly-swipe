@@ -725,6 +725,55 @@ div.genres {
   cursor: pointer;
 }
 
+.custom-radio input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.custom-radio {
+  display: inline-block;
+  background: #071426;
+  color: #f0f4f8;
+  padding: 0.5rem 1rem;
+  border-radius: 15px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: 1px solid #35D6FF;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.custom-radio:hover {
+  background: #0A3D91;
+  border-color: #35D6FF;
+  color: #f0f4f8;
+  transform: translateY(-1px);
+  box-shadow: 0 0 10px rgba(53, 214, 255, 0.2)
+}
+
+.custom-radio.active {
+  background: #35D6FF;
+  border-radius: 15px;
+  border-color: #1C4273;
+  color: #071426;
+}
+
+.custom-radio.active:hover {
+  background: #4BE0FF;
+  border-color: #c9f8ff;
+  color: #071426;
+  box-shadow: 0 0 12px rgba(53, 214, 255, 0.3);
+}
+
+div.genre-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 15px 0;
+}
+
 button.hide-watched{
   background: #35D6FF;
   border-radius: 15px;
@@ -813,8 +862,6 @@ div.card-item {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-
-
 
 .card-item-container.flipped .card-item-inner {
   transform: rotateY(180deg);
@@ -1071,6 +1118,9 @@ button.shortlist {
     width: 40%;
   }
 
+  div.genre-inputs {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
   .swipe-deck {
     height: 700px;
   }

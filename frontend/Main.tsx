@@ -86,6 +86,13 @@ export default function Main(): JSX.Element {
         setCardDeck(prev => prev.slice(1))
     }, [])
 
+    const handleGenreChange = React.useCallback( async (genre: string) => {
+        try {
+        } catch (err) {
+            console.error("Error changing genre:", err)
+        }
+    }, [])
+
     const handleSwipe = React.useCallback(async (
         cardItem: CardItem,
         direction: "left" | "right") => {
@@ -110,7 +117,7 @@ export default function Main(): JSX.Element {
             setSwipeHistory(prev => [...prev, cardItem])
             advanceDeck()
         } catch (err) {
-            console.error("Error POSTing swipe", err)
+            console.error("Error POSTing swipe:", err)
         }
 
     }, [currentRoomCode, advanceDeck])

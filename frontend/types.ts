@@ -33,6 +33,8 @@ export interface CastResponse {
     cast: CastMember[]
 }
 
+export type GenreListResponse = string[]
+
 export interface RoomStatusResponse {
     ready: boolean
     genre?: string | null
