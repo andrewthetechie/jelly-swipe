@@ -1,26 +1,26 @@
 import React from "react"
+import { apiFetch } from "./api"
 import type { GenreListResponse } from "./types"
-import { G } from "vitest/dist/chunks/reporters.nr4dxCkA.js"
 
-const genreList: GenreListResponse = [
-    "Action",
-    "Adventure",
-    "Animation",
-    "Biography",
-    "Comedy",
-    "Crime",
-    "Documentary",
-    "Drama",
-    "Family",
-    "Horror",
-    "Kids",
-    "Mystery",
-    "Reality",
-    "Romance",
-    "Sci-Fi",
-    "Thriller",
-    "Western"
-]
+// const genreList: GenreListResponse = [
+//     "Action",
+//     "Adventure",
+//     "Animation",
+//     "Biography",
+//     "Comedy",
+//     "Crime",
+//     "Documentary",
+//     "Drama",
+//     "Family",
+//     "Horror",
+//     "Kids",
+//     "Mystery",
+//     "Reality",
+//     "Romance",
+//     "Sci-Fi",
+//     "Thriller",
+//     "Western"
+// ]
 
 interface GenreModalProps {
     genre: string,
@@ -29,6 +29,29 @@ interface GenreModalProps {
 }
 
 export default function GenreModal({ genre, setGenre, handleGenreClick }: GenreModalProps) {
+    const [genreList, setGenreList] = React.useState<GenreListResponse>([])
+    React.useEffect(() => {
+        const fetchGenres = async () => {
+            try {
+                const res: Response = await apiFetch(`/genres`, {
+                    method: 'GET',
+                    headers: {'Content-Type': 'application/json'},
+                })
+                if (!res.ok) {
+                    throw new Error(`Error fetching genres: ${res.status} ${res.statusText}`)
+                }
+
+                const data = await res.json()
+                console.log(data)
+                setGenreList(data)
+
+            } catch (err) {
+                console.error("Error fetching genres:", err)
+            }
+        }
+        fetchGenres()
+    }, [])
+
     const genreElements = genreList.map((option) => (
         <label 
             className={`custom-radio ${genre === option ? "active" : ""}`}
@@ -49,7 +72,7 @@ export default function GenreModal({ genre, setGenre, handleGenreClick }: GenreM
 
     return (
         <div className="modal">
-            <div className="modal-inner">
+            <div className="modal-inner modal-genre">
                 <h2 className="card-item-title">Select Genre</h2>
                 <div className="genre-inputs">
                     {genreElements}

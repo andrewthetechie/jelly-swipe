@@ -256,6 +256,11 @@ img {
   padding: 1.5rem 0;
 }
 
+.modal-genre {
+  height: 85%;
+  overflow-y: auto;
+}
+
 img.match-logo {
   height: 75px;
 }
@@ -736,7 +741,7 @@ div.genres {
   display: inline-block;
   background: #071426;
   color: #f0f4f8;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 15px;
   font-size: 1rem;
   font-weight: 600;
@@ -772,6 +777,7 @@ div.genre-inputs {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 15px 0;
+  padding: 10px;
 }
 
 button.hide-watched{
