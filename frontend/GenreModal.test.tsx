@@ -148,17 +148,83 @@ describe("GenreModal - radio group behavior", () => {
 })
 
 describe("GenreModal - buttons", () => {
-    it("confirm button calls handleGenreChange", () => {
+    it("confirm button calls handleGenreChange", async () => {
+        mockFetch({ ok: true, body: ["Action", "Comedy"] })
 
+        const user = userEvent.setup()
+        const { handleGenreChange } = renderGenreModal()
+
+        await screen.findByLabelText("Action")
+
+        await user.click(
+            screen.getByRole("button", { name: /confirm/i, })
+        )
+
+        expect(handleGenreChange).toHaveBeenCalledOnce
     })
 
-    it("cancel button calls handleGenreClick", () => {
+    it("cancel button calls handleGenreClick", async () => {
+        mockFetch({ ok: true, body: ["Action", "Comedy"] })
 
+        const user = userEvent.setup()
+        const { handleGenreClick} = renderGenreModal()
+
+        await screen.findByLabelText("Action")
+
+        await user.click(
+            screen.getByRole("button", { name: /cancel/i, })
+        )
+
+        expect(handleGenreClick).toHaveBeenCalledOnce
     })
 })
 
 describe("GenreModal - error path", () => {
-    it("fetch failure does not load genres", () => {
+    it("fetch failure does not load genres", async () => {
+        const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 
+        const spy = mockFetch({ ok: false })
+
+        renderGenreModal()
+
+        await waitFor(() => {
+            expect(spy).toHaveBeenCalledOnce()
+        })
+
+        expect(errSpy).toHaveBeenCalled()
+
+        expect(
+            screen.queryByLabelText("Action")
+        ).not.toBeInTheDocument()
+
+        expect(
+            screen.queryByLabelText("Comedy")
+        ).not.toBeInTheDocument()
+
+        expect(
+            screen.queryByLabelText("Drama")
+        ).not.toBeInTheDocument()
+
+        errSpy.mockRestore()
+    })
+
+    it("fetch rejection does not load genres", async () => {
+        const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+        const spy = mockFetch({ reject: true })
+
+        renderGenreModal()
+
+        await waitFor(() => {
+            expect(spy).toHaveBeenCalledOnce()
+        })
+
+        expect(errSpy).toHaveBeenCalled()
+
+        expect(
+            screen.queryByLabelText("Action")
+        ).not.toBeInTheDocument()
+
+        errSpy.mockRestore()
     })
 })
