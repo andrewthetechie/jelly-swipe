@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import GenreModal from "./GenreModal"
-import { renderWithRoom } from "./test/renderWithRoom"
+import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
 
 beforeEach(() => {
@@ -86,12 +86,64 @@ describe("GenreModal - data loading and caching", () => {
 })
 
 describe("GenreModal - radio group behavior", () => {
-    it("selected genre is checked", () => {
+    it("selected genre is checked", async () => {
+        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
 
+        renderWithRoomStateful(
+            <GenreModal 
+                handleGenreClick={vi.fn()}
+                handleGenreChange={vi.fn()}
+            />,
+            { genre: "Action", }
+        )
+
+        const action = await screen.findByLabelText("Action")
+        expect(action).toBeChecked()
     })
 
-    it("clicking another genre changes the selection", () => {
+    it("clicking another genre changes the selection", async () => {
+        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
 
+        const user = userEvent.setup()
+
+        renderWithRoomStateful(
+            <GenreModal 
+                handleGenreClick={vi.fn()}
+                handleGenreChange={vi.fn()}
+            />,
+            { genre: "Action", }
+        )
+
+        const action = await screen.findByLabelText("Action")
+        const comedy = screen.getByLabelText("Comedy")
+
+        expect(action).toBeChecked()
+        expect(comedy).not.toBeChecked()
+
+        await user.click(comedy)
+
+        expect(comedy).toBeChecked()
+        expect(action).not.toBeChecked()
+    })
+
+    it("selecting another genre calls setGenre", async () => {
+        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
+
+        const user = userEvent.setup()
+
+        const { ctx } = renderWithRoom(
+            <GenreModal 
+                handleGenreClick={vi.fn()}
+                handleGenreChange={vi.fn()}
+            />,
+            { genre: "Action", }
+        )
+        
+        const comedy = await screen.findByLabelText("Comedy")
+        await user.click(comedy)
+        
+        expect(ctx.setGenre).toHaveBeenCalledTimes(1)
+        expect(ctx.setGenre).toHaveBeenCalledWith("Comedy")
     })
 })
 
