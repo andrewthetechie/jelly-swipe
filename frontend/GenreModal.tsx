@@ -37,9 +37,7 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
     const { genre, setGenre } = useRoomContext()
 
     React.useEffect(() => {
-        const cached = sessionStorage.getItem("genres")
-        if (cached) {
-            setGenreList(JSON.parse(cached))
+        if (genreList.length > 0) {
             return
         }
 
@@ -61,7 +59,7 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
             }
         }
         fetchGenres()
-    }, [])
+    }, [genreList.length])
 
     const genreElements = genreList.map((option) => (
         <label 

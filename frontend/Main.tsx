@@ -99,7 +99,6 @@ export default function Main(): JSX.Element {
             if (!res.ok) {
                 throw new Error(`Error POSTing new genre: ${res.status} ${res.statusText}`)
             }
-            const data = await res.json()
             getCardDeck()
             setShowGenreModal(false)
         } catch (err) {
