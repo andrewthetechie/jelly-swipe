@@ -35,6 +35,8 @@ function makeDefaultCtx(): RoomContextType {
     setIsSoloMode: vi.fn(),
     userInputCode: "",
     setUserInputCode: vi.fn(),
+    genre: "All",
+    setGenre: vi.fn(),
     // The real setters are React.Dispatch<SetStateAction<…>>; a bare vi.fn()
     // is structurally close enough for tests, so we assert the object matches
     // the interface with a single cast here rather than casting each field.
@@ -78,6 +80,9 @@ export function renderWithRoomStateful(
     const [currentRoomCode, setCurrentRoomCodeState] = useState<
       string | null
     >(overrides.currentRoomCode ?? null);
+    const [genre, setGenreState] = useState<
+      string | null
+    >(overrides.genre ?? "All");
 
     const ctx: RoomContextType = {
       currentRoomCode,
@@ -92,6 +97,8 @@ export function renderWithRoomStateful(
       setIsSoloMode: vi.fn((v: boolean) => setIsSoloModeState(v)),
       userInputCode: overrides.userInputCode ?? "",
       setUserInputCode: vi.fn(),
+      genre,
+      setGenre: vi.fn((v: string) => setGenreState(v)),
     } as unknown as RoomContextType;
 
     return (
