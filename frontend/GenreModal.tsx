@@ -1,6 +1,8 @@
 import React from "react"
 import { apiFetch } from "./api"
+import { useRoomContext } from "./RoomContextProvider"
 import type { GenreListResponse } from "./types"
+import type { JSX } from "react"
 
 // const genreList: GenreListResponse = [
 //     "Action",
@@ -23,14 +25,24 @@ import type { GenreListResponse } from "./types"
 // ]
 
 interface GenreModalProps {
-    genre: string,
-    setGenre: React.Dispatch<React.SetStateAction<string>>,
     handleGenreClick: () => void
+    handleGenreChange: () => void
 }
 
-export default function GenreModal({ genre, setGenre, handleGenreClick }: GenreModalProps) {
-    const [genreList, setGenreList] = React.useState<GenreListResponse>([])
+export default function GenreModal({ handleGenreClick, handleGenreChange }: GenreModalProps): JSX.Element {
+    const [genreList, setGenreList] = React.useState<GenreListResponse>(() => {
+        const cached = sessionStorage.getItem("genres")
+        return cached ? JSON.parse(cached) : []
+    })
+    const { genre, setGenre } = useRoomContext()
+
     React.useEffect(() => {
+        const cached = sessionStorage.getItem("genres")
+        if (cached) {
+            setGenreList(JSON.parse(cached))
+            return
+        }
+
         const fetchGenres = async () => {
             try {
                 const res: Response = await apiFetch(`/genres`, {
@@ -42,9 +54,8 @@ export default function GenreModal({ genre, setGenre, handleGenreClick }: GenreM
                 }
 
                 const data = await res.json()
-                console.log(data)
                 setGenreList(data)
-
+                sessionStorage.setItem("genres", JSON.stringify(data))
             } catch (err) {
                 console.error("Error fetching genres:", err)
             }
@@ -77,7 +88,7 @@ export default function GenreModal({ genre, setGenre, handleGenreClick }: GenreM
                 <div className="genre-inputs">
                     {genreElements}
                 </div>
-                <button className="modal-button">Confirm</button>
+                <button className="modal-button" onClick={handleGenreChange}>Confirm</button>
                 <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
             </div>
         </div>

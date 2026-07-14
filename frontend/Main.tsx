@@ -23,11 +23,12 @@ const DEFAULT_MATCHITEM: MatchItem = {
 }
 
 export default function Main(): JSX.Element {
-    const { currentRoomCode, setCurrentRoomCode, setRoomReady } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, setRoomReady, genre } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
     const [swipeHistory, setSwipeHistory] = React.useState<CardDeck>([])
     const [matchFound, setMatchFound] = React.useState<boolean>(false)
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
+    const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { sseData, sseError, isConnected } = useSSEContext()
     
 
@@ -86,12 +87,25 @@ export default function Main(): JSX.Element {
         setCardDeck(prev => prev.slice(1))
     }, [])
 
-    const handleGenreChange = React.useCallback( async (genre: string) => {
+    const handleGenreChange = React.useCallback( async () => {
         try {
+            const res: Response = await apiFetch(`/room/${currentRoomCode}/genre`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    genre
+                }),
+            })
+            if (!res.ok) {
+                throw new Error(`Error POSTing new genre: ${res.status} ${res.statusText}`)
+            }
+            const data = await res.json()
+            getCardDeck()
+            setShowGenreModal(false)
         } catch (err) {
             console.error("Error changing genre:", err)
         }
-    }, [])
+    }, [currentRoomCode, genre])
 
     const handleSwipe = React.useCallback(async (
         cardItem: CardItem,
@@ -160,7 +174,19 @@ export default function Main(): JSX.Element {
     return (
         <main>
             {!currentRoomCode && <Intro />}
-            {currentRoomCode && <SwipePage cardDeck={cardDeck} onSwipe={handleSwipe} matchFound={matchFound} handleMatchClose={handleMatchClose} matchItem={matchItem} handleUndo={handleUndo} />}
+            {currentRoomCode && 
+                <SwipePage 
+                    cardDeck={cardDeck} 
+                    onSwipe={handleSwipe} 
+                    matchFound={matchFound} 
+                    handleMatchClose={handleMatchClose} 
+                    matchItem={matchItem} 
+                    handleUndo={handleUndo} 
+                    handleGenreChange={handleGenreChange}
+                    showGenreModal={showGenreModal}
+                    setShowGenreModal={setShowGenreModal}
+                />
+            }
         </main>
     )
 }

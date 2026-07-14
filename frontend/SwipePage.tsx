@@ -23,12 +23,13 @@ interface SwipePageProps {
     handleMatchClose: () => void
     matchItem: MatchItem
     handleUndo: () => void
+    handleGenreChange: () => void
+    showGenreModal: boolean
+    setShowGenreModal: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
-    const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
-    const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
@@ -115,7 +116,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
                 {matchFound && <MatchFoundModal onClick={handleMatchClose} matchItem={matchItem} />}
-                {showGenreModal && <GenreModal genre={genre} setGenre={setGenre} handleGenreClick={handleGenreClick} />}
+                {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} handleGenreChange={handleGenreChange} />}
             </>
         )
     } else {
