@@ -38,16 +38,19 @@ function renderGenreModal() {
 describe("GenreModal - data loading and caching", () => {
     it("renders fetched genres", async () => {
         const spy = mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
+
         renderGenreModal()
+
+        expect(await screen.findByLabelText("Action")).toBeInTheDocument()
+        expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
+        expect(screen.getByLabelText("Drama")).toBeInTheDocument()
+
+        expect(spy).toHaveBeenCalledOnce()
 
         const [url, options] = spy.mock.calls[0]
 
         expect((url as URL).href).toMatch(/\/genres$/)
         expect((options as RequestInit).method).toBe("GET")
-
-        expect(await screen.findByLabelText("Action")).toBeInTheDocument()
-        expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
-        expect(screen.getByLabelText("Drama")).toBeInTheDocument()
     })
 
     it("uses cached genres instead of fetching them", () => {
