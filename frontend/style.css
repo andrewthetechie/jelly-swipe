@@ -708,23 +708,13 @@ div.mode-badge {
   margin-right: auto;
 }
 
-button.show-watched {
+button.show-watched,
+button.genres {
   background: #071426;
   color: #f0f4f8;
   padding: 0.5rem 1.25rem;
   border-radius: 15px;
   font-size: 1rem;
-  font-weight: 600;
-  border: 1px solid #35D6FF;
-  cursor: pointer;
-}
-
-div.genres {
-  background: #071426;
-  color: #f0f4f8;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: 1.1rem;
   font-weight: 600;
   border: 1px solid #35D6FF;
   cursor: pointer;
@@ -788,7 +778,7 @@ button.hide-watched{
 }
 
 button.show-watched:hover,
-div.genres:hover {
+button.genres:hover {
   background: #0A3D91;
   border-color: #35D6FF;
 }

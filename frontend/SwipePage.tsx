@@ -87,7 +87,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                 <div className="swipe-header">
                     <div className="mode-badge">Solo</div>
                     <button className="show-watched hide-watched">Show Watched</button>
-                    <div className="genres" onClick={handleGenreClick}>Genres</div>
+                    <button className="genres" onClick={handleGenreClick}>Genres</button>
                 </div>
 
                 <div className="swipe-main">
