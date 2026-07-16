@@ -19,7 +19,7 @@ import { screen, waitFor, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import Main from "./Main"
 import SwipePage from "./SwipePage"
-import { renderWithRoom } from "./test/renderWithRoom"
+import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { SSEContextProvider } from "./SSEContextProvider"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck, makeCard, swipeRight, swipeLeft } from "./test/fixtures"
@@ -114,6 +114,49 @@ async function setupUndoTest(deck = makeDeck(3)) {
     undoButton,
   }
 }
+
+async function setupGenreChangeTest() {
+  const user = userEvent.setup()
+  const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+  fetchSpy.mockResolvedValueOnce({
+    ok: true,
+    json: async () => makeDeck(3),
+  } as Response)
+
+  fetchSpy.mockResolvedValueOnce({
+    ok: true,
+    json: async () => [
+      "Action",
+      "Comedy",
+      "Drama",
+    ]
+  } as Response)
+
+  renderWithRoomStateful(
+    <SSEContextProvider>
+      <Main />
+    </SSEContextProvider>,
+    { currentRoomCode: "1234", roomReady: true, genre: "Action",}
+  )
+
+  expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+  await user.click(screen.getByText("Genres"))
+
+  expect(
+    await screen.findByLabelText("Comedy")
+  ).toBeInTheDocument()
+
+  return {
+    user,
+    fetchSpy,
+  }
+}
+
+beforeEach(() => {
+  sessionStorage.clear()
+})
 
 describe("Main — screen switching", () => {
   it("renders Intro (not SwipePage) when there is no room code", async () => {
@@ -419,6 +462,124 @@ describe("Main - undo button", () => {
   })
 })
 
+describe("Main - genre change behavior", () => {
+  it("sucessful POST changes genre and refreshes deck", async () => {
+    const { user, fetchSpy } = await setupGenreChangeTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    } as Response)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeDeck(3),
+    } as Response)    
+
+    await user.click(
+      screen.getByLabelText("Comedy")
+    )
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /confirm/i,
+      })
+    )
+
+    await waitFor(() => 
+      expect(fetchSpy).toHaveBeenCalledTimes(4)
+    )
+
+    expect((fetchSpy.mock.calls[0][0] as URL).pathname)
+      .toBe("/room/1234/deck")
+
+    expect((fetchSpy.mock.calls[1][0] as URL).pathname)
+      .toBe("/genres")
+
+    expect((fetchSpy.mock.calls[2][0] as URL).pathname)
+      .toBe("/room/1234/genre")
+
+    expect((fetchSpy.mock.calls[3][0] as URL).pathname)
+      .toBe("/room/1234/deck")
+
+    expect(
+      screen.queryByText("Select Genre")
+    ).not.toBeInTheDocument()
+  })
+
+  it("failed POST does not change genre", async () => {
+    const { user, fetchSpy } = await setupGenreChangeTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+    } as Response)
+
+    await user.click(
+      screen.getByLabelText("Comedy")
+    )
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /confirm/i,
+      })
+    )
+
+    await waitFor(() => 
+      expect(fetchSpy).toHaveBeenCalledTimes(3)
+    )
+
+    expect((fetchSpy.mock.calls[0][0] as URL).pathname)
+      .toBe("/room/1234/deck")
+
+    expect((fetchSpy.mock.calls[1][0] as URL).pathname)
+      .toBe("/genres")
+
+    expect((fetchSpy.mock.calls[2][0] as URL).pathname)
+      .toBe("/room/1234/genre")
+
+    expect(
+      screen.getByText("Select Genre")
+    ).toBeInTheDocument()
+  })
+
+  it("POSTs with correct body and endpoint", async () => {
+    const { user, fetchSpy } = await setupGenreChangeTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    } as Response)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeDeck(3),
+    } as Response)    
+
+    await user.click(
+      screen.getByLabelText("Comedy")
+    )
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /confirm/i,
+      })
+    )
+
+    await waitFor(() => 
+      expect(fetchSpy).toHaveBeenCalledTimes(4)
+    )
+
+    const [url, options] = fetchSpy.mock.calls[2]
+
+    expect((url as URL).href).toMatch(/\/room\/1234\/genre$/)
+
+    expect(
+      JSON.parse(
+        (options as RequestInit).body as string
+      )
+    ).toEqual({ genre: "Comedy", })
+  })
+})
 
 
 // LATER
