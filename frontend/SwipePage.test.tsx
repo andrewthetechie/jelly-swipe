@@ -15,9 +15,12 @@
 //
 // We deliberately do NOT test the static/dead elements (Undo, Shortlist, Show
 // Watched, Genres, the hardcoded "Solo" mode-badge) — they have no wiring yet.
+
 import { fireEvent, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { useState } from "react"
 import SwipePage from "./SwipePage"
-import { renderWithRoom } from "./test/renderWithRoom"
+import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck } from "./test/fixtures"
 import { SSEContextProvider } from "./SSEContextProvider"
@@ -212,5 +215,62 @@ describe("SwipePage — end session (3-part network contract)", () => {
     expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
 
     errSpy.mockRestore()
+  })
+})
+
+function GenreModalHarness() {
+  const [showGenreModal, setShowGenreModal] = useState(false)
+
+  return (
+    <SSEContextProvider>
+      <SwipePage
+        cardDeck={makeDeck(2)}
+        matchFound={false}
+        handleMatchClose={vi.fn()}
+        matchItem={DEFAULT_MATCHITEM}
+        handleUndo={vi.fn()}
+        handleGenreChange={vi.fn()}
+        showGenreModal={showGenreModal}
+        setShowGenreModal={setShowGenreModal}
+      />
+    </SSEContextProvider>
+  )
+}
+
+describe("SwipePage - GenreModal behavior", () => {
+  it("does not render GenreModal when showGenreModal is false", () => {
+    renderSwipePage()
+    expect(
+      screen.queryByText("Select Genre")
+    ).not.toBeInTheDocument()
+  })
+
+  it("renders GenreModal when showGenreModal is true", () => {
+    renderSwipePage(2, true, true)
+    expect(
+      screen.queryByText("Select Genre")
+    ).toBeInTheDocument()
+  })
+
+  it("clicking on genres toggles showGenreModal", async () => {
+    const user = userEvent.setup()
+
+    renderWithRoomStateful(<GenreModalHarness />,
+      { currentRoomCode: "1234", roomReady: true }
+    )
+
+    const genresButton = screen.getByRole("button", {
+      name: /genres/i,
+    })
+
+    expect(
+      screen.queryByText("Select Genre")
+    ).not.toBeInTheDocument()
+
+    await user.click(genresButton)
+
+    expect(
+      screen.queryByText("Select Genre")
+    ).toBeInTheDocument()
   })
 })

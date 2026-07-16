@@ -77,26 +77,34 @@ export function renderWithRoomStateful(
     const [isSoloMode, setIsSoloModeState] = useState<boolean>(
       overrides.isSoloMode ?? false,
     );
+    const [roomReady, setRoomReadyState] = useState<boolean>(
+      overrides.roomReady ?? false,
+    );
     const [currentRoomCode, setCurrentRoomCodeState] = useState<
       string | null
     >(overrides.currentRoomCode ?? null);
-    const [genre, setGenreState] = useState<
-      string | null
-    >(overrides.genre ?? "All");
+    const [userInputCode, setUserInputCodeState] = useState<string>(
+      overrides.userInputCode ?? "",
+    );
+    const [genre, setGenreState] = useState<string>(
+      overrides.genre ?? "All",
+    );
 
     const ctx: RoomContextType = {
       currentRoomCode,
       setCurrentRoomCode: vi.fn((v: string | null) =>
         setCurrentRoomCodeState(v as string | null),
       ),
+      roomReady,
+      setRoomReady: vi.fn((v: boolean) => setRoomReadyState(v)),
       movies,
       setMovies: vi.fn((v: boolean) => setMoviesState(v)),
       tvShows,
       setTvShows: vi.fn((v: boolean) => setTvShowsState(v)),
       isSoloMode,
       setIsSoloMode: vi.fn((v: boolean) => setIsSoloModeState(v)),
-      userInputCode: overrides.userInputCode ?? "",
-      setUserInputCode: vi.fn(),
+      userInputCode,
+      setUserInputCode: vi.fn((v: string) => setUserInputCodeState(v)),
       genre,
       setGenre: vi.fn((v: string) => setGenreState(v)),
     } as unknown as RoomContextType;
