@@ -781,6 +781,7 @@ button.show-watched:hover,
 button.genres:hover {
   background: #0A3D91;
   border-color: #35D6FF;
+  color: #f0f4f8;
 }
 
 .swipe-main {

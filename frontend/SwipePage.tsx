@@ -33,6 +33,8 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
+    const hideWatchedText = hideWatched ? "Show Watched" : "Hide Watched"
+    const hideWatchedClass = hideWatched ? "hide-watched" : ""
 
     React.useEffect(() => {
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -81,12 +83,17 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         setShowGenreModal(prev => !prev)
     }
 
+    const handleWatchedFilterClick = () => {
+        setHideWatched(prev => !prev)
+        // /room/{code}/watched-filter POST here
+    }
+
     if (roomReady) {
         return (
             <>
                 <div className="swipe-header">
                     <div className="mode-badge">Solo</div>
-                    <button className="show-watched hide-watched">Show Watched</button>
+                    <button className={`show-watched ${hideWatchedClass}`} onClick={handleWatchedFilterClick}>{hideWatchedText}</button>
                     <button className="genres" onClick={handleGenreClick}>Genres</button>
                 </div>
 
