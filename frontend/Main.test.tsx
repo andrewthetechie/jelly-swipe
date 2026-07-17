@@ -154,6 +154,31 @@ async function setupGenreChangeTest() {
   }
 }
 
+async function setupWatchedToggleTest() {
+  const user = userEvent.setup()
+  const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+  fetchSpy.mockResolvedValueOnce({
+    ok: true,
+    json: async () => makeDeck(3),
+  } as Response)
+
+  renderWithRoomStateful(
+    <SSEContextProvider>
+      <Main />
+    </SSEContextProvider>,
+    { currentRoomCode: "1234", roomReady: true, }
+  )
+
+  expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+  return {
+    user,
+    fetchSpy,
+  }
+
+}
+
 beforeEach(() => {
   sessionStorage.clear()
 })
@@ -558,6 +583,87 @@ describe("Main - genre change behavior", () => {
         (options as RequestInit).body as string
       )
     ).toEqual({ genre: "Comedy", })
+  })
+})
+
+describe("Main - watch filter toggle behavior", () => {
+  const unwatchedDeck = Object.freeze([
+    makeCard({
+      media_id: "999",
+      title: "Unwatched Movie 1",
+    }),
+    makeCard({
+      media_id: "888",
+      title: "Unwatched Movie 2",
+    }),
+    makeCard({
+      media_id: "777",
+      title: "Unwatched Movie 3",
+    }),
+  ])
+
+  it("successful POST toggles watch filter and refreshes deck", async () => {
+    const { user, fetchSpy } = await setupWatchedToggleTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => unwatchedDeck,
+    } as Response)
+
+    await user.click(
+      screen.getByTestId("watched-toggle")
+    )
+
+    expect(await screen.findByAltText("Unwatched Movie 1")).toBeInTheDocument()
+    expect(screen.queryByAltText("Movie 1")).not.toBeInTheDocument()
+    expect(screen.getByText("Show Watched")).toBeInTheDocument()
+    expect(screen.queryByText("Hide Watched")).not.toBeInTheDocument()
+  })
+
+  it("failed POST leaves the deck and button state unchanged", async () => {
+    const { user, fetchSpy } = await setupWatchedToggleTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+    } as Response)
+
+    await user.click(
+      screen.getByTestId("watched-toggle")
+    )
+
+    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+    expect(screen.queryByAltText("Unwatched Movie 1")).not.toBeInTheDocument()
+    expect(screen.getByText("Hide Watched")).toBeInTheDocument()
+    expect(screen.queryByText("Show Watched")).not.toBeInTheDocument()
+  })
+
+  it("POST sends the correct endpoint and body", async () => {
+    const { user, fetchSpy } = await setupWatchedToggleTest()
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => unwatchedDeck,
+    } as Response)
+
+    await user.click(
+      screen.getByTestId("watched-toggle")
+    )
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(2)
+    })
+
+    const [url, options] = fetchSpy.mock.calls[1]
+
+    expect((url as URL).href).toMatch(
+      /\/room\/1234\/watched-filter$/
+    )
+
+    expect(
+      JSON.parse((options as RequestInit).body as string)
+    ).toEqual({
+      hide_watched: true,
+    })
   })
 })
 
