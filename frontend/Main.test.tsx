@@ -463,18 +463,28 @@ describe("Main - undo button", () => {
 })
 
 describe("Main - genre change behavior", () => {
+  const comedyDeck = Object.freeze([
+    makeCard({
+      media_id: "999",
+      title: "Comedy Movie 1",
+    }),
+    makeCard({
+      media_id: "888",
+      title: "Comedy Movie 2",
+    }),
+    makeCard({
+      media_id: "777",
+      title: "Comedy Movie 3",
+    }),
+  ])
+
   it("sucessful POST changes genre and refreshes deck", async () => {
     const { user, fetchSpy } = await setupGenreChangeTest()
 
     fetchSpy.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ success: true }),
+      json: async () => comedyDeck,
     } as Response)
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => makeDeck(3),
-    } as Response)    
 
     await user.click(
       screen.getByLabelText("Comedy")
@@ -486,25 +496,9 @@ describe("Main - genre change behavior", () => {
       })
     )
 
-    await waitFor(() => 
-      expect(fetchSpy).toHaveBeenCalledTimes(4)
-    )
-
-    expect((fetchSpy.mock.calls[0][0] as URL).pathname)
-      .toBe("/room/1234/deck")
-
-    expect((fetchSpy.mock.calls[1][0] as URL).pathname)
-      .toBe("/genres")
-
-    expect((fetchSpy.mock.calls[2][0] as URL).pathname)
-      .toBe("/room/1234/genre")
-
-    expect((fetchSpy.mock.calls[3][0] as URL).pathname)
-      .toBe("/room/1234/deck")
-
-    expect(
-      screen.queryByText("Select Genre")
-    ).not.toBeInTheDocument()
+    expect(await screen.findByAltText("Comedy Movie 1")).toBeInTheDocument()
+    expect(screen.queryByAltText("Movie 1")).not.toBeInTheDocument()
+    expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
   })
 
   it("failed POST does not change genre", async () => {
@@ -528,18 +522,9 @@ describe("Main - genre change behavior", () => {
       expect(fetchSpy).toHaveBeenCalledTimes(3)
     )
 
-    expect((fetchSpy.mock.calls[0][0] as URL).pathname)
-      .toBe("/room/1234/deck")
-
-    expect((fetchSpy.mock.calls[1][0] as URL).pathname)
-      .toBe("/genres")
-
-    expect((fetchSpy.mock.calls[2][0] as URL).pathname)
-      .toBe("/room/1234/genre")
-
-    expect(
-      screen.getByText("Select Genre")
-    ).toBeInTheDocument()
+    expect(screen.getByAltText("Movie 1")).toBeInTheDocument()
+    expect(screen.queryByAltText("Comedy Movie 1")).not.toBeInTheDocument()
+    expect(screen.getByText("Select Genre")).toBeInTheDocument()
   })
 
   it("POSTs with correct body and endpoint", async () => {
@@ -547,13 +532,8 @@ describe("Main - genre change behavior", () => {
 
     fetchSpy.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ success: true }),
+      json: async () => comedyDeck,
     } as Response)
-
-    fetchSpy.mockResolvedValueOnce({
-      ok: true,
-      json: async () => makeDeck(3),
-    } as Response)    
 
     await user.click(
       screen.getByLabelText("Comedy")
@@ -566,7 +546,7 @@ describe("Main - genre change behavior", () => {
     )
 
     await waitFor(() => 
-      expect(fetchSpy).toHaveBeenCalledTimes(4)
+      expect(fetchSpy).toHaveBeenCalledTimes(3)
     )
 
     const [url, options] = fetchSpy.mock.calls[2]
