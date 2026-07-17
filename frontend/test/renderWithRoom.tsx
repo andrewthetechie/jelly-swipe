@@ -92,7 +92,7 @@ export function renderWithRoomStateful(
       overrides.genre ?? "All",
     );
     const [hideWatched, setHideWatchedState] = useState<boolean>(
-      overrides.roomReady ?? false,
+      overrides.hideWatched ?? false,
     );
 
     const ctx: RoomContextType = {
