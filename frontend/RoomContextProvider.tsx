@@ -15,6 +15,8 @@ export interface RoomContextType {
     setUserInputCode: React.Dispatch<React.SetStateAction<string>>
     genre: string
     setGenre: React.Dispatch<React.SetStateAction<string>>
+    hideWatched: boolean
+    setHideWatched: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 export const RoomContext = React.createContext<RoomContextType | undefined>(undefined)
@@ -31,6 +33,7 @@ export function RoomContextProvider({ children }: RoomProviderProps) {
     const [isSoloMode, setIsSoloMode] = React.useState<boolean>(false)
     const [userInputCode, setUserInputCode] = React.useState<string>("")
     const [genre, setGenre] = React.useState<string>("All")
+    const [hideWatched, setHideWatched] = React.useState<boolean>(false)
 
     return (
         <RoomContext.Provider
@@ -48,7 +51,9 @@ export function RoomContextProvider({ children }: RoomProviderProps) {
                 userInputCode,
                 setUserInputCode,
                 genre,
-                setGenre
+                setGenre,
+                hideWatched,
+                setHideWatched
         }}>
             {children}
         </RoomContext.Provider>

@@ -30,8 +30,7 @@ interface SwipePageProps {
 
 export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
-    const [hideWatched, setHideWatched] = React.useState<boolean>(false)
-    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
     const hideWatchedText = hideWatched ? "Show Watched" : "Hide Watched"
     const hideWatchedClass = hideWatched ? "hide-watched" : ""
@@ -85,6 +84,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
 
     const handleWatchedFilterClick = () => {
         setHideWatched(prev => !prev)
+        // need to move hideWatched state to RoomContext before proceeding
         // /room/{code}/watched-filter POST here
     }
 
