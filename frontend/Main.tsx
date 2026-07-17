@@ -87,10 +87,26 @@ export default function Main(): JSX.Element {
         setCardDeck(prev => prev.slice(1))
     }, [])
 
-    const handleWatchedFilterClick = () => {
-        setHideWatched(prev => !prev)
-        // /room/{code}/watched-filter POST here
-    }
+    const handleWatchedFilterClick = React.useCallback( async () => {
+        try {
+            const res: Response = await apiFetch(`/room/${currentRoomCode}/watched-filter`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    "hide_watched": !hideWatched
+                }), 
+            })
+            if (!res.ok) {
+                throw new Error(`Error toggling watched filter: ${res.status} ${res.statusText}`)
+            }
+            const data = await res.json()
+            setCardDeck(data)
+            setSwipeHistory([])
+            setHideWatched(prev => !prev)
+        } catch (err) {
+            console.error("Error toggling watched filter", err)
+        }
+    }, [currentRoomCode, hideWatched])
 
     const handleGenreChange = React.useCallback( async () => {
         try {
