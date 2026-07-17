@@ -18,6 +18,28 @@ const DEFAULT_MATCHITEM: MatchItem = {
     year: null
 }
 
+function renderSwipePage() {
+  const utils = renderWithRoom(
+    <SSEContextProvider>
+      <SwipePage 
+        cardDeck={makeDeck(2)} 
+        matchFound={false} 
+        handleMatchClose={vi.fn()} 
+        matchItem={DEFAULT_MATCHITEM}
+        handleUndo={vi.fn()}
+        handleGenreChange={vi.fn()}
+        showGenreModal={false}
+        setShowGenreModal={vi.fn()}
+      />
+    </SSEContextProvider>,
+    { currentRoomCode: "1234", roomReady: false }
+  )
+
+  return {
+    ...utils,
+  }
+}
+
 describe("HostWaiting - Room Code rendering", () => {
     it("renders the correct room code", () => {
         renderWithRoom(
@@ -33,12 +55,7 @@ describe("HostWaiting - Room Code rendering", () => {
 describe("HostWaiting — end session (3-part network contract)", () => {
   it("POSTs to /room/{code}/quit, then clears the room code on success", async () => {
     const spy = mockFetch({ ok: true, body: { pairing_code: "1234" } })
-    const { ctx } = renderWithRoom(
-      <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
-      </SSEContextProvider>, 
-      { currentRoomCode: "1234", roomReady: false}
-    )
+    const { ctx } = renderSwipePage()
 
     fireEvent.click(screen.getByText("End Session"))
 
@@ -55,12 +72,7 @@ describe("HostWaiting — end session (3-part network contract)", () => {
   it("leaves the room code untouched when quit responds non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const spy = mockFetch({ ok: false })
-    const { ctx } = renderWithRoom(
-      <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
-      </SSEContextProvider>, 
-      { currentRoomCode: "1234", roomReady: false }
-    )
+    const { ctx } = renderSwipePage()
 
     fireEvent.click(screen.getByText("End Session"))
 
@@ -74,12 +86,7 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     // Silence the expected console.error so the failure path stays quiet.
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const spy = mockFetch({ reject: true })
-   const { ctx } = renderWithRoom(
-      <SSEContextProvider>
-        <SwipePage cardDeck={makeDeck(2)} matchFound={false} handleMatchClose={vi.fn()} matchItem={DEFAULT_MATCHITEM} />
-      </SSEContextProvider>, 
-      { currentRoomCode: "1234", roomReady: false }
-    )
+   const { ctx } = renderSwipePage()
 
     fireEvent.click(screen.getByText("End Session"))
 
