@@ -99,7 +99,9 @@ export default function Main(): JSX.Element {
             if (!res.ok) {
                 throw new Error(`Error POSTing new genre: ${res.status} ${res.statusText}`)
             }
-            getCardDeck()
+            const data = await res.json()
+            setCardDeck(data)
+            setSwipeHistory([])
             setShowGenreModal(false)
         } catch (err) {
             console.error("Error changing genre:", err)
