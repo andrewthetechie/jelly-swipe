@@ -31,7 +31,7 @@ interface SwipePageProps {
 
 export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterClick }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
-    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
     const hideWatchedText = hideWatched ? "Show Watched" : "Hide Watched"
     const hideWatchedClass = hideWatched ? "" : "hide-watched"
@@ -72,6 +72,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
             const quitRoomResponse: { status: string } = await res.json()
             console.log("Session ended", quitRoomResponse)
             setRoomReady(false)
+            setHideWatched(false)
             setCurrentRoomCode(null)
             
         } catch (err) {
