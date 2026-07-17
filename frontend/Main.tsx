@@ -23,7 +23,7 @@ const DEFAULT_MATCHITEM: MatchItem = {
 }
 
 export default function Main(): JSX.Element {
-    const { currentRoomCode, setCurrentRoomCode, setRoomReady, genre } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, setRoomReady, genre, hideWatched, setHideWatched } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
     const [swipeHistory, setSwipeHistory] = React.useState<CardDeck>([])
     const [matchFound, setMatchFound] = React.useState<boolean>(false)
@@ -86,6 +86,11 @@ export default function Main(): JSX.Element {
     const advanceDeck = React.useCallback(() => {
         setCardDeck(prev => prev.slice(1))
     }, [])
+
+    const handleWatchedFilterClick = () => {
+        setHideWatched(prev => !prev)
+        // /room/{code}/watched-filter POST here
+    }
 
     const handleGenreChange = React.useCallback( async () => {
         try {
@@ -186,6 +191,7 @@ export default function Main(): JSX.Element {
                     handleGenreChange={handleGenreChange}
                     showGenreModal={showGenreModal}
                     setShowGenreModal={setShowGenreModal}
+                    handleWatchedFilterClick={handleWatchedFilterClick}
                 />
             }
         </main>

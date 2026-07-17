@@ -26,14 +26,15 @@ interface SwipePageProps {
     handleGenreChange: () => void
     showGenreModal: boolean
     setShowGenreModal: React.Dispatch<React.SetStateAction<boolean>>
+    handleWatchedFilterClick: () => void
 }
 
-export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterClick }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
-    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
     const hideWatchedText = hideWatched ? "Show Watched" : "Hide Watched"
-    const hideWatchedClass = hideWatched ? "hide-watched" : ""
+    const hideWatchedClass = hideWatched ? "" : "hide-watched"
 
     React.useEffect(() => {
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -80,12 +81,6 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
 
     const handleGenreClick = () => {
         setShowGenreModal(prev => !prev)
-    }
-
-    const handleWatchedFilterClick = () => {
-        setHideWatched(prev => !prev)
-        // need to move hideWatched state to RoomContext before proceeding
-        // /room/{code}/watched-filter POST here
     }
 
     if (roomReady) {
