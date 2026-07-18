@@ -9,7 +9,6 @@ import type { CardItem } from "./types"
 import type { MatchItem } from "./types"
 import type { CardDeck } from "./types"
 import type { SessionBootstrapResponse } from './types'
-import type { MatchFoundEvent } from "./types"
 
 const DEFAULT_MATCHITEM: MatchItem = {
     title: null,
@@ -41,9 +40,11 @@ export default function Main(): JSX.Element {
                 setRoomReady(bootstrapData.ready)
             }
             if ("event_type" in sseData && sseData.event_type === "match_found") {
-                console.log("match found")
                 setMatchItem(sseData as MatchItem)
                 setMatchFound(true)
+            }
+            if ("event_type" in sseData && sseData.event_type === "genre_changed") {
+                getCardDeck()
             }
             if ("event_type" in sseData && sseData.event_type === "session_ready") {
                 setRoomReady(true)
