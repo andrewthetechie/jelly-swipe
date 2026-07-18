@@ -29,7 +29,8 @@ export default function Main(): JSX.Element {
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { sseData, sseError, isConnected } = useSSEContext()
-    
+    console.log(genre)
+    console.log(hideWatched)
 
     React.useEffect(() => {    
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -44,6 +45,9 @@ export default function Main(): JSX.Element {
                 setMatchFound(true)
             }
             if ("event_type" in sseData && sseData.event_type === "genre_changed") {
+                getCardDeck()
+            }
+            if ("event_type" in sseData && sseData.event_type === "hide_watched_changed") {
                 getCardDeck()
             }
             if ("event_type" in sseData && sseData.event_type === "session_ready") {
