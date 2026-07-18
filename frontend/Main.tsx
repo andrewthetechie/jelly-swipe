@@ -5,7 +5,7 @@ import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch } from "./api"
 import type { JSX } from "react"
-import type { CardItem } from "./types"
+import type { CardItem, GenreChangedEvent, HideWatchedChangedEvent } from "./types"
 import type { MatchItem } from "./types"
 import type { CardDeck } from "./types"
 import type { SessionBootstrapResponse } from './types'
@@ -22,15 +22,13 @@ const DEFAULT_MATCHITEM: MatchItem = {
 }
 
 export default function Main(): JSX.Element {
-    const { currentRoomCode, setCurrentRoomCode, setRoomReady, genre, hideWatched, setHideWatched } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, setRoomReady, genre, setGenre, hideWatched, setHideWatched } = useRoomContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
     const [swipeHistory, setSwipeHistory] = React.useState<CardDeck>([])
     const [matchFound, setMatchFound] = React.useState<boolean>(false)
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { sseData, sseError, isConnected } = useSSEContext()
-    console.log(genre)
-    console.log(hideWatched)
 
     React.useEffect(() => {    
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -45,9 +43,13 @@ export default function Main(): JSX.Element {
                 setMatchFound(true)
             }
             if ("event_type" in sseData && sseData.event_type === "genre_changed") {
+                const genreData = sseData as GenreChangedEvent
+                setGenre(genreData.genre as string)
                 getCardDeck()
             }
             if ("event_type" in sseData && sseData.event_type === "hide_watched_changed") {
+                const watchedData = sseData as HideWatchedChangedEvent
+                setHideWatched(watchedData.hide_watched as boolean)
                 getCardDeck()
             }
             if ("event_type" in sseData && sseData.event_type === "session_ready") {
@@ -107,7 +109,6 @@ export default function Main(): JSX.Element {
             const data = await res.json()
             setCardDeck(data)
             setSwipeHistory([])
-            setHideWatched(prev => !prev)
         } catch (err) {
             console.error("Error toggling watched filter", err)
         }
