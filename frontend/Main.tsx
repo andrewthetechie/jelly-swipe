@@ -109,6 +109,7 @@ export default function Main(): JSX.Element {
             const data = await res.json()
             setCardDeck(data)
             setSwipeHistory([])
+            setHideWatched(!hideWatched)
         } catch (err) {
             console.error("Error toggling watched filter", err)
         }
