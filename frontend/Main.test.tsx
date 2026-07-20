@@ -15,12 +15,14 @@
 //     test so no test touches the real network, and focus assertions on the
 //     code-set path. checkSessionStatus is commented out in the source and is
 //     intentionally untested.
-import { screen, waitFor, fireEvent } from "@testing-library/react"
+import { screen, waitFor, fireEvent, render } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import Main from "./Main"
 import SwipePage from "./SwipePage"
+import { RoomContext } from "./RoomContextProvider"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { SSEContextProvider } from "./SSEContextProvider"
+import * as useSSEModule from "./useSSE"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck, makeCard, swipeRight, swipeLeft } from "./test/fixtures"
 
@@ -526,6 +528,98 @@ describe("Main - genre change behavior", () => {
     expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
   })
 
+  it("does not refetch the deck when a local genre change is echoed by SSE", async () => {
+    const user = userEvent.setup()
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const useSSESpy = vi.spyOn(useSSEModule, "useSSE")
+    let sseState: {
+      lastMessage: unknown
+      error: string | null
+      isConnected: boolean
+    } = {
+      lastMessage: null,
+      error: null,
+      isConnected: true,
+    }
+
+    useSSESpy.mockImplementation(() => sseState as ReturnType<typeof useSSEModule.useSSE>)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeDeck(3),
+    } as Response)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ["Action", "Comedy", "Drama"],
+    } as Response)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => comedyDeck,
+    } as Response)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => comedyDeck,
+    } as Response)
+
+    const roomContextValue = {
+      currentRoomCode: "1234",
+      setCurrentRoomCode: vi.fn(),
+      roomReady: true,
+      setRoomReady: vi.fn(),
+      movies: true,
+      setMovies: vi.fn(),
+      tvShows: false,
+      setTvShows: vi.fn(),
+      isSoloMode: false,
+      setIsSoloMode: vi.fn(),
+      userInputCode: "",
+      setUserInputCode: vi.fn(),
+      genre: "Action",
+      setGenre: vi.fn(),
+      hideWatched: false,
+      setHideWatched: vi.fn(),
+    } as any
+
+    const view = render(
+      <RoomContext.Provider value={roomContextValue}>
+        <SSEContextProvider>
+          <Main />
+        </SSEContextProvider>
+      </RoomContext.Provider>,
+    )
+
+    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+    await user.click(screen.getByText("Genres"))
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
+
+    expect(await screen.findByAltText("Comedy Movie 1")).toBeInTheDocument()
+
+    sseState = {
+      ...sseState,
+      lastMessage: { event_type: "genre_changed", genre: "Comedy" },
+    }
+
+    view.rerender(
+      <RoomContext.Provider value={roomContextValue}>
+        <SSEContextProvider>
+          <Main />
+        </SSEContextProvider>
+      </RoomContext.Provider>,
+    )
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(3)
+    })
+
+    fetchSpy.mockRestore()
+    useSSESpy.mockRestore()
+  })
+
   it("failed POST does not change genre", async () => {
     const { user, fetchSpy } = await setupGenreChangeTest()
 
@@ -618,6 +712,92 @@ describe("Main - watch filter toggle behavior", () => {
     expect(screen.queryByAltText("Movie 1")).not.toBeInTheDocument()
     expect(screen.getByText("Show Watched")).toBeInTheDocument()
     expect(screen.queryByText("Hide Watched")).not.toBeInTheDocument()
+  })
+
+  it("does not refetch the deck when a local watched-filter change is echoed by SSE", async () => {
+    const user = userEvent.setup()
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const useSSESpy = vi.spyOn(useSSEModule, "useSSE")
+    let sseState: {
+      lastMessage: unknown
+      error: string | null
+      isConnected: boolean
+    } = {
+      lastMessage: null,
+      error: null,
+      isConnected: true,
+    }
+
+    useSSESpy.mockImplementation(() => sseState as ReturnType<typeof useSSEModule.useSSE>)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeDeck(3),
+    } as Response)
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => unwatchedDeck,
+    } as Response)
+
+    const roomContextValue = {
+      currentRoomCode: "1234",
+      setCurrentRoomCode: vi.fn(),
+      roomReady: true,
+      setRoomReady: vi.fn(),
+      movies: true,
+      setMovies: vi.fn(),
+      tvShows: false,
+      setTvShows: vi.fn(),
+      isSoloMode: false,
+      setIsSoloMode: vi.fn(),
+      userInputCode: "",
+      setUserInputCode: vi.fn(),
+      genre: "All",
+      setGenre: vi.fn(),
+      hideWatched: false,
+      setHideWatched: vi.fn(),
+    } as any
+
+    const view = render(
+      <RoomContext.Provider value={roomContextValue}>
+        <SSEContextProvider>
+          <Main />
+        </SSEContextProvider>
+      </RoomContext.Provider>,
+    )
+
+    expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
+
+    await user.click(screen.getByTestId("watched-toggle"))
+
+    expect(await screen.findByAltText("Unwatched Movie 1")).toBeInTheDocument()
+
+    sseState = {
+      ...sseState,
+      lastMessage: { event_type: "hide_watched_changed", hide_watched: true },
+    }
+
+    view.rerender(
+      <RoomContext.Provider value={roomContextValue}>
+        <SSEContextProvider>
+          <Main />
+        </SSEContextProvider>
+      </RoomContext.Provider>,
+    )
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(2)
+    })
+
+    const [, options] = fetchSpy.mock.calls[1]
+    expect((options as RequestInit).method).toBe("POST")
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      hide_watched: true,
+    })
+
+    fetchSpy.mockRestore()
+    useSSESpy.mockRestore()
   })
 
   it("failed POST leaves the deck and button state unchanged", async () => {
