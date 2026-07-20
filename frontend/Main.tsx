@@ -29,6 +29,16 @@ export default function Main(): JSX.Element {
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { sseData, sseError, isConnected } = useSSEContext()
+    const localDeckRefreshSuppressionRef = React.useRef<"genre" | "hide_watched" | null>(null)
+
+    const suppressNextDeckRefresh = React.useCallback((source: "genre" | "hide_watched") => {
+        localDeckRefreshSuppressionRef.current = source
+        window.setTimeout(() => {
+            if (localDeckRefreshSuppressionRef.current === source) {
+                localDeckRefreshSuppressionRef.current = null
+            }
+        }, 1000)
+    }, [])
 
     React.useEffect(() => {    
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -45,11 +55,19 @@ export default function Main(): JSX.Element {
             if ("event_type" in sseData && sseData.event_type === "genre_changed") {
                 const genreData = sseData as GenreChangedEvent
                 setGenre(genreData.genre as string)
+                if (localDeckRefreshSuppressionRef.current === "genre") {
+                    localDeckRefreshSuppressionRef.current = null
+                    return
+                }
                 getCardDeck()
             }
             if ("event_type" in sseData && sseData.event_type === "hide_watched_changed") {
                 const watchedData = sseData as HideWatchedChangedEvent
                 setHideWatched(watchedData.hide_watched as boolean)
+                if (localDeckRefreshSuppressionRef.current === "hide_watched") {
+                    localDeckRefreshSuppressionRef.current = null
+                    return
+                }
                 getCardDeck()
             }
             if ("event_type" in sseData && sseData.event_type === "session_ready") {
@@ -110,10 +128,11 @@ export default function Main(): JSX.Element {
             setCardDeck(data)
             setSwipeHistory([])
             setHideWatched(!hideWatched)
+            suppressNextDeckRefresh("hide_watched")
         } catch (err) {
             console.error("Error toggling watched filter", err)
         }
-    }, [currentRoomCode, hideWatched])
+    }, [currentRoomCode, hideWatched, suppressNextDeckRefresh])
 
     const handleGenreChange = React.useCallback( async () => {
         try {
@@ -131,10 +150,11 @@ export default function Main(): JSX.Element {
             setCardDeck(data)
             setSwipeHistory([])
             setShowGenreModal(false)
+            suppressNextDeckRefresh("genre")
         } catch (err) {
             console.error("Error changing genre:", err)
         }
-    }, [currentRoomCode, genre])
+    }, [currentRoomCode, genre, suppressNextDeckRefresh])
 
     const handleSwipe = React.useCallback(async (
         cardItem: CardItem,
