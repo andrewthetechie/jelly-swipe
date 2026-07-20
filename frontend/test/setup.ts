@@ -23,3 +23,28 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
 }
+import { vi } from "vitest"
+import { createMockEventSource } from "./mockEventSource"
+
+if (!globalThis.EventSource) {
+  const EventSourceMock = vi.fn((url: string) => {
+    const mock = createMockEventSource()
+    mock.url = url
+    return mock as unknown as EventSource
+  }) as unknown as typeof EventSource
+
+  Object.defineProperty(EventSourceMock, "CONNECTING", {
+    value: 0,
+    writable: false,
+  })
+  Object.defineProperty(EventSourceMock, "OPEN", {
+    value: 1,
+    writable: false,
+  })
+  Object.defineProperty(EventSourceMock, "CLOSED", {
+    value: 2,
+    writable: false,
+  })
+
+  vi.stubGlobal("EventSource", EventSourceMock)
+}
