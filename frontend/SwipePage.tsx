@@ -26,10 +26,10 @@ interface SwipePageProps {
     handleGenreChange: () => void
     showGenreModal: boolean
     setShowGenreModal: React.Dispatch<React.SetStateAction<boolean>>
-    handleWatchedFilterClick: () => void
+    handleWatchedFilterToggle: () => void
 }
 
-export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterClick }: SwipePageProps): JSX.Element {
+export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterToggle }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
@@ -98,7 +98,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                             id="hideWatched"
                             name="hideWatched"
                             checked={hideWatched}
-                            onChange={() => handleWatchedFilterClick()}
+                            onChange={() => handleWatchedFilterToggle()}
                         />
                         <span className="slider"></span>
 

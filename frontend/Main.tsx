@@ -112,7 +112,7 @@ export default function Main(): JSX.Element {
         setCardDeck(prev => prev.slice(1))
     }, [])
 
-    const handleWatchedFilterClick = React.useCallback( async () => {
+    const handleWatchedFilterToggle = React.useCallback( async () => {
         try {
             const res: Response = await apiFetch(`/room/${currentRoomCode}/watched-filter`, {
                 method: 'POST',
@@ -234,7 +234,7 @@ export default function Main(): JSX.Element {
                     handleGenreChange={handleGenreChange}
                     showGenreModal={showGenreModal}
                     setShowGenreModal={setShowGenreModal}
-                    handleWatchedFilterClick={handleWatchedFilterClick}
+                    handleWatchedFilterToggle={handleWatchedFilterToggle}
                 />
             }
         </main>
