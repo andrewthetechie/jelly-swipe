@@ -33,8 +33,6 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
     const [dragX, setDragX] = React.useState<number>(0)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
-    const hideWatchedText = hideWatched ? "Show Watched" : "Hide Watched"
-    const hideWatchedClass = hideWatched ? "" : "hide-watched"
 
     React.useEffect(() => {
         if (sseData && typeof sseData === "object" && sseData !== null) {
@@ -89,7 +87,22 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
             <>
                 <div className="swipe-header">
                     <div className="mode-badge">Solo</div>
-                    <button className={`show-watched ${hideWatchedClass}`} onClick={handleWatchedFilterClick} data-testid="watched-toggle">{hideWatchedText}</button>
+                    <label
+                        htmlFor="hideWatched"
+                        className="jelly-toggle swipe-toggle"
+                        data-testid="watched-toggle"
+                    >
+                        <span className="hide-watched-span">Hide Watched</span>
+                        <input 
+                            type="checkbox"
+                            id="hideWatched"
+                            name="hideWatched"
+                            checked={hideWatched}
+                            onChange={() => handleWatchedFilterClick()}
+                        />
+                        <span className="slider"></span>
+
+                    </label>
                     <button className="genres" onClick={handleGenreClick}>Genres</button>
                 </div>
 

@@ -522,6 +522,17 @@ img.match-poster {
     user-select: none;
 }
 
+.swipe-toggle {
+  width: auto;
+  gap: .75rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.hide-watched-span {
+  margin-left: auto;
+}
+
 .jelly-toggle input {
     position: absolute;
     opacity: 0;
