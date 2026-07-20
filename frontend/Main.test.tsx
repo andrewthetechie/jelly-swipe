@@ -174,9 +174,14 @@ async function setupWatchedToggleTest() {
 
   expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
 
+  const toggle = screen.getByRole("checkbox", {
+    name: /hide watched/i,
+  })
+
   return {
     user,
     fetchSpy,
+    toggle,
   }
 
 }
@@ -697,7 +702,7 @@ describe("Main - watch filter toggle behavior", () => {
   ])
 
   it("successful POST toggles watch filter and refreshes deck", async () => {
-    const { user, fetchSpy } = await setupWatchedToggleTest()
+    const { user, fetchSpy, toggle } = await setupWatchedToggleTest()
 
     fetchSpy.mockResolvedValueOnce({
       ok: true,
@@ -710,8 +715,7 @@ describe("Main - watch filter toggle behavior", () => {
 
     expect(await screen.findByAltText("Unwatched Movie 1")).toBeInTheDocument()
     expect(screen.queryByAltText("Movie 1")).not.toBeInTheDocument()
-    expect(screen.getByText("Show Watched")).toBeInTheDocument()
-    expect(screen.queryByText("Hide Watched")).not.toBeInTheDocument()
+    expect(toggle).toBeChecked()
   })
 
   it("does not refetch the deck when a local watched-filter change is echoed by SSE", async () => {
@@ -801,7 +805,7 @@ describe("Main - watch filter toggle behavior", () => {
   })
 
   it("failed POST leaves the deck and button state unchanged", async () => {
-    const { user, fetchSpy } = await setupWatchedToggleTest()
+    const { user, fetchSpy, toggle } = await setupWatchedToggleTest()
 
     fetchSpy.mockResolvedValueOnce({
       ok: false,
@@ -813,8 +817,7 @@ describe("Main - watch filter toggle behavior", () => {
 
     expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
     expect(screen.queryByAltText("Unwatched Movie 1")).not.toBeInTheDocument()
-    expect(screen.getByText("Hide Watched")).toBeInTheDocument()
-    expect(screen.queryByText("Show Watched")).not.toBeInTheDocument()
+    expect(toggle).not.toBeChecked()
   })
 
   it("POST sends the correct endpoint and body", async () => {

@@ -49,7 +49,7 @@ function renderSwipePage(deck: number = 2, roomReadyState: boolean = true, showG
         handleGenreChange={vi.fn()}
         showGenreModal={showGenreModalState}
         setShowGenreModal={vi.fn()}
-        handleWatchedFilterClick={vi.fn()}
+        handleWatchedFilterToggle={vi.fn()}
       />
     </SSEContextProvider>,
     { currentRoomCode: "1234", roomReady: roomReadyState }
@@ -233,7 +233,7 @@ function GenreModalHarness() {
         handleGenreChange={vi.fn()}
         showGenreModal={showGenreModal}
         setShowGenreModal={setShowGenreModal}
-        handleWatchedFilterClick={vi.fn()}
+        handleWatchedFilterToggle={vi.fn()}
       />
     </SSEContextProvider>
   )

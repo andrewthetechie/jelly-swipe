@@ -30,7 +30,7 @@ function renderSwipePage() {
         handleGenreChange={vi.fn()}
         showGenreModal={false}
         setShowGenreModal={vi.fn()}
-        handleWatchedFilterClick={vi.fn()}
+        handleWatchedFilterToggle={vi.fn()}
       />
     </SSEContextProvider>,
     { currentRoomCode: "1234", roomReady: false }
