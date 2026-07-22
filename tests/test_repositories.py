@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
@@ -323,6 +324,85 @@ class TestMatchRepository:
             assert newer.match_order > older_match.match_order
             assert newer.match_order == newest_rowid
 
+    async def test_insert_creates_match_row(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "MATCH1",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.matches.insert(
+                room_code="MATCH1",
+                movie_id="m300",
+                title="Inserted Movie",
+                thumb="/thumb",
+                user_id="user-m",
+                deep_link="/link",
+                rating="9",
+                duration="2h",
+                year="2025",
+                media_type="movie",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            active = await uow.matches.list_active_for_user("MATCH1", "user-m")
+        assert len(active) == 1
+        assert active[0].movie_id == "m300"
+        assert active[0].title == "Inserted Movie"
+        assert active[0].status == "active"
+
+    async def test_insert_duplicate_match_silently_ignored(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "MATCH2",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.matches.insert(
+                room_code="MATCH2",
+                movie_id="m400",
+                title="Original",
+                thumb="/t1",
+                user_id="user-n",
+                deep_link="/d1",
+                rating="7",
+                duration="1h",
+                year="2020",
+                media_type="movie",
+            )
+            await session.commit()
+
+            # Duplicate insert should not raise
+            await uow.matches.insert(
+                room_code="MATCH2",
+                movie_id="m400",
+                title="Duplicate",
+                thumb="/t2",
+                user_id="user-n",
+                deep_link="/d2",
+                rating="1",
+                duration="0h",
+                year="1999",
+                media_type="tv_show",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            active = await uow.matches.list_active_for_user("MATCH2", "user-n")
+        assert len(active) == 1
+        assert active[0].title == "Original"
+
 
 @pytest.mark.anyio
 class TestSwipeRepository:
@@ -444,3 +524,71 @@ class TestSwipeRepository:
             await session.commit()
 
         assert cleared == 2
+
+    async def test_insert_creates_swipe_row(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "SWIPE1",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.swipes.insert(
+                room_code="SWIPE1",
+                movie_id="mv100",
+                user_id="user-s",
+                direction="right",
+                session_id=None,
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            swiped_ids = await uow.swipes.list_swiped_media_ids("SWIPE1")
+        assert swiped_ids == {"mv100"}
+
+    async def test_insert_duplicate_swipe_raises_integrity_error(
+        self, runtime_sessionmaker
+    ):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "SWIPE2",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            session.add(
+                AuthSession(
+                    session_id="sess-dup",
+                    jellyfin_token="token-dup",
+                    jellyfin_user_id="user-t",
+                    created_at="2024-01-01T00:00:00Z",
+                )
+            )
+            await session.flush()
+            await uow.swipes.insert(
+                room_code="SWIPE2",
+                movie_id="mv200",
+                user_id="user-t",
+                direction="right",
+                session_id="sess-dup",
+            )
+            await session.commit()
+
+        # Duplicate insert in a new session should raise IntegrityError
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            with pytest.raises(IntegrityError):
+                await uow.swipes.insert(
+                    room_code="SWIPE2",
+                    movie_id="mv200",
+                    user_id="user-t",
+                    direction="right",
+                    session_id="sess-dup",
+                )

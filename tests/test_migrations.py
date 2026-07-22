@@ -13,7 +13,7 @@ from pathlib import Path
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-_EXPECTED_REVISION = "0005_tmdb_cache"
+_EXPECTED_REVISION = "0006_swipes_unique_constraint"
 
 
 def _wait_for_db_file(db_path: Path, timeout: float = 1.0) -> None:

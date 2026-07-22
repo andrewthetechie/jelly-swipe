@@ -89,3 +89,22 @@ class SwipeRepository:
             select(Swipe.movie_id).where(Swipe.room_code == pairing_code)
         )
         return {row[0] for row in result.all()}
+
+    async def insert(
+        self,
+        room_code: str,
+        movie_id: str,
+        user_id: str,
+        direction: str,
+        session_id: str | None,
+    ) -> None:
+        self._session.add(
+            Swipe(
+                room_code=room_code,
+                movie_id=movie_id,
+                user_id=user_id,
+                direction=direction,
+                session_id=session_id,
+            )
+        )
+        await self._session.flush()
