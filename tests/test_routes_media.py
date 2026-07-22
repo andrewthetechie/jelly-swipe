@@ -174,6 +174,37 @@ class TestTrailerRoute:
         finally:
             deps._provider_singleton = original
 
+    def test_trailer_route_commits_after_service_fetch(self, client, app):
+        """Route handler calls commit after enrichment service fetch."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from jellyswipe.dependencies import get_db_uow
+        from jellyswipe.db_uow import DatabaseUnitOfWork
+
+        mock_session = AsyncMock()
+        mock_uow = MagicMock(spec=DatabaseUnitOfWork)
+        mock_uow.session = mock_session
+        mock_uow.tmdb_cache = AsyncMock()
+        mock_uow.tmdb_cache.get = AsyncMock(return_value=None)
+        mock_uow.tmdb_cache.put = AsyncMock()
+
+        async def mock_get_db_uow():
+            yield mock_uow
+
+        _set_session(client)
+        app.dependency_overrides[get_db_uow] = mock_get_db_uow
+
+        try:
+            with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+                mock_lookup.return_value = "commit-test-key"
+                resp = client.get("/get-trailer/movie-commit-test")
+
+            assert resp.status_code == 200
+            assert resp.json()["youtube_key"] == "commit-test-key"
+            mock_session.commit.assert_called_once()
+        finally:
+            del app.dependency_overrides[get_db_uow]
+
 
 # ---------------------------------------------------------------------------
 # Cast route tests
@@ -220,19 +251,19 @@ class TestCastRoute:
         assert data["cast"] == expected_cast
         mock_lookup.assert_called_once()
 
-        # Verify it was stored in cache
+        # Verify it was stored in cache (wrapped format)
         conn = _sqlite_conn()
         try:
             row = conn.execute(
                 "SELECT result_json FROM tmdb_cache WHERE media_id = 'movie-11' AND lookup_type = 'cast'"
             ).fetchone()
             assert row is not None
-            assert json.loads(row["result_json"]) == expected_cast
+            assert json.loads(row["result_json"]) == {"cast": expected_cast}
         finally:
             conn.close()
 
     def test_cast_route_empty_cast_stores_and_returns(self, client, app):
-        """lookup_cast returns [] → route stores [], returns {"cast": []}."""
+        """lookup_cast returns [] → route stores {"cast": []}, returns {"cast": []}."""
         _set_session(client)
 
         with patch("jellyswipe.routers.media.lookup_cast") as mock_lookup:
@@ -244,14 +275,14 @@ class TestCastRoute:
         assert data["cast"] == []
         mock_lookup.assert_called_once()
 
-        # Verify empty cast was cached
+        # Verify empty cast was cached (wrapped format)
         conn = _sqlite_conn()
         try:
             row = conn.execute(
                 "SELECT result_json FROM tmdb_cache WHERE media_id = 'movie-12' AND lookup_type = 'cast'"
             ).fetchone()
             assert row is not None
-            assert json.loads(row["result_json"]) == []
+            assert json.loads(row["result_json"]) == {"cast": []}
         finally:
             conn.close()
 
