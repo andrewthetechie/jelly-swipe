@@ -32,6 +32,7 @@ class MeResult:
     """Result of a get_me query."""
 
     response_body: dict
+    active_room: str | None = None
 
 
 class AuthService:
@@ -105,5 +106,6 @@ class AuthService:
                 "serverName": info.get("name", ""),
                 "serverId": info.get("machineIdentifier", ""),
                 "activeRoom": active_room,
-            }
+            },
+            active_room=active_room,
         )

@@ -124,7 +124,7 @@ async def get_me(
     """
     active_room = request.session.get("active_room")
     result = await AuthService.get_me(user, active_room, provider, uow)
-    if result.response_body.get("activeRoom") is None and active_room is not None:
+    if result.active_room is None and active_room is not None:
         request.session.pop("active_room", None)
         request.session.pop("solo_mode", None)
     return result.response_body

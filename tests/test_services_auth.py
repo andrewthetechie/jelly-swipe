@@ -145,6 +145,7 @@ async def test_get_me_returns_user_info():
     result = await AuthService.get_me(user, None, provider, uow)
 
     assert isinstance(result, MeResult)
+    assert result.active_room is None
     body = result.response_body
     assert body["userId"] == "test-user"
     assert body["displayName"] == "test-user"
@@ -163,6 +164,7 @@ async def test_get_me_clears_invalid_room():
 
     result = await AuthService.get_me(user, "ABCD", provider, uow)
 
+    assert result.active_room is None
     assert result.response_body["activeRoom"] is None
 
 
@@ -176,4 +178,5 @@ async def test_get_me_preserves_valid_room():
 
     result = await AuthService.get_me(user, "ABCD", provider, uow)
 
+    assert result.active_room == "ABCD"
     assert result.response_body["activeRoom"] == "ABCD"

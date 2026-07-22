@@ -955,6 +955,18 @@ class TestGetMeActiveRoom:
         assert resp.status_code == 200
         assert resp.json()["activeRoom"] is None
 
+        # Verify session no longer contains active_room or solo_mode
+        session_cookie = client_real_auth.cookies.get("session")
+        assert session_cookie is not None
+        import itsdangerous
+        from base64 import b64decode
+
+        signer = itsdangerous.TimestampSigner(os.environ["SESSION_SECRET"])
+        payload = signer.unsign(session_cookie)
+        session_data = json.loads(b64decode(payload))
+        assert "active_room" not in session_data
+        assert "solo_mode" not in session_data
+
 
 # --- Go-Solo Route Removal Test ---
 
