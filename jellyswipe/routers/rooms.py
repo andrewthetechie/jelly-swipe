@@ -108,7 +108,6 @@ async def create_room(
 
     try:
         result = await room_lifecycle_service.create_room(
-            request.session,
             user.user_id,
             provider,
             uow,
@@ -116,8 +115,9 @@ async def create_room(
             include_tv_shows=resolved.tv_shows,
             solo=resolved.solo,
         )
+        request.session.update(result.session_updates)
         await uow.session.commit()
-        return result
+        return {"pairing_code": result.pairing_code, "instance_id": result.instance_id}
     except UniqueRoomCodeExhaustedError:
         return XSSSafeJSONResponse(
             content={"error": "Could not generate unique room code"}, status_code=503
@@ -154,13 +154,12 @@ async def join_room_route(
     for swiping. A ``session_ready`` event is published so connected SSE
     clients are notified immediately.
     """
-    payload = await room_lifecycle_service.join_room(
-        code, request.session, user.user_id, uow
-    )
-    if payload is None:
+    result = await room_lifecycle_service.join_room(code, user.user_id, uow)
+    if result is None:
         return XSSSafeJSONResponse(content={"error": "Invalid Code"}, status_code=404)
+    request.session.update(result.session_updates)
     await commit_and_wake(uow, code)
-    return payload
+    return {"status": "success"}
 
 
 @rooms_router.post(
@@ -273,11 +272,11 @@ async def quit_room(
     matches, clears the caller's session state, and publishes a
     ``session_closed`` event so connected SSE clients can react.
     """
-    result = await room_lifecycle_service.quit_room(
-        code, request.session, user.user_id, uow
-    )
+    result = await room_lifecycle_service.quit_room(code, user.user_id, uow)
+    for key in ("active_room", "solo_mode"):
+        request.session.pop(key, None)
     await commit_and_wake(uow, code)
-    return result
+    return {"status": result.status}
 
 
 @rooms_router.post(

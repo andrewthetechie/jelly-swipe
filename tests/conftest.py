@@ -4,7 +4,7 @@ import json
 import os
 import re
 import sqlite3
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,6 +42,23 @@ def set_session_cookie(client, data: dict, secret_key: str) -> None:
     host = getattr(client.base_url, "host", "")
     domain = f"{host}.local" if host and "." not in host else host
     client.cookies.set("session", signed.decode("utf-8"), domain=domain, path="/")
+
+
+def read_session_cookie(client, secret_key: str) -> dict:
+    """Decode a signed session cookie back into its dict payload.
+
+    Mirrors ``set_session_cookie`` in reverse: unsign the cookie value
+    with ``itsdangerous.TimestampSigner``, then base64-decode and JSON-parse
+    the inner payload.
+
+    Returns an empty dict if no session cookie is present.
+    """
+    cookie_value = client.cookies.get("session")
+    if cookie_value is None:
+        return {}
+    signer = itsdangerous.TimestampSigner(str(secret_key))
+    payload = signer.unsign(cookie_value)
+    return json.loads(b64decode(payload))
 
 
 @pytest.fixture
