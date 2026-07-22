@@ -4,10 +4,6 @@ Per D-06, D-09, D-10: 6 auth routes with identical URL paths, methods, and respo
 Uses dependency injection for authentication (require_auth) and rate limiting.
 """
 
-import logging
-import secrets
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Request, Depends, Response
 from jellyswipe import XSSSafeJSONResponse
 
@@ -17,7 +13,6 @@ from jellyswipe.dependencies import (
     get_provider,
     require_auth,
 )
-from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.routers._helpers import make_error_response
 from jellyswipe.schemas import (
     ErrorResponse,
@@ -26,8 +21,7 @@ from jellyswipe.schemas import (
     MeResponse,
     ServerInfoResponse,
 )
-
-_logger = logging.getLogger(__name__)
+from jellyswipe.services.auth import AuthService
 
 # Create router with no prefix (D-14)
 auth_router = APIRouter()
@@ -58,25 +52,12 @@ async def jellyfin_use_server_identity(
     The server acts as the identity provider—the client never handles credentials
     directly, only the session cookie for subsequent API calls.
     """
-    try:
-        token = provider.server_access_token_for_delegate()
-        uid = provider.server_primary_user_id_for_delegate()
-    except RuntimeError:
+    result = await AuthService.login_delegate(provider, uow)
+    if result is None:
         return make_error_response("Jellyfin delegate unavailable", 401, request)
-    now = datetime.now(timezone.utc)
-    session_id = secrets.token_urlsafe(32)
-    await uow.auth_sessions.delete_expired((now - timedelta(days=14)).isoformat())
-    await uow.auth_sessions.insert(
-        AuthRecord(
-            session_id=session_id,
-            jf_token=token,
-            user_id=uid,
-            created_at=now.isoformat(),
-        )
-    )
-    request.session["session_id"] = session_id
+    request.session["session_id"] = result.session_id
     await uow.session.commit()
-    return {"userId": uid}
+    return result.response_body
 
 
 @auth_router.post(
@@ -108,15 +89,7 @@ async def logout(
     """
     sid = request.session.get("session_id")
     request.session.clear()
-    if sid is not None:
-        try:
-            await uow.auth_sessions.delete_by_session_id(sid)
-        except Exception:
-            _logger.error(
-                "auth_session_delete_failed",
-                exc_info=True,
-                extra={"session_id": sid},
-            )
+    await AuthService.logout(sid, uow)
     await uow.session.commit()
     response.delete_cookie("session", path="/")
     return {"status": "logged_out"}
@@ -150,19 +123,11 @@ async def get_me(
     operates through the session cookie and server-provided data.
     """
     active_room = request.session.get("active_room")
-    if active_room is not None:
-        if not await uow.rooms.pairing_code_exists(active_room):
-            request.session.pop("active_room", None)
-            request.session.pop("solo_mode", None)
-            active_room = None
-    info = provider.server_info()
-    return {
-        "userId": user.user_id,
-        "displayName": user.user_id,
-        "serverName": info.get("name", ""),
-        "serverId": info.get("machineIdentifier", ""),
-        "activeRoom": active_room,
-    }
+    result = await AuthService.get_me(user, active_room, provider, uow)
+    if result.response_body.get("activeRoom") is None and active_room is not None:
+        request.session.pop("active_room", None)
+        request.session.pop("solo_mode", None)
+    return result.response_body
 
 
 @auth_router.get(
