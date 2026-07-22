@@ -159,16 +159,6 @@
             } catch (err) { btn.innerText = "ERROR"; }
         }
 
-        async function activateSoloMode() {
-            const res = await fetch('/room/solo', { method: 'POST', credentials: 'same-origin' });
-            if (res.ok) {
-                const data = await res.json();
-                currentRoomCode = data.pairing_code;
-                isSoloMode = true;
-                loadMovies(true);
-            }
-        }
-
         function showSetupPanel() {
             document.getElementById('setup-movies').checked = true;
             document.getElementById('setup-tv-shows').checked = false;

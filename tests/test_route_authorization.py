@@ -782,31 +782,6 @@ class TestGetMe:
         assert client_real_auth.cookies.get("session") is None
 
 
-# --- Solo Room Endpoint Tests ---
-
-
-class TestSoloRoom:
-    """Tests for POST /room/solo endpoint (API-04)."""
-
-    def test_solo_room_creation(self, db_connection, client_real_auth):
-        """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(
-            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
-        )
-
-        resp = client_real_auth.post("/room/solo")
-        assert resp.status_code == 404
-        assert resp.json() == {
-            "error": 'Endpoint removed. Use POST /room with {"solo": true}'
-        }
-
-    def test_solo_room_requires_auth(self, db_connection, client_real_auth):
-        """Unauthenticated POST /room/solo returns 401."""
-        resp = client_real_auth.post("/room/solo")
-        assert resp.status_code == 401
-        assert resp.json() == {"detail": "Authentication required"}
-
-
 # --- Logout Endpoint Tests ---
 
 
@@ -1146,19 +1121,6 @@ class TestPhase27Compliance:
         assert resp.status_code == 200
         status = resp.json()
         assert status["ready"] is True
-
-    def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
-        """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(
-            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
-        )
-
-        # POST /room/solo now returns 404 (deprecated)
-        resp = client_real_auth.post("/room/solo")
-        assert resp.status_code == 404
-        assert resp.json() == {
-            "error": 'Endpoint removed. Use POST /room with {"solo": true}'
-        }
 
     def test_me_returns_active_room(self, db_connection, client_real_auth):
         """GET /me tracks activeRoom: null -> code -> null after quit."""

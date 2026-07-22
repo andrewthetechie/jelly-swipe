@@ -10,8 +10,9 @@ def test_module_import():
     Verifies framework-agnostic imports work (INFRA-03).
 
     This test passes if:
-    - jellyswipe.db imports successfully
     - jellyswipe.jellyfin_library imports successfully
+    - jellyswipe.bootstrap imports successfully
+    - jellyswipe.migrations imports successfully
     - No RuntimeError about missing env vars
     - No Flask app is instantiated (conftest.py patches it)
     """
@@ -19,14 +20,11 @@ def test_module_import():
     # 1. Patches load_dotenv() to skip .env loading
     # 2. Patches Flask() to prevent app initialization
     # 3. Sets required environment variables
-    import jellyswipe.db
     import jellyswipe.jellyfin_library
     import jellyswipe.bootstrap
     import jellyswipe.migrations
 
     # Verify the modules have expected exports
-    assert hasattr(jellyswipe.db, "prepare_runtime_database")
-    assert hasattr(jellyswipe.db, "cleanup_expired_auth_sessions")
     assert hasattr(jellyswipe.bootstrap, "main")
     assert hasattr(jellyswipe.jellyfin_library, "JellyfinLibraryProvider")
     assert hasattr(jellyswipe.migrations, "upgrade_to_head")

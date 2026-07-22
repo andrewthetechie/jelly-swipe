@@ -59,7 +59,6 @@ flowchart LR
 │   ├── __init__.py                  # Flask app, all routes, env validation, DB init
 │   ├── base.py                      # LibraryMediaProvider ABC (single implementer)
 │   ├── jellyfin_library.py          # JellyfinLibraryProvider — REST + auth + image proxy backend
-│   ├── db.py                        # get_db(), init_db() (ad-hoc migrations)
 │   ├── templates/index.html         # Single-page client (HTML + inline CSS + inline JS)
 │   └── static/                      # icons, manifest.json, brick.png, logo, sad.png
 ├── data/                            # Bind-mount target in production (SQLite lives here)
@@ -80,17 +79,14 @@ flowchart TD
     initpy["jellyswipe/__init__.py<br/>(Flask app + routes)"]
     base["jellyswipe/base.py<br/>(LibraryMediaProvider ABC)"]
     jf["jellyswipe/jellyfin_library.py<br/>(JellyfinLibraryProvider)"]
-    db["jellyswipe/db.py<br/>(get_db, init_db)"]
     tmpl["templates/index.html"]
 
     initpy --> jf
-    initpy --> db
     initpy -. "render_template" .-> tmpl
     jf --> base
-    db -. "DB_PATH set by initpy at import" .-> initpy
 ```
 
-The `db.py` module is unusual: it exposes a module-level `DB_PATH = None`, and `__init__.py` mutates it after import (`jellyswipe.db.DB_PATH = DB_PATH`). Tests monkeypatch the same global. There is no settings object.
+Database access is managed by `jellyswipe.db_runtime` (SQLAlchemy async sessions) and `jellyswipe.db_uow` (`DatabaseUnitOfWork`). Schema migrations are versioned via Alembic revisions under `alembic/versions/`.
 
 ---
 
@@ -99,28 +95,23 @@ The `db.py` module is unusual: it exposes a module-level `DB_PATH = None`, and `
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Gunicorn
-    participant InitPy as jellyswipe/__init__.py
-    participant DotEnv as dotenv.load_dotenv
-    participant DB as jellyswipe.db
+    participant Bootstrap as bootstrap.py
+    participant Runtime as db_runtime / db_uow
+    participant Alembic as alembic upgrade head
+    participant App as FastAPI app
     participant Provider as JellyfinLibraryProvider
 
-    Gunicorn->>InitPy: import jellyswipe (CMD: jellyswipe:app)
-    InitPy->>DotEnv: load_dotenv(<repo>/.env)
-    InitPy->>InitPy: validate env (TMDB_API_KEY,<br/>FLASK_SECRET, JELLYFIN_URL,<br/>JELLYFIN_API_KEY OR USERNAME+PASSWORD)
-    alt missing required env
-        InitPy-->>Gunicorn: RuntimeError("Missing env vars: ...")
-    end
-    InitPy->>InitPy: app = Flask(...)<br/>wsgi_app = ProxyFix(...)<br/>secret_key = FLASK_SECRET
-    InitPy->>Provider: lazy — created on first get_provider()
-    InitPy->>DB: jellyswipe.db.DB_PATH = DB_PATH
-    InitPy->>DB: init_db() (creates tables, runs ad-hoc ALTERs,<br/>cleans orphan swipes)
-    Gunicorn->>InitPy: serve requests
+    Bootstrap->>Alembic: alembic upgrade head
+    Alembic-->>Bootstrap: schema current
+    Bootstrap->>Runtime: init db_runtime sessionmaker
+    Bootstrap->>App: build FastAPI app, register routers
+    App->>Provider: lazy — created on first request
+    Bootstrap->>App: start server
 ```
 
-Notable side effects at import time:
+Notable startup behavior:
 
-- `init_db()` runs unconditionally (even in tests, hence the Flask mock in `tests/conftest.py`).
+- Alembic migrations run once before the app starts; the schema is always up-to-date when the server is ready.
 - The provider is **not** authenticated at boot; the first request that calls `get_provider()` triggers `ensure_authenticated()` which talks to Jellyfin.
 
 ---
@@ -221,7 +212,7 @@ Notes on what the schema does **not** have:
 - No declared foreign keys, no `PRAGMA foreign_keys = ON`.
 - No `created_at` / `updated_at` anywhere; rooms are pruned only when the user explicitly hits "End Session".
 - No `PRAGMA journal_mode = WAL` — default journal mode under gevent + multiple SSE readers.
-- "Migrations" are `PRAGMA table_info` checks plus `ALTER TABLE` calls inside `init_db()` — not versioned.
+- Schema migrations are versioned via Alembic revisions under `alembic/versions/`.
 - The `swipes` and `matches` `user_id` columns hold values from **different namespaces**: `swipes.user_id` is the session-scoped `host_<hex>` / `guest_<hex>` string; `matches.user_id` is the resolved Jellyfin GUID. They are never joined.
 
 ### 4.5 HTTP route surface
@@ -543,7 +534,7 @@ Operators should pin to a versioned tag (`vX.Y.Z`) for production deployments. T
 | How matches are computed               | `jellyswipe/__init__.py` → `swipe()`                                                              |
 | Deck composition / genre normalization | `jellyswipe/jellyfin_library.py` → `fetch_deck`, `list_genres`                                    |
 | Image proxy allowlist                  | `jellyswipe/__init__.py` (`/proxy`) **and** `jellyfin_library.py` (`_JF_IMAGE_PATH`) — duplicated |
-| Schema or "migrations"                 | `jellyswipe/db.py` → `init_db()`                                                                  |
+| Schema or "migrations"                 | `alembic/versions/` (Alembic revisions)                                                           |
 | The whole UI                           | `jellyswipe/templates/index.html`                                                                 |
 | Service worker / PWA install           | `data/sw.js`, `jellyswipe/static/manifest.json` (duplicated in `data/manifest.json`)              |
 | Container build                        | `Dockerfile`                                                                                      |
