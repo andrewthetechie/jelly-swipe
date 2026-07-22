@@ -13,9 +13,7 @@ if TYPE_CHECKING:
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
-    __table_args__ = (
-        Index("ix_auth_sessions_created_at", "created_at"),
-    )
+    __table_args__ = (Index("ix_auth_sessions_created_at", "created_at"),)
 
     session_id: Mapped[str] = mapped_column(Text, primary_key=True)
     jellyfin_token: Mapped[str] = mapped_column(Text, nullable=False)

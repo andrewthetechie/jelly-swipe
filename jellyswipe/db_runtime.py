@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from jellyswipe.migrations import build_sqlite_url, normalize_sync_database_url
 

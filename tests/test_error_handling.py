@@ -289,9 +289,7 @@ class TestErrorResponseFormat:
 class TestErrorLogging:
     """Verify structured error logging with request_id."""
 
-    def test_exception_triggers_error_log_with_request_id(
-        self, client, caplog
-    ):
+    def test_exception_triggers_error_log_with_request_id(self, client, caplog):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test logging error")
         client.app.dependency_overrides[get_provider] = lambda: mock_prov
@@ -322,15 +320,14 @@ class TestErrorLogging:
             assert resp.status_code == 500
             error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
             has_exc_type = any(
-                getattr(r, "exception_type", None) == "RuntimeError" for r in error_records
+                getattr(r, "exception_type", None) == "RuntimeError"
+                for r in error_records
             )
             assert has_exc_type, "Error log should include exception_type"
         finally:
             client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_exception_log_includes_exception_message(
-        self, client, caplog
-    ):
+    def test_exception_log_includes_exception_message(self, client, caplog):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "specific error detail for logging"
@@ -343,7 +340,8 @@ class TestErrorLogging:
             assert resp.status_code == 500
             error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
             has_exc_msg = any(
-                getattr(r, "exception_message", None) == "specific error detail for logging"
+                getattr(r, "exception_message", None)
+                == "specific error detail for logging"
                 for r in error_records
             )
             assert has_exc_msg, "Error log should include exception_message"

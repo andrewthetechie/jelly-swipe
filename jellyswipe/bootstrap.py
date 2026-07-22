@@ -20,6 +20,7 @@ def main() -> None:
     try:
         asyncio.run(initialize_runtime(config.async_db_url))
         from jellyswipe import create_app
+
         app = create_app(config=config)
         uvicorn.run(app, host="0.0.0.0", port=5005)
     except Exception:

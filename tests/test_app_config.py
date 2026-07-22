@@ -142,7 +142,6 @@ class TestAppConfigDefaults:
         assert config.db_path == ""
 
 
-
 class TestAppConfigJellyfinUrl:
     def test_trailing_slash_stripped(self, monkeypatch):
         monkeypatch.setenv("ALLOW_PRIVATE_JELLYFIN", "1")

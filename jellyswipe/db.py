@@ -16,7 +16,9 @@ import jellyswipe.db_runtime as db_runtime
 from jellyswipe.db_uow import DatabaseUnitOfWork
 
 
-async def _initialize_maintenance_runtime(database_url: str | None = None) -> tuple[str, bool]:
+async def _initialize_maintenance_runtime(
+    database_url: str | None = None,
+) -> tuple[str, bool]:
     target_sync_url = database_url or _get_database_url()
     target_async_url = db_runtime.build_async_database_url(target_sync_url)
     runtime_already_initialized = (
