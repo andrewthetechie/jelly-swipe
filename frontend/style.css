@@ -1101,6 +1101,8 @@ button.shortlist {
 
 div.modal-match-list {
   height: 85%;
+  width: 85%;
+  padding: 0 5px 5px 5px;
   overflow-y: auto;
   color: #35D6FF;
 }
@@ -1109,6 +1111,7 @@ div.match-list-container {
   display: grid;
   grid-template-columns: 1fr;
   margin-bottom: 1rem;
+  gap: 1rem;
 }
 
 div.match-list-item {
@@ -1118,6 +1121,7 @@ div.match-list-item {
   border: 1px solid #35D6FF;
   padding: 0.5rem 0.75rem;
   border-radius: 15px;
+  align-items: center;
 }
 
 img.match-list-img {
@@ -1131,6 +1135,7 @@ div.match-list-info {
   margin-left: 1rem;
   justify-content: center;
   align-items: center;
+  gap: .25rem;
 }
 
 .match-list-title {
@@ -1165,7 +1170,8 @@ div.match-list-info {
   border-radius: 15px;
   font-size: .9rem;
   padding: 0.5rem 1rem;
-  margin: auto;
+  margin-top: .25rem;
+  margin-right: auto;
   font-weight: 600;
   border: 1px solid #9BF2FF;
   cursor: pointer;
@@ -1257,5 +1263,7 @@ div.match-list-info {
   div.modal-match-list {
     height: auto;
     max-height: 85%;
+    width: 80%;
+    padding: 1.5rem 0;
   }
 }
