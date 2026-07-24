@@ -3,6 +3,7 @@ import HostWaiting from "./HostWaiting"
 import CardItemView from "./CardItemView"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
+import MatchListModal from "./MatchListModal"
 import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch, apiUrl } from "./api"
@@ -31,6 +32,7 @@ interface SwipePageProps {
 
 export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterToggle }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
+    const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
 
@@ -82,6 +84,10 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         setShowGenreModal(prev => !prev)
     }
 
+    const handleMatchListClick = () => {
+        setShowMatchListModal(prev => !prev)
+    }
+
     if (roomReady) {
         return (
             <>
@@ -126,13 +132,14 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
 
                 <div className="swipe-footer">
                     <button className="end-session" onClick={handleEndSession}>End Session</button>
-                    <button className="shortlist">Shortlist</button>
+                    <button className="shortlist" onClick={handleMatchListClick}>Shortlist</button>
                 </div>
 
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
                 {matchFound && <MatchFoundModal onClick={handleMatchClose} matchItem={matchItem} />}
                 {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} handleGenreChange={handleGenreChange} />}
+                {showMatchListModal && <MatchListModal />}
             </>
         )
     } else {
