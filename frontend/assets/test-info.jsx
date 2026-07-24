@@ -1,6 +1,50 @@
 import React from "react";
 import logoImage from "./logo.png";
 
+export const matchListSample = [
+    {
+        title: "Moana",
+        thumb: "./assets/moana-poster.jpg",
+        media_id: "1",
+        media_type: "movie",
+        deep_link: "#",
+        rating: "5.7",
+        duration: "1h 47m",
+        year: 2016,
+    },
+    {
+        title: "Moana 2",
+        thumb: "./assets/moana-poster.jpg",
+        media_id: "2",
+        media_type: "movie",
+        deep_link: "#",
+        rating: "5.7",
+        duration: "1h 47m",
+        year: 2016,
+    },
+    {
+        title: "Moana 3",
+        thumb: "./assets/moana-poster.jpg",
+        media_id: "3",
+        media_type: "movie",
+        deep_link: "#",
+        rating: "5.7",
+        duration: "1h 47m",
+        year: 2016,
+    },
+    {
+        title: "Moana 4",
+        thumb: "./assets/moana-poster.jpg",
+        media_id: "4",
+        media_type: "movie",
+        deep_link: "#",
+        rating: "5.7",
+        duration: "1h 47m",
+        year: 2016,
+    }
+
+]
+
 const actorArray = [
     {
         name: "Actor 1",

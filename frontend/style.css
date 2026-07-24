@@ -1099,6 +1099,117 @@ button.shortlist {
   cursor: pointer;
 }
 
+div.modal-match-list {
+  height: 85%;
+  overflow-y: auto;
+  color: #35D6FF;
+}
+
+div.match-list-container {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+div.match-list-item {
+  display: flex;
+  padding: .5rem;
+  width: auto;
+  border: 1px solid #35D6FF;
+  padding: 0.5rem 0.75rem;
+  border-radius: 15px;
+}
+
+img.match-list-img {
+  height: 175px;
+  border-radius: 10px;
+}
+
+div.match-list-info {
+  display: flex;
+  flex-direction: column;
+  margin-left: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.match-list-title {
+  font-size: 1.25rem;
+  margin-bottom: .5rem;
+  margin-right: auto;
+  color: #f0f4f8;
+  text-shadow: 
+    -1px -1px 2px #0A1F3D,
+    1px -1px 2px #0A1F3D,
+    -1px 1px 2px #0A1F3D,
+    1px 1px 2px #0A1F3D;
+}
+
+.match-list-score,
+.match-list-runtime,
+.match-list-year {
+  background: #071426AA;
+  color: #35D6FF;
+  border-radius: 10px;
+  margin-right: auto;
+  padding: 0.25rem .75rem;
+  border: 1px solid #1C4273;
+  font-size: 0.7rem;
+  font-weight: 200;
+  text-align: center;
+}
+
+.match-list-button {
+  background: #35D6FF;
+  color: #071426;
+  border-radius: 15px;
+  font-size: .9rem;
+  padding: 0.5rem 1rem;
+  margin: auto;
+  font-weight: 600;
+  border: 1px solid #9BF2FF;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  height: auto;
+}
+
+.match-list-button:hover {
+  background:
+    linear-gradient(
+      to bottom,
+      #5FE2FF 0%,
+      #35D6FF 100%
+    );
+  border-color: #c9f8ff;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.22),
+    0 0 14px rgba(53, 214, 255, 0.28);
+  transform: translateY(-2px);
+  filter: brightness(1.04);
+}
+
+.match-list-button:focus {
+  outline: none;
+  border-color: #fdfdfe;
+  box-shadow:
+    0 0 0 3px rgba(155, 242, 255, 0.18),
+    0 0 18px rgba(53, 214, 255, 0.32),
+    0 4px 12px rgba(0, 0, 0, 0.22);
+  background:
+    linear-gradient(
+      to bottom,
+      #63E5FF 0%,
+      #35D6FF 100%
+    );
+}
+
+.match-list-button:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.22),
+    inset 0 2px 4px rgba(0, 0, 0, 0.16);
+  filter: brightness(0.97);
+}
 
 @media (min-width: 768px) {
   .app-logo {
@@ -1137,4 +1248,13 @@ button.shortlist {
     height: 700px;
   }
 
+  div.match-list-container {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  div.modal-match-list {
+    height: auto;
+    max-height: 85%;
+  }
 }
