@@ -139,7 +139,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
                 {matchFound && <MatchFoundModal onClick={handleMatchClose} matchItem={matchItem} />}
                 {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} handleGenreChange={handleGenreChange} />}
-                {showMatchListModal && <MatchListModal />}
+                {showMatchListModal && <MatchListModal handleMatchListClick={handleMatchListClick} />}
             </>
         )
     } else {

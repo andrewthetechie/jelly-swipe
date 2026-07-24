@@ -1,8 +1,13 @@
 import React from "react"
 import { apiFetch } from "./api"
 import { matchListSample } from "./assets/test-info"
+import { JSX } from "react"
 
-export default function MatchListModal() {
+interface MatchListModalProps {
+    handleMatchListClick: () => void
+}
+
+export default function MatchListModal({ handleMatchListClick }: MatchListModalProps): JSX.Element {
 
     // const handleMatchList = React.useCallback(async () => {
     //         console.log("Match List")
@@ -32,7 +37,7 @@ export default function MatchListModal() {
             duration, 
             year 
         } = match
-        
+
         return (
             <div className="match-list-item" key={mediaId}>
                 <img src={thumb} className="match-list-img" />
@@ -45,8 +50,6 @@ export default function MatchListModal() {
                         Open in Jellyfin 🍿
                     </a>
                 </div>
-                
-                
             </div>
         )
     })
@@ -58,6 +61,7 @@ export default function MatchListModal() {
                 <div className="match-list-container">
                     {matchElements}
                 </div>
+                <button className="modal-button" onClick={handleMatchListClick}>Keep Swiping</button>
             </div>
         </div>
     )

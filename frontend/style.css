@@ -1108,6 +1108,7 @@ div.modal-match-list {
 div.match-list-container {
   display: grid;
   grid-template-columns: 1fr;
+  margin-bottom: 1rem;
 }
 
 div.match-list-item {
