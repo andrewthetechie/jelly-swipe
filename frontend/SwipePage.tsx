@@ -33,7 +33,7 @@ interface SwipePageProps {
 export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterToggle }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
-    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched } = useRoomContext()
+    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched, isSoloMode } = useRoomContext()
     const { sseData, sseError, isConnected } = useSSEContext()
 
     React.useEffect(() => {
@@ -92,7 +92,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         return (
             <>
                 <div className="swipe-header">
-                    <div className="mode-badge">Solo</div>
+                    {isSoloMode && <div className="mode-badge">Solo</div>}
                     <label
                         htmlFor="hideWatched"
                         className="jelly-toggle swipe-toggle"
