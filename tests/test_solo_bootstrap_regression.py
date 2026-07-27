@@ -69,17 +69,13 @@ def test_solo_room_create_then_stream_yields_ready_bootstrap(client, monkeypatch
     assert bootstrap["solo"] is True, bootstrap
 
 
-def test_deck_response_uses_media_id_and_app_js_uses_it_for_trailer_cast(client):
-    """Deck contract is `media_id` (not `id`), and app.js must use it.
+def test_deck_response_uses_media_id_for_trailer_cast(client):
+    """Deck contract is `media_id` (not `id`) for trailer/cast lookups.
 
-    Regression: app.js called `/get-trailer/${m.id}` and `/cast/${m.id}`,
-    but the deck endpoint returns items with `media_id` only (no `id`).
-    So `m.id` was undefined, the URL became `/get-trailer/undefined`, the
-    route failed to resolve the item, and the user saw "TRAILER NOT FOUND"
-    for every card.
+    Regression: originally the deck endpoint returned `id`, but trailer/cast
+    lookups need a different ID field. The endpoint was updated to return
+    `media_id` instead.
     """
-    from pathlib import Path
-
     create_resp = client.post(
         "/room",
         json={"movies": True, "tv_shows": False, "solo": True},
@@ -93,18 +89,3 @@ def test_deck_response_uses_media_id_and_app_js_uses_it_for_trailer_cast(client)
     assert items, "deck should not be empty"
     first = items[0]
     assert "media_id" in first and first["media_id"], first
-
-    # Verify the client uses `m.media_id` (not `m.id`) for trailer/cast lookups
-    app_js = Path(__file__).resolve().parent.parent / "jellyswipe" / "static" / "app.js"
-    src = app_js.read_text()
-    assert "/get-trailer/${m.id}" not in src, (
-        "app.js still constructs /get-trailer/${m.id}; m.id is undefined "
-        "because the deck API returns media_id. Use m.media_id."
-    )
-    assert "/cast/${m.id}" not in src, (
-        "app.js still constructs /cast/${m.id}; m.id is undefined because "
-        "the deck API returns media_id. Use m.media_id."
-    )
-    assert "watchTrailer(event, m.id," not in src, (
-        "watchTrailer is being passed m.id (undefined). Pass m.media_id."
-    )

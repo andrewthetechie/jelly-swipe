@@ -21,6 +21,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from jellyswipe.config import AppConfig
 from jellyswipe.db_runtime import dispose_runtime
+from jellyswipe.utils import frontend as _frontend_utils
 
 # App root for static/template paths
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -265,6 +266,18 @@ def create_app(config: AppConfig | None = None):
         StaticFiles(directory=os.path.join(_APP_ROOT, "static")),
         name="static",
     )
+
+    # Vite assets mount (conditional based on frontend_dist availability).
+    # Resolve once per app instance and stash on app.state so the "/" route in
+    # routers/static.py reads the same value this mount was conditioned on.
+    _frontend_dist = _frontend_utils.find_frontend_dist_path(_APP_ROOT)
+    app.state.frontend_dist = _frontend_dist
+    if _frontend_dist is not None:
+        app.mount(
+            "/assets",
+            StaticFiles(directory=os.path.join(_frontend_dist, "assets")),
+            name="assets",
+        )
 
     # Mount all 5 domain routers (D-14: no prefix — routes define full paths)
     from jellyswipe.routers.auth import auth_router

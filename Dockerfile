@@ -1,5 +1,15 @@
+# Frontend build stage
+FROM node:20-slim AS node-builder
+
+WORKDIR /app/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 # Builder stage
-FROM python:3.13-slim as builder
+FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
@@ -26,8 +36,11 @@ WORKDIR /app
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy package data (templates/static)
+# Copy package data (static PWA assets; frontend_dist copied separately below)
 COPY --from=builder /app/jellyswipe /app/jellyswipe
+
+# Copy frontend dist from node-builder
+COPY --from=node-builder /app/frontend/dist/ /app/jellyswipe/frontend_dist/
 
 # Alembic reads project-root alembic.ini (see jellyswipe/migrations._alembic_config)
 COPY --from=builder /app/alembic.ini /app/alembic.ini
