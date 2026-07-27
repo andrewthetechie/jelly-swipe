@@ -44,7 +44,7 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
 
         return (
             <div className="match-list-item" key={mediaId}>
-                <img src={apiUrl(thumb).toString()} className="match-list-img" />
+                <img src={apiUrl(thumb).toString()} alt={title ?? ""} className="match-list-img" />
                 <div className="match-list-info">
                     <h3 className="match-list-title">{title}</h3>
                     {rating && <div className="match-list-score">IMDb {Number(rating).toFixed(2)}</div>}
