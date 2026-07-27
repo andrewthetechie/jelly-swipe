@@ -42,7 +42,7 @@ export function makeDeck(n: number): CardDeck {
 
 export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
   return {
-    media_id: "movie-1",
+    media_id: "1",
     media_type: "movie",
     title: "Movie 1",
     thumb: "/poster.jpg",
@@ -52,6 +52,12 @@ export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
     year: 2016,
     ...overrides,
   }
+}
+
+export function makeMatchList(n: number): MatchItem[] {
+  return Array.from({ length: n }, (_, i) =>
+    makeMatch({ media_id: String(i + 1), title: `Movie ${i + 1}` })
+  )
 }
 
 export function makeCastMember(overrides: Partial<CastMember> = {}): CastMember {
