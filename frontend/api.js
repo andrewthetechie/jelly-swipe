@@ -1,8 +1,20 @@
+const DEFAULT_API_BASE_URL = 'http://localhost:5005';
+
 export function getApiBaseUrl() {
-  if (import.meta.env.DEV) {
-    return new URL('http://localhost:5005');
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    return new URL(configuredBaseUrl);
   }
-  return new URL(window.location.origin);
+
+  const currentLocation = typeof window !== 'undefined' && window.location
+    ? window.location
+    : globalThis.location;
+
+  if (currentLocation?.origin) {
+    return new URL(currentLocation.origin);
+  }
+
+  return new URL(DEFAULT_API_BASE_URL);
 }
 
 export function apiUrl(path) {
@@ -11,7 +23,7 @@ export function apiUrl(path) {
 
 export async function apiFetch(path, options = {}) {
   options = { ...options };
-  options.credentials = import.meta.env.DEV ? 'include' : 'same-origin';
+  options.credentials = 'same-origin';
 
   if (options.headers == null) {
     options.headers = {};
@@ -22,7 +34,7 @@ export async function apiFetch(path, options = {}) {
 
 export async function postJson(path, body, options = {}) {
   options = { ...options };
-  options.credentials = import.meta.env.DEV ? 'include' : 'same-origin';
+  options.credentials = 'same-origin';
 
   if (options.headers == null) {
     options.headers = {};

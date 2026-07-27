@@ -27,32 +27,34 @@ afterEach(() => {
 });
 
 describe("getApiBaseUrl", () => {
-  it("points at localhost:5005 in dev (note the normalised trailing slash)", () => {
+  it("uses the current window origin when available", () => {
     vi.stubEnv("DEV", true);
-    expect(getApiBaseUrl().href).toBe("http://localhost:5005/");
+    vi.stubGlobal("location", { origin: "http://localhost:4173" });
+    expect(getApiBaseUrl().href).toBe("http://localhost:4173/");
   });
 
-  it("derives the base from window.location.origin in prod", () => {
+  it("falls back to current origin when no browser location exists", () => {
     vi.stubEnv("DEV", false);
-    // Replace window.location with a stub so the prod branch has a known origin.
-    vi.stubGlobal("location", { origin: "https://example.test" });
-    expect(getApiBaseUrl().href).toBe("https://example.test/");
+    vi.unstubAllGlobals();
+    expect(getApiBaseUrl().href).toBe(new URL("/", window.location.origin).href)
   });
 });
 
 describe("apiUrl", () => {
-  it("joins a path against the dev base URL", () => {
+  it("joins a path against the current origin", () => {
     vi.stubEnv("DEV", true);
-    expect(apiUrl("/room").href).toBe("http://localhost:5005/room");
+    vi.stubGlobal("location", { origin: "http://localhost:4173" });
+    expect(apiUrl("/room").href).toBe("http://localhost:4173/room");
     expect(apiUrl("/room/1234/deck").href).toBe(
-      "http://localhost:5005/room/1234/deck",
+      "http://localhost:4173/room/1234/deck",
     );
   });
 });
 
 describe("apiFetch", () => {
-  it("sends credentials: 'include' and the resolved URL in dev", async () => {
+  it("sends same-origin credentials and the resolved URL", async () => {
     vi.stubEnv("DEV", true);
+    vi.stubGlobal("location", { origin: "http://localhost:4173" });
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true });
 
     await apiFetch("/room", { method: "POST" });
@@ -60,12 +62,12 @@ describe("apiFetch", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     const [url, options] = spy.mock.calls[0];
     // First arg is a URL object — assert via .href, not as a string.
-    expect(url.href).toBe("http://localhost:5005/room");
+    expect(url.href).toBe("http://localhost:4173/room");
     expect(options.method).toBe("POST");
-    expect(options.credentials).toBe("include");
+    expect(options.credentials).toBe("same-origin");
   });
 
-  it("sends credentials: 'same-origin' in prod", async () => {
+  it("uses the current origin in production-like contexts", async () => {
     vi.stubEnv("DEV", false);
     vi.stubGlobal("location", { origin: "https://example.test" });
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true });

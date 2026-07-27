@@ -56,7 +56,7 @@ describe("MatchFoundModal - rendering", () => {
         }) as HTMLImageElement
 
         expect(poster).toBeInTheDocument()
-        expect(poster.src).toBe("http://localhost:5005/moana-poster.jpg")
+        expect(poster.src).toBe(new URL("/moana-poster.jpg", window.location.origin).href)
     })
 })
 

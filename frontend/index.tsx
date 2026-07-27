@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import "@fontsource-variable/orbitron";
+import "@fontsource-variable/raleway";
 import App from './App';
 
 
