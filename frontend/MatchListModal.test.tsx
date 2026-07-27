@@ -17,6 +17,7 @@ describe("MatchListModal - Match List Fetch", () => {
 
         expect(await screen.findByText("Movie 1")).toBeInTheDocument()
         expect(screen.getByText("Movie 2")).toBeInTheDocument()
+        expect(screen.queryByText("No Matches Yet!")).not.toBeInTheDocument()
     })
 
     it("failed GET leaves list empty", async () => {
@@ -133,6 +134,7 @@ describe("MatchListModal - rendering", () => {
         })
 
         expect(screen.getByText("Match List")).toBeInTheDocument()
+        expect(screen.getByText("No Matches Yet!")).toBeInTheDocument()
         expect(
             screen.getByRole("button", { name: /keep swiping/i })
         ).toBeInTheDocument()

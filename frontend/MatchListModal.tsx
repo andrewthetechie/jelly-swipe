@@ -62,6 +62,7 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
         <div className="modal">
             <div className="modal-inner modal-match-list">
                 <h2>Match List</h2>
+                {matchList.length === 0 && <h3 className="jelly-check">No Matches Yet!</h3>}
                 <div className="match-list-container">
                     {matchElements}
                 </div>
