@@ -6,7 +6,7 @@ import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
 import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
-import { apiFetch, apiUrl } from "./api"
+import { apiFetch } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import type { MatchItem } from "./types"

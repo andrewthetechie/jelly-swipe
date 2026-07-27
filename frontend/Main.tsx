@@ -45,7 +45,6 @@ export default function Main(): JSX.Element {
             console.log("SSE data received:", sseData)
             if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
                 const bootstrapData = sseData as SessionBootstrapResponse
-                console.log("Session bootstrap data:", bootstrapData)
                 setRoomReady(bootstrapData.ready)
             }
             if ("event_type" in sseData && sseData.event_type === "match_found") {

@@ -1,7 +1,6 @@
 import React from "react"
 import { apiFetch } from "./api"
 import { apiUrl } from "./api"
-import { matchListSample } from "./assets/test-info"
 import { JSX } from "react"
 import type { MatchItem } from "./types"
 
@@ -14,7 +13,6 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
 
     React.useEffect(() => {
         async function fetchMatchList() {
-            console.log("Match List")
             try {
                 const res: Response = await apiFetch('/matches', {
                     method: 'GET',
@@ -24,7 +22,6 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
                     throw new Error(`Error retrieving matches: ${res.status} ${res.statusText}`)
                 }
                 const data = await res.json()
-                console.log("matches data:", data.matches)
                 setMatchList(data.matches)
             } catch (err) {
                 console.error("Error retrieving matches:", err)

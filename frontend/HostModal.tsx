@@ -44,9 +44,6 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
             console.log("Session created with code:", createRoomResponse.pairing_code)
             pairingCode = createRoomResponse.pairing_code
             setCurrentRoomCode(createRoomResponse.pairing_code)
-            // createRoomResponse returns pairing_code and instance_id
-            
-
         } catch (err) {
             console.error("Error creating session:", err)
         }

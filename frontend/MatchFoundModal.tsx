@@ -1,6 +1,5 @@
 import React from "react"
 import logo from "./assets/logo.png"
-import moanaPoster from "./assets/moana-poster.jpg"
 import { apiUrl } from "./api"
 import type { JSX } from "react"
 import type { MatchItem } from "./types"

@@ -1,5 +1,4 @@
 import React from "react"
-import Header from "./Header"
 import { useRoomContext } from "./RoomContextProvider"
 import logo from "./assets/logo.png"
 import sad from "./assets/sad.png"

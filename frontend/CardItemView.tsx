@@ -1,7 +1,5 @@
 import React from 'react'
-import { actorElements } from "./assets/test-info"
 import ActorElements from './ActorElements'
-import moanaPoster from "./assets/moana-poster.jpg"
 import sadLogo from "./assets/sad.png"
 import { apiUrl } from "./api"
 import type { JSX } from "react"

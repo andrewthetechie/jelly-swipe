@@ -13,7 +13,6 @@ export default function Intro(): JSX.Element {
 
     function handleSessionClick(e: React.MouseEvent<HTMLButtonElement>) {
         const sessionType: string | undefined = e.currentTarget.dataset.sessionType
-        // console.log(sessionType)
         if (sessionType === "host") {
             setShowHostModal(true)
         } else if (sessionType === "join") {
@@ -23,7 +22,6 @@ export default function Intro(): JSX.Element {
 
     function handleModalClose(e: React.MouseEvent<HTMLDivElement>) {
         const modalType: string | undefined = e.currentTarget.dataset.modalType
-        // console.log(modalType)
         if (modalType === "host") {
             setShowHostModal(false)
             setMovies(true)
