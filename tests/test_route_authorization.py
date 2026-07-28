@@ -5,15 +5,13 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from base64 import b64decode
 from datetime import UTC, datetime
 from typing import Any
 
-import itsdangerous
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import set_session_cookie
+from tests.conftest import read_session_cookie, set_session_cookie
 
 
 def _set_session(
@@ -940,10 +938,11 @@ class TestGetMeActiveRoom:
 
     def test_stale_active_room_cleared_on_get_me(self, db_connection, client_real_auth):
         """GET /me clears stale active_room from session when room no longer exists."""
+        secret_key = os.environ["SESSION_SECRET"]
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["SESSION_SECRET"],
+            secret_key,
             active_room="ROOM1",
             authenticated=True,
         )
@@ -953,14 +952,86 @@ class TestGetMeActiveRoom:
         assert resp.status_code == 200
         assert resp.json()["activeRoom"] is None
 
-        # Verify session no longer contains active_room or solo_mode
-        session_cookie = client_real_auth.cookies.get("session")
-        assert session_cookie is not None
-        signer = itsdangerous.TimestampSigner(os.environ["SESSION_SECRET"])
-        payload = signer.unsign(session_cookie)
-        session_data = json.loads(b64decode(payload))
-        assert "active_room" not in session_data
-        assert "solo_mode" not in session_data
+        # /me's self-heal must also pop the stale keys from the session cookie
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert "active_room" not in session
+        assert "solo_mode" not in session
+
+    def test_join_sets_active_room_in_session(self, db_connection, client_real_auth):
+        """After POST /room/{code}/join, GET /me returns activeRoom == code.
+
+        This is a genuine regression guard: if join_room_route omits
+        request.session.update(result.session_updates), the joiner's session
+        has no active_room and /me returns null. The room still exists in the
+        DB, so /me's self-heal (pairing_code_exists check) does not apply.
+        """
+        secret_key = os.environ["SESSION_SECRET"]
+
+        # User A creates a room
+        _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+            user_id="user-A",
+            token="token-A",
+        )
+        resp = client_real_auth.post("/room")
+        assert resp.status_code == 200
+        code = resp.json()["pairing_code"]
+
+        # User B joins the room via a separate TestClient
+        with TestClient(client_real_auth.app) as join_client:
+            _setup_deck_session(
+                join_client,
+                db_connection,
+                secret_key,
+                user_id="user-B",
+                token="token-B",
+            )
+            resp = join_client.post(f"/room/{code}/join")
+            assert resp.status_code == 200
+
+            # GET /me must return activeRoom == code — only passes if
+            # join_room_route called request.session.update(...)
+            resp = join_client.get("/me")
+            assert resp.status_code == 200
+            assert resp.json()["activeRoom"] == code
+
+    def test_quit_clears_session_keys_in_cookie(self, db_connection, client_real_auth):
+        """POST /room/{code}/quit removes active_room and solo_mode from session cookie.
+
+        This assertion decodes the signed session cookie directly, independent
+        of GET /me's self-healing (which pops keys when pairing_code_exists
+        returns False). If quit_room omits the explicit session.pop() calls,
+        these keys remain in the cookie and this test fails.
+        """
+        secret_key = os.environ["SESSION_SECRET"]
+
+        # User creates a solo room
+        _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+        )
+        resp = client_real_auth.post(
+            "/room", json={"movies": True, "tv_shows": False, "solo": True}
+        )
+        assert resp.status_code == 200
+        code = resp.json()["pairing_code"]
+
+        # Verify session keys are set before quit
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert session["active_room"] == code
+        assert session["solo_mode"] is True
+
+        # Quit the room
+        resp = client_real_auth.post(f"/room/{code}/quit")
+        assert resp.status_code == 200
+
+        # Decode the session cookie directly — keys must be absent
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert "active_room" not in session
+        assert "solo_mode" not in session
 
 
 # --- Go-Solo Route Removal Test ---

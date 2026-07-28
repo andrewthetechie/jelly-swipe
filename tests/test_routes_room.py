@@ -11,7 +11,7 @@ import os
 
 import sqlite3
 
-from tests.conftest import set_session_cookie
+from tests.conftest import read_session_cookie, set_session_cookie
 
 
 def _sqlite_conn_for_route_tests():
@@ -93,9 +93,9 @@ def test_room_create_sets_session(client, app):
     assert response.status_code == 200
     code = response.json()["pairing_code"]
 
-    # Note: Session state cannot be verified directly in FastAPI TestClient
-    # The session is set via cookies by the endpoint
-    assert code is not None
+    session = read_session_cookie(client, os.environ["SESSION_SECRET"])
+    assert session["active_room"] == code
+    assert session["solo_mode"] is False
 
 
 def test_room_create_stores_room_in_db(client, app):
@@ -231,8 +231,8 @@ def test_room_join_sets_session_and_ready(client, app):
     _seed_room("TEST1")
     client.post("/room/TEST1/join")
 
-    # Note: Session state cannot be verified directly in FastAPI TestClient
-    # The session is set via cookies by the endpoint
+    session = read_session_cookie(client, os.environ["SESSION_SECRET"])
+    assert session["active_room"] == "TEST1"
 
     conn = _sqlite_conn_for_route_tests()
     try:
@@ -367,8 +367,9 @@ def test_quit_room_clears_session(client, app):
     _seed_room("TEST1")
     client.post("/room/TEST1/quit")
 
-    # Note: Session state cannot be verified directly in FastAPI TestClient
-    # The session is cleared via cookies by the endpoint
+    session = read_session_cookie(client, os.environ["SESSION_SECRET"])
+    assert "active_room" not in session
+    assert "solo_mode" not in session
 
 
 def test_quit_nonexistent_room_still_succeeds(client, app):
@@ -753,8 +754,6 @@ def test_join_room_notifies_after_commit(client, app):
     code = create_resp.json()["pairing_code"]
 
     # Join with a different session
-    from tests.conftest import set_session_cookie
-
     join_client_session = {"solo_mode": False}
     set_session_cookie(client, join_client_session, os.environ["SESSION_SECRET"])
 

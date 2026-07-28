@@ -6,21 +6,50 @@ import asyncio
 import json
 import logging
 import secrets
+from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
-from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.db_runtime import get_sessionmaker
+from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.repositories.matches import MatchRecord
-from jellyswipe.services.deck_pipeline import build_deck, DeckProvider, EmptyDeckError
+from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
+
+# Session keys shared with the rooms router: the service builds
+# ``session_updates`` dicts with these keys; the router applies or pops them.
+SESSION_ACTIVE_ROOM_KEY = "active_room"
+SESSION_SOLO_MODE_KEY = "solo_mode"
 
 # Re-export for backward compatibility
 __all__ = [
+    "SESSION_ACTIVE_ROOM_KEY",
+    "SESSION_SOLO_MODE_KEY",
+    "CreateRoomResult",
     "DeckProvider",
     "EmptyDeckError",
+    "JoinRoomResult",
+    "QuitRoomResult",
     "RoomLifecycleService",
     "UniqueRoomCodeExhaustedError",
 ]
+
+
+@dataclass(frozen=True)
+class CreateRoomResult:
+    pairing_code: str
+    instance_id: str
+    session_updates: dict[str, str | bool]
+
+
+@dataclass(frozen=True)
+class JoinRoomResult:
+    session_updates: dict[str, str | bool]
+
+
+@dataclass(frozen=True)
+class QuitRoomResult:
+    status: str
+
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +97,13 @@ class RoomLifecycleService:
 
     async def create_room(
         self,
-        session_dict: dict[str, Any],
         user_id: str,
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
         include_movies: bool = True,
         include_tv_shows: bool = False,
         solo: bool = False,
-    ) -> dict[str, str]:
+    ) -> CreateRoomResult:
         for _ in range(10):
             pairing_code = str(secrets.randbelow(9000) + 1000)
             exists = await uow.rooms.pairing_code_exists(pairing_code)
@@ -117,9 +145,14 @@ class RoomLifecycleService:
                 await uow.session_events.append(
                     instance_id, "session_ready", json.dumps({"solo": True})
                 )
-            session_dict["active_room"] = pairing_code
-            session_dict["solo_mode"] = solo
-            return {"pairing_code": pairing_code, "instance_id": instance_id}
+            return CreateRoomResult(
+                pairing_code=pairing_code,
+                instance_id=instance_id,
+                session_updates={
+                    SESSION_ACTIVE_ROOM_KEY: pairing_code,
+                    SESSION_SOLO_MODE_KEY: solo,
+                },
+            )
 
         raise UniqueRoomCodeExhaustedError()
 
@@ -169,10 +202,9 @@ class RoomLifecycleService:
     async def join_room(
         self,
         code: str,
-        session_dict: dict[str, Any],
         user_id: str,
         uow: DatabaseUnitOfWork,
-    ) -> dict[str, str] | None:
+    ) -> JoinRoomResult | None:
         room = await uow.rooms.get_room(code)
         if room is None:
             return None
@@ -197,17 +229,19 @@ class RoomLifecycleService:
                 instance.instance_id, "session_ready", json.dumps({})
             )
 
-        session_dict["active_room"] = code
-        session_dict["solo_mode"] = False
-        return {"status": "success"}
+        return JoinRoomResult(
+            session_updates={
+                SESSION_ACTIVE_ROOM_KEY: code,
+                SESSION_SOLO_MODE_KEY: False,
+            }
+        )
 
     async def quit_room(
         self,
         code: str,
-        session_dict: dict[str, Any],
         user_id: str,
         uow: DatabaseUnitOfWork,
-    ) -> dict[str, str]:
+    ) -> QuitRoomResult:
         # Look up instance and append session_closed event
         instance = await uow.session_instances.get_by_pairing_code(code)
         if instance:
@@ -221,9 +255,7 @@ class RoomLifecycleService:
         await uow.rooms.delete(code)
         await uow.swipes.delete_room_swipes(code)
         await uow.matches.archive_active_for_room(code)
-        session_dict.pop("active_room", None)
-        session_dict.pop("solo_mode", None)
-        return {"status": "session_ended"}
+        return QuitRoomResult(status="session_ended")
 
     async def _cleanup_after_grace(self, instance_id: str) -> None:
         """Clean up session instance after 60-second grace period."""
