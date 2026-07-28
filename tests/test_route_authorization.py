@@ -5,11 +5,9 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from base64 import b64decode
 from datetime import UTC, datetime
 from typing import Any
 
-import itsdangerous
 import pytest
 from fastapi.testclient import TestClient
 
@@ -940,10 +938,11 @@ class TestGetMeActiveRoom:
 
     def test_stale_active_room_cleared_on_get_me(self, db_connection, client_real_auth):
         """GET /me clears stale active_room from session when room no longer exists."""
+        secret_key = os.environ["SESSION_SECRET"]
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["SESSION_SECRET"],
+            secret_key,
             active_room="ROOM1",
             authenticated=True,
         )
@@ -952,6 +951,11 @@ class TestGetMeActiveRoom:
         resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         assert resp.json()["activeRoom"] is None
+
+        # /me's self-heal must also pop the stale keys from the session cookie
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert "active_room" not in session
+        assert "solo_mode" not in session
 
     def test_join_sets_active_room_in_session(self, db_connection, client_real_auth):
         """After POST /room/{code}/join, GET /me returns activeRoom == code.

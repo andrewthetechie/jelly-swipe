@@ -10,13 +10,20 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
-from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.db_runtime import get_sessionmaker
+from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.repositories.matches import MatchRecord
-from jellyswipe.services.deck_pipeline import build_deck, DeckProvider, EmptyDeckError
+from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
+
+# Session keys shared with the rooms router: the service builds
+# ``session_updates`` dicts with these keys; the router applies or pops them.
+SESSION_ACTIVE_ROOM_KEY = "active_room"
+SESSION_SOLO_MODE_KEY = "solo_mode"
 
 # Re-export for backward compatibility
 __all__ = [
+    "SESSION_ACTIVE_ROOM_KEY",
+    "SESSION_SOLO_MODE_KEY",
     "CreateRoomResult",
     "DeckProvider",
     "EmptyDeckError",
@@ -141,7 +148,10 @@ class RoomLifecycleService:
             return CreateRoomResult(
                 pairing_code=pairing_code,
                 instance_id=instance_id,
-                session_updates={"active_room": pairing_code, "solo_mode": solo},
+                session_updates={
+                    SESSION_ACTIVE_ROOM_KEY: pairing_code,
+                    SESSION_SOLO_MODE_KEY: solo,
+                },
             )
 
         raise UniqueRoomCodeExhaustedError()
@@ -219,7 +229,12 @@ class RoomLifecycleService:
                 instance.instance_id, "session_ready", json.dumps({})
             )
 
-        return JoinRoomResult(session_updates={"active_room": code, "solo_mode": False})
+        return JoinRoomResult(
+            session_updates={
+                SESSION_ACTIVE_ROOM_KEY: code,
+                SESSION_SOLO_MODE_KEY: False,
+            }
+        )
 
     async def quit_room(
         self,

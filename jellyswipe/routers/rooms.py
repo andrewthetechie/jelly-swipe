@@ -10,7 +10,7 @@ request-scoped connection dependency.
 
 import json
 import logging
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from sse_starlette.sse import EventSourceResponse
@@ -21,7 +21,29 @@ from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
 from jellyswipe.notifier import notifier
+from jellyswipe.routers._helpers import (
+    commit_and_wake,
+)
+from jellyswipe.schemas.common import CardItem, ErrorResponse
+from jellyswipe.schemas.rooms import (
+    CreateRoomRequest,
+    CreateRoomResponse,
+    DeleteMatchRequest,
+    DeleteMatchResponse,
+    JoinRoomResponse,
+    MatchListResponse,
+    QuitRoomResponse,
+    RoomStatusResponse,
+    SetGenreRequest,
+    SetWatchedFilterRequest,
+    SwipeRequest,
+    SwipeResponse,
+    UndoRequest,
+    UndoResponse,
+)
 from jellyswipe.services.room_lifecycle import (
+    SESSION_ACTIVE_ROOM_KEY,
+    SESSION_SOLO_MODE_KEY,
     EmptyDeckError,
     RoomLifecycleService,
     UniqueRoomCodeExhaustedError,
@@ -34,27 +56,6 @@ from jellyswipe.services.session_match_mutation import (
     SessionMatchMutation,
     SwipeRejected,
     UndoChanged,
-)
-
-from jellyswipe.routers._helpers import (
-    commit_and_wake,
-)  # noqa: F401
-from jellyswipe.schemas.common import CardItem, ErrorResponse
-from jellyswipe.schemas.rooms import (
-    CreateRoomRequest,
-    CreateRoomResponse,
-    DeleteMatchRequest,
-    DeleteMatchResponse,
-    MatchListResponse,
-    JoinRoomResponse,
-    QuitRoomResponse,
-    RoomStatusResponse,
-    SetGenreRequest,
-    SetWatchedFilterRequest,
-    SwipeRequest,
-    SwipeResponse,
-    UndoRequest,
-    UndoResponse,
 )
 
 rooms_router = APIRouter()
@@ -91,7 +92,7 @@ async def create_room(
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
     provider=Depends(get_provider),
-    body: Optional[CreateRoomRequest] = None,
+    body: CreateRoomRequest | None = None,
 ):
     """Create a new room with setup choices.
 
@@ -241,7 +242,7 @@ async def swipe(
 async def get_matches(
     request: Request,
     uow: DBUoW,
-    view: Optional[Literal["history"]] = None,
+    view: Literal["history"] | None = None,
     user: AuthUser = Depends(require_auth),
 ):
     """Return the current room's matches, or the user's full match history.
@@ -273,7 +274,7 @@ async def quit_room(
     ``session_closed`` event so connected SSE clients can react.
     """
     result = await room_lifecycle_service.quit_room(code, user.user_id, uow)
-    for key in ("active_room", "solo_mode"):
+    for key in (SESSION_ACTIVE_ROOM_KEY, SESSION_SOLO_MODE_KEY):
         request.session.pop(key, None)
     await commit_and_wake(uow, code)
     return {"status": result.status}
