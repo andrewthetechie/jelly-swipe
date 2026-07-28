@@ -7,9 +7,8 @@ cache misses are properly stored.
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
-
 
 from tests.conftest import set_session_cookie
 
@@ -27,7 +26,7 @@ def _sqlite_conn():
 def _seed_cache(media_id, lookup_type, result_json):
     """Insert a cache row directly into the database with timezone-aware timestamp."""
     conn = _sqlite_conn()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     try:
         conn.execute(
             "INSERT INTO tmdb_cache (media_id, lookup_type, result_json, fetched_at) "
@@ -153,9 +152,9 @@ class TestTrailerRoute:
         """Jellyfin item resolution failure returns 404."""
         _set_session(client)
 
-        from tests.conftest import FakeProvider
         import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
+        from tests.conftest import FakeProvider
 
         original = deps._provider_singleton
 
@@ -178,8 +177,8 @@ class TestTrailerRoute:
         """Route handler calls commit after enrichment service fetch."""
         from unittest.mock import AsyncMock, MagicMock
 
-        from jellyswipe.dependencies import get_db_uow
         from jellyswipe.db_uow import DatabaseUnitOfWork
+        from jellyswipe.dependencies import get_db_uow
 
         mock_session = AsyncMock()
         mock_uow = MagicMock(spec=DatabaseUnitOfWork)
@@ -251,19 +250,19 @@ class TestCastRoute:
         assert data["cast"] == expected_cast
         mock_lookup.assert_called_once()
 
-        # Verify it was stored in cache (wrapped format)
+        # Verify it was stored in cache
         conn = _sqlite_conn()
         try:
             row = conn.execute(
                 "SELECT result_json FROM tmdb_cache WHERE media_id = 'movie-11' AND lookup_type = 'cast'"
             ).fetchone()
             assert row is not None
-            assert json.loads(row["result_json"]) == {"cast": expected_cast}
+            assert json.loads(row["result_json"]) == expected_cast
         finally:
             conn.close()
 
     def test_cast_route_empty_cast_stores_and_returns(self, client, app):
-        """lookup_cast returns [] → route stores {"cast": []}, returns {"cast": []}."""
+        """lookup_cast returns [] → route stores [], returns {"cast": []}."""
         _set_session(client)
 
         with patch("jellyswipe.routers.media.lookup_cast") as mock_lookup:
@@ -275,14 +274,14 @@ class TestCastRoute:
         assert data["cast"] == []
         mock_lookup.assert_called_once()
 
-        # Verify empty cast was cached (wrapped format)
+        # Verify empty cast was cached
         conn = _sqlite_conn()
         try:
             row = conn.execute(
                 "SELECT result_json FROM tmdb_cache WHERE media_id = 'movie-12' AND lookup_type = 'cast'"
             ).fetchone()
             assert row is not None
-            assert json.loads(row["result_json"]) == {"cast": []}
+            assert json.loads(row["result_json"]) == []
         finally:
             conn.close()
 
@@ -290,9 +289,9 @@ class TestCastRoute:
         """Jellyfin item resolution failure returns 404 with empty cast."""
         _set_session(client)
 
-        from tests.conftest import FakeProvider
         import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
+        from tests.conftest import FakeProvider
 
         original = deps._provider_singleton
 

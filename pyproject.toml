@@ -50,6 +50,3 @@ dev = [
     "pytest-timeout>=2.4.0",
     "ruff>=0.15.14"
 ]
-
-[tool.ruff.format]
-exclude = ["alembic/versions/0001_phase36_baseline.py"]

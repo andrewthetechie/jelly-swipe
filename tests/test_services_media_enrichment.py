@@ -364,6 +364,61 @@ class TestMediaEnrichmentService:
         fetch_fn.assert_not_called()
         uow.tmdb_cache.put.assert_not_called()
 
+    async def test_cast_cache_miss_stores_raw_list(self):
+        """Cast cache miss stores the raw list via cache_transform identity."""
+        service = MediaEnrichmentService()
+        uow = self._make_uow(cached=None)
+        provider = self._make_provider()
+        request = self._make_request()
+        cast = [{"name": "Actor", "character": "Role", "profile_path": None}]
+        fetch_fn = MagicMock(return_value=cast)
+
+        result = await service.fetch(
+            media_id="movie-7",
+            lookup_type="cast",
+            request=request,
+            uow=uow,
+            provider=provider,
+            api_token="token",
+            fetch_fn=fetch_fn,
+            response_wrapper=lambda cast: {"cast": cast},
+            empty_response=lambda req: "not-found",
+            is_empty=lambda result: False,
+            cache_transform=lambda cast: cast,
+        )
+
+        assert result == {"cast": cast}
+        put_call = uow.tmdb_cache.put.call_args
+        assert put_call[0][0] == "movie-7"
+        assert put_call[0][1] == "cast"
+        assert json.loads(put_call[0][2]) == cast
+
+    async def test_cast_empty_result_stores_raw_empty_list(self):
+        """Empty cast stores raw [] (not the {} sentinel) and returns {"cast": []}."""
+        service = MediaEnrichmentService()
+        uow = self._make_uow(cached=None)
+        provider = self._make_provider()
+        request = self._make_request()
+        fetch_fn = MagicMock(return_value=[])
+
+        result = await service.fetch(
+            media_id="movie-8",
+            lookup_type="cast",
+            request=request,
+            uow=uow,
+            provider=provider,
+            api_token="token",
+            fetch_fn=fetch_fn,
+            response_wrapper=lambda cast: {"cast": cast},
+            empty_response=lambda req: "not-found",
+            is_empty=lambda result: False,
+            cache_transform=lambda cast: cast,
+        )
+
+        assert result == {"cast": []}
+        put_call = uow.tmdb_cache.put.call_args
+        assert json.loads(put_call[0][2]) == []
+
     async def test_cast_cache_hit_old_format_wrapped_for_backward_compat(self):
         """Cast cache hit with old-format raw list is wrapped via response_wrapper."""
         service = MediaEnrichmentService()

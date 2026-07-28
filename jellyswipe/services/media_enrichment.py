@@ -10,14 +10,28 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Request
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
-from jellyswipe.routers._helpers import log_exception, make_error_response
+from jellyswipe.http_utils import log_exception, make_error_response
+
+if TYPE_CHECKING:
+    from jellyswipe import XSSSafeJSONResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _server_error(
+    exc: Exception, request: Request, extra_fields: dict | None
+) -> XSSSafeJSONResponse:
+    """Log an unexpected exception and build the generic 500 response."""
+    log_exception(exc, request, logger=logger)
+    return make_error_response(
+        "Internal server error", 500, request, extra_fields=extra_fields
+    )
 
 
 class MediaEnrichmentService:
@@ -31,14 +45,17 @@ class MediaEnrichmentService:
     Parameterizes the differences between trailer and cast routes:
     - How to check if a result is empty
     - How to wrap the result for the response
+    - What shape to store in the cache
     - What to return on empty results
     - Extra fields for error responses
 
-    The service stores and returns the same response-shaped value:
-    ``response_wrapper(raw_result)`` is both cached and returned on a miss.
-    On a cache hit the stored value (already in response shape) is returned
-    directly.  Empty results always store the sentinel ``{}`` so that a
-    subsequent read can distinguish a cached miss from a missing row.
+    Storage format: on a miss the service stores
+    ``cache_transform(raw_result)`` when a transform is supplied, otherwise
+    the response-wrapped value. On a cache hit, stored dicts are returned
+    directly (they are already in response shape) while non-dict values
+    (e.g. cast rows storing a raw list) are wrapped via ``response_wrapper``.
+    Empty results always store the sentinel ``{}`` so that a subsequent
+    read can distinguish a cached miss from a missing row.
     """
 
     async def fetch(
@@ -54,8 +71,9 @@ class MediaEnrichmentService:
         response_wrapper: Callable[[Any], dict],
         empty_response: Callable[[Request], Any],
         is_empty: Callable[[Any], bool] = lambda result: not result,
+        cache_transform: Callable[[Any], Any] | None = None,
         error_extra_fields: dict | None = None,
-    ) -> dict | Any:
+    ) -> dict | XSSSafeJSONResponse:
         """Execute the cache-aside flow for a TMDB enrichment lookup.
 
         The caller owns the commit. This method stages writes via
@@ -78,6 +96,9 @@ class MediaEnrichmentService:
             response_wrapper: Callable wrapping raw result into response dict.
             empty_response: Callable(request) returning error response on empty.
             is_empty: Callable checking if raw result is empty (default: falsy check).
+            cache_transform: Optional callable mapping the raw result to the
+                value stored in cache. Defaults to storing the wrapped
+                response; pass an identity transform to store the raw result.
             error_extra_fields: Extra fields for error responses.
 
         Returns:
@@ -90,11 +111,9 @@ class MediaEnrichmentService:
                 cached_data = json.loads(cached.result_json)
                 if is_empty(cached_data):
                     return empty_response(request)
-                # Cached data is already in response shape (response_wrapper was
-                # applied at storage time).  Return directly.  For backward
-                # compatibility with pre-migration rows that stored the raw
-                # value (e.g. cast rows storing a bare list), wrap non-dict
-                # values with response_wrapper.
+                # Dicts are already in response shape (response_wrapper was
+                # applied at storage time). Non-dict values are raw results
+                # (e.g. cast rows storing a bare list) and are wrapped now.
                 if not isinstance(cached_data, dict):
                     return response_wrapper(cached_data)
                 return cached_data
@@ -113,7 +132,8 @@ class MediaEnrichmentService:
 
             # Step 4: Cache and return wrapped result
             wrapped = response_wrapper(raw_result)
-            await uow.tmdb_cache.put(media_id, lookup_type, json.dumps(wrapped))
+            storable = cache_transform(raw_result) if cache_transform else wrapped
+            await uow.tmdb_cache.put(media_id, lookup_type, json.dumps(storable))
             return wrapped
 
         except RuntimeError as e:
@@ -124,18 +144,6 @@ class MediaEnrichmentService:
                     request,
                     extra_fields=error_extra_fields,
                 )
-            log_exception(e, request, logger=logger)
-            return make_error_response(
-                "Internal server error",
-                500,
-                request,
-                extra_fields=error_extra_fields,
-            )
+            return _server_error(e, request, error_extra_fields)
         except Exception as e:
-            log_exception(e, request, logger=logger)
-            return make_error_response(
-                "Internal server error",
-                500,
-                request,
-                extra_fields=error_extra_fields,
-            )
+            return _server_error(e, request, error_extra_fields)

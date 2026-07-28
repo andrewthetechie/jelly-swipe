@@ -1,0 +1,57 @@
+"""HTTP-layer utilities shared by routers and services.
+
+Home for request-scoped helpers so that services can build standardized
+error responses and log exceptions with request context without importing
+from the routers package (preserving the routers → services → repositories
+dependency direction). Router-specific helpers (e.g. ``commit_and_wake``)
+remain in ``jellyswipe/routers/_helpers.py``, which re-exports these for
+backward compatibility.
+"""
+
+from __future__ import annotations
+
+import logging
+import traceback
+
+from fastapi import Request
+
+from jellyswipe import XSSSafeJSONResponse
+
+_logger = logging.getLogger(__name__)
+
+
+def make_error_response(
+    message: str,
+    status_code: int,
+    request: Request,
+    extra_fields: dict | None = None,
+) -> XSSSafeJSONResponse:
+    """Create a standardized error response with request ID tracking."""
+    if status_code >= 500:
+        message = "Internal server error"
+    body = {"error": message}
+    body["request_id"] = getattr(request.state, "request_id", "unknown")
+    if extra_fields:
+        body.update(extra_fields)
+    return XSSSafeJSONResponse(content=body, status_code=status_code)
+
+
+def log_exception(
+    exc: Exception,
+    request: Request,
+    context: dict | None = None,
+    logger: logging.Logger | None = None,
+) -> None:
+    """Log exception with request context."""
+    log_data = {
+        "request_id": getattr(request.state, "request_id", "unknown"),
+        "route": request.url.path,
+        "method": request.method,
+        "exception_type": type(exc).__name__,
+        "exception_message": str(exc),
+        "stack_trace": traceback.format_exc(),
+    }
+    if context:
+        log_data.update(context)
+    target_logger = logger or _logger
+    target_logger.error("unhandled_exception", extra=log_data)

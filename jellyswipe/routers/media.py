@@ -6,6 +6,7 @@ Per D-06, D-07: 4 media routes with TMDB API integration and rate limiting.
 import logging
 
 from fastapi import APIRouter, Depends, Request
+
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.dependencies import (
     AuthUser,
@@ -82,7 +83,6 @@ async def get_trailer(
         ),
         response_wrapper=lambda key: {"youtube_key": key},
         empty_response=lambda req: make_error_response("Not found", 404, req),
-        is_empty=lambda result: not result,
     )
     await uow.session.commit()
     return result
@@ -136,6 +136,9 @@ async def get_cast(
             "Not found", 404, req, extra_fields={"cast": []}
         ),
         is_empty=lambda result: False,
+        # Store the raw list (pre-refactor cache format); the response
+        # wrapper is applied to cached values on read.
+        cache_transform=lambda cast: cast,
         error_extra_fields={"cast": []},
     )
     await uow.session.commit()
