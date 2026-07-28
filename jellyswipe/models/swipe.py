@@ -37,4 +37,6 @@ class Swipe(Base):
     }
 
     room: Mapped["Room"] = relationship("Room", back_populates="swipes")
-    auth_session: Mapped["AuthSession | None"] = relationship("AuthSession", back_populates="swipes")
+    auth_session: Mapped["AuthSession | None"] = relationship(
+        "AuthSession", back_populates="swipes"
+    )

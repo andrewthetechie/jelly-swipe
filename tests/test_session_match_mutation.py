@@ -272,9 +272,7 @@ class TestApplySwipe:
             assert payload["rating"] == "8.5"
             assert payload["duration"] == "2h 10m"
             assert payload["year"] == "2024"
-            assert (
-                payload["deep_link"] == "http://test/web/#/details?id=m1"
-            )
+            assert payload["deep_link"] == "http://test/web/#/details?id=m1"
 
     async def test_hosted_right_swipe_no_counterparty(self, runtime_sessionmaker):
         """Hosted right-swipe without counterparty returns SwipeAccepted(match_created=False)."""

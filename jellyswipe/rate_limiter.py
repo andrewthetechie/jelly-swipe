@@ -93,7 +93,9 @@ class RateLimiter:
             key = (endpoint, ip)
             if key not in self._buckets:
                 refill_rate = limit / (per_minutes * 60)  # D-02
-                self._buckets[key] = TokenBucket(capacity=limit, refill_rate=refill_rate)
+                self._buckets[key] = TokenBucket(
+                    capacity=limit, refill_rate=refill_rate
+                )
 
                 # Enforce max bucket cap after adding new bucket
                 if len(self._buckets) > self.max_buckets:
@@ -116,7 +118,8 @@ class RateLimiter:
         """Remove buckets not accessed in stale_seconds. Called under lock."""
         now = time.monotonic()
         stale_keys = [
-            key for key, bucket in self._buckets.items()
+            key
+            for key, bucket in self._buckets.items()
             if now - bucket.last_access > self.stale_seconds
         ]
         for key in stale_keys:

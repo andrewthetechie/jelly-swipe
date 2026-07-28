@@ -58,9 +58,7 @@ class TestBearerTokenHeaders:
         mock_item.title = "Test Movie"
         mock_item.year = 2024
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
-        monkeypatch.setattr(
-            deps, "_provider_singleton", mock_provider, raising=False
-        )
+        monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": [{"id": 123}]}
@@ -96,9 +94,7 @@ class TestBearerTokenHeaders:
         mock_item.title = "Test Movie"
         mock_item.year = 2024
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
-        monkeypatch.setattr(
-            deps, "_provider_singleton", mock_provider, raising=False
-        )
+        monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": [{"id": 456}]}

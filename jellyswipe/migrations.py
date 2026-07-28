@@ -13,6 +13,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
+
 def _default_database_file_path() -> str:
     """Default ``data/jellyswipe.db`` under the repo root."""
     return str(Path(__file__).resolve().parent.parent / "data" / "jellyswipe.db")
@@ -59,6 +60,8 @@ def _alembic_config(database_url: str) -> Config:
 
 def upgrade_to_head(database_url: str | None = None) -> None:
     command.upgrade(
-        _alembic_config(normalize_sync_database_url(database_url or get_database_url())),
+        _alembic_config(
+            normalize_sync_database_url(database_url or get_database_url())
+        ),
         "head",
     )

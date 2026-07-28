@@ -1,4 +1,5 @@
 """Bootstrap contract tests for migration-first startup."""
+
 from __future__ import annotations
 
 import pytest
@@ -38,7 +39,9 @@ def test_main_runs_migrations_runtime_and_uvicorn_in_order(monkeypatch):
     monkeypatch.setattr(
         bootstrap.uvicorn,
         "run",
-        lambda target, **kwargs: calls.append(("uvicorn.run", (target, kwargs.get("host"), kwargs.get("port")))),
+        lambda target, **kwargs: calls.append(
+            ("uvicorn.run", (target, kwargs.get("host"), kwargs.get("port")))
+        ),
     )
 
     bootstrap.main()

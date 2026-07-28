@@ -25,7 +25,7 @@ def make_http_request(
     params: Optional[Dict[str, Any]] = None,
     json: Optional[Dict[str, Any]] = None,
     timeout: Tuple[int, int] = DEFAULT_TIMEOUT,
-    **kwargs
+    **kwargs,
 ) -> requests.Response:
     """
     Centralized HTTP request helper with security best practices.
@@ -74,8 +74,8 @@ def make_http_request(
     # Ensure User-Agent header
     if headers is None:
         headers = {}
-    if 'User-Agent' not in headers:
-        headers['User-Agent'] = DEFAULT_USER_AGENT
+    if "User-Agent" not in headers:
+        headers["User-Agent"] = DEFAULT_USER_AGENT
 
     try:
         response = requests.request(
@@ -85,7 +85,7 @@ def make_http_request(
             params=params,
             json=json,
             timeout=timeout,
-            **kwargs
+            **kwargs,
         )
 
         duration_ms = (time.time() - start_time) * 1000
@@ -94,12 +94,12 @@ def make_http_request(
         logging.getLogger().info(
             "http_request",
             extra={
-                'method': method,
-                'url': url,
-                'status_code': response.status_code,
-                'duration_ms': round(duration_ms, 2),
-                'success': 200 <= response.status_code < 300
-            }
+                "method": method,
+                "url": url,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+                "success": 200 <= response.status_code < 300,
+            },
         )
 
         # Raise HTTP errors for non-2xx responses
@@ -113,12 +113,12 @@ def make_http_request(
         logging.getLogger().error(
             "http_request_failed",
             extra={
-                'method': method,
-                'url': url,
-                'duration_ms': round(duration_ms, 2),
-                'error_type': type(e).__name__,
-                'error_message': str(e)
-            }
+                "method": method,
+                "url": url,
+                "duration_ms": round(duration_ms, 2),
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            },
         )
 
         # Re-raise exception with full context
