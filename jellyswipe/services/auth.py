@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
@@ -23,7 +23,6 @@ class LoginResult:
     """Result of a successful delegate login."""
 
     session_id: str
-    user_id: str
     response_body: dict
 
 
@@ -32,7 +31,6 @@ class MeResult:
     """Result of a get_me query."""
 
     response_body: dict
-    active_room: str | None = None
 
 
 class AuthService:
@@ -53,7 +51,7 @@ class AuthService:
         except RuntimeError:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         session_id = secrets.token_urlsafe(32)
         await uow.auth_sessions.delete_expired((now - timedelta(days=14)).isoformat())
         await uow.auth_sessions.insert(
@@ -66,7 +64,6 @@ class AuthService:
         )
         return LoginResult(
             session_id=session_id,
-            user_id=uid,
             response_body={"userId": uid},
         )
 
@@ -81,9 +78,8 @@ class AuthService:
         try:
             await uow.auth_sessions.delete_by_session_id(session_id)
         except Exception:
-            _logger.error(
+            _logger.exception(
                 "auth_session_delete_failed",
-                exc_info=True,
                 extra={"session_id": session_id},
             )
 
@@ -95,9 +91,10 @@ class AuthService:
         uow: DatabaseUnitOfWork,
     ) -> MeResult:
         """Return user info, clearing active_room if the pairing code no longer exists."""
-        if active_room is not None:
-            if not await uow.rooms.pairing_code_exists(active_room):
-                active_room = None
+        if active_room is not None and not await uow.rooms.pairing_code_exists(
+            active_room
+        ):
+            active_room = None
         info = provider.server_info()
         return MeResult(
             response_body={
@@ -107,5 +104,4 @@ class AuthService:
                 "serverId": info.get("machineIdentifier", ""),
                 "activeRoom": active_room,
             },
-            active_room=active_room,
         )

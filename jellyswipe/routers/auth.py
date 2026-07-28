@@ -4,9 +4,9 @@ Per D-06, D-09, D-10: 6 auth routes with identical URL paths, methods, and respo
 Uses dependency injection for authentication (require_auth) and rate limiting.
 """
 
-from fastapi import APIRouter, Request, Depends, Response
-from jellyswipe import XSSSafeJSONResponse
+from fastapi import APIRouter, Depends, Request, Response
 
+from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
@@ -124,7 +124,7 @@ async def get_me(
     """
     active_room = request.session.get("active_room")
     result = await AuthService.get_me(user, active_room, provider, uow)
-    if result.active_room is None and active_room is not None:
+    if result.response_body["activeRoom"] is None and active_room is not None:
         request.session.pop("active_room", None)
         request.session.pop("solo_mode", None)
     return result.response_body

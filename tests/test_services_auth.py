@@ -1,6 +1,6 @@
 """Unit tests for AuthService — testable with mocked UoW and provider."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -62,7 +62,6 @@ async def test_login_delegate_returns_result():
     assert result is not None
     assert isinstance(result, LoginResult)
     assert len(result.session_id) >= 43  # secrets.token_urlsafe(32) produces 43 chars
-    assert result.user_id == "test-user"
     assert result.response_body == {"userId": "test-user"}
     uow.auth_sessions.insert.assert_called_once()
 
@@ -88,7 +87,7 @@ async def test_login_delegate_cleans_expired_sessions():
     await AuthService.login_delegate(provider, uow)
 
     cutoff_call = uow.auth_sessions.delete_expired.call_args[0][0]
-    expected_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+    expected_cutoff = (datetime.now(UTC) - timedelta(days=14)).isoformat()
     # Allow small time drift (within 2 seconds)
     called_dt = datetime.fromisoformat(cutoff_call)
     expected_dt = datetime.fromisoformat(expected_cutoff)
@@ -145,7 +144,6 @@ async def test_get_me_returns_user_info():
     result = await AuthService.get_me(user, None, provider, uow)
 
     assert isinstance(result, MeResult)
-    assert result.active_room is None
     body = result.response_body
     assert body["userId"] == "test-user"
     assert body["displayName"] == "test-user"
@@ -164,7 +162,6 @@ async def test_get_me_clears_invalid_room():
 
     result = await AuthService.get_me(user, "ABCD", provider, uow)
 
-    assert result.active_room is None
     assert result.response_body["activeRoom"] is None
 
 
@@ -178,5 +175,4 @@ async def test_get_me_preserves_valid_room():
 
     result = await AuthService.get_me(user, "ABCD", provider, uow)
 
-    assert result.active_room == "ABCD"
     assert result.response_body["activeRoom"] == "ABCD"

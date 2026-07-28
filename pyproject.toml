@@ -33,6 +33,12 @@ addopts = "-v --tb=short --cov=jellyswipe -n=auto --cov-report=term-missing --ti
 [tool.ruff]
 exclude = ["alembic/versions/0001_phase36_baseline.py"]
 
+[tool.ruff.lint]
+ignore = [
+    "B008",   # FastAPI requires Depends() in default arguments
+    "BLE001", # Broad exception catches are intentional at service/router boundaries
+]
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",

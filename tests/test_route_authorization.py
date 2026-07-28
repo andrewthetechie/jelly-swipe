@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from base64 import b64decode
+from datetime import UTC, datetime
+from typing import Any
 
+import itsdangerous
 import pytest
 from fastapi.testclient import TestClient
+
 from tests.conftest import set_session_cookie
 
 
@@ -33,7 +36,7 @@ def _set_session(
                 session_id,
                 "valid-token",
                 "verified-user",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         db_connection.commit()
@@ -62,12 +65,7 @@ def _prepare_route_state(
     movie_id: str = "movie-1",
 ):
     _seed_room(conn, room_code)
-    if route == "/matches":
-        conn.execute(
-            'INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-            (room_code, movie_id, "Movie", "thumb.jpg", verified_user),
-        )
-    elif route == "/matches/delete":
+    if route == "/matches" or route == "/matches/delete":
         conn.execute(
             'INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
             (room_code, movie_id, "Movie", "thumb.jpg", verified_user),
@@ -88,8 +86,8 @@ def _send_request(
     client,
     method: str,
     path: str,
-    payload: Optional[Dict[str, Any]],
-    headers: Dict[str, str],
+    payload: dict[str, Any] | None,
+    headers: dict[str, str],
 ):
     if method == "GET":
         return client.get(path, headers=headers)
@@ -101,7 +99,7 @@ SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
 # Routes that are intentionally unauthenticated (health probes, etc.)
 UNAUTHENTICATED_ROUTES = {"/healthz", "/readyz"}
 
-ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
+ROUTE_CASES: tuple[tuple[str, str, dict[str, Any] | None], ...] = (
     ("POST", "/room/ROOM1/swipe", {"media_id": "movie-1", "direction": "right"}),
     ("GET", "/matches", None),
     ("POST", "/matches/delete", {"media_id": "movie-1"}),
@@ -236,7 +234,7 @@ def _setup_deck_session(
     session_id = "test-session-" + secrets.token_hex(8)
     db_connection.execute(
         "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-        (session_id, token, user_id, datetime.now(timezone.utc).isoformat()),
+        (session_id, token, user_id, datetime.now(UTC).isoformat()),
     )
     db_connection.commit()
     set_session_cookie(client, {"session_id": session_id}, secret_key)
@@ -958,9 +956,6 @@ class TestGetMeActiveRoom:
         # Verify session no longer contains active_room or solo_mode
         session_cookie = client_real_auth.cookies.get("session")
         assert session_cookie is not None
-        import itsdangerous
-        from base64 import b64decode
-
         signer = itsdangerous.TimestampSigner(os.environ["SESSION_SECRET"])
         payload = signer.unsign(session_cookie)
         session_data = json.loads(b64decode(payload))
