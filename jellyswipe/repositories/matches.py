@@ -97,10 +97,10 @@ class MatchRepository:
         title: str,
         thumb: str,
         user_id: str,
-        deep_link: str,
-        rating: str,
-        duration: str,
-        year: str,
+        deep_link: str | None,
+        rating: str | None,
+        duration: str | None,
+        year: str | None,
         media_type: str,
     ) -> None:
         await self._session.execute(

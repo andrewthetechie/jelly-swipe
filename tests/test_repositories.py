@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
 
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
@@ -21,6 +20,7 @@ from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.models.match import Match
 from jellyswipe.models.room import Room
 from jellyswipe.models.swipe import Swipe
+from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.repositories.matches import MatchRecord
 from jellyswipe.repositories.rooms import RoomRecord, RoomStatusSnapshot
 
@@ -411,7 +411,7 @@ class TestSwipeRepository:
     ):
         sid_a = "session-a"
         sid_b = "session-b"
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
@@ -550,9 +550,15 @@ class TestSwipeRepository:
             swiped_ids = await uow.swipes.list_swiped_media_ids("SWIPE1")
         assert swiped_ids == {"mv100"}
 
-    async def test_insert_duplicate_swipe_raises_integrity_error(
+    async def test_insert_same_user_different_sessions_allowed(
         self, runtime_sessionmaker
     ):
+        """Same user may swipe the same media from two different sessions.
+
+        Pins the same-user multi-session match scenario: no DB unique
+        constraint forbids per-session duplicate swipes, so hosted matching
+        for one user across two browser sessions keeps working.
+        """
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
@@ -563,32 +569,44 @@ class TestSwipeRepository:
                 solo_mode=False,
                 deck_position_json="{}",
             )
-            session.add(
-                AuthSession(
-                    session_id="sess-dup",
-                    jellyfin_token="token-dup",
-                    jellyfin_user_id="user-t",
+            await uow.auth_sessions.insert(
+                AuthRecord(
+                    session_id="sess-dup-a",
+                    jf_token="token-dup",
+                    user_id="user-t",
                     created_at="2024-01-01T00:00:00Z",
                 )
             )
-            await session.flush()
+            await uow.auth_sessions.insert(
+                AuthRecord(
+                    session_id="sess-dup-b",
+                    jf_token="token-dup",
+                    user_id="user-t",
+                    created_at="2024-01-01T00:00:00Z",
+                )
+            )
             await uow.swipes.insert(
                 room_code="SWIPE2",
                 movie_id="mv200",
                 user_id="user-t",
                 direction="right",
-                session_id="sess-dup",
+                session_id="sess-dup-a",
             )
             await session.commit()
 
-        # Duplicate insert in a new session should raise IntegrityError
+        # Same (room, movie, user, direction) from a second session: allowed
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            with pytest.raises(IntegrityError):
-                await uow.swipes.insert(
-                    room_code="SWIPE2",
-                    movie_id="mv200",
-                    user_id="user-t",
-                    direction="right",
-                    session_id="sess-dup",
-                )
+            await uow.swipes.insert(
+                room_code="SWIPE2",
+                movie_id="mv200",
+                user_id="user-t",
+                direction="right",
+                session_id="sess-dup-b",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            swiped_ids = await uow.swipes.list_swiped_media_ids("SWIPE2")
+        assert swiped_ids == {"mv200"}

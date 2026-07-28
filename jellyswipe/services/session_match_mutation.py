@@ -3,7 +3,9 @@
 This module defines the types and class for the Session Match Mutation
 module. All types are immutable dataclasses. The ``apply_swipe`` method
 implements the core concurrency-critical swipe transaction using
-``BEGIN IMMEDIATE`` for SQLite serialization safety.
+``BEGIN IMMEDIATE`` for SQLite serialization safety. All persistence goes
+through the repository layer exposed by ``DatabaseUnitOfWork`` — there is
+no raw SQL in this module.
 """
 
 from __future__ import annotations
@@ -11,11 +13,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-from sqlalchemy import text
-
-from jellyswipe.repositories.session_events import append_sync
-from jellyswipe.repositories.swipes import SwipeCounterparty
 
 if TYPE_CHECKING:
     from jellyswipe.db_uow import DatabaseUnitOfWork
@@ -104,8 +101,9 @@ def _resolve_meta_from_deck(movie_data_json: str | None, media_id: str) -> dict:
     return {"rating": "", "duration": "", "year": "", "media_type": "movie"}
 
 
-def _insert_match(
-    conn,
+async def _insert_match_for_user(
+    uow: DatabaseUnitOfWork,
+    *,
     code: str,
     media_id: str,
     user_id: str,
@@ -113,106 +111,32 @@ def _insert_match(
     meta: dict,
     deep_link: str,
 ) -> None:
-    """Insert a match row using INSERT OR IGNORE equivalent via SQLAlchemy."""
-    conn.execute(
-        text("""
-            INSERT OR IGNORE INTO matches
-                (room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year, media_type)
-            VALUES
-                (:room_code, :movie_id, :title, :thumb, :status, :user_id, :deep_link, :rating, :duration, :year, :media_type)
-        """),
-        {
-            "room_code": code,
-            "movie_id": media_id,
-            "title": catalog_facts.title or "",
-            "thumb": catalog_facts.thumb or "",
-            "status": "active",
-            "user_id": user_id,
-            "deep_link": deep_link,
-            "rating": meta["rating"],
-            "duration": meta["duration"],
-            "year": meta["year"],
-            "media_type": meta["media_type"],
-        },
+    """Insert an active match row for one user (INSERT OR IGNORE semantics)."""
+    await uow.matches.insert(
+        room_code=code,
+        movie_id=media_id,
+        title=catalog_facts.title or "",
+        thumb=catalog_facts.thumb or "",
+        user_id=user_id,
+        deep_link=deep_link,
+        rating=meta["rating"],
+        duration=meta["duration"],
+        year=meta["year"],
+        media_type=meta["media_type"],
     )
 
 
-def _find_counterparty(
-    conn,
-    code: str,
-    media_id: str,
-    actor: SessionActor,
-) -> SwipeCounterparty | None:
-    """Find an existing right-swipe from another session/user."""
-    if actor.session_id:
-        row = (
-            conn.execute(
-                text("""
-                SELECT user_id, session_id FROM swipes
-                WHERE room_code = :code
-                  AND movie_id = :media_id
-                  AND direction = 'right'
-                  AND (session_id IS NULL OR session_id != :session_id)
-                LIMIT 1
-            """),
-                {
-                    "code": code,
-                    "media_id": media_id,
-                    "session_id": actor.session_id,
-                },
-            )
-            .mappings()
-            .first()
-        )
-    else:
-        row = (
-            conn.execute(
-                text("""
-                SELECT user_id, session_id FROM swipes
-                WHERE room_code = :code
-                  AND movie_id = :media_id
-                  AND direction = 'right'
-                  AND user_id != :user_id
-                LIMIT 1
-            """),
-                {
-                    "code": code,
-                    "media_id": media_id,
-                    "user_id": actor.user_id,
-                },
-            )
-            .mappings()
-            .first()
-        )
-
-    if row is None:
-        return None
-    return SwipeCounterparty(user_id=row["user_id"], session_id=row["session_id"])
-
-
-def _emit_match_event(
-    conn,
+async def _emit_match_event(
+    uow: DatabaseUnitOfWork,
     code: str,
     media_id: str,
     catalog_facts: CatalogFacts,
     meta: dict,
     deep_link: str,
 ) -> None:
-    """Look up active instance and append a match_found event."""
-    inst = (
-        conn.execute(
-            text("""
-            SELECT instance_id FROM session_instances
-            WHERE pairing_code = :code AND status = 'active'
-            LIMIT 1
-        """),
-            {"code": code},
-        )
-        .mappings()
-        .first()
-    )
-
-    if inst is None:
+    """Append a match_found event to the room's active session instance."""
+    inst = await uow.session_instances.get_by_pairing_code(code)
+    if inst is None or inst.status != "active":
         return
 
     payload = json.dumps(
@@ -227,114 +151,11 @@ def _emit_match_event(
             "deep_link": deep_link,
         }
     )
-    append_sync(
-        conn,
-        instance_id=inst["instance_id"],
+    await uow.session_events.append(
+        instance_id=inst.instance_id,
         event_type="match_found",
         payload_json=payload,
     )
-
-
-def _sync_apply_swipe(
-    sync_session,
-    *,
-    code: str,
-    actor: SessionActor,
-    media_id: str,
-    direction: str | None,
-    catalog_facts: CatalogFacts,
-    jellyfin_url: str,
-) -> ApplySwipeResult:
-    """Internal sync function that runs inside uow.run_sync(...)."""
-    conn = sync_session.connection()
-    raw_conn = conn.connection.driver_connection
-    raw_conn.isolation_level = None
-    conn.exec_driver_sql("BEGIN IMMEDIATE")
-
-    # 1. Room check
-    room_row = (
-        conn.execute(
-            text(
-                "SELECT pairing_code, movie_data, solo_mode, deck_position "
-                "FROM rooms WHERE pairing_code = :code"
-            ),
-            {"code": code},
-        )
-        .mappings()
-        .first()
-    )
-    if room_row is None:
-        return SwipeRejected(reason="room_not_found")
-
-    # 2. Insert swipe
-    conn.execute(
-        text(
-            "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) "
-            "VALUES (:room_code, :movie_id, :user_id, :direction, :session_id)"
-        ),
-        {
-            "room_code": code,
-            "movie_id": media_id,
-            "user_id": actor.user_id,
-            "direction": direction or "left",
-            "session_id": actor.session_id,
-        },
-    )
-
-    # 3. Advance cursor
-    positions = (
-        json.loads(room_row["deck_position"]) if room_row["deck_position"] else {}
-    )
-    current_pos = int(positions.get(actor.user_id, 0))
-    positions[actor.user_id] = current_pos + 1
-    conn.execute(
-        text(
-            "UPDATE rooms SET deck_position = :deck_position WHERE pairing_code = :code"
-        ),
-        {"deck_position": json.dumps(positions), "code": code},
-    )
-
-    # 4. Match detection (only for right-swipe with title/thumb)
-    if (
-        direction != "right"
-        or catalog_facts.title is None
-        or catalog_facts.thumb is None
-    ):
-        return SwipeAccepted(match_created=False)
-
-    # 5. Derive match metadata from room's movie_data
-    meta = _resolve_meta_from_deck(room_row["movie_data"], media_id)
-    deep_link = f"{jellyfin_url}/web/#/details?id={media_id}" if jellyfin_url else ""
-
-    # 6. Solo mode: create match + event
-    if room_row["solo_mode"]:
-        _insert_match(
-            conn, code, media_id, actor.user_id, catalog_facts, meta, deep_link
-        )
-        _emit_match_event(conn, code, media_id, catalog_facts, meta, deep_link)
-        return SwipeAccepted(match_created=True)
-
-    # 7. Hosted: check for counterparty right-swipe
-    counterparty = _find_counterparty(conn, code, media_id, actor)
-
-    if counterparty:
-        _insert_match(
-            conn, code, media_id, actor.user_id, catalog_facts, meta, deep_link
-        )
-        if counterparty.user_id != actor.user_id:
-            _insert_match(
-                conn,
-                code,
-                media_id,
-                counterparty.user_id,
-                catalog_facts,
-                meta,
-                deep_link,
-            )
-        _emit_match_event(conn, code, media_id, catalog_facts, meta, deep_link)
-        return SwipeAccepted(match_created=True)
-
-    return SwipeAccepted(match_created=False)
 
 
 class SessionMatchMutation:
@@ -351,8 +172,8 @@ class SessionMatchMutation:
         uow: DatabaseUnitOfWork,
         jellyfin_url: str,
     ) -> ApplySwipeResult:
-        return await uow.run_sync(
-            _sync_apply_swipe,
+        return await self.apply_swipe_transaction(
+            uow=uow,
             code=code,
             actor=actor,
             media_id=media_id,
@@ -360,6 +181,106 @@ class SessionMatchMutation:
             catalog_facts=catalog_facts,
             jellyfin_url=jellyfin_url,
         )
+
+    async def apply_swipe_transaction(
+        self,
+        *,
+        uow: DatabaseUnitOfWork,
+        code: str,
+        actor: SessionActor,
+        media_id: str,
+        direction: str | None,
+        catalog_facts: CatalogFacts,
+        jellyfin_url: str,
+    ) -> ApplySwipeResult:
+        """Apply one swipe atomically through the repository layer.
+
+        Opens a ``BEGIN IMMEDIATE`` transaction for SQLite write serialization
+        (see D-12/D-13), then performs room lookup, swipe insert, cursor
+        advance, counterparty match detection, match insert, and event
+        emission — all via the UoW's repositories on the same connection.
+        Transaction completion stays with the route's dependency boundary.
+        """
+        await uow.begin_immediate()
+
+        # 1. Room check
+        room = await uow.rooms.get_room(code)
+        if room is None:
+            return SwipeRejected(reason="room_not_found")
+
+        # 2. Insert swipe
+        await uow.swipes.insert(
+            room_code=code,
+            movie_id=media_id,
+            user_id=actor.user_id,
+            direction=direction or "left",
+            session_id=actor.session_id,
+        )
+
+        # 3. Advance cursor
+        positions = (
+            json.loads(room.deck_position_json) if room.deck_position_json else {}
+        )
+        current_pos = int(positions.get(actor.user_id, 0))
+        positions[actor.user_id] = current_pos + 1
+        await uow.rooms.set_deck_position(code, json.dumps(positions))
+
+        # 4. Match detection (only for right-swipe with title/thumb)
+        if (
+            direction != "right"
+            or catalog_facts.title is None
+            or catalog_facts.thumb is None
+        ):
+            return SwipeAccepted(match_created=False)
+
+        # 5. Derive match metadata from room's movie_data
+        meta = _resolve_meta_from_deck(room.movie_data_json, media_id)
+        deep_link = (
+            f"{jellyfin_url}/web/#/details?id={media_id}" if jellyfin_url else ""
+        )
+
+        # 6. Solo mode: create match + event
+        if room.solo_mode:
+            await _insert_match_for_user(
+                uow,
+                code=code,
+                media_id=media_id,
+                user_id=actor.user_id,
+                catalog_facts=catalog_facts,
+                meta=meta,
+                deep_link=deep_link,
+            )
+            await _emit_match_event(uow, code, media_id, catalog_facts, meta, deep_link)
+            return SwipeAccepted(match_created=True)
+
+        # 7. Hosted: check for counterparty right-swipe
+        counterparty = await uow.swipes.find_other_right_swipe(
+            code, media_id, actor.user_id, actor.session_id
+        )
+        if counterparty is None:
+            return SwipeAccepted(match_created=False)
+
+        await _insert_match_for_user(
+            uow,
+            code=code,
+            media_id=media_id,
+            user_id=actor.user_id,
+            catalog_facts=catalog_facts,
+            meta=meta,
+            deep_link=deep_link,
+        )
+        if counterparty.user_id != actor.user_id:
+            await _insert_match_for_user(
+                uow,
+                code=code,
+                media_id=media_id,
+                user_id=counterparty.user_id,
+                catalog_facts=catalog_facts,
+                meta=meta,
+                deep_link=deep_link,
+            )
+        await _emit_match_event(uow, code, media_id, catalog_facts, meta, deep_link)
+        return SwipeAccepted(match_created=True)
 
     async def undo_swipe(
         self,
