@@ -120,12 +120,13 @@ async def build_deck(
             deck_position_json=json.dumps({}),
         )
         # Return API format
-        result = []
-        for card in filtered_deck:
-            api_item = {k: v for k, v in card.items() if k != "id"}
-            api_item["media_id"] = card.get("id")
-            result.append(api_item)
-        return result
+        return [
+            {
+                **{k: v for k, v in card.items() if k != "id"},
+                "media_id": card.get("id"),
+            }
+            for card in filtered_deck
+        ]
 
     # No-persist flow: return internal format
     return filtered_deck

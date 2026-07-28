@@ -5,17 +5,19 @@ import sys
 
 from jellyswipe.models.metadata import target_metadata
 
+EXPECTED_TABLES = [
+    "auth_sessions",
+    "matches",
+    "rooms",
+    "session_events",
+    "session_instances",
+    "swipes",
+    "tmdb_cache",
+]
+
 
 def test_target_metadata_contains_phase36_tables():
-    assert sorted(target_metadata.tables.keys()) == [
-        "auth_sessions",
-        "matches",
-        "rooms",
-        "session_events",
-        "session_instances",
-        "swipes",
-        "tmdb_cache",
-    ]
+    assert sorted(target_metadata.tables.keys()) == EXPECTED_TABLES
 
 
 def test_swipes_has_room_and_auth_session_foreign_keys():
@@ -57,17 +59,10 @@ def test_alembic_target_metadata_isolated():
     )
     result = subprocess.run(
         [sys.executable, "-c", script],
+        check=False,
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, f"subprocess failed: {result.stderr}"
     tables = result.stdout.strip().split()
-    assert tables == [
-        "auth_sessions",
-        "matches",
-        "rooms",
-        "session_events",
-        "session_instances",
-        "swipes",
-        "tmdb_cache",
-    ]
+    assert tables == EXPECTED_TABLES

@@ -56,10 +56,10 @@ flowchart LR
 ```
 .
 ├── jellyswipe/                      # Python package (installed via uv / hatchling)
-│   ├── __init__.py                  # Flask app, all routes, env validation, DB init
+│   ├── __init__.py                  # FastAPI app factory: builds the app, registers routers
 │   ├── base.py                      # LibraryMediaProvider ABC (single implementer)
 │   ├── jellyfin_library.py          # JellyfinLibraryProvider — REST + auth + image proxy backend
-│   ├── templates/index.html         # Single-page client (HTML + inline CSS + inline JS)
+│   ├── templates/index.html         # Single-page client shell (CSS/JS served from static/)
 │   └── static/                      # icons, manifest.json, brick.png, logo, sad.png
 ├── data/                            # Bind-mount target in production (SQLite lives here)
 │   ├── jellyswipe.db                # Live DB (gitignored)
