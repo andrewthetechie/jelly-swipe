@@ -1,49 +1,15 @@
-"""Shared helper functions for router modules."""
+"""Shared helper functions for router modules.
 
-import logging
-import traceback
+``make_error_response`` and ``log_exception`` live in
+``jellyswipe.http_utils`` (neutral ground usable by both routers and
+services) and are re-exported here for backward compatibility.
+"""
 
-from fastapi import Request
-
-from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.http_utils import log_exception, make_error_response
 from jellyswipe.notifier import notifier
 
-_logger = logging.getLogger(__name__)
-
-
-def make_error_response(
-    message: str, status_code: int, request: Request, extra_fields: dict = None
-) -> XSSSafeJSONResponse:
-    """Create a standardized error response with request ID tracking."""
-    if status_code >= 500:
-        message = "Internal server error"
-    body = {"error": message}
-    body["request_id"] = getattr(request.state, "request_id", "unknown")
-    if extra_fields:
-        body.update(extra_fields)
-    return XSSSafeJSONResponse(content=body, status_code=status_code)
-
-
-def log_exception(
-    exc: Exception,
-    request: Request,
-    context: dict = None,
-    logger: logging.Logger = None,
-) -> None:
-    """Log exception with request context."""
-    log_data = {
-        "request_id": getattr(request.state, "request_id", "unknown"),
-        "route": request.url.path,
-        "method": request.method,
-        "exception_type": type(exc).__name__,
-        "exception_message": str(exc),
-        "stack_trace": traceback.format_exc(),
-    }
-    if context:
-        log_data.update(context)
-    target_logger = logger or _logger
-    target_logger.error("unhandled_exception", extra=log_data)
+__all__ = ["commit_and_wake", "log_exception", "make_error_response"]
 
 
 async def commit_and_wake(uow: DatabaseUnitOfWork, code: str) -> None:

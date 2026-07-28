@@ -3,10 +3,10 @@
 Per D-06, D-07: 4 media routes with TMDB API integration and rate limiting.
 """
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, Request
+
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.dependencies import (
     AuthUser,
@@ -24,9 +24,12 @@ from jellyswipe.schemas.media import (
     WatchlistAddRequest,
     WatchlistAddResponse,
 )
+from jellyswipe.services.media_enrichment import MediaEnrichmentService
 from jellyswipe.tmdb import lookup_cast, lookup_trailer
 
 _logger = logging.getLogger(__name__)
+
+_enrichment = MediaEnrichmentService()
 
 # Create router with no prefix (D-14)
 media_router = APIRouter()
@@ -68,39 +71,21 @@ async def get_trailer(
     - Any unhandled upstream error returns ``502`` with ``ErrorResponse``; the
       frontend should surface a generic "trailer unavailable" message.
     """
-    try:
-        # Check cache first
-        cached = await uow.tmdb_cache.get(movie_id, "trailer")
-        if cached:
-            result = json.loads(cached.result_json)
-            if result.get("youtube_key"):
-                return result
-            return make_error_response("Not found", 404, request)
-
-        # Cache miss — resolve item and call TMDB
-        item = provider.resolve_item_for_tmdb(movie_id)
-        youtube_key = lookup_trailer(
-            item.title, item.year, api_token=config.tmdb_access_token
-        )
-
-        if youtube_key:
-            result = {"youtube_key": youtube_key}
-            await uow.tmdb_cache.put(movie_id, "trailer", json.dumps(result))
-            await uow.session.commit()
-            return result
-
-        # No trailer found — cache the miss to avoid repeated lookups
-        await uow.tmdb_cache.put(movie_id, "trailer", json.dumps({}))
-        await uow.session.commit()
-        return make_error_response("Not found", 404, request)
-    except RuntimeError as e:
-        if "item lookup failed" in str(e).lower():
-            return make_error_response("Movie metadata not found", 404, request)
-        log_exception(e, request, logger=_logger)
-        return make_error_response("Internal server error", 500, request)
-    except Exception as e:
-        log_exception(e, request, logger=_logger)
-        return make_error_response("Internal server error", 500, request)
+    result = await _enrichment.fetch(
+        media_id=movie_id,
+        lookup_type="trailer",
+        request=request,
+        uow=uow,
+        provider=provider,
+        api_token=config.tmdb_access_token,
+        fetch_fn=lambda title, year, token: lookup_trailer(
+            title, year, api_token=token
+        ),
+        response_wrapper=lambda key: {"youtube_key": key},
+        empty_response=lambda req: make_error_response("Not found", 404, req),
+    )
+    await uow.session.commit()
+    return result
 
 
 @media_router.get(
@@ -138,34 +123,26 @@ async def get_cast(
     - Any unhandled upstream error returns ``502`` with ``ErrorResponse`` and
       an empty ``cast`` list.
     """
-    try:
-        # Check cache first
-        cached = await uow.tmdb_cache.get(movie_id, "cast")
-        if cached:
-            return {"cast": json.loads(cached.result_json)}
-
-        # Cache miss — resolve item and call TMDB
-        item = provider.resolve_item_for_tmdb(movie_id)
-        cast = lookup_cast(item.title, item.year, api_token=config.tmdb_access_token)
-
-        # Store in cache (even if empty)
-        await uow.tmdb_cache.put(movie_id, "cast", json.dumps(cast))
-        await uow.session.commit()
-        return {"cast": cast}
-    except RuntimeError as e:
-        if "item lookup failed" in str(e).lower():
-            return make_error_response(
-                "Movie metadata not found", 404, request, extra_fields={"cast": []}
-            )
-        log_exception(e, request, logger=_logger)
-        return make_error_response(
-            "Internal server error", 500, request, extra_fields={"cast": []}
-        )
-    except Exception as e:
-        log_exception(e, request, logger=_logger)
-        return make_error_response(
-            "Internal server error", 500, request, extra_fields={"cast": []}
-        )
+    result = await _enrichment.fetch(
+        media_id=movie_id,
+        lookup_type="cast",
+        request=request,
+        uow=uow,
+        provider=provider,
+        api_token=config.tmdb_access_token,
+        fetch_fn=lambda title, year, token: lookup_cast(title, year, api_token=token),
+        response_wrapper=lambda cast: {"cast": cast},
+        empty_response=lambda req: make_error_response(
+            "Not found", 404, req, extra_fields={"cast": []}
+        ),
+        is_empty=lambda result: False,
+        # Store the raw list (pre-refactor cache format); the response
+        # wrapper is applied to cached values on read.
+        cache_transform=lambda cast: cast,
+        error_extra_fields={"cast": []},
+    )
+    await uow.session.commit()
+    return result
 
 
 @media_router.get(
