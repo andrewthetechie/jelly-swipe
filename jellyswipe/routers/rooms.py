@@ -125,17 +125,6 @@ async def create_room(
         )
 
 
-@rooms_router.post("/room/solo", include_in_schema=False)
-async def create_solo_room(
-    request: Request, uow: DBUoW, user: AuthUser = Depends(require_auth)
-):
-    """Deprecated: POST /room/solo is removed. Use POST /room with {"solo": true} instead."""
-    return XSSSafeJSONResponse(
-        content={"error": 'Endpoint removed. Use POST /room with {"solo": true}'},
-        status_code=404,
-    )
-
-
 @rooms_router.post(
     "/room/{code}/join",
     tags=["Rooms"],

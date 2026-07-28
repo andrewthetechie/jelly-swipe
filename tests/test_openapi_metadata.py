@@ -87,21 +87,6 @@ def test_static_routes_excluded_from_schema(client):
         assert path not in paths, f"Static route {path} should be excluded from schema"
 
 
-def test_solo_room_route_excluded_from_schema(client):
-    """Verify that POST /room/solo is excluded from schema but still returns 404 at runtime."""
-    # Check it's not in the schema
-    response = client.get("/openapi.json")
-    assert response.status_code == 200
-    schema = response.json()
-
-    paths = schema.get("paths", {})
-    assert "/room/solo" not in paths, "POST /room/solo should be excluded from schema"
-
-    # But it should still return 404 at runtime
-    response = client.post("/room/solo", json={})
-    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-
-
 def test_version_fallback_exists():
     """Verify that version is either from package or falls back to '0.0.0-dev'."""
     from jellyswipe.routers.health import __version__

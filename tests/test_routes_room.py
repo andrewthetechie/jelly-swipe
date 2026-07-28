@@ -1,6 +1,6 @@
 """Comprehensive room lifecycle tests for RESTful room endpoints.
 
-Tests cover POST /room, POST /room/<code>/join, POST /room/solo,
+Tests cover POST /room, POST /room/<code>/join,
 POST /room/<code>/quit, GET /room/<code>/status,
 POST /room/<code>/swipe - including happy paths, edge cases, error conditions,
 and the full swipe match logic (solo match, dual match, no match).
@@ -248,20 +248,6 @@ def test_room_join_invalid_code_returns_404(client, app):
     """POST /room/<code>/join with non-existent code returns 404 with error."""
     _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
     response = client.post("/room/9999/join")
-    assert response.status_code == 404
-    data = response.json()
-    assert "error" in data
-
-
-# ---------------------------------------------------------------------------
-# Section 3: POST /room/solo tests (deprecated endpoint)
-# ---------------------------------------------------------------------------
-
-
-def test_solo_room_endpoint_returns_404(client, app):
-    """POST /room/solo returns 404 (endpoint removed)."""
-    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
-    response = client.post("/room/solo")
     assert response.status_code == 404
     data = response.json()
     assert "error" in data

@@ -76,11 +76,6 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     return RUNTIME_SESSIONMAKER
 
 
-def session_factory() -> async_sessionmaker[AsyncSession]:
-    """Compatibility alias for the initialized sessionmaker."""
-    return get_sessionmaker()
-
-
 __all__ = [
     "RUNTIME_DATABASE_URL",
     "RUNTIME_ENGINE",
@@ -90,5 +85,4 @@ __all__ = [
     "dispose_runtime",
     "get_sessionmaker",
     "initialize_runtime",
-    "session_factory",
 ]

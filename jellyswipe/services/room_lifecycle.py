@@ -12,7 +12,6 @@ from uuid import uuid4
 
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
-from jellyswipe.repositories.matches import MatchRecord
 from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
 
 # Session keys shared with the rooms router: the service builds
@@ -82,19 +81,6 @@ class RoomLifecycleService:
         except (TypeError, ValueError):
             return 0
 
-    @staticmethod
-    def _match_to_api_row(record: MatchRecord) -> dict[str, Any]:
-        return {
-            "title": record.title,
-            "thumb": record.thumb,
-            "media_id": record.movie_id,
-            "media_type": record.media_type or "movie",
-            "deep_link": record.deep_link,
-            "rating": record.rating or "",
-            "duration": record.duration or "",
-            "year": record.year if record.year else None,
-        }
-
     async def create_room(
         self,
         user_id: str,
@@ -153,49 +139,6 @@ class RoomLifecycleService:
                     SESSION_SOLO_MODE_KEY: solo,
                 },
             )
-
-        raise UniqueRoomCodeExhaustedError()
-
-    async def create_solo_room(
-        self,
-        session_dict: dict[str, Any],
-        user_id: str,
-        provider: DeckProvider,
-        uow: DatabaseUnitOfWork,
-    ) -> dict[str, str]:
-        for _ in range(10):
-            pairing_code = str(secrets.randbelow(9000) + 1000)
-            exists = await uow.rooms.pairing_code_exists(pairing_code)
-            reserved = await uow.session_instances.is_pairing_code_reserved(
-                pairing_code
-            )
-            if exists or reserved:
-                continue
-            # Build media_types list from boolean flags - solo mode defaults to movies only
-            media_types = ["movie"]
-            deck = await build_deck(
-                provider=provider,
-                uow=uow,
-                room_code=pairing_code,
-                media_types=media_types,
-                persist=False,
-            )
-            deck_json = json.dumps({user_id: 0})
-            instance_id = uuid4().hex
-            await uow.rooms.create(
-                pairing_code,
-                movie_data_json=json.dumps(deck),
-                ready=True,
-                current_genre="All",
-                solo_mode=True,
-                deck_position_json=deck_json,
-            )
-            await uow.session_instances.create(
-                instance_id=instance_id, pairing_code=pairing_code
-            )
-            session_dict["active_room"] = pairing_code
-            session_dict["solo_mode"] = True
-            return {"pairing_code": pairing_code, "instance_id": instance_id}
 
         raise UniqueRoomCodeExhaustedError()
 
@@ -392,4 +335,16 @@ class RoomLifecycleService:
             rows = await uow.matches.list_active_for_user(active_room, user_id)
         else:
             rows = []
-        return [self._match_to_api_row(r) for r in rows]
+        return [
+            {
+                "title": r.title,
+                "thumb": r.thumb,
+                "media_id": r.movie_id,
+                "media_type": r.media_type or "movie",
+                "deep_link": r.deep_link,
+                "rating": r.rating or "",
+                "duration": r.duration or "",
+                "year": r.year if r.year else None,
+            }
+            for r in rows
+        ]
