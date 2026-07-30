@@ -45,6 +45,25 @@ class DatabaseUnitOfWork:
             lambda sync_session: fn(sync_session, *args, **kwargs)
         )
 
+    async def begin_immediate(self) -> None:
+        """Open a SQLite ``BEGIN IMMEDIATE`` write transaction on this session.
+
+        This is the persistence-layer entry point for concurrency-critical
+        write paths (e.g. the swipe transaction, see D-12/D-13). Subsequent
+        repository calls on this UoW share the same connection and therefore
+        run inside the immediate transaction. The caller must not issue the
+        final COMMIT or ROLLBACK; the dependency boundary remains the single
+        owner of transaction completion.
+        """
+
+        def _begin(sync_session: Any) -> None:
+            conn = sync_session.connection()
+            raw_conn = conn.connection.driver_connection
+            raw_conn.isolation_level = None
+            conn.exec_driver_sql("BEGIN IMMEDIATE")
+
+        await self.run_sync(_begin)
+
 
 __all__ = [
     "AuthSessionRepository",

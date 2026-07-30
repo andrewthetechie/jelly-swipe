@@ -44,11 +44,12 @@ This application connects directly to a **Jellyfin** server to pull random movie
 
 | Variable             | Required when | Description                                                                                                                |
 | -------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_SECRET`       | Always        | session secret.                                                                                                      |
+| `SESSION_SECRET`     | Always        | session secret.                                                                                                            |
 | `TMDB_ACCESS_TOKEN`  | Always        | TMDB API key (trailers / cast).                                                                                            |
 | `JELLYFIN_URL`       | Always        | Base URL of your Jellyfin server (no trailing slash).                                                                      |
 | `JELLYFIN_API_KEY`   | Always        | API key for unattended server access.                                                                                      |
 | `JELLYFIN_DEVICE_ID` | Optional      | Stable device id string sent with Jellyfin auth headers (default is built-in).                                             |
+| `CORS_ORIGINS`       | Optional      | Json encoded list of strings of cors origins.                                                                              |
 | `PUID`               | Optional      | UID the app runs as inside the container — set to match the owner of your bind-mounted `./data` directory (default `99`).  |
 | `PGID`               | Optional      | GID the app runs as inside the container — set to match the group of your bind-mounted `./data` directory (default `100`). |
 

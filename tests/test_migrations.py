@@ -9,7 +9,6 @@ import sys
 import time
 from pathlib import Path
 
-
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

@@ -43,9 +43,8 @@ async def runtime_sessionmaker(db_path, monkeypatch):
 async def force_create_room(
     svc: RoomLifecycleService, prov: FakeProvider, user_id: str, uow
 ) -> str:
-    sess: dict = {}
-    out = await svc.create_room(sess, user_id, prov, uow)
-    return str(out["pairing_code"])
+    out = await svc.create_room(user_id, prov, uow)
+    return str(out.pairing_code)
 
 
 @pytest.mark.anyio
@@ -55,11 +54,10 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
     uid = prov._user_id
 
     # Test hosted room (default behavior)
-    sess_multi: dict = {}
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
-        out = await svc.create_room(sess_multi, uid, prov, uow)
-        pc = out["pairing_code"]
+        out = await svc.create_room(uid, prov, uow)
+        pc = out.pairing_code
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
         deck = json.loads(rec.deck_position_json or "{}")
@@ -70,15 +68,14 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert rec.include_tv_shows is False
         await session.commit()
 
-    assert sess_multi["active_room"] == pc
-    assert sess_multi["solo_mode"] is False
+    assert out.session_updates["active_room"] == pc
+    assert out.session_updates["solo_mode"] is False
 
     # Test solo room
-    sess_solo: dict = {}
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
-        out2 = await svc.create_room(sess_solo, uid, prov, uow, solo=True)
-        pc2 = out2["pairing_code"]
+        out2 = await svc.create_room(uid, prov, uow, solo=True)
+        pc2 = out2.pairing_code
         rec2 = await uow.rooms.get_room(pc2)
         assert rec2 is not None
         deck2 = json.loads(rec2.deck_position_json or "{}")
@@ -87,8 +84,8 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert rec2.solo_mode is True
         await session.commit()
 
-    assert sess_solo["active_room"] == pc2
-    assert sess_solo["solo_mode"] is True
+    assert out2.session_updates["active_room"] == pc2
+    assert out2.session_updates["solo_mode"] is True
 
 
 @pytest.mark.anyio
@@ -98,13 +95,12 @@ async def test_create_room_with_mixed_media_interleaves(runtime_sessionmaker):
     prov = FakeProvider()
     uid = prov._user_id
 
-    sess: dict = {}
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         out = await svc.create_room(
-            sess, uid, prov, uow, include_movies=True, include_tv_shows=True
+            uid, prov, uow, include_movies=True, include_tv_shows=True
         )
-        pc = out["pairing_code"]
+        pc = out.pairing_code
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
 
@@ -132,13 +128,12 @@ async def test_create_room_with_tv_shows_only(runtime_sessionmaker):
     prov = FakeProvider()
     uid = prov._user_id
 
-    sess: dict = {}
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         out = await svc.create_room(
-            sess, uid, prov, uow, include_movies=False, include_tv_shows=True
+            uid, prov, uow, include_movies=False, include_tv_shows=True
         )
-        pc = out["pairing_code"]
+        pc = out.pairing_code
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
 
@@ -162,13 +157,12 @@ async def test_join_marks_ready_and_merges_deck(runtime_sessionmaker):
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         pc = await force_create_room(svc, prov, creator, uow)
-        sess_join: dict = {}
-        resp = await svc.join_room(pc, sess_join, joiner, uow)
+        resp = await svc.join_room(pc, joiner, uow)
         await session.commit()
 
-    assert resp == {"status": "success"}
-    assert sess_join["active_room"] == pc
-    assert sess_join["solo_mode"] is False
+    assert resp is not None
+    assert resp.session_updates["active_room"] == pc
+    assert resp.session_updates["solo_mode"] is False
 
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
@@ -204,13 +198,10 @@ async def test_quit_session_ended_archives_matches_to_history(runtime_sessionmak
                 year="",
             )
         )
-        sess: dict = {"active_room": pc, "solo_mode": False}
-        out = await svc.quit_room(pc, sess, uid, uow)
+        out = await svc.quit_room(pc, uid, uow)
         await session.commit()
 
-    assert out == {"status": "session_ended"}
-    assert "active_room" not in sess
-    assert "solo_mode" not in sess
+    assert out.status == "session_ended"
 
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
@@ -525,9 +516,8 @@ async def test_solo_session_watched_filter(runtime_sessionmaker):
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         # Create solo room
-        sess_solo: dict = {}
-        out = await svc.create_room(sess_solo, uid, prov, uow, solo=True)
-        pc = out["pairing_code"]
+        out = await svc.create_room(uid, prov, uow, solo=True)
+        pc = out.pairing_code
         await session.commit()
 
         # Verify solo mode
@@ -560,20 +550,18 @@ async def test_create_room_creates_session_instance(runtime_sessionmaker):
     svc = RoomLifecycleService()
     prov = FakeProvider()
     uid = prov._user_id
-    sess: dict = {}
 
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
-        result = await svc.create_room(sess, uid, prov, uow)
+        result = await svc.create_room(uid, prov, uow)
 
-        assert "instance_id" in result
-        instance_id = result["instance_id"]
+        instance_id = result.instance_id
 
         # Verify session_instances row was created
         instance = await uow.session_instances.get_by_instance_id(instance_id)
         assert instance is not None
         assert instance.status == "active"
-        assert instance.pairing_code == result["pairing_code"]
+        assert instance.pairing_code == result.pairing_code
 
         await session.commit()
 
@@ -595,12 +583,11 @@ async def test_create_room_retries_if_pairing_code_reserved(runtime_sessionmaker
         await session.commit()
 
         # Now create a room - it should not use "1234"
-        sess: dict = {}
-        result = await svc.create_room(sess, uid, prov, uow)
+        result = await svc.create_room(uid, prov, uow)
 
         # Verify the room was created with a different code
-        assert result["pairing_code"] != "1234"
-        assert result["instance_id"] is not None
+        assert result.pairing_code != "1234"
+        assert result.instance_id is not None
 
         # Verify the reserved instance is still there
         reserved = await uow.session_instances.get_by_pairing_code("1234")
@@ -628,11 +615,10 @@ async def test_join_room_appends_session_ready_event(runtime_sessionmaker):
         instance_id = instance.instance_id
 
         # Join the room
-        sess_join: dict = {}
-        resp = await svc.join_room(pc, sess_join, joiner, uow)
+        resp = await svc.join_room(pc, joiner, uow)
         await session.commit()
 
-        assert resp == {"status": "success"}
+        assert resp is not None
 
         # Verify session_ready event was appended
         events = await uow.session_events.read_after(instance_id, 0)
@@ -752,11 +738,10 @@ async def test_quit_room_appends_session_closed_and_marks_closing(runtime_sessio
         instance_id = instance.instance_id
 
         # Quit the room
-        sess: dict = {"active_room": pc, "solo_mode": False}
-        out = await svc.quit_room(pc, sess, uid, uow)
+        out = await svc.quit_room(pc, uid, uow)
         await session.commit()
 
-        assert out == {"status": "session_ended"}
+        assert out.status == "session_ended"
 
         # Verify session_closed event was appended
         events = await uow.session_events.read_after(instance_id, 0)
@@ -787,8 +772,7 @@ async def test_quit_room_schedules_background_cleanup(runtime_sessionmaker):
         tasks_before = len(asyncio.all_tasks())
 
         # Quit the room
-        sess: dict = {"active_room": pc, "solo_mode": False}
-        await svc.quit_room(pc, sess, uid, uow)
+        await svc.quit_room(pc, uid, uow)
         await session.commit()
 
         # Count tasks after quit - should have one more (the cleanup task)

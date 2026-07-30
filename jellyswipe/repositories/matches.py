@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import delete, literal_column, select, update
+from sqlalchemy import delete, literal_column, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from jellyswipe.models.match import Match
@@ -89,6 +89,40 @@ class MatchRepository:
             )
         )
         return result.rowcount or 0
+
+    async def insert(
+        self,
+        room_code: str,
+        movie_id: str,
+        title: str,
+        thumb: str,
+        user_id: str,
+        deep_link: str | None,
+        rating: str | None,
+        duration: str | None,
+        year: str | None,
+        media_type: str,
+    ) -> None:
+        await self._session.execute(
+            text(
+                "INSERT OR IGNORE INTO matches "
+                "(room_code, movie_id, title, thumb, status, user_id, deep_link, rating, duration, year, media_type) "
+                "VALUES (:room_code, :movie_id, :title, :thumb, :status, :user_id, :deep_link, :rating, :duration, :year, :media_type)"
+            ),
+            {
+                "room_code": room_code,
+                "movie_id": movie_id,
+                "title": title,
+                "thumb": thumb,
+                "status": "active",
+                "user_id": user_id,
+                "deep_link": deep_link,
+                "rating": rating,
+                "duration": duration,
+                "year": year,
+                "media_type": media_type,
+            },
+        )
 
     async def latest_active_for_room(self, pairing_code: str) -> MatchRecord | None:
         stmt = (

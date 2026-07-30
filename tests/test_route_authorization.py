@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from tests.conftest import set_session_cookie
+
+from tests.conftest import read_session_cookie, set_session_cookie
 
 
 def _set_session(
@@ -33,7 +34,7 @@ def _set_session(
                 session_id,
                 "valid-token",
                 "verified-user",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         db_connection.commit()
@@ -62,12 +63,7 @@ def _prepare_route_state(
     movie_id: str = "movie-1",
 ):
     _seed_room(conn, room_code)
-    if route == "/matches":
-        conn.execute(
-            'INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
-            (room_code, movie_id, "Movie", "thumb.jpg", verified_user),
-        )
-    elif route == "/matches/delete":
+    if route == "/matches" or route == "/matches/delete":
         conn.execute(
             'INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) VALUES (?, ?, ?, ?, "active", ?)',
             (room_code, movie_id, "Movie", "thumb.jpg", verified_user),
@@ -88,8 +84,8 @@ def _send_request(
     client,
     method: str,
     path: str,
-    payload: Optional[Dict[str, Any]],
-    headers: Dict[str, str],
+    payload: dict[str, Any] | None,
+    headers: dict[str, str],
 ):
     if method == "GET":
         return client.get(path, headers=headers)
@@ -101,7 +97,7 @@ SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
 # Routes that are intentionally unauthenticated (health probes, etc.)
 UNAUTHENTICATED_ROUTES = {"/healthz", "/readyz"}
 
-ROUTE_CASES: Tuple[Tuple[str, str, Optional[Dict[str, Any]]], ...] = (
+ROUTE_CASES: tuple[tuple[str, str, dict[str, Any] | None], ...] = (
     ("POST", "/room/ROOM1/swipe", {"media_id": "movie-1", "direction": "right"}),
     ("GET", "/matches", None),
     ("POST", "/matches/delete", {"media_id": "movie-1"}),
@@ -236,7 +232,7 @@ def _setup_deck_session(
     session_id = "test-session-" + secrets.token_hex(8)
     db_connection.execute(
         "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-        (session_id, token, user_id, datetime.now(timezone.utc).isoformat()),
+        (session_id, token, user_id, datetime.now(UTC).isoformat()),
     )
     db_connection.commit()
     set_session_cookie(client, {"session_id": session_id}, secret_key)
@@ -786,31 +782,6 @@ class TestGetMe:
         assert client_real_auth.cookies.get("session") is None
 
 
-# --- Solo Room Endpoint Tests ---
-
-
-class TestSoloRoom:
-    """Tests for POST /room/solo endpoint (API-04)."""
-
-    def test_solo_room_creation(self, db_connection, client_real_auth):
-        """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(
-            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
-        )
-
-        resp = client_real_auth.post("/room/solo")
-        assert resp.status_code == 404
-        assert resp.json() == {
-            "error": 'Endpoint removed. Use POST /room with {"solo": true}'
-        }
-
-    def test_solo_room_requires_auth(self, db_connection, client_real_auth):
-        """Unauthenticated POST /room/solo returns 401."""
-        resp = client_real_auth.post("/room/solo")
-        assert resp.status_code == 401
-        assert resp.json() == {"detail": "Authentication required"}
-
-
 # --- Logout Endpoint Tests ---
 
 
@@ -942,10 +913,11 @@ class TestGetMeActiveRoom:
 
     def test_stale_active_room_cleared_on_get_me(self, db_connection, client_real_auth):
         """GET /me clears stale active_room from session when room no longer exists."""
+        secret_key = os.environ["SESSION_SECRET"]
         _set_session(
             client_real_auth,
             db_connection,
-            os.environ["SESSION_SECRET"],
+            secret_key,
             active_room="ROOM1",
             authenticated=True,
         )
@@ -954,6 +926,87 @@ class TestGetMeActiveRoom:
         resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         assert resp.json()["activeRoom"] is None
+
+        # /me's self-heal must also pop the stale keys from the session cookie
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert "active_room" not in session
+        assert "solo_mode" not in session
+
+    def test_join_sets_active_room_in_session(self, db_connection, client_real_auth):
+        """After POST /room/{code}/join, GET /me returns activeRoom == code.
+
+        This is a genuine regression guard: if join_room_route omits
+        request.session.update(result.session_updates), the joiner's session
+        has no active_room and /me returns null. The room still exists in the
+        DB, so /me's self-heal (pairing_code_exists check) does not apply.
+        """
+        secret_key = os.environ["SESSION_SECRET"]
+
+        # User A creates a room
+        _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+            user_id="user-A",
+            token="token-A",
+        )
+        resp = client_real_auth.post("/room")
+        assert resp.status_code == 200
+        code = resp.json()["pairing_code"]
+
+        # User B joins the room via a separate TestClient
+        with TestClient(client_real_auth.app) as join_client:
+            _setup_deck_session(
+                join_client,
+                db_connection,
+                secret_key,
+                user_id="user-B",
+                token="token-B",
+            )
+            resp = join_client.post(f"/room/{code}/join")
+            assert resp.status_code == 200
+
+            # GET /me must return activeRoom == code — only passes if
+            # join_room_route called request.session.update(...)
+            resp = join_client.get("/me")
+            assert resp.status_code == 200
+            assert resp.json()["activeRoom"] == code
+
+    def test_quit_clears_session_keys_in_cookie(self, db_connection, client_real_auth):
+        """POST /room/{code}/quit removes active_room and solo_mode from session cookie.
+
+        This assertion decodes the signed session cookie directly, independent
+        of GET /me's self-healing (which pops keys when pairing_code_exists
+        returns False). If quit_room omits the explicit session.pop() calls,
+        these keys remain in the cookie and this test fails.
+        """
+        secret_key = os.environ["SESSION_SECRET"]
+
+        # User creates a solo room
+        _setup_deck_session(
+            client_real_auth,
+            db_connection,
+            secret_key,
+        )
+        resp = client_real_auth.post(
+            "/room", json={"movies": True, "tv_shows": False, "solo": True}
+        )
+        assert resp.status_code == 200
+        code = resp.json()["pairing_code"]
+
+        # Verify session keys are set before quit
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert session["active_room"] == code
+        assert session["solo_mode"] is True
+
+        # Quit the room
+        resp = client_real_auth.post(f"/room/{code}/quit")
+        assert resp.status_code == 200
+
+        # Decode the session cookie directly — keys must be absent
+        session = read_session_cookie(client_real_auth, secret_key)
+        assert "active_room" not in session
+        assert "solo_mode" not in session
 
 
 # --- Go-Solo Route Removal Test ---
@@ -1068,19 +1121,6 @@ class TestPhase27Compliance:
         assert resp.status_code == 200
         status = resp.json()
         assert status["ready"] is True
-
-    def test_solo_endpoint_not_go_solo(self, db_connection, client_real_auth):
-        """POST /room/solo returns 404 (deprecated)."""
-        _setup_deck_session(
-            client_real_auth, db_connection, os.environ["SESSION_SECRET"]
-        )
-
-        # POST /room/solo now returns 404 (deprecated)
-        resp = client_real_auth.post("/room/solo")
-        assert resp.status_code == 404
-        assert resp.json() == {
-            "error": 'Endpoint removed. Use POST /room with {"solo": true}'
-        }
 
     def test_me_returns_active_room(self, db_connection, client_real_auth):
         """GET /me tracks activeRoom: null -> code -> null after quit."""

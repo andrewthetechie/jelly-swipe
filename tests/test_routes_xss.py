@@ -43,9 +43,7 @@ def _setup_vault_session(
 
 
 class TestLayer1ServerSideValidation:
-    def test_swipe_ignores_client_supplied_title_thumb(
-        self, client, app, db_path
-    ):
+    def test_swipe_ignores_client_supplied_title_thumb(self, client, app, db_path):
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
@@ -96,9 +94,7 @@ class TestLayer1ServerSideValidation:
         finally:
             client.app.dependency_overrides.pop(get_provider, None)
 
-    def test_swipe_ignores_client_params_silently(
-        self, client, app, db_path
-    ):
+    def test_swipe_ignores_client_params_silently(self, client, app, db_path):
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
@@ -178,11 +174,29 @@ class TestEndToEndXSSBlocking:
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
                 "INSERT INTO rooms (pairing_code, solo_mode, movie_data) VALUES (?, ?, ?)",
-                ("E2E123", 1, json.dumps([{"id": "movie_e2e", "title": "Inception", "year": 2010, "media_type": "movie", "rating": "8.8", "duration": "2h 28m"}])),
+                (
+                    "E2E123",
+                    1,
+                    json.dumps(
+                        [
+                            {
+                                "id": "movie_e2e",
+                                "title": "Inception",
+                                "year": 2010,
+                                "media_type": "movie",
+                                "rating": "8.8",
+                                "duration": "2h 28m",
+                            }
+                        ]
+                    ),
+                ),
             )
 
         _setup_vault_session(
-            client, os.environ["SESSION_SECRET"], user_id="user_e2e", active_room="E2E123"
+            client,
+            os.environ["SESSION_SECRET"],
+            user_id="user_e2e",
+            active_room="E2E123",
         )
         set_session_cookie(client, {"solo_mode": True}, os.environ["SESSION_SECRET"])
 
@@ -259,7 +273,8 @@ class TestEndToEndXSSBlocking:
                 assert response.status_code == 200
                 response_data = response.json()
                 assert (
-                    response_data.get("accepted") is True or "accepted" not in response_data
+                    response_data.get("accepted") is True
+                    or "accepted" not in response_data
                 )
 
                 error_logs = [

@@ -45,16 +45,6 @@ def _interleave(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return interleaved
 
 
-def _to_api_format(deck: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert internal card dicts (with 'id') to API format (with 'media_id')."""
-    result = []
-    for card in deck:
-        api_item = {k: v for k, v in card.items() if k != "id"}
-        api_item["media_id"] = card.get("id")
-        result.append(api_item)
-    return result
-
-
 async def build_deck(
     provider: DeckProvider,
     uow: DatabaseUnitOfWork,
@@ -130,7 +120,13 @@ async def build_deck(
             deck_position_json=json.dumps({}),
         )
         # Return API format
-        return _to_api_format(filtered_deck)
+        return [
+            {
+                **{k: v for k, v in card.items() if k != "id"},
+                "media_id": card.get("id"),
+            }
+            for card in filtered_deck
+        ]
 
     # No-persist flow: return internal format
     return filtered_deck

@@ -24,13 +24,6 @@ class AppConfig(BaseSettings):
     db_path: str = ""  # empty string = compute default
     cors_origins: list[str] = []
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def _parse_cors_origins(cls, v: object) -> list[str]:
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
-
     @field_validator("jellyfin_url")
     @classmethod
     def _validate_jellyfin_url(cls, v: str) -> str:

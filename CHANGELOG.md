@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.1...v0.6.0) (2026-05-22)
+
+
+### Features
+
+* cors ([#175](https://github.com/andrewthetechie/jelly-swipe/issues/175)) ([8a09d1a](https://github.com/andrewthetechie/jelly-swipe/commit/8a09d1ae517a4f368b26ae5805ac2ee144db5656))
+
+
+### Bug Fixes
+
+* CORS origins as JSON encoded string ([#176](https://github.com/andrewthetechie/jelly-swipe/issues/176)) ([2e7c0b1](https://github.com/andrewthetechie/jelly-swipe/commit/2e7c0b15b11ca58fbceffc4559c55c3b6b635554))
+
+
+### Documentation
+
+* prd 011 ([#159](https://github.com/andrewthetechie/jelly-swipe/issues/159)) ([31641c0](https://github.com/andrewthetechie/jelly-swipe/commit/31641c070688f0ca9568733d8dcc827802996201))
+
 ## [0.5.1](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.0...v0.5.1) (2026-05-16)
 
 

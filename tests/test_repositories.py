@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import update
@@ -20,6 +20,7 @@ from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.models.match import Match
 from jellyswipe.models.room import Room
 from jellyswipe.models.swipe import Swipe
+from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.repositories.matches import MatchRecord
 from jellyswipe.repositories.rooms import RoomRecord, RoomStatusSnapshot
 
@@ -323,6 +324,85 @@ class TestMatchRepository:
             assert newer.match_order > older_match.match_order
             assert newer.match_order == newest_rowid
 
+    async def test_insert_creates_match_row(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "MATCH1",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.matches.insert(
+                room_code="MATCH1",
+                movie_id="m300",
+                title="Inserted Movie",
+                thumb="/thumb",
+                user_id="user-m",
+                deep_link="/link",
+                rating="9",
+                duration="2h",
+                year="2025",
+                media_type="movie",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            active = await uow.matches.list_active_for_user("MATCH1", "user-m")
+        assert len(active) == 1
+        assert active[0].movie_id == "m300"
+        assert active[0].title == "Inserted Movie"
+        assert active[0].status == "active"
+
+    async def test_insert_duplicate_match_silently_ignored(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "MATCH2",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.matches.insert(
+                room_code="MATCH2",
+                movie_id="m400",
+                title="Original",
+                thumb="/t1",
+                user_id="user-n",
+                deep_link="/d1",
+                rating="7",
+                duration="1h",
+                year="2020",
+                media_type="movie",
+            )
+            await session.commit()
+
+            # Duplicate insert should not raise
+            await uow.matches.insert(
+                room_code="MATCH2",
+                movie_id="m400",
+                title="Duplicate",
+                thumb="/t2",
+                user_id="user-n",
+                deep_link="/d2",
+                rating="1",
+                duration="0h",
+                year="1999",
+                media_type="tv_show",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            active = await uow.matches.list_active_for_user("MATCH2", "user-n")
+        assert len(active) == 1
+        assert active[0].title == "Original"
+
 
 @pytest.mark.anyio
 class TestSwipeRepository:
@@ -331,7 +411,7 @@ class TestSwipeRepository:
     ):
         sid_a = "session-a"
         sid_b = "session-b"
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
@@ -444,3 +524,89 @@ class TestSwipeRepository:
             await session.commit()
 
         assert cleared == 2
+
+    async def test_insert_creates_swipe_row(self, runtime_sessionmaker):
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "SWIPE1",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.swipes.insert(
+                room_code="SWIPE1",
+                movie_id="mv100",
+                user_id="user-s",
+                direction="right",
+                session_id=None,
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            swiped_ids = await uow.swipes.list_swiped_media_ids("SWIPE1")
+        assert swiped_ids == {"mv100"}
+
+    async def test_insert_same_user_different_sessions_allowed(
+        self, runtime_sessionmaker
+    ):
+        """Same user may swipe the same media from two different sessions.
+
+        Pins the same-user multi-session match scenario: no DB unique
+        constraint forbids per-session duplicate swipes, so hosted matching
+        for one user across two browser sessions keeps working.
+        """
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.rooms.create(
+                "SWIPE2",
+                movie_data_json="[]",
+                ready=True,
+                current_genre="All",
+                solo_mode=False,
+                deck_position_json="{}",
+            )
+            await uow.auth_sessions.insert(
+                AuthRecord(
+                    session_id="sess-dup-a",
+                    jf_token="token-dup",
+                    user_id="user-t",
+                    created_at="2024-01-01T00:00:00Z",
+                )
+            )
+            await uow.auth_sessions.insert(
+                AuthRecord(
+                    session_id="sess-dup-b",
+                    jf_token="token-dup",
+                    user_id="user-t",
+                    created_at="2024-01-01T00:00:00Z",
+                )
+            )
+            await uow.swipes.insert(
+                room_code="SWIPE2",
+                movie_id="mv200",
+                user_id="user-t",
+                direction="right",
+                session_id="sess-dup-a",
+            )
+            await session.commit()
+
+        # Same (room, movie, user, direction) from a second session: allowed
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            await uow.swipes.insert(
+                room_code="SWIPE2",
+                movie_id="mv200",
+                user_id="user-t",
+                direction="right",
+                session_id="sess-dup-b",
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            swiped_ids = await uow.swipes.list_swiped_media_ids("SWIPE2")
+        assert swiped_ids == {"mv200"}

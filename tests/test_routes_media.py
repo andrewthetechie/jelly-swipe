@@ -7,9 +7,8 @@ cache misses are properly stored.
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
-
 
 from tests.conftest import set_session_cookie
 
@@ -27,7 +26,7 @@ def _sqlite_conn():
 def _seed_cache(media_id, lookup_type, result_json):
     """Insert a cache row directly into the database with timezone-aware timestamp."""
     conn = _sqlite_conn()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     try:
         conn.execute(
             "INSERT INTO tmdb_cache (media_id, lookup_type, result_json, fetched_at) "
@@ -153,9 +152,9 @@ class TestTrailerRoute:
         """Jellyfin item resolution failure returns 404."""
         _set_session(client)
 
-        from tests.conftest import FakeProvider
         import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
+        from tests.conftest import FakeProvider
 
         original = deps._provider_singleton
 
@@ -173,6 +172,37 @@ class TestTrailerRoute:
             assert "Movie metadata not found" in resp.json()["error"]
         finally:
             deps._provider_singleton = original
+
+    def test_trailer_route_commits_after_service_fetch(self, client, app):
+        """Route handler calls commit after enrichment service fetch."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from jellyswipe.db_uow import DatabaseUnitOfWork
+        from jellyswipe.dependencies import get_db_uow
+
+        mock_session = AsyncMock()
+        mock_uow = MagicMock(spec=DatabaseUnitOfWork)
+        mock_uow.session = mock_session
+        mock_uow.tmdb_cache = AsyncMock()
+        mock_uow.tmdb_cache.get = AsyncMock(return_value=None)
+        mock_uow.tmdb_cache.put = AsyncMock()
+
+        async def mock_get_db_uow():
+            yield mock_uow
+
+        _set_session(client)
+        app.dependency_overrides[get_db_uow] = mock_get_db_uow
+
+        try:
+            with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+                mock_lookup.return_value = "commit-test-key"
+                resp = client.get("/get-trailer/movie-commit-test")
+
+            assert resp.status_code == 200
+            assert resp.json()["youtube_key"] == "commit-test-key"
+            mock_session.commit.assert_called_once()
+        finally:
+            del app.dependency_overrides[get_db_uow]
 
 
 # ---------------------------------------------------------------------------
@@ -259,9 +289,9 @@ class TestCastRoute:
         """Jellyfin item resolution failure returns 404 with empty cast."""
         _set_session(client)
 
-        from tests.conftest import FakeProvider
         import jellyswipe.dependencies as deps
         from jellyswipe.dependencies import get_provider
+        from tests.conftest import FakeProvider
 
         original = deps._provider_singleton
 

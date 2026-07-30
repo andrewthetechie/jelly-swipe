@@ -20,17 +20,17 @@ logger = logging.getLogger(__name__)
 
 # Blocked IP ranges (D-02)
 _BLOCKED_IPV4_RANGES = [
-    ipaddress.ip_network("127.0.0.0/8"),       # loopback
-    ipaddress.ip_network("10.0.0.0/8"),         # private Class A
-    ipaddress.ip_network("172.16.0.0/12"),      # private Class B
-    ipaddress.ip_network("192.168.0.0/16"),     # private Class C
-    ipaddress.ip_network("169.254.169.254/32"), # cloud metadata service
+    ipaddress.ip_network("127.0.0.0/8"),  # loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # private Class A
+    ipaddress.ip_network("172.16.0.0/12"),  # private Class B
+    ipaddress.ip_network("192.168.0.0/16"),  # private Class C
+    ipaddress.ip_network("169.254.169.254/32"),  # cloud metadata service
 ]
 
 _BLOCKED_IPV6_RANGES = [
-    ipaddress.ip_network("::1/128"),   # loopback
+    ipaddress.ip_network("::1/128"),  # loopback
     ipaddress.ip_network("fc00::/7"),  # unique local addresses
-    ipaddress.ip_network("fe80::/10"), # link-local addresses
+    ipaddress.ip_network("fe80::/10"),  # link-local addresses
 ]
 
 

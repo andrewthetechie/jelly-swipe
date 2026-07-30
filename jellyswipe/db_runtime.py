@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from jellyswipe.migrations import build_sqlite_url, normalize_sync_database_url
 
@@ -71,11 +76,6 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     return RUNTIME_SESSIONMAKER
 
 
-def session_factory() -> async_sessionmaker[AsyncSession]:
-    """Compatibility alias for the initialized sessionmaker."""
-    return get_sessionmaker()
-
-
 __all__ = [
     "RUNTIME_DATABASE_URL",
     "RUNTIME_ENGINE",
@@ -85,5 +85,4 @@ __all__ = [
     "dispose_runtime",
     "get_sessionmaker",
     "initialize_runtime",
-    "session_factory",
 ]
