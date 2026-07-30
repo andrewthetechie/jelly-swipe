@@ -14,7 +14,7 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["vitest/globals", "@testing-library/jest-dom"]
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
   "include": ["./**/*", "./**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
