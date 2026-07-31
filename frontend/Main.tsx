@@ -3,7 +3,7 @@ import Intro from "./Intro"
 import SwipePage from "./SwipePage"
 import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
-import { apiFetch } from "./api"
+import { apiFetch, postJson } from "./api"
 import type { JSX } from "react"
 import type { CardItem, GenreChangedEvent, HideWatchedChangedEvent } from "./types"
 import type { MatchItem } from "./types"
@@ -113,13 +113,7 @@ export default function Main(): JSX.Element {
 
     const handleWatchedFilterToggle = React.useCallback( async () => {
         try {
-            const res: Response = await apiFetch(`/room/${currentRoomCode}/watched-filter`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    "hide_watched": !hideWatched
-                }), 
-            })
+            const res: Response = await postJson(`/room/${currentRoomCode}/watched-filter`, { "hide_watched": !hideWatched })
             if (!res.ok) {
                 throw new Error(`Error toggling watched filter: ${res.status} ${res.statusText}`)
             }
@@ -135,13 +129,7 @@ export default function Main(): JSX.Element {
 
     const handleGenreChange = React.useCallback( async () => {
         try {
-            const res: Response = await apiFetch(`/room/${currentRoomCode}/genre`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    genre
-                }),
-            })
+            const res: Response = await postJson(`/room/${currentRoomCode}/genre`, { genre })
             if (!res.ok) {
                 throw new Error(`Error POSTing new genre: ${res.status} ${res.statusText}`)
             }
@@ -165,13 +153,9 @@ export default function Main(): JSX.Element {
         }
 
         try {
-            const res  = await apiFetch(`/room/${currentRoomCode}/swipe`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    media_id: cardItem.media_id,
-                    direction,
-                }),
+            const res  = await postJson(`/room/${currentRoomCode}/swipe`, {
+                media_id: cardItem.media_id,
+                direction,
             })
             if (!res.ok) {
                 throw new Error(`Error POSTing swipe: ${res.status} ${res.statusText}`)
@@ -193,13 +177,7 @@ export default function Main(): JSX.Element {
         }
 
         try {
-            const res: Response = await apiFetch(`/room/${currentRoomCode}/undo`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    media_id: lastSwipe.media_id,
-                }),
-            })
+            const res: Response = await postJson(`/room/${currentRoomCode}/undo`, { media_id: lastSwipe.media_id })
             if (!res.ok) {
                 throw new Error(`Error undoing swipe: ${res.status} ${res.statusText}`)
             }

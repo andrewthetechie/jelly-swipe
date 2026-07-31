@@ -6,7 +6,7 @@ import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
 import { useRoomContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
-import { apiFetch } from "./api"
+import { postJson } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import type { MatchItem } from "./types"
@@ -61,10 +61,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
 
     async function handleEndSession() {
         try {
-            const res: Response = await apiFetch(`/room/${currentRoomCode}/quit`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-            })
+            const res: Response = await postJson(`/room/${currentRoomCode}/quit`)
             if (!res.ok) {
                 throw new Error(`Error quitting room: ${res.status} ${res.statusText}`)
             }

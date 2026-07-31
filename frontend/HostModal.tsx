@@ -1,6 +1,6 @@
 import React from "react"
 import { useRoomContext } from "./RoomContextProvider"
-import { apiFetch } from "./api"
+import { postJson } from "./api"
 import type { JSX } from "react"
 
 interface HostModalProps {
@@ -24,16 +24,12 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
 
     async function createSession() {
         let pairingCode: string | null = null
-        const createRoomRequest = {
-            movies,
-            tv_shows: tvShows,
-            solo: isSoloMode,
-        }
+
         try {
-            const res: Response = await apiFetch('/room', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(createRoomRequest)
+            const res: Response = await postJson('/room', { 
+                movies,
+                "tv_shows": tvShows,
+                "solo": isSoloMode, 
             })
             
             if (!res.ok) {

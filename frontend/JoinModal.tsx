@@ -1,6 +1,6 @@
 import React from 'react'
 import { useRoomContext } from "./RoomContextProvider"
-import { apiFetch } from "./api"
+import { postJson } from "./api"
 import type { JSX } from "react"
 
 interface JoinModalProps {
@@ -12,10 +12,7 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
 
     async function joinRoom() {
         try {
-            const res: Response = await apiFetch(`/room/${userInputCode}/join`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'}
-            })
+            const res: Response = await postJson(`/room/${userInputCode}/join`)
             if (!res.ok) {
                 throw new Error(`Error joining room: ${res.status} ${res.statusText}`)
             }
