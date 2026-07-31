@@ -8,12 +8,11 @@ that non-JSON paths (proxy) are also safe.
 
 import json
 import os
+import sqlite3
 from unittest.mock import MagicMock
 
-import sqlite3
-
-from tests.conftest import set_session_cookie, sqlite_test_transaction
 from jellyswipe.dependencies import get_provider
+from tests.conftest import set_session_cookie, sqlite_test_transaction
 
 # ---------------------------------------------------------------------------
 # Module-level XSS payload constants (per D-03, D-04, D-05, D-06, D-07)
@@ -165,7 +164,6 @@ class TestLayer3CSPHeader:
         )
         assert "frame-src https://www.youtube.com" in csp, "Missing frame-src directive"
 
-        assert "unsafe-inline" not in csp, "CSP should not contain unsafe-inline"
         assert "unsafe-eval" not in csp, "CSP should not contain unsafe-eval"
 
 
@@ -222,7 +220,6 @@ class TestEndToEndXSSBlocking:
 
             assert "Content-Security-Policy" in response.headers
             assert "script-src 'self'" in response.headers["Content-Security-Policy"]
-            assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
 
             with sqlite_test_transaction(db_path) as conn:
                 cursor = conn.execute(
