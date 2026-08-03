@@ -18,7 +18,6 @@ import CardItemView from "./CardItemView";
 import { apiUrl } from "./api";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold } from "./test/fixtures";
-import * as useApiModule from "./useApi"
 
 // Small helper: render a card with the required props filled in, overriding
 // only the card fields a given test cares about.
