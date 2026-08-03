@@ -34,20 +34,6 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
     const [dragX, setDragX] = React.useState<number>(0)
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
     const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched, isSoloMode } = useRoomContext()
-    const { sseData, sseError, isConnected } = useSSEContext()
-
-    React.useEffect(() => {
-        if (sseData && typeof sseData === "object" && sseData !== null) {
-            if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
-                const bootstrapData = sseData as SessionBootstrapResponse
-                console.log("Session bootstrap data:", bootstrapData)
-            }
-        }
-
-        if (sseError) {
-            console.error("SSE error:", sseError)
-        }
-    }, [sseData, sseError])
 
     const rightOpacity: number = 
         dragX > 20
