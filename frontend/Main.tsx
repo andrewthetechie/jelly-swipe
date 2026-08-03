@@ -41,17 +41,16 @@ export default function Main(): JSX.Element {
     }, [])
 
     React.useEffect(() => {    
-        if (sseData && typeof sseData === "object" && sseData !== null) {
-            console.log("SSE data received:", sseData)
-            if ("event_type" in sseData && sseData.event_type === "session_bootstrap") {
+        switch(sseData?.event_type) {
+            case "session_bootstrap":
                 const bootstrapData = sseData as SessionBootstrapResponse
                 setRoomReady(bootstrapData.ready)
-            }
-            if ("event_type" in sseData && sseData.event_type === "match_found") {
+                break
+            case "match_found":
                 setMatchItem(sseData as MatchItem)
                 setMatchFound(true)
-            }
-            if ("event_type" in sseData && sseData.event_type === "genre_changed") {
+                break
+            case "genre_changed":
                 const genreData = sseData as GenreChangedEvent
                 setGenre(genreData.genre as string)
                 if (localDeckRefreshSuppressionRef.current === "genre") {
@@ -59,8 +58,8 @@ export default function Main(): JSX.Element {
                     return
                 }
                 getCardDeck()
-            }
-            if ("event_type" in sseData && sseData.event_type === "hide_watched_changed") {
+                break
+            case "hide_watched_changed":
                 const watchedData = sseData as HideWatchedChangedEvent
                 setHideWatched(watchedData.hide_watched as boolean)
                 if (localDeckRefreshSuppressionRef.current === "hide_watched") {
@@ -68,14 +67,14 @@ export default function Main(): JSX.Element {
                     return
                 }
                 getCardDeck()
-            }
-            if ("event_type" in sseData && sseData.event_type === "session_ready") {
+                break
+            case "session_ready":
                 setRoomReady(true)
-            }
-            if("event_type" in sseData && sseData.event_type === "session_closed") {
+                break
+            case "session_closed":
                 setRoomReady(false)
                 setCurrentRoomCode(null)
-            }
+                break
         }
 
         if (sseError) {
