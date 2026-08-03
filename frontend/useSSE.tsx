@@ -19,7 +19,14 @@ export const useSSE = (url: string | null): UseSSEReturn => {
     const reconnectTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null) // Reconnection timer reference - for cleanup on component unmount
     const lastSeenEventIdRef = React.useRef<number>(0)
 
-
+    const scheduleReconnect = (delayMs: number) => {
+        if (!reconnectTimeoutRef.current) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null
+            connect()
+            }, delayMs)
+        }
+    }
 
     // useCallback memoizes function - creates new one only when dependencies change (in this case, url) - prevents unnecessary re-creation of functions on every render
     const connect = React.useCallback(() => {
@@ -85,18 +92,13 @@ export const useSSE = (url: string | null): UseSSEReturn => {
             // Event handler for connection errors
             eventSource.onerror = (e) => {
                 console.error("SSE connection error:", e)
+                setError("Connection lost. Attempting to reconnect...")
                 setIsConnected(false)
 
                 eventSource.close()
                 eventSourceRef.current = null
 
-                if (!reconnectTimeoutRef.current) {
-                    setError("Connection lost. Attempting to reconnect...")
-                    reconnectTimeoutRef.current = setTimeout(() => {
-                        reconnectTimeoutRef.current = null
-                        connect()
-                    }, 3000) // Attempt to reconnect after 3 seconds
-                }
+                scheduleReconnect(3000)
                 
             }
         } catch (err) {
@@ -135,16 +137,7 @@ export const useSSE = (url: string | null): UseSSEReturn => {
             eventSourceRef.current = null
         }
 
-        if (!reconnectTimeoutRef.current) {
-            reconnectTimeoutRef.current = setTimeout(() => {
-                reconnectTimeoutRef.current = null
-                connect()
-            }, 1000)
-        }
-        reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectTimeoutRef.current = null
-            connect()
-        }, 1000)
+        scheduleReconnect(1000)
     }, [connect])
 
     React.useEffect(() => {
