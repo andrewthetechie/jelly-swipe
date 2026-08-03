@@ -77,7 +77,8 @@ describe("HostModal — create session (3-part network contract)", () => {
     expect((url as URL).href).toMatch(/\/room$/);
     const opts = options as RequestInit;
     expect(opts.method).toBe("POST");
-    expect(opts.headers).toMatchObject({ "Content-Type": "application/json" });
+    const requestHeaders = new Headers(opts.headers);
+    expect(requestHeaders.get("Content-Type")).toBe("application/json");
     expect(JSON.parse(opts.body as string)).toEqual({
       movies: true,
       tv_shows: false,

@@ -70,7 +70,8 @@ describe("JoinModal — join (3-part network contract)", () => {
     expect((url as URL).href).toMatch(/\/room\/1234\/join$/);
     const opts = options as RequestInit;
     expect(opts.method).toBe("POST");
-    expect(opts.headers).toMatchObject({ "Content-Type": "application/json" });
+    const requestHeaders = new Headers(opts.headers);
+    expect(requestHeaders.get("Content-Type")).toBe("application/json");
 
     // 2. The success effect: the entered code becomes the current room code.
     await waitFor(() =>
