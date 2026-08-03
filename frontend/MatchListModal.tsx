@@ -2,6 +2,7 @@ import React from "react"
 import { apiFetch, formatRating } from "./api"
 import { apiUrl } from "./api"
 import { JSX } from "react"
+import sadLogo from "./assets/sad.png"
 import type { MatchItem } from "./types"
 
 interface MatchListModalProps {
@@ -44,7 +45,7 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
 
         return (
             <div className="match-list-item" key={mediaId}>
-                <img src={apiUrl(thumb).toString()} alt={title ?? ""} className="match-list-img" />
+                <img src={thumb ? apiUrl(thumb).toString(): sadLogo} alt={title ?? ""} className="match-list-img" />
                 <div className="match-list-info">
                     <h3 className="match-list-title">{title}</h3>
                     {rating && <div className="match-list-score">IMDb {formatRating(rating)}</div>}
