@@ -1,7 +1,7 @@
 import React from 'react'
 import ActorElements from './ActorElements'
 import sadLogo from "./assets/sad.png"
-import { apiUrl } from "./api"
+import { apiUrl, formatRating } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
 
@@ -131,7 +131,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                 <div className="card-item back">
                     <h2 className="card-item-title">{title}</h2>
                     <div className="card-item-info">
-                        {rating != null && <div className="card-item-score">IMDb {rating.toFixed(2)}</div>}
+                        {rating != null && <div className="card-item-score">IMDb {formatRating(rating)}</div>}
                         {duration && <div className="card-item-runtime">{duration}</div>}
                         {year && <div className="card-item-year">{year}</div>}
                     </div>

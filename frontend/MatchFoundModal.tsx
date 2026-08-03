@@ -1,6 +1,6 @@
 import React from "react"
 import logo from "./assets/logo.png"
-import { apiUrl } from "./api"
+import { apiUrl, formatRating } from "./api"
 import type { JSX } from "react"
 import type { MatchItem } from "./types"
 
@@ -19,7 +19,7 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
                 <img src={apiUrl(thumb).toString()} className="match-poster" alt={title?.toString()} />
                 <h3 className="match-title">{title}</h3>
                 <div className="card-item-info match-info">
-                    {rating && <div className="card-item-score">IMDb {Number(rating).toFixed(2)}</div>}
+                    {rating && <div className="card-item-score">IMDb {formatRating(rating)}</div>}
                     {duration && <div className="card-item-runtime">{duration}</div>}
                     <div className="card-item-year">{year}</div>
                 </div>

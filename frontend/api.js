@@ -51,3 +51,7 @@ export async function postJson(path, body, options = {}) {
     ...options,
   });
 }
+
+export function formatRating(r) {
+  return Number(r).toFixed(2)
+}
