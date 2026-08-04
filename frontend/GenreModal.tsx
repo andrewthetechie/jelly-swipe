@@ -31,8 +31,13 @@ interface GenreModalProps {
 
 export default function GenreModal({ handleGenreClick, handleGenreChange }: GenreModalProps): JSX.Element {
     const [genreList, setGenreList] = React.useState<GenreListResponse>(() => {
-        const cached = sessionStorage.getItem("genres")
-        return cached ? JSON.parse(cached) : []
+        try {
+            const cached = sessionStorage.getItem("genres")
+            const parsed = cached ? JSON.parse(cached) : null
+            return Array.isArray(parsed) && parsed.every(g => typeof g === "string") ? parsed : []
+        } catch {
+            return []
+        }
     })
     const { genre, setGenre } = useRoomContext()
 
