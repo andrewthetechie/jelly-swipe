@@ -8,7 +8,7 @@ import type { JSX } from "react"
 import type { CardItem, GenreChangedEvent, HideWatchedChangedEvent } from "./types"
 import type { MatchItem } from "./types"
 import type { CardDeck } from "./types"
-import type { SessionBootstrapResponse } from './types'
+import type { SSEEvent } from './types'
 
 const DEFAULT_MATCHITEM: MatchItem = {
     title: null,
@@ -40,47 +40,6 @@ export default function Main(): JSX.Element {
         }, 1000)
     }, [])
 
-    React.useEffect(() => {    
-        switch(sseData?.event_type) {
-            case "session_bootstrap":
-                const bootstrapData = sseData as SessionBootstrapResponse
-                setRoomReady(bootstrapData.ready)
-                break
-            case "match_found":
-                setMatchItem(sseData as MatchItem)
-                setMatchFound(true)
-                break
-            case "genre_changed":
-                const genreData = sseData as GenreChangedEvent
-                setGenre(genreData.genre as string)
-                if (localDeckRefreshSuppressionRef.current === "genre") {
-                    localDeckRefreshSuppressionRef.current = null
-                    return
-                }
-                getCardDeck()
-                break
-            case "hide_watched_changed":
-                const watchedData = sseData as HideWatchedChangedEvent
-                setHideWatched(watchedData.hide_watched as boolean)
-                if (localDeckRefreshSuppressionRef.current === "hide_watched") {
-                    localDeckRefreshSuppressionRef.current = null
-                    return
-                }
-                getCardDeck()
-                break
-            case "session_ready":
-                setRoomReady(true)
-                break
-            case "session_closed":
-                setRoomReady(false)
-                setCurrentRoomCode(null)
-                break
-        }
-
-        if (sseError) {
-            console.error("SSE error:", sseError)
-        }
-    }, [sseData, sseError])
 
     const getCardDeck = React.useCallback(async () => {
         if (!currentRoomCode) {
@@ -105,6 +64,62 @@ export default function Main(): JSX.Element {
             console.error("Error fetching card deck:", err)
         }
     }, [currentRoomCode])
+
+    React.useEffect(() => {    
+        if (!sseData) {
+            if (sseError) {
+                console.error("SSE error:", sseError)
+            }
+            return
+        }
+
+        switch(sseData.event_type) {
+            case "session_bootstrap":
+                setRoomReady(sseData.ready)
+                break
+            case "match_found":
+                setMatchItem(sseData as MatchItem)
+                setMatchFound(true)
+                break
+            case "genre_changed":
+                if (sseData.genre != null) {
+                    setGenre(sseData.genre)
+                }
+                if (localDeckRefreshSuppressionRef.current === "genre") {
+                    localDeckRefreshSuppressionRef.current = null
+                    return
+                }
+                getCardDeck()
+                break
+            case "hide_watched_changed":
+                if (sseData.hide_watched != null) {
+                    setHideWatched(sseData.hide_watched)
+                }
+                if (localDeckRefreshSuppressionRef.current === "hide_watched") {
+                    localDeckRefreshSuppressionRef.current = null
+                    return
+                }
+                getCardDeck()
+                break
+            case "session_ready":
+                setRoomReady(true)
+                break
+            case "session_closed":
+                setRoomReady(false)
+                setCurrentRoomCode(null)
+                break
+            case "session_reset":
+                break
+            default: {
+                const _exhaustive: never = sseData
+                return _exhaustive
+            }
+        }
+
+        if (sseError) {
+            console.error("SSE error:", sseError);
+        }
+    }, [sseData, sseError, getCardDeck, setCurrentRoomCode, setGenre, setHideWatched, setRoomReady])    
 
     const advanceDeck = React.useCallback(() => {
         setCardDeck(prev => prev.slice(1))

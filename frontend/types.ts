@@ -56,7 +56,7 @@ interface LedgerEvent extends BaseSSEEvent {
 }
 
 export interface SessionBootstrapResponse extends BaseSSEEvent {
-    event_type: string,
+    event_type: "session_bootstrap",
     instance_id: string
     ready: boolean,
     genre: string,
