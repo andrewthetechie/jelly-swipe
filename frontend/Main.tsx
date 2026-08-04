@@ -111,6 +111,7 @@ export default function Main(): JSX.Element {
     }, [])
 
     const handleWatchedFilterToggle = React.useCallback( async () => {
+        suppressNextDeckRefresh("hide_watched")
         try {
             const res: Response = await postJson(`/room/${currentRoomCode}/watched-filter`, { "hide_watched": !hideWatched })
             if (!res.ok) {
@@ -120,13 +121,13 @@ export default function Main(): JSX.Element {
             setCardDeck(data)
             setSwipeHistory([])
             setHideWatched(!hideWatched)
-            suppressNextDeckRefresh("hide_watched")
         } catch (err) {
             console.error("Error toggling watched filter", err)
         }
     }, [currentRoomCode, hideWatched, suppressNextDeckRefresh])
 
     const handleGenreChange = React.useCallback( async () => {
+        suppressNextDeckRefresh("genre")
         try {
             const res: Response = await postJson(`/room/${currentRoomCode}/genre`, { genre })
             if (!res.ok) {
@@ -136,7 +137,6 @@ export default function Main(): JSX.Element {
             setCardDeck(data)
             setSwipeHistory([])
             setShowGenreModal(false)
-            suppressNextDeckRefresh("genre")
         } catch (err) {
             console.error("Error changing genre:", err)
         }
