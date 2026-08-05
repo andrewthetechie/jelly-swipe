@@ -32,7 +32,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
-    const isDragging = React.useRef<boolean>(false)
+    const [isDragging, setIsDragging] = React.useState<boolean>(false)
     const hasDragged = React.useRef<boolean>(false)
     const startX = React.useRef<number>(0)
     const currentX = React.useRef<number>(0)
@@ -43,7 +43,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        isDragging.current = true
+        setIsDragging(true)
         hasDragged.current = false
         startX.current = e.clientX
 
@@ -51,7 +51,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     }
 
     const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging.current) return
+        if (!isDragging) return
 
         const deltaX: number = e.clientX - startX.current
         currentX.current = deltaX
@@ -70,7 +70,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
 
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-        isDragging.current = false
+        setIsDragging(false)
         e.currentTarget.releasePointerCapture(e.pointerId)
         setDragX(0)
 
@@ -118,7 +118,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                     translate(${position.x}px, ${position.y}px)
                     rotate(${position.rotation}deg)
                 `,
-                transition: isDragging.current ? "none" : "transform 0.4s ease"
+                transition: isDragging ? "none" : "transform 0.4s ease"
             }}
         >
           <div className="card-item-inner">
