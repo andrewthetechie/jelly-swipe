@@ -41,6 +41,13 @@ export default function Main(): JSX.Element {
         }, 1000)
     }, [])
 
+    const requireRoomCode = React.useCallback((action: string): string | null => {
+        if (!currentRoomCode) {
+            console.error(`Cannot ${action} without currentRoomCode`)
+            return null
+        }
+        return currentRoomCode
+    }, [currentRoomCode])
 
     const getCardDeck = React.useCallback(async () => {
         if (!currentRoomCode) {
@@ -127,9 +134,12 @@ export default function Main(): JSX.Element {
     }, [])
 
     const handleWatchedFilterToggle = React.useCallback( async () => {
+        const roomCode = requireRoomCode("toggle watched filter")
+        if (!roomCode) return
+
         suppressNextDeckRefresh("hide_watched")
         try {
-            const res: Response = await postJson(`/room/${currentRoomCode}/watched-filter`, { "hide_watched": !hideWatched })
+            const res: Response = await postJson(`/room/${roomCode}/watched-filter`, { "hide_watched": !hideWatched })
             if (!res.ok) {
                 throw new Error(`Error toggling watched filter: ${res.status} ${res.statusText}`)
             }
@@ -140,12 +150,15 @@ export default function Main(): JSX.Element {
         } catch (err) {
             console.error("Error toggling watched filter", err)
         }
-    }, [currentRoomCode, hideWatched, suppressNextDeckRefresh])
+    }, [hideWatched, suppressNextDeckRefresh, requireRoomCode])
 
     const handleGenreChange = React.useCallback( async () => {
+        const roomCode = requireRoomCode("change genre")
+        if (!roomCode) return
+
         suppressNextDeckRefresh("genre")
         try {
-            const res: Response = await postJson(`/room/${currentRoomCode}/genre`, { genre })
+            const res: Response = await postJson(`/room/${roomCode}/genre`, { genre })
             if (!res.ok) {
                 throw new Error(`Error POSTing new genre: ${res.status} ${res.statusText}`)
             }
@@ -156,19 +169,17 @@ export default function Main(): JSX.Element {
         } catch (err) {
             console.error("Error changing genre:", err)
         }
-    }, [currentRoomCode, genre, suppressNextDeckRefresh])
+    }, [genre, suppressNextDeckRefresh, requireRoomCode])
 
     const handleSwipe = React.useCallback(async (
         cardItem: CardItem,
         direction: "left" | "right") => {
 
-        if (!currentRoomCode) {
-            console.error("Cannot send swipe without currentRoomCode")
-            return
-        }
+        const roomCode = requireRoomCode("send swipe")
+        if (!roomCode) return
 
         try {
-            const res  = await postJson(`/room/${currentRoomCode}/swipe`, {
+            const res  = await postJson(`/room/${roomCode}/swipe`, {
                 media_id: cardItem.media_id,
                 direction,
             })
@@ -181,7 +192,7 @@ export default function Main(): JSX.Element {
             console.error("Error POSTing swipe:", err)
         }
 
-    }, [currentRoomCode, advanceDeck])
+    }, [advanceDeck, requireRoomCode])
 
     const handleUndo = React.useCallback(async () => {
         const lastSwipe: CardItem = swipeHistory[swipeHistory.length - 1]
@@ -191,8 +202,11 @@ export default function Main(): JSX.Element {
             return
         }
 
+        const roomCode = requireRoomCode("undo last swipe")
+        if (!roomCode) return
+
         try {
-            const res: Response = await postJson(`/room/${currentRoomCode}/undo`, { media_id: lastSwipe.media_id })
+            const res: Response = await postJson(`/room/${roomCode}/undo`, { media_id: lastSwipe.media_id })
             if (!res.ok) {
                 throw new Error(`Error undoing swipe: ${res.status} ${res.statusText}`)
             }
@@ -202,7 +216,7 @@ export default function Main(): JSX.Element {
             console.error("Error undoing swipe:", err)
         }
         
-    }, [currentRoomCode, swipeHistory])
+    }, [swipeHistory, requireRoomCode])
 
     const handleMatchClose = () => {
         setMatchFound(false)

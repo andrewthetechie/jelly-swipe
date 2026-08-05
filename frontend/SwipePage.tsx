@@ -10,8 +10,6 @@ import type { JSX } from "react"
 import type { CardItem } from './types'
 import type { MatchItem } from "./types"
 import type { CardDeck } from './types'
-import type { SessionBootstrapResponse } from './types'
-
 
 interface SwipePageProps {
     cardDeck: CardDeck
@@ -45,9 +43,20 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
             : 0
     const visibleCards = cardDeck.slice(0, 5).reverse()
 
+    const requireRoomCode = React.useCallback((action: string): string | null => {
+        if (!currentRoomCode) {
+            console.error(`Cannot ${action} without currentRoomCode`)
+            return null
+        }
+        return currentRoomCode
+    }, [currentRoomCode])
+
     async function handleEndSession() {
+        const roomCode = requireRoomCode("end session")
+        if(!roomCode) return
+
         try {
-            const res: Response = await postJson(`/room/${currentRoomCode}/quit`)
+            const res: Response = await postJson(`/room/${roomCode}/quit`)
             if (!res.ok) {
                 throw new Error(`Error quitting room: ${res.status} ${res.statusText}`)
             }
