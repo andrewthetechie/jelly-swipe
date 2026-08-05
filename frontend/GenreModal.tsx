@@ -1,28 +1,8 @@
 import React from "react"
 import { apiFetch } from "./api"
-import { useRoomContext } from "./RoomContextProvider"
+import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import type { GenreListResponse } from "./types"
 import type { JSX } from "react"
-
-// const genreList: GenreListResponse = [
-//     "Action",
-//     "Adventure",
-//     "Animation",
-//     "Biography",
-//     "Comedy",
-//     "Crime",
-//     "Documentary",
-//     "Drama",
-//     "Family",
-//     "Horror",
-//     "Kids",
-//     "Mystery",
-//     "Reality",
-//     "Romance",
-//     "Sci-Fi",
-//     "Thriller",
-//     "Western"
-// ]
 
 interface GenreModalProps {
     handleGenreClick: () => void
@@ -39,7 +19,8 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
             return []
         }
     })
-    const { genre, setGenre } = useRoomContext()
+    const { genre } = useRoomStateContext()
+    const { setGenre } = useRoomSetterContext()
 
     React.useEffect(() => {
         if (genreList.length > 0) {

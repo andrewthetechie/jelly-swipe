@@ -1,7 +1,7 @@
 import React from "react"
 import { useSSE } from "./useSSE"
 import { apiUrl } from "./api"
-import { useRoomContext } from "./RoomContextProvider"
+import { useRoomStateContext } from "./RoomContextProvider"
 import type { SSEEvent } from "./types"
 
 export interface SSEContextType {
@@ -17,7 +17,7 @@ interface SSEProviderProps {
 }
 
 export function SSEContextProvider({ children }: SSEProviderProps) {
-    const { currentRoomCode } = useRoomContext()
+    const { currentRoomCode } = useRoomStateContext()
     const streamUrl = currentRoomCode ? apiUrl(`/room/${currentRoomCode}/stream`).toString() : null
     
     const { lastMessage: sseData, error: sseError, isConnected } = useSSE(streamUrl)

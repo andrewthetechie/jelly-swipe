@@ -19,13 +19,47 @@ import { screen, waitFor, fireEvent, render } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import Main from "./Main"
 import SwipePage from "./SwipePage"
-import { RoomContext } from "./RoomContextProvider"
+import { RoomStateContext, RoomSetterContext } from "./RoomContextProvider"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { SSEContextProvider } from "./SSEContextProvider"
 import * as useSSEModule from "./useSSE"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck, makeCard, swipeRight, swipeLeft } from "./test/fixtures"
 
+function withRoomProviders(
+  roomContextValue: any,
+  ui: React.ReactElement,
+) {
+  const stateCtx = {
+    currentRoomCode: roomContextValue.currentRoomCode,
+    roomReady: roomContextValue.roomReady,
+    movies: roomContextValue.movies,
+    tvShows: roomContextValue.tvShows,
+    isSoloMode: roomContextValue.isSoloMode,
+    userInputCode: roomContextValue.userInputCode,
+    genre: roomContextValue.genre,
+    hideWatched: roomContextValue.hideWatched,
+  }
+
+  const setterCtx = {
+    setCurrentRoomCode: roomContextValue.setCurrentRoomCode,
+    setRoomReady: roomContextValue.setRoomReady,
+    setMovies: roomContextValue.setMovies,
+    setTvShows: roomContextValue.setTvShows,
+    setIsSoloMode: roomContextValue.setIsSoloMode,
+    setUserInputCode: roomContextValue.setUserInputCode,
+    setGenre: roomContextValue.setGenre,
+    setHideWatched: roomContextValue.setHideWatched,
+  }
+
+  return (
+    <RoomSetterContext.Provider value={setterCtx}>
+      <RoomStateContext.Provider value={stateCtx}>
+        {ui}
+      </RoomStateContext.Provider>
+    </RoomSetterContext.Provider>
+  )
+}
 
 async function setupSuccessfulSwipeTest(
   direction: "left" | "right" = "right",
@@ -589,11 +623,12 @@ describe("Main - genre change behavior", () => {
     } as any
 
     const view = render(
-      <RoomContext.Provider value={roomContextValue}>
+      withRoomProviders(
+        roomContextValue,
         <SSEContextProvider>
           <Main />
-        </SSEContextProvider>
-      </RoomContext.Provider>,
+        </SSEContextProvider>,
+      ),
     )
 
     expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
@@ -610,11 +645,12 @@ describe("Main - genre change behavior", () => {
     }
 
     view.rerender(
-      <RoomContext.Provider value={roomContextValue}>
+      withRoomProviders(
+        roomContextValue,
         <SSEContextProvider>
           <Main />
-        </SSEContextProvider>
-      </RoomContext.Provider>,
+        </SSEContextProvider>,
+      ),
     )
 
     await waitFor(() => {
@@ -764,11 +800,12 @@ describe("Main - watch filter toggle behavior", () => {
     } as any
 
     const view = render(
-      <RoomContext.Provider value={roomContextValue}>
+      withRoomProviders(
+        roomContextValue,
         <SSEContextProvider>
           <Main />
-        </SSEContextProvider>
-      </RoomContext.Provider>,
+        </SSEContextProvider>,
+      ),
     )
 
     expect(await screen.findByAltText("Movie 1")).toBeInTheDocument()
@@ -783,11 +820,12 @@ describe("Main - watch filter toggle behavior", () => {
     }
 
     view.rerender(
-      <RoomContext.Provider value={roomContextValue}>
+      withRoomProviders(
+        roomContextValue,
         <SSEContextProvider>
           <Main />
-        </SSEContextProvider>
-      </RoomContext.Provider>,
+        </SSEContextProvider>,
+      ),
     )
 
     await waitFor(() => {

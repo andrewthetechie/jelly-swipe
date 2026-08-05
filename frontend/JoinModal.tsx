@@ -1,5 +1,5 @@
 import React from 'react'
-import { useRoomContext } from "./RoomContextProvider"
+import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { postJson } from "./api"
 import type { JSX } from "react"
 
@@ -8,7 +8,8 @@ interface JoinModalProps {
 }
 
 export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
-    const { setCurrentRoomCode, userInputCode, setUserInputCode } = useRoomContext()
+    const { userInputCode } = useRoomStateContext()
+    const { setCurrentRoomCode, setUserInputCode } = useRoomSetterContext()
 
     async function joinRoom() {
         try {

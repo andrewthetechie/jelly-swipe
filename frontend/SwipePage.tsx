@@ -4,8 +4,7 @@ import CardItemView from "./CardItemView"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
-import { useRoomContext } from "./RoomContextProvider"
-import { useSSEContext } from "./SSEContextProvider"
+import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { postJson } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
@@ -33,7 +32,8 @@ interface SwipePageProps {
 export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterToggle }: SwipePageProps): JSX.Element {
     const [dragX, setDragX] = React.useState<number>(0)
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
-    const { currentRoomCode, setCurrentRoomCode, roomReady, setRoomReady, hideWatched, setHideWatched, isSoloMode } = useRoomContext()
+    const { currentRoomCode, roomReady, hideWatched, isSoloMode } = useRoomStateContext()
+    const { setCurrentRoomCode, setRoomReady, setHideWatched } = useRoomSetterContext()
 
     const rightOpacity: number = 
         dragX > 20

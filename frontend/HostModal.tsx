@@ -1,5 +1,5 @@
 import React from "react"
-import { useRoomContext } from "./RoomContextProvider"
+import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { postJson } from "./api"
 import type { JSX } from "react"
 
@@ -8,8 +8,8 @@ interface HostModalProps {
 }
 
 export default function HostModal({ onClose }: HostModalProps): JSX.Element {
-    const { movies, setMovies, tvShows, setTvShows, isSoloMode, setIsSoloMode, setCurrentRoomCode } = useRoomContext()
-    
+    const { movies, tvShows, isSoloMode } = useRoomStateContext()
+    const { setMovies, setTvShows, setIsSoloMode, setCurrentRoomCode } = useRoomSetterContext()
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, checked } = e.currentTarget

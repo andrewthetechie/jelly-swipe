@@ -1,5 +1,5 @@
 import React from "react"
-import { useRoomContext } from "./RoomContextProvider"
+import { useRoomStateContext } from "./RoomContextProvider"
 import logo from "./assets/logo.png"
 import sad from "./assets/sad.png"
 import type { JSX } from "react"
@@ -9,7 +9,7 @@ interface HostWaitingProps {
 }
 
 export default function HostWaiting({ endSession }: HostWaitingProps): JSX.Element {
-    const { currentRoomCode } = useRoomContext()
+    const { currentRoomCode } = useRoomStateContext()
 
     return (
         <div className="host-waiting">

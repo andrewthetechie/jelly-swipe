@@ -1,7 +1,7 @@
 import React from "react"
 import Intro from "./Intro"
 import SwipePage from "./SwipePage"
-import { useRoomContext } from "./RoomContextProvider"
+import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch, postJson } from "./api"
 import type { JSX } from "react"
@@ -22,7 +22,8 @@ const DEFAULT_MATCHITEM: MatchItem = {
 }
 
 export default function Main(): JSX.Element {
-    const { currentRoomCode, setCurrentRoomCode, setRoomReady, genre, setGenre, hideWatched, setHideWatched } = useRoomContext()
+    const { currentRoomCode, genre, hideWatched } = useRoomStateContext()
+    const { setCurrentRoomCode, setRoomReady, setGenre, setHideWatched } = useRoomSetterContext()
     const [cardDeck, setCardDeck] = React.useState<CardDeck>([])
     const [swipeHistory, setSwipeHistory] = React.useState<CardDeck>([])
     const [matchFound, setMatchFound] = React.useState<boolean>(false)

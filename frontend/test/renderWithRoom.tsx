@@ -1,131 +1,202 @@
-// renderWithRoom — the shared helper for rendering any component that needs the
-// room context.
-//
-// Why this exists: the redesign's components call `useRoomContext()`, which
-// THROWS if there is no <RoomContext.Provider> above them. So we cannot just
-// `render(<Header />)` — we must wrap it in a provider. This helper does that
-// with sensible defaults and `vi.fn()` spies for every setter, so a test can:
-//   1. preset values (e.g. `{ currentRoomCode: "1234" }`), and
-//   2. assert that a component called a setter (e.g. `ctx.setCurrentRoomCode`).
-//
-// IMPORTANT (the "two RoomContext instances" gotcha): there are TWO separate
-// RoomContext objects in this codebase. App.tsx declares and exports one, but
-// it is dead/unused. The LIVE one — the object the components actually read —
-// is the one created inside RoomContextProvider.tsx. We import THAT one (now
-// exported for tests). Wrapping App.tsx's copy would not reach the components
-// and they would hit the `useRoomContext` throw. See frontend/README.md.
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import React, { useState } from "react";
-import { RoomContext, type RoomContextType } from "../RoomContextProvider";
+import { RoomStateContext, RoomSetterContext, RoomStateContextType, RoomSetterContextType } from "../RoomContextProvider";
 
-// Build a default context: plausible starting values plus a vi.fn() spy for
-// every setter. Tests can override any field via the second argument.
-function makeDefaultCtx(): RoomContextType {
+type RoomTestContext = RoomStateContextType & RoomSetterContextType
+
+function makeDefaultStateCtx(): RoomStateContextType {
   return {
     currentRoomCode: null,
-    setCurrentRoomCode: vi.fn(),
     roomReady: false,
-    setRoomReady: vi.fn(),
     movies: true,
-    setMovies: vi.fn(),
     tvShows: false,
-    setTvShows: vi.fn(),
     isSoloMode: false,
-    setIsSoloMode: vi.fn(),
     userInputCode: "",
-    setUserInputCode: vi.fn(),
     genre: "All",
-    setGenre: vi.fn(),
     hideWatched: false,
-    setHideWatched: vi.fn(),
-    // The real setters are React.Dispatch<SetStateAction<…>>; a bare vi.fn()
-    // is structurally close enough for tests, so we assert the object matches
-    // the interface with a single cast here rather than casting each field.
-  } as unknown as RoomContextType;
+  } as unknown as RoomStateContextType;
 }
 
-export interface RenderWithRoomResult
-  extends ReturnType<typeof render> {
-  // The context object we provided — return it so tests can both read the
-  // preset values and assert on the setter spies.
-  ctx: RoomContextType;
+function makeDefaultSetterCtx(): RoomSetterContextType {
+  return {
+    setCurrentRoomCode: vi.fn(),
+    setRoomReady: vi.fn(),
+    setMovies: vi.fn(),
+    setTvShows: vi.fn(),
+    setIsSoloMode: vi.fn(),
+    setUserInputCode: vi.fn(),
+    setGenre: vi.fn(),
+    setHideWatched: vi.fn(),
+  } as unknown as RoomSetterContextType;
+}
+
+export interface RenderWithRoomResult extends ReturnType<typeof render> {
+  ctx: RoomTestContext;
 }
 
 export function renderWithRoom(
   ui: ReactElement,
-  overrides: Partial<RoomContextType> = {},
+  overrides: Partial<RoomTestContext> = {},
 ): RenderWithRoomResult {
-  const ctx: RoomContextType = { ...makeDefaultCtx(), ...overrides };
+
+  const defaultState = makeDefaultStateCtx()
+  const defaultSetters = makeDefaultSetterCtx()
+
+  const stateCtx: RoomStateContextType = {
+    currentRoomCode: overrides.currentRoomCode ?? defaultState.currentRoomCode,
+    roomReady: overrides.roomReady ?? defaultState.roomReady,
+    movies: overrides.movies ?? defaultState.movies,
+    tvShows: overrides.tvShows ?? defaultState.tvShows,
+    isSoloMode: overrides.isSoloMode ?? defaultState.isSoloMode,
+    userInputCode: overrides.userInputCode ?? defaultState.userInputCode,
+    genre: overrides.genre ?? defaultState.genre,
+    hideWatched: overrides.hideWatched ?? defaultState.hideWatched,
+  }
+
+  const setterCtx: RoomSetterContextType = {
+    setCurrentRoomCode: overrides.setCurrentRoomCode ?? defaultSetters.setCurrentRoomCode,
+    setRoomReady: overrides.setRoomReady ?? defaultSetters.setRoomReady,
+    setMovies: overrides.setMovies ?? defaultSetters.setMovies,
+    setTvShows: overrides.setTvShows ?? defaultSetters.setTvShows,
+    setIsSoloMode: overrides.setIsSoloMode ?? defaultSetters.setIsSoloMode,
+    setUserInputCode: overrides.setUserInputCode ?? defaultSetters.setUserInputCode,
+    setGenre: overrides.setGenre ?? defaultSetters.setGenre,
+    setHideWatched: overrides.setHideWatched ?? defaultSetters.setHideWatched,
+  }
+
   const result = render(
-    <RoomContext.Provider value={ctx}>{ui}</RoomContext.Provider>,
+    <RoomSetterContext.Provider value={setterCtx}>
+      <RoomStateContext.Provider value={stateCtx}>
+        {ui}
+      </RoomStateContext.Provider>
+    </RoomSetterContext.Provider>
   );
-  return { ...result, ctx };
+  return { ...result, ctx: { ...stateCtx, ...setterCtx } };
 }
 
-// A stateful variant of the helper for tests that need user interactions to
-// actually update the context values (checkbox toggles followed by submit).
+
 export function renderWithRoomStateful(
   ui: ReactElement,
-  overrides: Partial<RoomContextType> = {},
+  overrides: Partial<RoomTestContext> = {},
 ): RenderWithRoomResult {
   function Provider({ children }: { children: React.ReactNode }) {
-    const [movies, setMoviesState] = useState<boolean>(
-      overrides.movies ?? true,
-    );
-    const [tvShows, setTvShowsState] = useState<boolean>(
-      overrides.tvShows ?? false,
-    );
-    const [isSoloMode, setIsSoloModeState] = useState<boolean>(
-      overrides.isSoloMode ?? false,
-    );
-    const [roomReady, setRoomReadyState] = useState<boolean>(
-      overrides.roomReady ?? false,
-    );
-    const [currentRoomCode, setCurrentRoomCodeState] = useState<
-      string | null
-    >(overrides.currentRoomCode ?? null);
+    const [movies, setMoviesState] = useState<boolean>(overrides.movies ?? true)
+    const [tvShows, setTvShowsState] = useState<boolean>(overrides.tvShows ?? false)
+    const [isSoloMode, setIsSoloModeState] = useState<boolean>(overrides.isSoloMode ?? false)
+    const [roomReady, setRoomReadyState] = useState<boolean>(overrides.roomReady ?? false)
+    const [currentRoomCode, setCurrentRoomCodeState] = useState<string | null>(
+      overrides.currentRoomCode ?? null,
+    )
     const [userInputCode, setUserInputCodeState] = useState<string>(
       overrides.userInputCode ?? "",
-    );
+    )
     const [genre, setGenreState] = useState<string>(
       overrides.genre ?? "All",
-    );
-    const [hideWatched, setHideWatchedState] = useState<boolean>(
-      overrides.hideWatched ?? false,
-    );
+    )
+    const [hideWatched, setHideWatchedState] = useState<boolean>(overrides.hideWatched ?? false)
 
-    const ctx: RoomContextType = {
+    const applySetStateAction = <T,>(
+      action: React.SetStateAction<T>,
+      setState: React.Dispatch<React.SetStateAction<T>>,
+    ) => {
+      setState((prev) =>
+        typeof action === "function"
+          ? (action as (prev: T) => T)(prev)
+          : action,
+      )
+    }
+
+    const setCurrentRoomCodeSpy = overrides.setCurrentRoomCode ?? vi.fn()
+    const setRoomReadySpy = overrides.setRoomReady ?? vi.fn()
+    const setMoviesSpy = overrides.setMovies ?? vi.fn()
+    const setTvShowsSpy = overrides.setTvShows ?? vi.fn()
+    const setIsSoloModeSpy = overrides.setIsSoloMode ?? vi.fn()
+    const setUserInputCodeSpy = overrides.setUserInputCode ?? vi.fn()
+    const setGenreSpy = overrides.setGenre ?? vi.fn()
+    const setHideWatchedSpy = overrides.setHideWatched ?? vi.fn()
+
+    const stateCtx: RoomStateContextType = {
       currentRoomCode,
-      setCurrentRoomCode: vi.fn((v: string | null) =>
-        setCurrentRoomCodeState(v as string | null),
-      ),
       roomReady,
-      setRoomReady: vi.fn((v: boolean) => setRoomReadyState(v)),
       movies,
-      setMovies: vi.fn((v: boolean) => setMoviesState(v)),
       tvShows,
-      setTvShows: vi.fn((v: boolean) => setTvShowsState(v)),
       isSoloMode,
-      setIsSoloMode: vi.fn((v: boolean) => setIsSoloModeState(v)),
       userInputCode,
-      setUserInputCode: vi.fn((v: string) => setUserInputCodeState(v)),
       genre,
-      setGenre: vi.fn((v: string) => setGenreState(v)),
       hideWatched,
-      setHideWatched: vi.fn((v: boolean) => setHideWatchedState(v)),
-    } as unknown as RoomContextType;
+  }
+
+  const setterCtx: RoomSetterContextType = {
+      setCurrentRoomCode: vi.fn((action: React.SetStateAction<string | null>) => {
+        setCurrentRoomCodeSpy(action)
+        applySetStateAction(action, setCurrentRoomCodeState)
+      }),
+      setRoomReady: vi.fn((action: React.SetStateAction<boolean>) => {
+        setRoomReadySpy(action)
+        applySetStateAction(action, setRoomReadyState)
+      }),
+      setMovies: vi.fn((action: React.SetStateAction<boolean>) => {
+        setMoviesSpy(action)
+        applySetStateAction(action, setMoviesState)
+      }),
+      setTvShows: vi.fn((action: React.SetStateAction<boolean>) => {
+        setTvShowsSpy(action)
+        applySetStateAction(action, setTvShowsState)
+      }),
+      setIsSoloMode: vi.fn((action: React.SetStateAction<boolean>) => {
+        setIsSoloModeSpy(action)
+        applySetStateAction(action, setIsSoloModeState)
+      }),
+      setUserInputCode: vi.fn((action: React.SetStateAction<string>) => {
+        setUserInputCodeSpy(action)
+        applySetStateAction(action, setUserInputCodeState)
+      }),
+      setGenre: vi.fn((action: React.SetStateAction<string>) => {
+        setGenreSpy(action)
+        applySetStateAction(action, setGenreState)
+      }),
+      setHideWatched: vi.fn((action: React.SetStateAction<boolean>) => {
+        setHideWatchedSpy(action)
+        applySetStateAction(action, setHideWatchedState)
+      }),
+    }
 
     return (
-      <RoomContext.Provider value={ctx}>{children}</RoomContext.Provider>
-    );
+      <RoomSetterContext.Provider value={setterCtx}>
+        <RoomStateContext.Provider value={stateCtx}>
+          {children}
+        </RoomStateContext.Provider>
+      </RoomSetterContext.Provider>
+    )
   }
 
   const result = render(<Provider>{ui}</Provider>);
-  // We cannot return the exact ctx object here (it is recreated per render),
-  // but tests that need it can still rely on the provider's behavior; return a
-  // minimal shape where setters are spies by reading from the DOM or mocking
-  // when necessary. For simplicity, return an object with spy placeholders.
-  const ctx = { ...makeDefaultCtx(), ...overrides } as RoomContextType;
-  return { ...result, ctx };
+
+  const defaultState = makeDefaultStateCtx()
+  const defaultSetters = makeDefaultSetterCtx()
+
+  const stateCtx: RoomStateContextType = {
+    currentRoomCode: overrides.currentRoomCode ?? defaultState.currentRoomCode,
+    roomReady: overrides.roomReady ?? defaultState.roomReady,
+    movies: overrides.movies ?? defaultState.movies,
+    tvShows: overrides.tvShows ?? defaultState.tvShows,
+    isSoloMode: overrides.isSoloMode ?? defaultState.isSoloMode,
+    userInputCode: overrides.userInputCode ?? defaultState.userInputCode,
+    genre: overrides.genre ?? defaultState.genre,
+    hideWatched: overrides.hideWatched ?? defaultState.hideWatched,
+  }
+
+  const setterCtx: RoomSetterContextType = {
+    setCurrentRoomCode: overrides.setCurrentRoomCode ?? defaultSetters.setCurrentRoomCode,
+    setRoomReady: overrides.setRoomReady ?? defaultSetters.setRoomReady,
+    setMovies: overrides.setMovies ?? defaultSetters.setMovies,
+    setTvShows: overrides.setTvShows ?? defaultSetters.setTvShows,
+    setIsSoloMode: overrides.setIsSoloMode ?? defaultSetters.setIsSoloMode,
+    setUserInputCode: overrides.setUserInputCode ?? defaultSetters.setUserInputCode,
+    setGenre: overrides.setGenre ?? defaultSetters.setGenre,
+    setHideWatched: overrides.setHideWatched ?? defaultSetters.setHideWatched,
+  }
+
+  return { ...result, ctx: { ...stateCtx, ...setterCtx } }
 }

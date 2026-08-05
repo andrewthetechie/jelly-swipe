@@ -44,9 +44,12 @@ PRs the same way the Python suite does.
     lacks. Wired in via `setupFiles`; you never import it directly.
   - `test/renderWithRoom.tsx` — renders a component inside the room context with
     sensible defaults and `vi.fn()` setters. Use it for **any** component that
-    calls `useRoomContext()` (which is most of them). Pass overrides to preset
-    values (`{ currentRoomCode: "1234" }`) and read the returned `ctx` to assert
-    a setter was called (`expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith(…)`).
+    calls `useRoomStateContext()` or `useRoomSetterContext()`. Pass overrides to
+    preset values (`{ currentRoomCode: "1234" }`) and read the returned `ctx` to
+    assert a setter was called
+    (`expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith(…)`).
+    Overrides are a flat object combining state and setter fields — the helper
+    splits them internally into the two providers.
   - `test/mockFetch.ts` — swaps `globalThis.fetch` for a spy resolving to a fake
     `{ ok, json }` response (or rejecting, with `{ reject: true }`). Use it for
     any component that makes a network call. It returns the spy so you can assert
@@ -66,19 +69,29 @@ PRs the same way the Python suite does.
      unchanged and does not throw. Silence the expected `console.error` with a
      spy so the output stays clean.
 
-### The two `RoomContext` instances (why the provider's context is exported)
+### The split room context (`RoomStateContext` and `RoomSetterContext`)
 
-There are **two** separate `RoomContext` objects in this codebase:
+Room state is split across two contexts defined in `RoomContextProvider.tsx`:
 
-- `App.tsx` declares and exports one — but it is **dead/unused**.
-- `RoomContextProvider.tsx` creates the **live** one — the object the components
-  actually read through `useRoomContext()`.
+- **`RoomStateContext`** — holds all state values (`currentRoomCode`,
+  `roomReady`, `movies`, `tvShows`, `isSoloMode`, `userInputCode`, `genre`,
+  `hideWatched`). Read with `useRoomStateContext()`.
+- **`RoomSetterContext`** — holds all setter functions. These are referentially
+  stable (React state setters never change identity), so this context never
+  triggers a re-render on its own. Read with `useRoomSetterContext()`.
 
-`renderWithRoom` imports the **provider's** context (which is `export`ed for
-exactly this reason). Wrapping App's copy instead would not reach the components,
-and they would hit the `useRoomContext must be used within a RoomContextProvider`
-throw. So: never wire a test to App's `RoomContext` — always go through
-`renderWithRoom`.
+Components that only dispatch (e.g. `Intro`) should use `useRoomSetterContext()`
+alone. Components that only read (e.g. `Header`) should use
+`useRoomStateContext()` alone. Mixed components use both.
+
+Both contexts are provided by the single `<RoomContextProvider>` in `App.tsx` —
+you never nest them manually in application code.
+
+In tests, `renderWithRoom` and `renderWithRoomStateful` provide both contexts
+automatically. Pass a flat overrides object with any mix of state values and
+setter spies — the helper splits them into the correct providers internally.
+Never wire a test directly to `RoomStateContext.Provider` or
+`RoomSetterContext.Provider` — always go through `renderWithRoom`.
 
 ### The skipped "desired behavior" pattern
 

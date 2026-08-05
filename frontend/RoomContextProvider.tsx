@@ -1,28 +1,53 @@
 import React from "react"
 
-export interface RoomContextType {
+export interface RoomStateContextType {
     currentRoomCode: string | null
-    setCurrentRoomCode: React.Dispatch<React.SetStateAction<string | null>>
     roomReady: boolean
-    setRoomReady: React.Dispatch<React.SetStateAction<boolean>>
     movies: boolean
-    setMovies: React.Dispatch<React.SetStateAction<boolean>>
     tvShows: boolean
-    setTvShows: React.Dispatch<React.SetStateAction<boolean>>
     isSoloMode: boolean
-    setIsSoloMode: React.Dispatch<React.SetStateAction<boolean>>
     userInputCode: string
-    setUserInputCode: React.Dispatch<React.SetStateAction<string>>
     genre: string
-    setGenre: React.Dispatch<React.SetStateAction<string>>
     hideWatched: boolean
+}
+
+export interface RoomSetterContextType {
+    setCurrentRoomCode: React.Dispatch<React.SetStateAction<string | null>>
+    setRoomReady: React.Dispatch<React.SetStateAction<boolean>>
+    setMovies: React.Dispatch<React.SetStateAction<boolean>>
+    setTvShows: React.Dispatch<React.SetStateAction<boolean>>
+    setIsSoloMode: React.Dispatch<React.SetStateAction<boolean>>
+    setUserInputCode: React.Dispatch<React.SetStateAction<string>>
+    setGenre: React.Dispatch<React.SetStateAction<string>>
     setHideWatched: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-export const RoomContext = React.createContext<RoomContextType | undefined>(undefined)
-
 interface RoomProviderProps {
     children: React.ReactNode
+}
+
+export const RoomStateContext = React.createContext<RoomStateContextType | undefined>(undefined)
+
+export const RoomSetterContext = React.createContext<RoomSetterContextType | undefined>(undefined)
+
+export function useRoomStateContext() {
+    const context = React.useContext(RoomStateContext)
+
+    if (context === undefined) {
+        throw new Error("useRoomStateContext must be used within a RoomContextProvider")
+    }
+    
+    return context
+}
+
+export function useRoomSetterContext() {
+    const context = React.useContext(RoomSetterContext)
+
+    if (context === undefined) {
+        throw new Error("useRoomSetterContext must be used within a RoomContextProvider")
+    }
+    
+    return context
 }
 
 export function RoomContextProvider({ children }: RoomProviderProps) {
@@ -35,38 +60,43 @@ export function RoomContextProvider({ children }: RoomProviderProps) {
     const [genre, setGenre] = React.useState<string>("All")
     const [hideWatched, setHideWatched] = React.useState<boolean>(false)
 
+    const roomStateValue = React.useMemo(() => ({
+        currentRoomCode,
+        roomReady,
+        movies,
+        tvShows,
+        isSoloMode,
+        userInputCode,
+        genre,
+        hideWatched
+    }), 
+    [
+        currentRoomCode,
+        roomReady,
+        movies,
+        tvShows,
+        isSoloMode,
+        userInputCode,
+        genre,
+        hideWatched
+    ])
+
+    const roomSetterValue = React.useMemo(() => ({
+        setCurrentRoomCode,
+        setRoomReady,
+        setMovies,
+        setTvShows,
+        setIsSoloMode,
+        setUserInputCode,
+        setGenre,
+        setHideWatched
+    }), [])
+
     return (
-        <RoomContext.Provider
-            value={{
-                currentRoomCode,
-                setCurrentRoomCode,
-                roomReady,
-                setRoomReady,
-                movies,
-                setMovies,
-                tvShows,
-                setTvShows,
-                isSoloMode,
-                setIsSoloMode,
-                userInputCode,
-                setUserInputCode,
-                genre,
-                setGenre,
-                hideWatched,
-                setHideWatched
-        }}>
-            {children}
-        </RoomContext.Provider>
+        <RoomSetterContext.Provider value={roomSetterValue}> 
+            <RoomStateContext.Provider value={roomStateValue}>
+                {children}
+            </RoomStateContext.Provider>
+        </RoomSetterContext.Provider>
     )
-}
-
-
-export function useRoomContext() {
-    const context = React.useContext(RoomContext)
-
-    if (context === undefined) {
-        throw new Error("useRoomContext must be used within a RoomContextProvider")
-    }
-
-    return context
 }
