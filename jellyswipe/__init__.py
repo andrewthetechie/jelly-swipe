@@ -21,6 +21,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from jellyswipe.config import AppConfig
 from jellyswipe.db_runtime import dispose_runtime
+from jellyswipe.utils import frontend as _frontend_utils
 
 # App root for static/template paths
 _APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -73,6 +74,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
     CSP_POLICY = (
         "default-src 'self'; "
         "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
         "object-src 'none'; "
         "img-src 'self' https://image.tmdb.org; "
         "frame-src https://www.youtube.com"
@@ -124,8 +126,7 @@ async def lifespan(app: FastAPI):
             uow = DatabaseUnitOfWork(session)
             # Find instances marked as "closing" for more than 5 minutes
             cutoff = (
-                datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(minutes=5)
+                datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
             ).isoformat()
 
             # For each stale closing instance, complete the cleanup
@@ -163,7 +164,8 @@ def create_app(config: AppConfig | None = None):
         config = AppConfig()
 
     # Get version for OpenAPI schema
-    from importlib.metadata import PackageNotFoundError, version as pkg_version
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as pkg_version
 
     try:
         version = pkg_version("jellyswipe")
@@ -259,27 +261,33 @@ def create_app(config: AppConfig | None = None):
             allow_headers=["*"],
         )
 
-    # Static files mount (prevents path traversal vulnerabilities)
-    app.mount(
-        "/static",
-        StaticFiles(directory=os.path.join(_APP_ROOT, "static")),
-        name="static",
-    )
+    # Vite assets mount (conditional based on frontend_dist availability).
+    # Resolve once per app instance and stash on app.state so the "/" route in
+    # routers/static.py reads the same value this mount was conditioned on.
+    _frontend_dist = _frontend_utils.find_frontend_dist_path(_APP_ROOT)
+    app.state.frontend_dist = _frontend_dist
+    if _frontend_dist is not None:
+        app.mount(
+            "/assets",
+            StaticFiles(directory=os.path.join(_frontend_dist, "assets")),
+            name="static",
+        )
 
     # Mount all 5 domain routers (D-14: no prefix — routes define full paths)
     from jellyswipe.routers.auth import auth_router
-    from jellyswipe.routers.rooms import rooms_router
+    from jellyswipe.routers.health import health_router
     from jellyswipe.routers.media import media_router
     from jellyswipe.routers.proxy import proxy_router
+    from jellyswipe.routers.rooms import rooms_router
     from jellyswipe.routers.static import static_router
-    from jellyswipe.routers.health import health_router
 
     app.include_router(auth_router)
     app.include_router(rooms_router)
     app.include_router(media_router)
     app.include_router(proxy_router)
-    app.include_router(static_router)
     app.include_router(health_router)
+    # static router has to come last otherwise it overwrites other routes.
+    app.include_router(static_router)
 
     return app
 

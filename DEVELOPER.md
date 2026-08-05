@@ -1,8 +1,8 @@
 # Developer Guide
 
 This guide explains how to set up and work on Jellyswipe as it exists today: a
-FastAPI app with a static HTML/CSS/JavaScript frontend served from the Python
-package.
+FastAPI app with a React + Vite frontend whose built output is served from the
+Python package.
 
 ## Prerequisites
 
@@ -99,6 +99,8 @@ Startup applies Alembic migrations before serving requests. You normally do not
 need to run migrations manually just to start the app.
 
 ## Tests, Linting, and Formatting
+
+> Frontend tests live in `frontend/` and are documented separately — see the [Testing section of `frontend/README.md`](frontend/README.md#testing).
 
 Run the full test suite:
 
@@ -201,50 +203,82 @@ Important rules:
 - Schema changes require SQLAlchemy model updates and a new Alembic revision.
 - Public API payloads use `media_id`, not `movie_id`.
 
-## Static Frontend Notes
+## Frontend Notes
 
-Current frontend files:
+The frontend is a React + Vite app that lives in `frontend/` (see
+`frontend/README.md` for frontend-only workflow). FastAPI serves its built
+output plus a small set of PWA files.
 
-- `jellyswipe/templates/index.html`
-- `jellyswipe/static/app.js`
-- `jellyswipe/static/styles.css`
-- `jellyswipe/static/manifest.json`
-- `jellyswipe/static/sw.js`
-- `jellyswipe/static/*` image and icon assets
+Frontend build command (run from `frontend/`):
+
+```bash
+npm run build
+```
+
+Built assets are emitted to `frontend/dist/` (`vite.config.js` sets
+`build.outDir: "dist"`). Vite's JS/CSS bundles land in `frontend/dist/assets/`.
+
+`jellyswipe/__init__.py` resolves the dist directory via
+`find_frontend_dist_path()` (see `jellyswipe/utils/frontend.py`) in two places,
+preferring the production location:
+
+1. `jellyswipe/frontend_dist/` — the production/Docker location, populated by
+   the Dockerfile's node-builder stage (`COPY --from=node-builder
+/app/frontend/dist/ /app/jellyswipe/frontend_dist/`).
+2. `frontend/dist/` — the local-dev location, used when the production
+   directory does not exist.
 
 FastAPI serves:
 
-- `/` from the Jinja template.
-- `/static/*` from `jellyswipe/static/`.
+- `/` from `<dist>/index.html` via an explicit route in
+  `jellyswipe/routers/static.py`. Returns 404 when no dist is available
+  (frontend has not been built).
+- `/assets/*` from `<dist>/assets/` via a conditional `StaticFiles` mount in
+  `jellyswipe/__init__.py`. The mount only exists when a dist is found.
+- `/static/*` from `jellyswipe/static/` (PWA assets only now —
+  `manifest.json`, `sw.js`, `favicon.ico`, and icon PNGs/SVG).
 - `/manifest.json`, `/sw.js`, and `/favicon.ico` from explicit routes.
 
-Keep PWA behavior in mind when changing static files.
+The dist path is resolved once per app instance in `create_app()` and stored on
+`app.state.frontend_dist`, so the `/` route and the `/assets` mount always agree
+on whether the frontend is available. Keep PWA behavior in mind when changing
+`jellyswipe/static/` files.
 
 ## Production Static-Serving Validation
 
 Before merging frontend or static asset changes to `main`, verify the production
 serving path rather than only checking files directly in the browser.
 
-For the current static frontend:
+For the Vite frontend, build first then run the Python app:
 
-1. Run the app with `uv run python -m jellyswipe.bootstrap`.
-2. Open `http://localhost:5005/`.
-3. Confirm the page loads through FastAPI, not from a local file path.
-4. Confirm `/static/app.js`, `/static/styles.css`, `/manifest.json`, `/sw.js`,
-   and `/favicon.ico` return successfully.
-5. Exercise the affected UI flow in the browser.
+1. Build the frontend:
+
+   ```bash
+   cd frontend && npm ci && npm run build && cd ..
+   ```
+
+   Confirm `frontend/dist/index.html` and `frontend/dist/assets/` exist.
+
+2. Run the app with `uv run python -m jellyswipe.bootstrap`.
+3. Open `http://localhost:5005/`.
+4. Confirm the page loads through FastAPI (`/` returns the built `index.html`),
+   not from a local file path.
+5. Confirm `/assets/<hashed>.js`, `/assets/<hashed>.css`,
+   `/manifest.json`, `/sw.js`, and `/favicon.ico` return successfully (check
+   the browser's network tab for the hashed Vite asset filenames).
+6. Exercise the affected UI flow in the browser.
+7. With no build present (e.g. delete/move `frontend/dist/` temporarily),
+   confirm `/` returns a clean 404 and the app does not crash.
 
 For Docker validation:
 
-1. Build the image with `docker build -t jelly-swipe:dev .`.
+1. Build the image with `docker build -t jelly-swipe:dev .` (the Dockerfile's
+   `node-builder` stage runs `npm run build` and copies the result to
+   `jellyswipe/frontend_dist/`).
 2. Run it with the required environment variables and `-p 5005:5005`.
 3. Open `http://localhost:5005/`.
 4. Confirm the UI and API are served from the same container.
 5. Confirm `http://localhost:5005/healthz` returns a healthy response.
-
-When the React frontend is added later, update this section with the selected
-frontend build command and the exact location where built assets are emitted for
-FastAPI to serve.
 
 ## CI Checks
 
