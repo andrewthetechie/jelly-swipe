@@ -26,6 +26,17 @@
         "code",
         "ideas"
       ]
+    },
+    {
+      "login": "syarnell",
+      "name": "Sarah Yarnell",
+      "avatar_url": "https://avatars.githubusercontent.com/u/230785428?v=4",
+      "profile": "https://github.com/syarnell",
+      "contributions": [
+        "design",
+        "code",
+        "test"
+      ]
     }
   ],
   "contributorsPerLine": 7,
