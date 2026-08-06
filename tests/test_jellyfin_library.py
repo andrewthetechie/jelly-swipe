@@ -6,15 +6,12 @@ import pytest
 
 from jellyswipe.jellyfin_library import JellyfinLibraryProvider
 
-
 # ---- Authentication Tests ----
 
 
 def test_auth_with_api_key(mocker, monkeypatch):
     """Test authentication with API key sets token directly without HTTP call."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to verify it's NOT called
     mock_session = mocker.MagicMock()
@@ -25,7 +22,7 @@ def test_auth_with_api_key(mocker, monkeypatch):
     )
 
     # Create provider and authenticate
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider.ensure_authenticated()
 
     # Verify token is set from env var
@@ -41,8 +38,6 @@ def test_auth_with_api_key(mocker, monkeypatch):
 def test_401_triggers_reset_and_retry(mocker, monkeypatch):
     """Test that 401 response triggers reset and retry logic."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Create mock responses
     mock_response_401 = mocker.MagicMock()
@@ -66,7 +61,7 @@ def test_401_triggers_reset_and_retry(mocker, monkeypatch):
     )
 
     # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "old-token"
 
     # Patch reset to track calls
@@ -93,8 +88,6 @@ def test_401_triggers_reset_and_retry(mocker, monkeypatch):
 def test_token_caching_prevents_redundant_auth(mocker, monkeypatch):
     """Test that cached token prevents redundant authentication calls."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request
     mock_session = mocker.MagicMock()
@@ -108,7 +101,7 @@ def test_token_caching_prevents_redundant_auth(mocker, monkeypatch):
     )
 
     # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
 
     # Call ensure_authenticated twice
     provider.ensure_authenticated()
@@ -122,8 +115,6 @@ def test_token_caching_prevents_redundant_auth(mocker, monkeypatch):
 def test_user_id_from_users_me_endpoint(mocker, monkeypatch):
     """Test user ID resolution from /Users/Me endpoint."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request for /Users/Me
     mock_response = mocker.MagicMock()
@@ -137,7 +128,7 @@ def test_user_id_from_users_me_endpoint(mocker, monkeypatch):
     )
 
     # Create provider and set access token
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
 
     # Call _user_id
@@ -156,8 +147,6 @@ def test_user_id_from_users_me_endpoint(mocker, monkeypatch):
 def test_user_id_fallback_to_first_user(mocker, monkeypatch):
     """Test user ID resolution falls back to first user when no name match."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
     # No JELLYFIN_USERNAME set
 
     # Create mock session
@@ -178,7 +167,7 @@ def test_user_id_fallback_to_first_user(mocker, monkeypatch):
     )
 
     # Create provider and set access token
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
 
     # Patch _api to fail for /Users/Me
@@ -205,8 +194,6 @@ def test_user_id_fallback_to_first_user(mocker, monkeypatch):
 def test_movies_library_id_finds_movies_collection(mocker, monkeypatch):
     """Test that _movies_library_id finds the movies collection type."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return library list with movies collection
     mock_response = mocker.MagicMock()
@@ -225,7 +212,7 @@ def test_movies_library_id_finds_movies_collection(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -246,8 +233,6 @@ def test_movies_library_id_finds_movies_collection(mocker, monkeypatch):
 def test_movies_library_id_raises_when_no_movies_collection(mocker, monkeypatch):
     """Test that _movies_library_id raises RuntimeError when no movies collection exists."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return library list without movies
     mock_response = mocker.MagicMock()
@@ -263,7 +248,7 @@ def test_movies_library_id_raises_when_no_movies_collection(mocker, monkeypatch)
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -277,8 +262,6 @@ def test_movies_library_id_raises_when_no_movies_collection(mocker, monkeypatch)
 def test_list_genres_from_items_filters(mocker, monkeypatch):
     """Test that list_genres fetches genres from /Items/Filters endpoint."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return genre filters
     mock_response = mocker.MagicMock()
@@ -298,7 +281,7 @@ def test_list_genres_from_items_filters(mocker, monkeypatch):
     )
 
     # Create provider and set up state with pre-populated library cache
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
     provider._cached_library_ids = {"movies": ["lib-123"], "tvshows": []}
@@ -325,8 +308,6 @@ def test_list_genres_from_items_filters(mocker, monkeypatch):
 def test_genre_cache_prevents_redundant_api_calls(mocker, monkeypatch):
     """Test that cached genres prevent redundant API calls."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request (should not be called)
     mock_session = mocker.MagicMock()
@@ -335,7 +316,7 @@ def test_genre_cache_prevents_redundant_api_calls(mocker, monkeypatch):
     )
 
     # Create provider and set up state with cached genres
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
     provider._cached_library_ids = {"movies": ["lib-123"]}
@@ -352,8 +333,6 @@ def test_genre_cache_prevents_redundant_api_calls(mocker, monkeypatch):
 def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
     """Test that list_genres falls back to /Genres when /Items/Filters fails."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for movie library discovery, second for TV library discovery,
     # third for empty filters, fourth for genres fallback
@@ -395,7 +374,7 @@ def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -414,8 +393,6 @@ def test_list_genres_fallback_to_genres_endpoint(mocker, monkeypatch):
 def test_fetch_deck_all_movies(mocker, monkeypatch):
     """Test that fetch_deck returns all movies with correct card format."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for library discovery, second for items
     mock_lib_response = mocker.MagicMock()
@@ -447,7 +424,7 @@ def test_fetch_deck_all_movies(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -482,8 +459,6 @@ def test_fetch_deck_all_movies(mocker, monkeypatch):
 def test_fetch_deck_with_genre_filter(mocker, monkeypatch):
     """Test that fetch_deck with genre filter uses correct API params."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for library discovery, second for items
     mock_lib_response = mocker.MagicMock()
@@ -514,7 +489,7 @@ def test_fetch_deck_with_genre_filter(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -531,8 +506,6 @@ def test_fetch_deck_with_genre_filter(mocker, monkeypatch):
 def test_fetch_deck_recently_added_sort(mocker, monkeypatch):
     """Test that fetch_deck with 'Recently Added' uses DateCreated descending sort."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for library discovery, second for items
     mock_lib_response = mocker.MagicMock()
@@ -553,7 +526,7 @@ def test_fetch_deck_recently_added_sort(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -570,8 +543,6 @@ def test_fetch_deck_recently_added_sort(mocker, monkeypatch):
 def test_resolve_item_for_tmdb_success(mocker, monkeypatch):
     """Test that resolve_item_for_tmdb returns title and year."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return item details
     mock_response = mocker.MagicMock()
@@ -590,7 +561,7 @@ def test_resolve_item_for_tmdb_success(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -612,8 +583,6 @@ def test_resolve_item_for_tmdb_success(mocker, monkeypatch):
 def test_resolve_item_for_tmdb_fallback_to_user_endpoint(mocker, monkeypatch):
     """Test that resolve_item_for_tmdb falls back to user-scoped endpoint."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first call fails, second succeeds
     mock_response_200 = mocker.MagicMock()
@@ -642,7 +611,7 @@ def test_resolve_item_for_tmdb_fallback_to_user_endpoint(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -661,8 +630,6 @@ def test_resolve_item_for_tmdb_fallback_to_user_endpoint(mocker, monkeypatch):
 def test_fetch_deck_with_empty_items(mocker, monkeypatch):
     """Test that fetch_deck returns empty list when Items array is empty."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for library discovery, second for empty items
     mock_lib_response = mocker.MagicMock()
@@ -683,7 +650,7 @@ def test_fetch_deck_with_empty_items(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -698,8 +665,6 @@ def test_fetch_deck_with_empty_items(mocker, monkeypatch):
 def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
     """Test that fetch_deck handles missing fields with defaults."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for library discovery, second for items
     mock_lib_response = mocker.MagicMock()
@@ -724,7 +689,7 @@ def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -745,8 +710,6 @@ def test_fetch_deck_with_missing_item_fields(mocker, monkeypatch):
 def test_fetch_library_image_403_forbidden(mocker, monkeypatch):
     """Test that fetch_library_image raises PermissionError for 403."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return 403
     mock_response = mocker.MagicMock()
@@ -759,7 +722,7 @@ def test_fetch_library_image_403_forbidden(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
 
     # Verify PermissionError is raised (using valid UUID format)
@@ -772,8 +735,6 @@ def test_fetch_library_image_403_forbidden(mocker, monkeypatch):
 def test_fetch_library_image_404_not_found(mocker, monkeypatch):
     """Test that fetch_library_image raises FileNotFoundError for 404."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return 404
     mock_response = mocker.MagicMock()
@@ -786,7 +747,7 @@ def test_fetch_library_image_404_not_found(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
 
     # Verify FileNotFoundError is raised (using valid UUID format)
@@ -799,11 +760,9 @@ def test_fetch_library_image_404_not_found(mocker, monkeypatch):
 def test_fetch_library_image_invalid_path(mocker, monkeypatch):
     """Test that fetch_library_image raises PermissionError for invalid path."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Create provider
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
 
     # Verify PermissionError is raised for invalid path
     with pytest.raises(PermissionError, match="Invalid Jellyfin image path"):
@@ -813,8 +772,6 @@ def test_fetch_library_image_invalid_path(mocker, monkeypatch):
 def test_api_non_json_response(mocker, monkeypatch):
     """Test that _api raises RuntimeError for non-JSON response."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request to return 200 OK but with invalid JSON
     mock_response = mocker.MagicMock()
@@ -828,7 +785,7 @@ def test_api_non_json_response(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
 
     # Verify RuntimeError is raised
@@ -839,8 +796,6 @@ def test_api_non_json_response(mocker, monkeypatch):
 def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
     """Test that fetch_deck with tv_show returns only TV series cards."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - first for library discovery, second for TV items
     mock_lib_response = mocker.MagicMock()
@@ -872,7 +827,7 @@ def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -900,8 +855,6 @@ def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
 def test_fetch_deck_mixed_media_types(mocker, monkeypatch):
     """Test that fetch_deck with both movie and tv_show returns mixed cards."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Create mock session
     mock_session = mocker.MagicMock()
@@ -910,7 +863,7 @@ def test_fetch_deck_mixed_media_types(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
     # Pre-populate library cache to avoid library discovery calls
@@ -987,8 +940,6 @@ def test_fetch_deck_mixed_media_types(mocker, monkeypatch):
 def test_fetch_deck_tv_show_with_genre_filter(mocker, monkeypatch):
     """Test that fetch_deck with tv_show and genre filter uses correct API params."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - library discovery, TV items
     mock_lib_response = mocker.MagicMock()
@@ -1019,7 +970,7 @@ def test_fetch_deck_tv_show_with_genre_filter(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -1035,8 +986,6 @@ def test_fetch_deck_tv_show_with_genre_filter(mocker, monkeypatch):
 def test_fetch_deck_no_tv_library_returns_empty(mocker, monkeypatch):
     """Test that fetch_deck returns empty list when no TV library exists."""
     # Mock environment variables
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - library discovery shows no TV libraries
     mock_lib_response = mocker.MagicMock()
@@ -1053,7 +1002,7 @@ def test_fetch_deck_no_tv_library_returns_empty(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 

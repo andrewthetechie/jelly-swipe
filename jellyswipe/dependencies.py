@@ -7,13 +7,12 @@ Exports AuthUser dataclass and Depends()-compatible callables for:
 - Jellyfin provider singleton (get_provider)
 """
 
+import logging
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Optional
 
 from fastapi import Depends, HTTPException, Request
-
-import logging
-import threading
 
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import get_sessionmaker
@@ -69,7 +68,7 @@ _RATE_LIMITS = {
 }
 
 
-def _infer_endpoint_key(path: str) -> Optional[str]:
+def _infer_endpoint_key(path: str) -> str | None:
     """Infer rate limit key from request path using prefix segment matching.
 
     Checks compound keys (e.g. 'watchlist/add') first, then single-segment keys.
@@ -131,7 +130,11 @@ async def get_provider(config: AppConfig = Depends(get_config)):
         if _provider_singleton is None:
             from jellyswipe.jellyfin_library import JellyfinLibraryProvider
 
-            _provider_singleton = JellyfinLibraryProvider(config.jellyfin_url)
+            _provider_singleton = JellyfinLibraryProvider(
+                config.jellyfin_url,
+                api_key=config.jellyfin_api_key,
+                device_id=config.jellyfin_device_id,
+            )
 
     return _provider_singleton
 
@@ -144,9 +147,9 @@ def reset_provider_singleton() -> None:
 
 __all__ = [
     "AuthUser",
-    "require_auth",
-    "get_db_uow",
     "DBUoW",
     "check_rate_limit",
+    "get_db_uow",
     "get_provider",
+    "require_auth",
 ]

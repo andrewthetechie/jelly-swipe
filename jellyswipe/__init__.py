@@ -244,12 +244,11 @@ def create_app(config: AppConfig | None = None):
         secret_key=config.session_secret,
         max_age=14 * 24 * 60 * 60,  # 14 days per D-05
         same_site="lax",
-        https_only=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
+        https_only=config.session_cookie_secure,
     )
 
     # Add 3rd: ProxyHeadersMiddleware per D-04
-    trusted = os.getenv("TRUSTED_PROXY_IPS", "127.0.0.1")
-    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=config.trusted_proxy_ips)
 
     # Add 4th: CORSMiddleware (outermost) — only when CORS_ORIGINS is configured
     if config.cors_origins:
