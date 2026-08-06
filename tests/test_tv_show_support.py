@@ -8,7 +8,7 @@ Tests cover:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -29,7 +29,6 @@ from jellyswipe.services.session_match_mutation import (
     SwipeAccepted,
 )
 from tests.conftest import FakeProvider, set_session_cookie
-
 
 # ---------------------------------------------------------------------------
 # Integration Tests: Room Creation with TV Shows
@@ -499,7 +498,7 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
                     session_id="sess-1",
                     jellyfin_token="tok",
                     jellyfin_user_id="user-1",
-                    created_at=datetime.now(timezone.utc).isoformat(),
+                    created_at=datetime.now(UTC).isoformat(),
                 )
             )
             await session.commit()
@@ -584,7 +583,7 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
                     session_id="sess-1",
                     jellyfin_token="tok",
                     jellyfin_user_id="user-1",
-                    created_at=datetime.now(timezone.utc).isoformat(),
+                    created_at=datetime.now(UTC).isoformat(),
                 )
             )
             await session.commit()
@@ -626,8 +625,6 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
 
 def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
     """Test that JellyfinLibraryProvider.fetch_deck returns TV shows with media_type='tv_show'."""
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     # Mock Session.request - library discovery, TV items
     mock_lib_response = mocker.MagicMock()
@@ -659,7 +656,7 @@ def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
     )
 
     # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
 
@@ -678,8 +675,6 @@ def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
 
 def test_fetch_deck_mixed_media_interleaved(mocker, monkeypatch):
     """Test that fetch_deck with both movie and tv_show returns interleaved cards."""
-    monkeypatch.setenv("JELLYFIN_URL", "http://test.local")
-    monkeypatch.setenv("JELLYFIN_API_KEY", "test-api-key")
 
     mock_session = mocker.MagicMock()
     mocker.patch(
@@ -687,7 +682,7 @@ def test_fetch_deck_mixed_media_interleaved(mocker, monkeypatch):
     )
 
     # Create provider and set up state with pre-populated library cache
-    provider = JellyfinLibraryProvider("http://test.local")
+    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
     provider._access_token = "test-token"
     provider._cached_user_id = "user-123"
     provider._cached_library_ids = {
@@ -781,8 +776,8 @@ def _set_session(
 
 def _sqlite_conn_for_route_tests():
     """Open sqlite3 directly to the test database."""
-    import sqlite3
     import os
+    import sqlite3
 
     path = os.environ["DB_PATH"]
     conn = sqlite3.connect(path, check_same_thread=False)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +12,6 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 import jellyswipe.dependencies as deps
-from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
     dispose_runtime,
@@ -28,6 +27,7 @@ from jellyswipe.dependencies import (
     require_auth,
 )
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
+from jellyswipe.repositories.auth_sessions import AuthRecord
 
 
 @pytest.fixture(autouse=True)
@@ -119,7 +119,7 @@ class TestRequireAuth:
             session_id="valid-session",
             jf_token="test-token",
             user_id="test-user",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
 
         async with runtime_sessionmaker() as session:
@@ -400,6 +400,8 @@ class TestGetProvider:
         # Create a mock config for the Depends parameter
         class MockConfig:
             jellyfin_url = "http://test"
+            jellyfin_api_key = "test-key"
+            jellyfin_device_id = "test-device"
 
         provider = await get_provider(config=MockConfig())
         assert provider == mock_provider
@@ -417,6 +419,8 @@ class TestGetProvider:
 
             class MockConfig:
                 jellyfin_url = "http://test"
+                jellyfin_api_key = "test-key"
+                jellyfin_device_id = "test-device"
 
             provider1 = await get_provider(config=MockConfig())
             provider2 = await get_provider(config=MockConfig())

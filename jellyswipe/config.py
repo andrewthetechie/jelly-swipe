@@ -19,8 +19,11 @@ class AppConfig(BaseSettings):
 
     jellyfin_url: str
     jellyfin_api_key: str
+    jellyfin_device_id: str = "jelly-swipe-jellyfin-v1"
     tmdb_access_token: str
     session_secret: str
+    session_cookie_secure: bool = False
+    trusted_proxy_ips: str = "127.0.0.1"
     db_path: str = ""  # empty string = compute default
     cors_origins: list[str] = []
 

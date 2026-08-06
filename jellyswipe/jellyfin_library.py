@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
 import random
 import re
 import time
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import requests
 
@@ -22,31 +21,31 @@ from jellyswipe.jellyfin_media_item import (
 logger = logging.getLogger(__name__)
 
 
-_DEVICE_ID = os.getenv("JELLYFIN_DEVICE_ID", "jelly-swipe-jellyfin-v1")
-
 # Allowlisted proxy path: jellyfin/{item_id}/Primary
 # Accept both canonical UUID and 32-char hex ids returned by Jellyfin.
 _JF_IMAGE_PATH = re.compile(r"^jellyfin/([0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$")
 
-
-def _media_browser_header(access_token: str) -> str:
-    return (
-        'MediaBrowser Client="JellySwipe", Device="FlaskApp", '
-        f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{access_token}"'
-    )
+_DEFAULT_DEVICE_ID = "jelly-swipe-jellyfin-v1"
 
 
 class JellyfinLibraryProvider:
     """Jellyfin-backed library: genres, deck, images, TMDB item resolution, server info."""
 
-    def __init__(self, base_url: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str = "",
+        device_id: str = _DEFAULT_DEVICE_ID,
+    ) -> None:
         self._base = base_url.rstrip("/")
+        self._api_key = api_key
+        self._device_id = device_id
         self._session = requests.Session()
         self._session.headers["Content-Type"] = "application/json"
-        self._access_token: Optional[str] = None
-        self._cached_user_id: Optional[str] = None
-        self._cached_library_ids: Dict[str, List[str]] = {}
-        self._genre_cache: Dict[str, List[str]] = {}
+        self._access_token: str | None = None
+        self._cached_user_id: str | None = None
+        self._cached_library_ids: dict[str, list[str]] = {}
+        self._genre_cache: dict[str, list[str]] = {}
 
     def reset(self) -> None:
         self._access_token = None
@@ -74,14 +73,17 @@ class JellyfinLibraryProvider:
         self.ensure_authenticated()
         return self._user_id()
 
+    def _media_browser_header(self, access_token: str) -> str:
+        return (
+            'MediaBrowser Client="JellySwipe", Device="FlaskApp", '
+            f'DeviceId="{self._device_id}", Version="1.0.0", Token="{access_token}"'
+        )
+
     def _login_from_env(self) -> None:
-        api_key = os.getenv("JELLYFIN_API_KEY", "").strip()
-        if api_key:
-            self._access_token = api_key
+        if self._api_key:
+            self._access_token = self._api_key
         else:
-            raise RuntimeError(
-                "Jellyfin authentication failed (JELLYFIN_API_KEY required)"
-            )
+            raise RuntimeError("Jellyfin authentication failed (api_key required)")
 
     def _verify_items(self) -> None:
         """Lightweight /Items probe after login (must not call _api → ensure loop)."""
@@ -99,15 +101,15 @@ class JellyfinLibraryProvider:
         if not r.ok:
             raise RuntimeError(f"Jellyfin authentication failed (HTTP {r.status_code})")
 
-    def _auth_headers(self) -> Dict[str, str]:
-        return {"Authorization": _media_browser_header(self._access_token or "")}
+    def _auth_headers(self) -> dict[str, str]:
+        return {"Authorization": self._media_browser_header(self._access_token or "")}
 
     def _api(
         self,
         method: str,
         path: str,
         *,
-        params: Optional[dict] = None,
+        params: dict | None = None,
         json_body: Any = None,
         retry: bool = True,
     ) -> dict:
@@ -166,14 +168,14 @@ class JellyfinLibraryProvider:
             return self._cached_user_id
         raise RuntimeError("Jellyfin: could not resolve current user id")
 
-    def _library_ids_for_type(self, collection_type: str) -> List[str]:
+    def _library_ids_for_type(self, collection_type: str) -> list[str]:
         """Return all library IDs matching the given collection type."""
         if collection_type in self._cached_library_ids:
             return self._cached_library_ids[collection_type]
 
         uid = self._user_id()
         data = self._api("GET", f"/Users/{uid}/Views")
-        ids: List[str] = []
+        ids: list[str] = []
         for v in data.get("Items") or []:
             ct = (v.get("CollectionType") or "").lower()
             if ct == collection_type.lower():
@@ -193,13 +195,13 @@ class JellyfinLibraryProvider:
             )
         return ids[0]
 
-    def list_genres(self) -> List[str]:
+    def list_genres(self) -> list[str]:
         cache_key = "all"
         if cache_key in self._genre_cache:
             return self._genre_cache[cache_key]
 
         uid = self._user_id()
-        names: List[str] = []
+        names: list[str] = []
 
         # Query genres from movie libraries
         movie_libs = self._library_ids_for_type("movies")
@@ -264,10 +266,10 @@ class JellyfinLibraryProvider:
 
     def fetch_deck(
         self,
-        media_types: List[str],
-        genre_name: Optional[str] = None,
+        media_types: list[str],
+        genre_name: str | None = None,
         hide_watched: bool = False,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Fetch deck cards for the specified media types.
 
         Args:
@@ -279,7 +281,7 @@ class JellyfinLibraryProvider:
             List of card dicts with media_type field set.
         """
         uid = self._user_id()
-        all_items: List[dict] = []
+        all_items: list[dict] = []
 
         # Fetch movies
         if "movie" in media_types:
@@ -308,7 +310,7 @@ class JellyfinLibraryProvider:
                 all_items.extend(items)
 
         # Transform items to cards
-        cards: List[dict] = []
+        cards: list[dict] = []
         for it in all_items:
             item_type = it.get("Type", "")
             if item_type == "Series":
@@ -328,11 +330,11 @@ class JellyfinLibraryProvider:
         lib: str,
         uid: str,
         item_type: str,
-        genre_name: Optional[str],
+        genre_name: str | None,
         hide_watched: bool = False,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Fetch items from a single library."""
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "ParentId": lib,
             "UserId": uid,
             "IncludeItemTypes": item_type,
@@ -358,7 +360,7 @@ class JellyfinLibraryProvider:
             params["Limit"] = 150
             params["SortBy"] = "Random"
 
-        def run_query(p: Dict[str, Any]) -> List[dict]:
+        def run_query(p: dict[str, Any]) -> list[dict]:
             data = self._api("GET", "/Items", params=p)
             return list(data.get("Items") or [])
 
@@ -420,7 +422,7 @@ class JellyfinLibraryProvider:
                 "webUrl": self._base,
             }
 
-    def fetch_library_image(self, path: str) -> Tuple[bytes, str]:
+    def fetch_library_image(self, path: str) -> tuple[bytes, str]:
         m = _JF_IMAGE_PATH.match(path)
         if not m:
             raise PermissionError("Invalid Jellyfin image path")
@@ -483,7 +485,7 @@ class JellyfinLibraryProvider:
         return r.content, ctype
 
     @staticmethod
-    def extract_media_browser_token(auth_header: str) -> Optional[str]:
+    def extract_media_browser_token(auth_header: str) -> str | None:
         """Extract Token=\"...\" from Authorization: MediaBrowser ... header."""
         if not auth_header:
             return None
@@ -494,7 +496,7 @@ class JellyfinLibraryProvider:
     def user_auth_header(user_token: str) -> str:
         return (
             'MediaBrowser Client="JellySwipe", Device="Browser", '
-            f'DeviceId="{_DEVICE_ID}", Version="1.0.0", Token="{user_token}"'
+            f'DeviceId="{_DEFAULT_DEVICE_ID}", Version="1.0.0", Token="{user_token}"'
         )
 
     def resolve_user_id_from_token(self, user_token: str) -> str:
