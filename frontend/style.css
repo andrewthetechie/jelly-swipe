@@ -716,17 +716,18 @@ div.mode-badge {
   border-radius: 15px;
   padding: 0.25rem 1rem;
   border: 1px solid #1C4273;
-  font-size: 1rem;
+  font-size: .9rem;
   font-weight: 300;
   text-align: center;
   margin-right: auto;
+  display: none;
 }
 
-button.show-watched,
-button.genres {
+button.genres,
+button.undo-button {
   background: #071426;
   color: #f0f4f8;
-  padding: 0.5rem 1.25rem;
+  padding: 0.25rem 1rem;
   border-radius: 15px;
   font-size: 1rem;
   font-weight: 600;
@@ -1018,14 +1019,6 @@ p.actor-name {
 }
 
 button.undo-button {
-  background: #071426;
-  color: #f0f4f8;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: 1rem;
-  font-weight: 600;
-  border: 1px solid #35D6FF;
-  cursor: pointer;
   min-width: 120px;
   height: auto;
 }
@@ -1080,12 +1073,13 @@ div.swipe-footer {
   margin-bottom: 2rem;
 }
 
-button.end-session {
+button.end-session,
+button.shortlist {
   background: #FF7ACF;
   color: #0A1F3D;
   padding: 0.5rem 1.25rem;
   border-radius: 15px;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   border: 1px solid #0A1F3D;
   cursor: pointer;
@@ -1094,12 +1088,6 @@ button.end-session {
 button.shortlist {
   background: #35D6FF;
   color: #071426;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  border: 1px solid #0A1F3D;
-  cursor: pointer;
 }
 
 div.modal-match-list {
@@ -1265,6 +1253,23 @@ div.match-list-info {
 
   .jelly-toggle input:checked + .slider::before {
     transform: translateX(34px);
+  }
+
+  div.mode-badge {
+    font-size: 1rem;
+    display: revert;
+  }
+
+  button.genres,
+  button.undo-button,
+  button.end-session,
+  button.shortlist {
+    padding: 0.5rem 1.25rem;
+  }
+
+  button.end-session,
+  button.shortlist {
+    font-size: 1.1rem;
   }
 
   div.genre-inputs {
