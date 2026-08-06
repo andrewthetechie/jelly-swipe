@@ -221,8 +221,10 @@ img {
 
 .button-container {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-around;
   align-items: center;
+  gap: 25px;
   margin-top: 2rem;
 }
 
