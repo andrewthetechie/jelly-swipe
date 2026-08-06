@@ -265,11 +265,14 @@ img {
 
 img.match-logo {
   height: 75px;
+  margin-top: -.75rem;
+  margin-bottom: -.75rem;
 }
 
 img.match-poster {
   width: 150px;
   border-radius: 10px;
+  margin-top: -.75rem;
 }
 
 .modal-inner h2 {
@@ -279,7 +282,7 @@ img.match-poster {
 
 .match-title {
   font-size: 1.9rem;
-  margin-bottom: .5rem;
+  margin-bottom: .25rem;
   color: #35D6FF;
   text-shadow: 
     -1px -1px 2px #0A1F3D,
@@ -345,9 +348,9 @@ img.match-poster {
 .modal-button {
   background: #35D6FF;
   color: #071426;
-  padding: 0.5rem 1.25rem;
+  padding: 0.25rem 1rem;
   border-radius: 15px;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 600;
   border: 1px solid #9BF2FF;
   cursor: pointer;
@@ -357,9 +360,9 @@ img.match-poster {
 .modal-button-link {
   text-decoration: none;
   text-align: center;
-  padding: 0.5rem 1rem;
+  padding: 0.36rem 1.62rem;
   width: auto;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .modal-button:hover {
@@ -1268,8 +1271,18 @@ div.match-list-info {
   button.genres,
   button.undo-button,
   button.end-session,
-  button.shortlist {
+  button.shortlist,
+  button.modal-button,
+  a.modal-button-link {
     padding: 0.5rem 1.25rem;
+  }
+
+  .modal-button {
+    font-size: 1.25rem;
+  }
+
+  .modal-button-link {
+    font-size: 1.15rem;
   }
 
   button.end-session,
