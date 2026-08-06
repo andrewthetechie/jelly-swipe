@@ -822,10 +822,6 @@ button.genres:hover {
   height: 100%;
   position: absolute;
   inset: 0;
-  /* max-width: 400px;
-  height: 650px;
-  margin: 1rem 0 0.5rem 0;
-  position: relative; */
   user-select: none;
 }
 
@@ -907,7 +903,7 @@ div.media-type {
   border-radius: 10px;
   padding: 0.25rem 1rem;
   border: 1px solid #1C4273;
-  font-size: 1rem;
+  font-size: .9rem;
   font-weight: 300;
   text-align: center;
 }
@@ -1059,7 +1055,8 @@ p.card-item-instructions {
     1px -1px 2px #0A1F3D,
     -1px 1px 2px #0A1F3D,
     1px 1px 2px #0A1F3D;
-  margin: 0;
+  margin-bottom: 0;
+  margin-top: -.5rem;
   background: #071426CC;
   color: #f0f4f8;
   border-radius: 10px;
@@ -1070,7 +1067,6 @@ div.swipe-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
 }
 
 button.end-session,
@@ -1208,6 +1204,15 @@ div.match-list-info {
     inset 0 2px 4px rgba(0, 0, 0, 0.16);
   filter: brightness(0.97);
 }
+@media (max-width: 400px) {
+  img.card-item-poster {
+    margin-top: 20px;
+  }
+
+  .swipe-deck {
+    height: 575px;
+  }
+}
 
 @media (min-width: 768px) {
   .app-logo {
@@ -1286,6 +1291,10 @@ div.match-list-info {
   div.match-list-container {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
+  }
+
+  div.media-type {
+    font-size: 1rem;
   }
   
   div.modal-match-list {
