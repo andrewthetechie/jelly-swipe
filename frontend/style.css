@@ -221,8 +221,10 @@ img {
 
 .button-container {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-around;
   align-items: center;
+  gap: 25px;
   margin-top: 2rem;
 }
 
@@ -263,20 +265,25 @@ img {
 
 img.match-logo {
   height: 75px;
+  margin-top: -.75rem;
+  margin-bottom: -.75rem;
 }
 
 img.match-poster {
   width: 150px;
   border-radius: 10px;
+  margin-top: -.75rem;
 }
 
 .modal-inner h2 {
-  font-size: 2.2rem;
+  font-size: 2rem;
+  text-align: center;
 }
 
 .match-title {
   font-size: 1.9rem;
-  margin-bottom: .5rem;
+  margin-bottom: .25rem;
+  text-align: center;
   color: #35D6FF;
   text-shadow: 
     -1px -1px 2px #0A1F3D,
@@ -342,9 +349,9 @@ img.match-poster {
 .modal-button {
   background: #35D6FF;
   color: #071426;
-  padding: 0.5rem 1.25rem;
+  padding: 0.25rem 1rem;
   border-radius: 15px;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 600;
   border: 1px solid #9BF2FF;
   cursor: pointer;
@@ -354,9 +361,9 @@ img.match-poster {
 .modal-button-link {
   text-decoration: none;
   text-align: center;
-  padding: 0.5rem 1rem;
+  padding: 0.36rem 1.62rem;
   width: auto;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .modal-button:hover {
@@ -542,8 +549,8 @@ img.match-poster {
 .slider {
     position: relative;
 
-    width: 72px;
-    height: 38px;
+    width: 60px;
+    height: 32px;
 
     border-radius: 999px;
 
@@ -572,11 +579,11 @@ img.match-poster {
 
     position: absolute;
 
-    top: 4px;
+    top: 3px;
     left: 4px;
 
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
 
     border-radius: 50%;
 
@@ -620,7 +627,7 @@ img.match-poster {
 }
 
 .jelly-toggle input:checked + .slider::before {
-    transform: translateX(34px);
+    transform: translateX(28px);
 
     background:
         linear-gradient(
@@ -713,17 +720,18 @@ div.mode-badge {
   border-radius: 15px;
   padding: 0.25rem 1rem;
   border: 1px solid #1C4273;
-  font-size: 1rem;
+  font-size: .9rem;
   font-weight: 300;
   text-align: center;
   margin-right: auto;
+  display: none;
 }
 
-button.show-watched,
-button.genres {
+button.genres,
+button.undo-button {
   background: #071426;
   color: #f0f4f8;
-  padding: 0.5rem 1.25rem;
+  padding: 0.25rem 1rem;
   border-radius: 15px;
   font-size: 1rem;
   font-weight: 600;
@@ -818,10 +826,6 @@ button.genres:hover {
   height: 100%;
   position: absolute;
   inset: 0;
-  /* max-width: 400px;
-  height: 650px;
-  margin: 1rem 0 0.5rem 0;
-  position: relative; */
   user-select: none;
 }
 
@@ -903,7 +907,7 @@ div.media-type {
   border-radius: 10px;
   padding: 0.25rem 1rem;
   border: 1px solid #1C4273;
-  font-size: 1rem;
+  font-size: .9rem;
   font-weight: 300;
   text-align: center;
 }
@@ -1015,14 +1019,6 @@ p.actor-name {
 }
 
 button.undo-button {
-  background: #071426;
-  color: #f0f4f8;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: 1rem;
-  font-weight: 600;
-  border: 1px solid #35D6FF;
-  cursor: pointer;
   min-width: 120px;
   height: auto;
 }
@@ -1063,7 +1059,8 @@ p.card-item-instructions {
     1px -1px 2px #0A1F3D,
     -1px 1px 2px #0A1F3D,
     1px 1px 2px #0A1F3D;
-  margin: 0;
+  margin-bottom: 0;
+  margin-top: -.5rem;
   background: #071426CC;
   color: #f0f4f8;
   border-radius: 10px;
@@ -1074,15 +1071,15 @@ div.swipe-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
 }
 
-button.end-session {
+button.end-session,
+button.shortlist {
   background: #FF7ACF;
   color: #0A1F3D;
   padding: 0.5rem 1.25rem;
   border-radius: 15px;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   border: 1px solid #0A1F3D;
   cursor: pointer;
@@ -1091,18 +1088,12 @@ button.end-session {
 button.shortlist {
   background: #35D6FF;
   color: #071426;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  border: 1px solid #0A1F3D;
-  cursor: pointer;
 }
 
 div.modal-match-list {
   height: 85%;
   width: 85%;
-  padding: 0 5px 5px 5px;
+  padding: 5px 5px 15px 5px;
   overflow-y: auto;
   color: #35D6FF;
 }
@@ -1110,6 +1101,7 @@ div.modal-match-list {
 div.match-list-container {
   display: grid;
   grid-template-columns: 1fr;
+  margin-top: -.75rem;
   margin-bottom: 1rem;
   gap: 1rem;
 }
@@ -1217,6 +1209,34 @@ div.match-list-info {
     inset 0 2px 4px rgba(0, 0, 0, 0.16);
   filter: brightness(0.97);
 }
+@media (max-width: 400px) {
+  img.card-item-poster {
+    margin-top: 20px;
+  }
+
+  .swipe-deck {
+    height: 575px;
+  }
+
+  .match-list-title {
+    font-size: 1rem;
+  }
+
+  .match-list-score,
+  .match-list-runtime,
+  .match-list-year {
+    font-size: .6rem;
+  }
+
+  .match-list-button{
+    font-size: .8rem;
+    padding: 0.5rem .75rem;
+  }
+
+  div.match-list-container {
+    margin-bottom: 0;
+  }
+}
 
 @media (min-width: 768px) {
   .app-logo {
@@ -1238,10 +1258,57 @@ div.match-list-info {
     padding-top: 0;
   }
 
+  .modal-inner h2 {
+    font-size: 2.2rem;
+  }
+
   .modal-button,
   .room-code-input,
   .jelly-toggle {
     width: 40%;
+  }
+
+  .slider {
+    width: 72px;
+    height: 38px;
+  }
+
+  .slider::before {
+    top: 4px;
+    left: 4px;
+    width: 26px;
+    height: 26px;
+  }
+
+  .jelly-toggle input:checked + .slider::before {
+    transform: translateX(34px);
+  }
+
+  div.mode-badge {
+    font-size: 1rem;
+    display: revert;
+  }
+
+  button.genres,
+  button.undo-button,
+  button.end-session,
+  button.shortlist,
+  button.modal-button,
+  a.modal-button-link {
+    padding: 0.5rem 1.25rem;
+  }
+
+  .modal-button {
+    font-size: 1.25rem;
+  }
+
+  .modal-button-link {
+    font-size: 1.15rem;
+  }
+
+  button.end-session,
+  button.shortlist {
+    font-size: 1.1rem;
   }
 
   div.genre-inputs {
@@ -1258,6 +1325,10 @@ div.match-list-info {
   div.match-list-container {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
+  }
+
+  div.media-type {
+    font-size: 1rem;
   }
   
   div.modal-match-list {
