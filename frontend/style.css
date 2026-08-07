@@ -283,6 +283,7 @@ img.match-poster {
 .match-title {
   font-size: 1.9rem;
   margin-bottom: .25rem;
+  text-align: center;
   color: #35D6FF;
   text-shadow: 
     -1px -1px 2px #0A1F3D,
@@ -1092,7 +1093,7 @@ button.shortlist {
 div.modal-match-list {
   height: 85%;
   width: 85%;
-  padding: 0 5px 5px 5px;
+  padding: 5px 5px 15px 5px;
   overflow-y: auto;
   color: #35D6FF;
 }
@@ -1100,6 +1101,7 @@ div.modal-match-list {
 div.match-list-container {
   display: grid;
   grid-template-columns: 1fr;
+  margin-top: -.75rem;
   margin-bottom: 1rem;
   gap: 1rem;
 }
@@ -1214,6 +1216,25 @@ div.match-list-info {
 
   .swipe-deck {
     height: 575px;
+  }
+
+  .match-list-title {
+    font-size: 1rem;
+  }
+
+  .match-list-score,
+  .match-list-runtime,
+  .match-list-year {
+    font-size: .6rem;
+  }
+
+  .match-list-button{
+    font-size: .8rem;
+    padding: 0.5rem .75rem;
+  }
+
+  div.match-list-container {
+    margin-bottom: 0;
   }
 }
 
