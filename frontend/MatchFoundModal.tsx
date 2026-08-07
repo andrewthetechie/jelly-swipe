@@ -32,6 +32,3 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
         </div>
     )
 }
-
-
-// need to update css queries to adjust for mid-size screens - mobile and desktop are okay but ipad does not look good

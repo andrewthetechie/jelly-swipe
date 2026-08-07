@@ -1,8 +1,6 @@
 import React from "react"
 import { JSX } from "react"
-import type { CastMember } from "./types";
 import useMovieCast from "./useMovieCast";
-import logoImage from "./assets/logo.png";
 import sadLogo from "./assets/sad.png"
 
 interface ActorElementsProps {
