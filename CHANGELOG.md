@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.7.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.6.0...v0.7.0) (2026-08-08)
+
+
+### Features
+
+* **frontend:** modernizaztion Vite + React TS app, test foundation, and FastAPI dist serving ([#253](https://github.com/andrewthetechie/jelly-swipe/issues/253)) ([4707eef](https://github.com/andrewthetechie/jelly-swipe/commit/4707eefce348625702913c2dd96db4d36960d949))
+
+
+### Bug Fixes
+
+* drop session_id from swipes unique constraint and add null-session test ([6fd7aa8](https://github.com/andrewthetechie/jelly-swipe/commit/6fd7aa800123efcfb781d1dc1952b4e7e91136ea))
+* fix config usage instead of os.getenv ([#276](https://github.com/andrewthetechie/jelly-swipe/issues/276)) ([bcc7d79](https://github.com/andrewthetechie/jelly-swipe/commit/bcc7d791de04e4b7fcd2c5bb82c3f53a6c278ba2))
+* **frontend:** no longer ships ~4.3 MB of images on first load- [#281](https://github.com/andrewthetechie/jelly-swipe/issues/281) ([192fd61](https://github.com/andrewthetechie/jelly-swipe/commit/192fd61d3e7525a3339985d0429353c91ce2903e))
+* **mobile:** layout not fully functional on smaller mobile devices ([#277](https://github.com/andrewthetechie/jelly-swipe/issues/277)) ([f6837b1](https://github.com/andrewthetechie/jelly-swipe/commit/f6837b12140201f4423fe16511ab627eb04e5e17))
+* remove commented TODO and unused code ([#279](https://github.com/andrewthetechie/jelly-swipe/issues/279)) ([d4c1cf5](https://github.com/andrewthetechie/jelly-swipe/commit/d4c1cf5fe829a130bfb0a23efb140e9f21b9c577))
+* restore session_id in swipes unique constraint ([6fd7aa8](https://github.com/andrewthetechie/jelly-swipe/commit/6fd7aa800123efcfb781d1dc1952b4e7e91136ea))
+* revert alembic baseline reformat and exclude from ruff ([2d3b333](https://github.com/andrewthetechie/jelly-swipe/commit/2d3b3331054c1e9d6cd32a2c26d0e3a1e75484f1))
+* revert baseline migration reformat and exclude from ruff format ([0c0fe92](https://github.com/andrewthetechie/jelly-swipe/commit/0c0fe927e8494eb4c8b7ba28648f743d17a625fd))
+
+
+### Reverts
+
+* restore alembic baseline migration to original formatting ([2d3b333](https://github.com/andrewthetechie/jelly-swipe/commit/2d3b3331054c1e9d6cd32a2c26d0e3a1e75484f1))
+
+
+### Documentation
+
+* update .all-contributorsrc [skip ci] ([#271](https://github.com/andrewthetechie/jelly-swipe/issues/271)) ([c91f48e](https://github.com/andrewthetechie/jelly-swipe/commit/c91f48e326a949f01605851a409a53818ac18794))
+
 ## [0.6.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.1...v0.6.0) (2026-05-22)
 
 
