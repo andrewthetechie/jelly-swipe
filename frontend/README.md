@@ -42,14 +42,14 @@ PRs the same way the Python suite does.
   - `test/setup.ts` — registers the jest-dom matchers (e.g.
     `toBeInTheDocument`) and installs no-op `setPointerCapture` stubs jsdom
     lacks. Wired in via `setupFiles`; you never import it directly.
-  - `test/renderWithRoom.tsx` — renders a component inside the room context with
-    sensible defaults and `vi.fn()` setters. Use it for **any** component that
-    calls `useRoomStateContext()` or `useRoomSetterContext()`. Pass overrides to
-    preset values (`{ currentRoomCode: "1234" }`) and read the returned `ctx` to
-    assert a setter was called
-    (`expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith(…)`).
-    Overrides are a flat object combining state and setter fields — the helper
-    splits them internally into the two providers.
+  - `test/renderWithRoom.tsx` — exports two room-context helpers:
+      - `renderWithRoom` (spy helper): use when you need to assert setter calls via
+        returned `ctx`, for example asserting `setCurrentRoomCode` was called.
+      - `renderWithRoomStateful` (DOM/state helper): use when you need realistic
+        state transitions and DOM assertions after user interaction. This helper
+        intentionally does not return `ctx`.
+      Overrides are a flat object combining state and setter fields — helpers split
+      them internally into the two providers.
   - `test/mockFetch.ts` — swaps `globalThis.fetch` for a spy resolving to a fake
     `{ ok, json }` response (or rejecting, with `{ reject: true }`). Use it for
     any component that makes a network call. It returns the spy so you can assert
@@ -90,8 +90,9 @@ you never nest them manually in application code.
 In tests, `renderWithRoom` and `renderWithRoomStateful` provide both contexts
 automatically. Pass a flat overrides object with any mix of state values and
 setter spies — the helper splits them into the correct providers internally.
-Never wire a test directly to `RoomStateContext.Provider` or
-`RoomSetterContext.Provider` — always go through `renderWithRoom`.
+Use `renderWithRoom` for setter-spy assertions, and `renderWithRoomStateful`
+for DOM/state assertions. Never wire a test directly to `RoomStateContext.Provider`
+or `RoomSetterContext.Provider` — always go through the test helpers.
 
 ### The skipped "desired behavior" pattern
 
