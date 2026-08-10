@@ -52,19 +52,19 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
                 
                 <label htmlFor="movies" className="jelly-toggle"> 
                     <span>Movies</span>
-                    <input type="checkbox" id="movies" name="movies" value="movies" defaultChecked={movies} onChange={handleChange} />
+                    <input type="checkbox" id="movies" name="movies" value="movies" checked={movies} onChange={handleChange} />
                     <span className="slider"></span>
                 </label>
                 
                 <label htmlFor="tvShows" className="jelly-toggle"> 
                     <span>TV Shows</span>
-                    <input type="checkbox" id="tvShows" name="tvShows" value="tvShows" defaultChecked={tvShows} onChange={handleChange} />
+                    <input type="checkbox" id="tvShows" name="tvShows" value="tvShows" checked={tvShows} onChange={handleChange} />
                     <span className="slider"></span>
                 </label>
                 
                 <label htmlFor="solo" className="jelly-toggle solo"> 
                     <span>Solo</span>
-                    <input type="checkbox" id="solo" name="solo" value="solo" defaultChecked={isSoloMode} onChange={handleChange} />
+                    <input type="checkbox" id="solo" name="solo" value="solo" checked={isSoloMode} onChange={handleChange} />
                     <span className="slider"></span>
                 </label>
 
