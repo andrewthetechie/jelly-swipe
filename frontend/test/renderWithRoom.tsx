@@ -35,6 +35,9 @@ export interface RenderWithRoomResult extends ReturnType<typeof render> {
   ctx: RoomTestContext;
 }
 
+export type RenderWithRoomStatefulResult = ReturnType<typeof render>
+
+// Spy-oriented helper: use when you need to assert setter calls via returned ctx.
 export function renderWithRoom(
   ui: ReactElement,
   overrides: Partial<RoomTestContext> = {},
@@ -75,11 +78,11 @@ export function renderWithRoom(
   return { ...result, ctx: { ...stateCtx, ...setterCtx } };
 }
 
-
+// Stateful DOM helper: use for UI/state transition assertions; intentionally does not return ctx.
 export function renderWithRoomStateful(
   ui: ReactElement,
   overrides: Partial<RoomTestContext> = {},
-): RenderWithRoomResult {
+): RenderWithRoomStatefulResult {
   function Provider({ children }: { children: React.ReactNode }) {
     const [movies, setMoviesState] = useState<boolean>(overrides.movies ?? true)
     const [tvShows, setTvShowsState] = useState<boolean>(overrides.tvShows ?? false)
@@ -173,30 +176,5 @@ export function renderWithRoomStateful(
 
   const result = render(<Provider>{ui}</Provider>);
 
-  const defaultState = makeDefaultStateCtx()
-  const defaultSetters = makeDefaultSetterCtx()
-
-  const stateCtx: RoomStateContextType = {
-    currentRoomCode: overrides.currentRoomCode ?? defaultState.currentRoomCode,
-    roomReady: overrides.roomReady ?? defaultState.roomReady,
-    movies: overrides.movies ?? defaultState.movies,
-    tvShows: overrides.tvShows ?? defaultState.tvShows,
-    isSoloMode: overrides.isSoloMode ?? defaultState.isSoloMode,
-    userInputCode: overrides.userInputCode ?? defaultState.userInputCode,
-    genre: overrides.genre ?? defaultState.genre,
-    hideWatched: overrides.hideWatched ?? defaultState.hideWatched,
-  }
-
-  const setterCtx: RoomSetterContextType = {
-    setCurrentRoomCode: overrides.setCurrentRoomCode ?? defaultSetters.setCurrentRoomCode,
-    setRoomReady: overrides.setRoomReady ?? defaultSetters.setRoomReady,
-    setMovies: overrides.setMovies ?? defaultSetters.setMovies,
-    setTvShows: overrides.setTvShows ?? defaultSetters.setTvShows,
-    setIsSoloMode: overrides.setIsSoloMode ?? defaultSetters.setIsSoloMode,
-    setUserInputCode: overrides.setUserInputCode ?? defaultSetters.setUserInputCode,
-    setGenre: overrides.setGenre ?? defaultSetters.setGenre,
-    setHideWatched: overrides.setHideWatched ?? defaultSetters.setHideWatched,
-  }
-
-  return { ...result, ctx: { ...stateCtx, ...setterCtx } }
+  return { ...result }
 }
