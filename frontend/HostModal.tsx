@@ -37,7 +37,6 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
             }
             
             const createRoomResponse: { pairing_code: string } = await res.json()
-            console.log("Session created with code:", createRoomResponse.pairing_code)
             pairingCode = createRoomResponse.pairing_code
             setCurrentRoomCode(createRoomResponse.pairing_code)
         } catch (err) {
