@@ -20,8 +20,8 @@ export default function HostWaiting({ endSession }: HostWaitingProps): JSX.Eleme
             </p>
 
             <div className="waiting-logo-container">
-                <img src={logo} />
-                <img src={sad} />
+                <img src={logo} alt="" />
+                <img src={sad} alt=""/>
             </div>
 
             <button className="end-session" onClick={endSession}>End Session</button>
