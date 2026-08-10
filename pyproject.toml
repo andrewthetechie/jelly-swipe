@@ -7,7 +7,7 @@ name = "jellyswipe"
 version = "0.6.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "alembic>=1.18.5",
+    "alembic>=1.19.0",
     "aiosqlite>=0.22.1",
     "fastapi>=0.141.1",
     "greenlet>=3.5.4",
