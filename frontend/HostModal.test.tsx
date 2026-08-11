@@ -1,16 +1,3 @@
-// HostModal.test.tsx — covers the host setup toggles and the create-session
-// network action.
-//
-// Things to note:
-//   • The checkboxes are UNCONTROLLED (`defaultChecked`), so we don't read their
-//     checked state back — we click them and assert the matching context setter
-//     spy was called with the NEW boolean.
-//   • createSession follows the 3-part network contract (request body included):
-//     the request is POST /room with body {movies, tv_shows, solo} built from
-//     the context values at render time; success calls setCurrentRoomCode with
-//     the returned pairing_code; one failure path leaves it uncalled.
-//   • createRoomRequest is computed from context at render, so to test a specific body
-//     we preset the context via renderWithRoom overrides.
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HostModal from "./HostModal";
@@ -60,6 +47,41 @@ describe("HostModal — toggles", () => {
 });
 
 describe("HostModal — create session (3-part network contract)", () => {
+  it("disables Create Session while submitting and prevents double-submit", async () => {
+    const user = userEvent.setup()
+    let resolveFetch!: (value: Response) => void
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        }),
+    )
+    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />)
+
+    const createButton = screen.getByRole("button", { name: /create session/i })
+    expect(createButton).toBeEnabled()
+
+    await user.click(createButton)
+
+    expect(createButton).toBeDisabled()
+    expect(createButton).toHaveTextContent("Creating Session...")
+
+    await user.click(createButton)
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    resolveFetch({
+      ok: true,
+      json: () => Promise.resolve({ pairing_code: "4321" }),
+    } as Response)
+
+    await waitFor(() =>
+      expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("4321"),
+    )
+    await waitFor(() => expect(createButton).toBeEnabled());
+
+    spy.mockRestore()
+  })
+
   it("POSTs {movies, tv_shows, solo} to /room and stores the pairing_code", async () => {
     const user = userEvent.setup();
     const spy = mockFetch({ ok: true, body: { pairing_code: "4321" } });
