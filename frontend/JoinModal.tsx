@@ -10,8 +10,14 @@ interface JoinModalProps {
 export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
     const { userInputCode } = useRoomStateContext()
     const { setCurrentRoomCode, setUserInputCode } = useRoomSetterContext()
+    const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
+    const isValid = userInputCode.length === 4
 
     async function joinRoom() {
+        if (!isValid) return
+        if (isSubmitting) return
+        setIsSubmitting(true)
+        
         try {
             const res: Response = await postJson(`/room/${userInputCode}/join`)
             if (!res.ok) {
@@ -22,6 +28,8 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
             setCurrentRoomCode(userInputCode)            
         } catch (err) {
             console.error("Error joining room:", err)
+        } finally {
+            setIsSubmitting(false)
         }
     }
     return (
@@ -38,7 +46,9 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
                 value={userInputCode} 
                 onChange={(e) => setUserInputCode(e.target.value.replace(/[^0-9]/g, ''))} 
             />
-            <button className="modal-button" onClick={joinRoom}>Join Session</button>
+            <button className="modal-button" onClick={joinRoom} disabled={isSubmitting || !isValid}>
+                {isSubmitting ? "Joining Session..." : "Join Session"}
+            </button>
             <button className="modal-button" onClick={onClose} data-modal-type="join">Cancel</button>
             </div>
         </div>

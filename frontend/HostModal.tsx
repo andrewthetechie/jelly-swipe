@@ -10,6 +10,7 @@ interface HostModalProps {
 export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     const { movies, tvShows, isSoloMode } = useRoomStateContext()
     const { setMovies, setTvShows, setIsSoloMode, setCurrentRoomCode } = useRoomSetterContext()
+    const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, checked } = e.currentTarget
@@ -23,6 +24,8 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     }
 
     async function createSession() {
+        if (isSubmitting) return
+        setIsSubmitting(true)
         let pairingCode: string | null = null
 
         try {
@@ -41,6 +44,8 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
             setCurrentRoomCode(createRoomResponse.pairing_code)
         } catch (err) {
             console.error("Error creating session:", err)
+        } finally {
+            setIsSubmitting(false)
         }
 
     }
@@ -68,7 +73,9 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
                     <span className="slider"></span>
                 </label>
 
-                <button className="modal-button" onClick={createSession}>Create Session</button>
+                <button className="modal-button" onClick={createSession} disabled={isSubmitting}>
+                    {isSubmitting ? "Creating Session..." : "Create Session"}
+                </button>
                 <button className="modal-button" onClick={onClose} data-modal-type="host">Cancel</button>
             </div>
         </div>

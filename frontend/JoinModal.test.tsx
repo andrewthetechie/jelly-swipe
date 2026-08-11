@@ -55,6 +55,22 @@ describe("JoinModal — cancel button", () => {
 })
 
 describe("JoinModal — join (3-part network contract)", () => {
+  it("does not submit when room code length is not 4", async () => {
+    const user = userEvent.setup()
+    const spy = mockFetch({ ok: true, body: { status: "ok" } })
+    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "12",
+    })
+
+    const joinButton = screen.getByRole("button", { name: /join session/i })
+    expect(joinButton).toBeDisabled()
+
+    await user.click(joinButton)
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+  })
+
   it("POSTs to /room/{code}/join and sets the room code on success", async () => {
     const user = userEvent.setup();
     const spy = mockFetch({ ok: true, body: { status: "ok" } });
