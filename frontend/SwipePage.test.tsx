@@ -24,7 +24,7 @@ import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck } from "./test/fixtures"
 import { SSEContextProvider } from "./SSEContextProvider"
-import { MatchItem } from "./types"
+import type { MatchItem } from "./types"
 
 const DEFAULT_MATCHITEM: MatchItem = {
     title: null,

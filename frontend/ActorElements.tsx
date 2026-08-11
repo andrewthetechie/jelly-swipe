@@ -1,6 +1,5 @@
-import React from "react"
-import { JSX } from "react"
-import useMovieCast from "./useMovieCast";
+import type { JSX } from "react"
+import useMovieCast from "./useMovieCast"
 import sadLogo from "./assets/sad.png"
 
 interface ActorElementsProps {

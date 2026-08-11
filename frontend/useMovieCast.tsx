@@ -1,6 +1,6 @@
 import React from "react"
-import { CastMember } from "./types"
-import { CastResponse } from "./types"
+import type { CastMember } from "./types"
+import type { CastResponse } from "./types"
 import { apiFetch } from "./api"
 
 export default function useMovieCast(mediaId: string) {

@@ -1,4 +1,3 @@
-import React from "react"
 import logo from "./assets/logo.png"
 import sadLogo from "./assets/sad.png"
 import { apiUrl, formatRating } from "./api"

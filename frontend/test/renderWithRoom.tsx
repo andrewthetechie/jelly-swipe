@@ -1,7 +1,8 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import React, { useState } from "react";
-import { RoomStateContext, RoomSetterContext, RoomStateContextType, RoomSetterContextType } from "../RoomContextProvider";
+import { RoomStateContext, RoomSetterContext } from "../RoomContextProvider";
+import type { RoomStateContextType, RoomSetterContextType } from "../RoomContextProvider";
 
 type RoomTestContext = RoomStateContextType & RoomSetterContextType
 
