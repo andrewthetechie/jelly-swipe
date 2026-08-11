@@ -1,4 +1,3 @@
-import React from "react"
 import { useRoomStateContext } from "./RoomContextProvider"
 import logo from "./assets/logo.png"
 import sad from "./assets/sad.png"
