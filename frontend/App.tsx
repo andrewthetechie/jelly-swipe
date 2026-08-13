@@ -6,7 +6,6 @@ import { RoomContextProvider } from "./RoomContextProvider"
 import { SSEContextProvider } from "./SSEContextProvider"
 
 export default function App() {
-    const [auth, setAuth] = React.useState<boolean>(false)
     React.useEffect(() => {
         async function authBootstrap() {
             try {
@@ -17,7 +16,6 @@ export default function App() {
                 if (!res.ok) {
                     throw new Error(`Error authenticating server identity: ${res.status} ${res.statusText}`)
                 }
-                setAuth(true)
             } catch (err) {
                 console.error("Error authenticating server identity:", err)
             }

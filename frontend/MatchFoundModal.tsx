@@ -10,7 +10,7 @@ interface MatchFoundModalProps {
 }
 
 export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalProps): JSX.Element {
-    const { title, thumb, media_id: mediaId, media_type: mediaType, deep_link: deepLink, rating, duration, year }: MatchItem = matchItem
+    const { title, thumb, deep_link: deepLink, rating, duration, year }: MatchItem = matchItem
     return (
         <div className="modal">
             <div className="modal-inner">

@@ -36,7 +36,6 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
             title, 
             thumb, 
             media_id: mediaId, 
-            media_type: mediaType, 
             deep_link: deepLink, 
             rating, 
             duration, 

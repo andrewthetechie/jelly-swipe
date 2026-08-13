@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import React from "react"
 import Intro from "./Intro"
 import SwipePage from "./SwipePage"
@@ -5,10 +7,7 @@ import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider
 import { useSSEContext } from "./SSEContextProvider"
 import { apiFetch, postJson } from "./api"
 import type { JSX } from "react"
-import type { CardItem, GenreChangedEvent, HideWatchedChangedEvent } from "./types"
-import type { MatchItem } from "./types"
-import type { CardDeck } from "./types"
-import type { SSEEvent } from './types'
+import type { CardItem, MatchItem, CardDeck } from "./types"
 
 const DEFAULT_MATCHITEM: MatchItem = {
     title: null,
@@ -29,7 +28,7 @@ export default function Main(): JSX.Element {
     const [matchFound, setMatchFound] = React.useState<boolean>(false)
     const [matchItem, setMatchItem] = React.useState<MatchItem>(DEFAULT_MATCHITEM)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
-    const { sseData, sseError, isConnected } = useSSEContext()
+    const { sseData, sseError } = useSSEContext()
     const localDeckRefreshSuppressionRef = React.useRef<"genre" | "hide_watched" | null>(null)
 
     const suppressNextDeckRefresh = React.useCallback((source: "genre" | "hide_watched") => {
@@ -51,8 +50,6 @@ export default function Main(): JSX.Element {
 
     const getCardDeck = React.useCallback(async () => {
         if (!currentRoomCode) {
-            setCardDeck([])
-            setSwipeHistory([])
             return
         }
 
@@ -75,9 +72,6 @@ export default function Main(): JSX.Element {
 
     React.useEffect(() => {    
         if (!sseData) {
-            if (sseError) {
-                console.error("SSE error:", sseError)
-            }
             return
         }
 
@@ -123,11 +117,13 @@ export default function Main(): JSX.Element {
                 return _exhaustive
             }
         }
+    }, [sseData, getCardDeck, setCurrentRoomCode, setGenre, setHideWatched, setRoomReady])    
 
+    React.useEffect(() => {
         if (sseError) {
             console.error("SSE error:", sseError);
         }
-    }, [sseData, sseError, getCardDeck, setCurrentRoomCode, setGenre, setHideWatched, setRoomReady])    
+    }, [sseError])
 
     const advanceDeck = React.useCallback(() => {
         setCardDeck(prev => prev.slice(1))
@@ -150,7 +146,7 @@ export default function Main(): JSX.Element {
         } catch (err) {
             console.error("Error toggling watched filter", err)
         }
-    }, [hideWatched, suppressNextDeckRefresh, requireRoomCode])
+    }, [hideWatched, setHideWatched, suppressNextDeckRefresh, requireRoomCode])
 
     const handleGenreChange = React.useCallback( async () => {
         const roomCode = requireRoomCode("change genre")

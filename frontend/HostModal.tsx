@@ -26,7 +26,6 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     async function createSession() {
         if (isSubmitting) return
         setIsSubmitting(true)
-        let pairingCode: string | null = null
 
         try {
             const res: Response = await postJson('/room', { 
@@ -40,7 +39,6 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
             }
             
             const createRoomResponse: { pairing_code: string } = await res.json()
-            pairingCode = createRoomResponse.pairing_code
             setCurrentRoomCode(createRoomResponse.pairing_code)
         } catch (err) {
             console.error("Error creating session:", err)
