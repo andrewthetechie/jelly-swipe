@@ -111,7 +111,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
   it("onerror handles connection errors and triggers reconnection logic", () => {
     const mockEventSource = createMockEventSource()
     const EventSourceMock = vi.fn(
-    (url: string) => mockEventSource as unknown as EventSource,
+    () => mockEventSource as unknown as EventSource,
     ) as unknown as EventSourceMockConstructor
 
     EventSourceMock.CONNECTING = 0

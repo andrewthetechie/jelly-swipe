@@ -1,4 +1,3 @@
-import React from 'react'
 import nameLogo from './assets/name-logo.png'
 import { useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
