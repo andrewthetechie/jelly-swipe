@@ -775,10 +775,13 @@ button.undo-button {
 }
 
 .custom-radio {
-  display: inline-block;
+  display: flex;
   background: #071426;
   color: #f0f4f8;
   padding: 0.5rem 0.75rem;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   border-radius: 15px;
   font-size: 1rem;
   font-weight: 600;
