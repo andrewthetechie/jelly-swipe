@@ -39,6 +39,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    assetsInlineLimit: 0,
   },
   test: {
     environment: "jsdom",
