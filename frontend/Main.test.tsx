@@ -15,10 +15,9 @@
 //     test so no test touches the real network, and focus assertions on the
 //     code-set path. checkSessionStatus is commented out in the source and is
 //     intentionally untested.
-import { screen, waitFor, fireEvent, render } from "@testing-library/react"
+import { screen, waitFor, render } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import Main from "./Main"
-import SwipePage from "./SwipePage"
 import { RoomStateContext, RoomSetterContext } from "./RoomContextProvider"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { SSEContextProvider } from "./SSEContextProvider"

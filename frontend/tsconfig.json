@@ -15,6 +15,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
   "include": ["./**/*", "./**/*.d.ts"],

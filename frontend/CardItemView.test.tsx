@@ -13,7 +13,7 @@
 // simulating the flip. CardItem doesn't read context, but we render it through
 // `renderWithRoom` for consistency with the rest of the suite; `setDragX` is a
 // throwaway `vi.fn()` since these tests don't drag.
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import CardItemView from "./CardItemView";
 import { apiUrl } from "./api";
 import { renderWithRoom } from "./test/renderWithRoom";

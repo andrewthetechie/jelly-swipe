@@ -202,7 +202,7 @@ describe("HostModal — create session (3-part network contract)", () => {
   it("does not set a room code and does not throw when the request returns non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
-    const spy = mockFetch({ ok: false });
+    mockFetch({ ok: false });
     const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
