@@ -50,6 +50,10 @@ A movie that both participants right-swiped (or any movie a solo-mode user right
 
 A `(room_code, movie_id, user_id, direction)` record. `swipes.user_id` is a session-scoped string (`host_<hex>` / `guest_<hex>`), **not** a Jellyfin GUID. Do not join with `matches.user_id`, which holds Jellyfin GUIDs.
 
+### Room session
+
+A client (browser)'s participation in a Room, from join/create until quit or `session_closed`. Frontend term for the slice of state that lifetime owns: the deck, swipe history, match state, and server-mirrored room settings (`genre`, `hide_watched`, readiness). Distinct from `currentRoomCode`, which is client-side membership/routing state written by the room-creation flow, and from the SSE "session" (`session_bootstrap` / `session_ready` / `session_closed` events), which is the server's broadcast vocabulary for the same lifetime.
+
 ---
 
 ## Out of scope here
