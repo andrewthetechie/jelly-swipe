@@ -1,7 +1,8 @@
 """Tests for jellyswipe.schemas models."""
 
 import pytest
-from jellyswipe.schemas import ErrorResponse, CardItem, MatchItem
+
+from jellyswipe.schemas import CardItem, ErrorResponse, MatchItem
 
 
 class TestErrorResponse:
@@ -35,7 +36,7 @@ class TestCardItem:
             thumb="http://example.com/thumb.jpg",
             year=2010,
             media_type="movie",
-            rating="8.8",
+            rating=8.8,
         )
         assert card.media_id == "movie-123"
         assert card.title == "Inception"
@@ -52,7 +53,7 @@ class TestCardItem:
             thumb="http://example.com/thumb.jpg",
             year=2008,
             media_type="series",
-            rating="9.5",
+            rating=9.5,
             duration="47 min",
             season_count=5,
         )
@@ -68,7 +69,7 @@ class TestCardItem:
             thumb="http://example.com/thumb.jpg",
             year=1999,
             media_type="movie",
-            rating="8.7",
+            rating=8.7,
         )
         data = card.model_dump(exclude_none=True)
         assert data["media_id"] == "movie-789"
@@ -93,7 +94,7 @@ class TestMatchItem:
             media_id="movie-999",
             media_type="movie",
             deep_link="jellyfin://play/movie-999",
-            rating="8.0",
+            rating=8.0,
             duration="180 min",
             year=2023,
         )
@@ -110,6 +111,31 @@ class TestMatchItem:
         assert data["title"] == "Dune"
         assert "media_type" not in data
         assert "rating" not in data
+
+    def test_match_item_rating_serializes_as_json_number(self):
+        """MatchItem accepts a float rating and serializes it as a number."""
+        match = MatchItem(rating=8.8)
+        data = match.model_dump(exclude_none=True)
+        assert isinstance(data["rating"], float)
+        assert data["rating"] == 8.8
+
+    def test_match_item_rating_type_matches_card_item(self):
+        """MatchItem.rating uses the same annotation and JSON type as CardItem.rating."""
+        assert (
+            MatchItem.model_fields["rating"].annotation
+            == CardItem.model_fields["rating"].annotation
+        )
+        card_schema = CardItem.model_json_schema()["properties"]["rating"]
+        match_schema = MatchItem.model_json_schema()["properties"]["rating"]
+        assert card_schema == match_schema
+        types = {branch.get("type") for branch in match_schema["anyOf"]}
+        assert types == {"number", "null"}
+
+    def test_match_item_rating_accepts_legacy_string(self):
+        """MatchItem coerces legacy string ratings from old DB rows to float."""
+        match = MatchItem(rating="8.8")
+        assert match.rating == 8.8
+        assert isinstance(match.rating, float)
 
 
 class TestAuthResponse:
@@ -234,6 +260,7 @@ class TestRoomSchemas:
         """CreateRoomRequest raises ValidationError when boolean fields receive strings."""
         import pytest
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import CreateRoomRequest
 
         with pytest.raises(ValidationError):
@@ -243,6 +270,7 @@ class TestRoomSchemas:
         """CreateRoomRequest raises ValidationError when both movies and tv_shows are False."""
         import pytest
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import CreateRoomRequest
 
         with pytest.raises(ValidationError, match="movies or tv_shows"):
@@ -307,6 +335,7 @@ class TestSwipingSchemas:
     def test_swipe_request_requires_media_id(self):
         """SwipeRequest requires media_id field."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import SwipeRequest
 
         with pytest.raises(ValidationError):
@@ -337,6 +366,7 @@ class TestSwipingSchemas:
     def test_undo_request_requires_media_id(self):
         """UndoRequest requires media_id field."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import UndoRequest
 
         with pytest.raises(ValidationError):
@@ -359,6 +389,7 @@ class TestSwipingSchemas:
     def test_set_genre_request_requires_genre(self):
         """SetGenreRequest requires genre field."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import SetGenreRequest
 
         with pytest.raises(ValidationError):
@@ -374,6 +405,7 @@ class TestSwipingSchemas:
     def test_set_watched_filter_request_requires_hide_watched(self):
         """SetWatchedFilterRequest requires hide_watched field."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import SetWatchedFilterRequest
 
         with pytest.raises(ValidationError):
@@ -389,6 +421,7 @@ class TestSwipingSchemas:
     def test_set_watched_filter_request_rejects_string(self):
         """SetWatchedFilterRequest rejects string for hide_watched (StrictBool)."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.rooms import SetWatchedFilterRequest
 
         with pytest.raises(ValidationError):
@@ -417,6 +450,7 @@ class TestMediaSchemas:
     def test_trailer_response_requires_youtube_key(self):
         """TrailerResponse raises ValidationError when youtube_key is missing."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.media import TrailerResponse
 
         with pytest.raises(ValidationError):
@@ -459,6 +493,7 @@ class TestMediaSchemas:
     def test_watchlist_add_request_requires_media_id(self):
         """WatchlistAddRequest raises ValidationError when media_id is missing."""
         from pydantic import ValidationError
+
         from jellyswipe.schemas.media import WatchlistAddRequest
 
         with pytest.raises(ValidationError):

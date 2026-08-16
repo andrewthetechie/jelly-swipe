@@ -1,7 +1,5 @@
 """Shared Pydantic v2 models for API responses."""
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -9,7 +7,7 @@ class ErrorResponse(BaseModel):
     """Application-level error response."""
 
     error: str
-    request_id: Optional[str] = None
+    request_id: str | None = None
 
 
 class CardItem(BaseModel):
@@ -24,21 +22,26 @@ class CardItem(BaseModel):
     title: str
     summary: str
     thumb: str
-    year: Optional[int] = None
+    year: int | None = None
     media_type: str
-    rating: Optional[float] = None
-    duration: Optional[str] = None
-    season_count: Optional[int] = None
+    rating: float | None = None
+    duration: str | None = None
+    season_count: int | None = None
 
 
 class MatchItem(BaseModel):
-    """Match row shape from matches endpoint."""
+    """Match row shape from matches endpoint.
 
-    title: Optional[str] = None
-    thumb: Optional[str] = None
-    media_id: Optional[str] = None
-    media_type: Optional[str] = None
-    deep_link: Optional[str] = None
-    rating: Optional[str] = None
-    duration: Optional[str] = None
-    year: Optional[int] = None
+    ``rating`` mirrors ``CardItem.rating`` (a float) so the deck and matches
+    endpoints expose a consistent ``rating`` type in the API contract. Legacy
+    rows stored as text are normalized to a float when read.
+    """
+
+    title: str | None = None
+    thumb: str | None = None
+    media_id: str | None = None
+    media_type: str | None = None
+    deep_link: str | None = None
+    rating: float | None = None
+    duration: str | None = None
+    year: int | None = None

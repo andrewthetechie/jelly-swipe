@@ -16,7 +16,7 @@ export interface MatchItem {
     media_id: string | null
     media_type: string | null
     deep_link: string | null
-    rating: string | null
+    rating: number | null
     duration: string | null
     year: number | null
 }
@@ -79,8 +79,8 @@ export interface MatchFoundEvent extends LedgerEvent {
     media_id?: string | null
     media_type?: string | null
     deep_link?: string | null
-    rating?: string | null
     duration?: string | null
+    rating?: number | null
     year?: number | null
 }
 
@@ -102,7 +102,7 @@ export interface SessionResetEvent extends BaseSSEEvent {
     event_type: "session_reset"
 }
 
-export type SSEEvent = 
+export type SSEEvent =
     | SessionBootstrapResponse
     | SessionReadyEvent
     | MatchFoundEvent
