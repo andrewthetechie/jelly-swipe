@@ -14,6 +14,8 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from jellyswipe.repositories.matches import parse_rating
+
 if TYPE_CHECKING:
     from jellyswipe.db_uow import DatabaseUnitOfWork
 
@@ -86,19 +88,18 @@ def _resolve_meta_from_deck(movie_data_json: str | None, media_id: str) -> dict:
         items = json.loads(movie_data_json or "[]")
         for item in items:
             if str(item.get("id", "")) == str(media_id):
-                rating = item.get("rating")
                 duration = item.get("duration")
                 year = item.get("year")
                 media_type = item.get("media_type", "movie")
                 return {
-                    "rating": str(rating) if rating is not None else "",
+                    "rating": parse_rating(item.get("rating")),
                     "duration": duration or "",
                     "year": str(year) if year is not None else "",
                     "media_type": media_type,
                 }
     except (json.JSONDecodeError, TypeError):
         pass
-    return {"rating": "", "duration": "", "year": "", "media_type": "movie"}
+    return {"rating": None, "duration": "", "year": "", "media_type": "movie"}
 
 
 async def _insert_match_for_user(

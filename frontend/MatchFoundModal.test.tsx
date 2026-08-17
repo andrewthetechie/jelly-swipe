@@ -10,7 +10,7 @@ describe("MatchFoundModal - rendering", () => {
         })
 
         render(
-            <MatchFoundModal 
+            <MatchFoundModal
                 matchItem={match}
                 onClick={vi.fn()}
             />
@@ -22,12 +22,12 @@ describe("MatchFoundModal - rendering", () => {
     it("renders the correct metadata", () => {
         const match = makeMatch({
             year: 2026,
-            rating: "9.25",
+            rating: 9.25,
             duration: "52 min",
         })
 
         render(
-            <MatchFoundModal 
+            <MatchFoundModal
                 matchItem={match}
                 onClick={vi.fn()}
             />
@@ -43,9 +43,9 @@ describe("MatchFoundModal - rendering", () => {
             title: "Moana",
             thumb: "/moana-poster.jpg",
         })
-        
+
         render(
-            <MatchFoundModal 
+            <MatchFoundModal
                 matchItem={match}
                 onClick={vi.fn()}
             />
@@ -67,7 +67,7 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
         })
 
         render(
-            <MatchFoundModal 
+            <MatchFoundModal
                 matchItem={match}
                 onClick={vi.fn()}
             />
@@ -89,7 +89,7 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
         })
 
         render(
-            <MatchFoundModal 
+            <MatchFoundModal
                 matchItem={match}
                 onClick={vi.fn()}
             />
@@ -112,7 +112,7 @@ describe("MatchFoundModal - keep swiping button", () => {
         const user = userEvent.setup()
 
         render (
-            <MatchFoundModal 
+            <MatchFoundModal
                 matchItem={makeMatch()}
                 onClick={onClick}
             />
@@ -122,8 +122,8 @@ describe("MatchFoundModal - keep swiping button", () => {
             screen.getByRole("button", {
                 name: /keep swiping/i
             })
-        )        
-        
+        )
+
         expect(onClick).toHaveBeenCalledOnce()
     })
 })

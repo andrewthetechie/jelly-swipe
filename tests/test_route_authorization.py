@@ -616,7 +616,7 @@ class TestSSEMatchDelivery:
         assert "deep_link" in m
         assert m["deep_link"] is not None
         assert "rating" in m
-        assert m["rating"] == "8.5"
+        assert m["rating"] == 8.5
         assert "duration" in m
         assert m["duration"] == "2h 15m"
         assert "year" in m

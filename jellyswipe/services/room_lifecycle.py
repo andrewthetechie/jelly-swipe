@@ -342,7 +342,7 @@ class RoomLifecycleService:
                 "media_id": r.movie_id,
                 "media_type": r.media_type or "movie",
                 "deep_link": r.deep_link,
-                "rating": r.rating or "",
+                "rating": r.rating,
                 "duration": r.duration or "",
                 "year": r.year if r.year else None,
             }

@@ -47,7 +47,7 @@ export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
     title: "Movie 1",
     thumb: "/poster.jpg",
     deep_link: "https://jellyfin.example.com/web/index.html#!/details?id=movie-1",
-    rating: "8.25",
+    rating: 8.25,
     duration: "107 min",
     year: 2016,
     ...overrides,

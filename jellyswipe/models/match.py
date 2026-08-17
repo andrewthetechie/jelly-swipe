@@ -1,6 +1,6 @@
 """Match schema model."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import Index, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,11 +27,15 @@ class Match(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
     deep_link: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # rating stays TEXT (not a numeric type) so legacy rows with string values
+    # keep deserializing; SQLite's TEXT affinity stores numeric binds as text.
+    # At the API boundary (repositories.matches.MatchRecord) it is parsed to
+    # float | None, so a migration is not required.
     rating: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration: Mapped[str | None] = mapped_column(Text, nullable=True)
     year: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    __mapper_args__ = {
+    __mapper_args__: ClassVar[dict] = {
         "primary_key": [room_code, movie_id, user_id],
     }
 

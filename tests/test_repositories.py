@@ -342,7 +342,7 @@ class TestMatchRepository:
                 thumb="/thumb",
                 user_id="user-m",
                 deep_link="/link",
-                rating="9",
+                rating=9.0,
                 duration="2h",
                 year="2025",
                 media_type="movie",
@@ -375,7 +375,7 @@ class TestMatchRepository:
                 thumb="/t1",
                 user_id="user-n",
                 deep_link="/d1",
-                rating="7",
+                rating=7.0,
                 duration="1h",
                 year="2020",
                 media_type="movie",
@@ -390,7 +390,7 @@ class TestMatchRepository:
                 thumb="/t2",
                 user_id="user-n",
                 deep_link="/d2",
-                rating="1",
+                rating=1.0,
                 duration="0h",
                 year="1999",
                 media_type="tv_show",
@@ -402,6 +402,61 @@ class TestMatchRepository:
             active = await uow.matches.list_active_for_user("MATCH2", "user-n")
         assert len(active) == 1
         assert active[0].title == "Original"
+
+    async def test_reads_legacy_string_rating_as_float(self, runtime_sessionmaker):
+        """MatchRecord parses legacy string ratings (empty/unparseable) to float or None."""
+        from jellyswipe.models.match import Match
+
+        async with runtime_sessionmaker() as session:
+            session.add_all(
+                [
+                    Match(
+                        room_code="MATCH3",
+                        movie_id="m-a",
+                        title="A",
+                        thumb="/t-a",
+                        status="active",
+                        user_id="user-p",
+                        deep_link=None,
+                        rating="8.5",
+                        duration="1h",
+                        year="2020",
+                    ),
+                    Match(
+                        room_code="MATCH3",
+                        movie_id="m-b",
+                        title="B",
+                        thumb="/t-b",
+                        status="active",
+                        user_id="user-p",
+                        deep_link=None,
+                        rating="",
+                        duration="",
+                        year="",
+                    ),
+                    Match(
+                        room_code="MATCH3",
+                        movie_id="m-c",
+                        title="C",
+                        thumb="/t-c",
+                        status="active",
+                        user_id="user-p",
+                        deep_link=None,
+                        rating="not-a-number",
+                        duration="",
+                        year="",
+                    ),
+                ]
+            )
+            await session.commit()
+
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            rows = await uow.matches.list_active_for_user("MATCH3", "user-p")
+        by_id = {r.movie_id: r for r in rows}
+        assert by_id["m-a"].rating == 8.5
+        assert by_id["m-b"].rating is None
+        assert by_id["m-c"].rating is None
 
 
 @pytest.mark.anyio

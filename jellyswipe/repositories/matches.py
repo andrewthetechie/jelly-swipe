@@ -10,6 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jellyswipe.models.match import Match
 
 
+def parse_rating(value: object) -> float | None:
+    """Normalize a stored match rating to a float.
+
+    The ``matches.rating`` column is ``TEXT`` and may hold legacy string
+    values (e.g. ``"8.5"``), empty strings, ``None``, or unparseable values.
+    Returns ``None`` for any value that cannot be read as a number so the
+    repository exposes a canonical ``float | None`` to callers.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass(slots=True)
 class MatchRecord:
     room_code: str
@@ -19,7 +35,7 @@ class MatchRecord:
     status: str
     user_id: str
     deep_link: str | None
-    rating: str | None
+    rating: float | None
     duration: str | None
     year: str | None
     media_type: str | None
@@ -98,7 +114,7 @@ class MatchRepository:
         thumb: str,
         user_id: str,
         deep_link: str | None,
-        rating: str | None,
+        rating: float | None,
         duration: str | None,
         year: str | None,
         media_type: str,
@@ -152,7 +168,7 @@ class MatchRepository:
             status=match.status,
             user_id=match.user_id,
             deep_link=match.deep_link,
-            rating=match.rating,
+            rating=parse_rating(match.rating),
             duration=match.duration,
             year=match.year,
             media_type=match.media_type,

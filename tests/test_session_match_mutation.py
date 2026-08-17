@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -53,7 +53,7 @@ async def runtime_sessionmaker(db_path, monkeypatch):
 async def _auth_session(
     runtime_sessionmaker, session_id: str, *, jellyfin_user_id: str = "verified-user"
 ):
-    iso = datetime.now(timezone.utc).isoformat()
+    iso = datetime.now(UTC).isoformat()
     async with runtime_sessionmaker() as session:
         session.add(
             AuthSession(
@@ -269,7 +269,7 @@ class TestApplySwipe:
             assert payload["title"] == "Test Movie"
             assert payload["thumb"] == "/t.jpg"
             assert payload["media_type"] == "movie"
-            assert payload["rating"] == "8.5"
+            assert payload["rating"] == 8.5
             assert payload["duration"] == "2h 10m"
             assert payload["year"] == "2024"
             assert payload["deep_link"] == "http://test/web/#/details?id=m1"
@@ -485,7 +485,7 @@ class TestApplySwipe:
             events = await _get_session_events(session, "inst-solo1")
             assert len(events) == 1
             payload = json.loads(events[0].payload_json)
-            assert payload["rating"] == "9.0"
+            assert payload["rating"] == 9.0
             assert payload["duration"] == "1h 45m"
             assert payload["year"] == "2023"
             assert payload["media_type"] == "tv_show"
@@ -899,7 +899,7 @@ class TestUndoAndEventStream:
                 {
                     "instance_id": "inst-solo1",
                     "payload": '{"media_id": "m1"}',
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             await session.commit()
@@ -950,7 +950,7 @@ class TestDeleteAndEventStream:
                 {
                     "instance_id": "inst-solo1",
                     "payload": '{"media_id": "m1"}',
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             await session.commit()
