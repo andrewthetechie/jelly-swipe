@@ -1,6 +1,7 @@
 import logo from "./assets/logo.png"
 import sadLogo from "./assets/sad.png"
-import { apiUrl, formatRating } from "./api"
+import { apiUrl } from "./api"
+import { formatRating } from './format'
 import type { JSX } from "react"
 import type { MatchItem } from "./types"
 

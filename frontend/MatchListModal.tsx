@@ -1,6 +1,6 @@
 import React from "react"
-import { apiFetch, formatRating } from "./api"
-import { apiUrl } from "./api"
+import { apiUrl, apiFetch } from "./api"
+import { formatRating } from './format'
 import type { JSX } from "react"
 import sadLogo from "./assets/sad.png"
 import type { MatchItem } from "./types"

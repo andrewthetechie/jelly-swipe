@@ -45,7 +45,3 @@ export async function postJson(path: string, body?: unknown, options: RequestIni
 
   return fetch(apiUrl(path), request);
 }
-
-export function formatRating(r: number | string): string {
-  return Number(r).toFixed(2);
-}
