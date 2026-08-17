@@ -14,16 +14,14 @@ def _make_mock_provider(
     user_id: str = "test-user",
     raise_runtime_error: bool = False,
     server_info: dict | None = None,
-) -> MagicMock:
-    """Build a mock JellyfinLibraryProvider."""
-    provider = MagicMock()
+) -> AsyncMock:
+    """Build a mock JellyfinVault/JellyfinLibrary (async role surfaces)."""
+    provider = AsyncMock()
     if raise_runtime_error:
-        provider.server_access_token_for_delegate.side_effect = RuntimeError(
-            "unavailable"
-        )
+        provider.delegate_token.side_effect = RuntimeError("unavailable")
     else:
-        provider.server_access_token_for_delegate.return_value = token
-        provider.server_primary_user_id_for_delegate.return_value = user_id
+        provider.delegate_token.return_value = token
+        provider.delegate_user_id.return_value = user_id
     provider.server_info.return_value = (
         server_info
         if server_info is not None

@@ -13,6 +13,7 @@ from jellyswipe.dependencies import (
     DBUoW,
     check_rate_limit,
     get_provider,
+    get_watchlist,
     require_auth,
 )
 from jellyswipe.routers._helpers import log_exception, make_error_response
@@ -151,7 +152,7 @@ async def get_cast(
     response_model=GenreListResponse,
     summary="List available genres",
 )
-def get_genres(request: Request, provider=Depends(get_provider)):
+async def get_genres(request: Request, provider=Depends(get_provider)):
     """List all genres available in the connected Jellyfin library.
 
     Queries Jellyfin directly on each call. Returns an empty array if
@@ -159,7 +160,7 @@ def get_genres(request: Request, provider=Depends(get_provider)):
     can always render a genre picker (possibly empty).
     """
     try:
-        return provider.list_genres()
+        return await provider.list_genres()
     except Exception:
         return []
 
@@ -174,23 +175,23 @@ def get_genres(request: Request, provider=Depends(get_provider)):
     },
     summary="Add a movie to the watchlist",
 )
-def add_to_watchlist(
+async def add_to_watchlist(
     body: WatchlistAddRequest,
     request: Request,
     user: AuthUser = Depends(require_auth),
     _: None = Depends(check_rate_limit),
-    provider=Depends(get_provider),
+    writer=Depends(get_watchlist),
 ):
     """Add a movie to the authenticated user's Jellyfin favourites/watchlist.
 
     Requires ``media_id`` in the request body. Omitting ``media_id`` or
     sending a malformed body returns ``422``.
 
-    Jellyfin is called synchronously; any upstream error returns ``500``
+    Jellyfin is called asynchronously; any upstream error returns ``500``
     with ``ErrorResponse``.
     """
     try:
-        provider.add_to_user_favorites(user.jf_token, body.media_id)
+        await writer.add_to_favorites(body.media_id)
         return {"status": "success"}
     except Exception as e:
         log_exception(e, request, logger=_logger)

@@ -10,7 +10,7 @@ def test_module_import():
     Verifies framework-agnostic imports work (INFRA-03).
 
     This test passes if:
-    - jellyswipe.jellyfin_library imports successfully
+    - jellyswipe.jellyfin imports successfully
     - jellyswipe.bootstrap imports successfully
     - jellyswipe.migrations imports successfully
     - No RuntimeError about missing env vars
@@ -18,12 +18,15 @@ def test_module_import():
     # These imports should not raise errors because conftest.py sets
     # the required environment variables at module level before imports.
     import jellyswipe.bootstrap
-    import jellyswipe.jellyfin_library
+    import jellyswipe.jellyfin
     import jellyswipe.migrations
 
     # Verify the modules have expected exports
     assert hasattr(jellyswipe.bootstrap, "main")
-    assert hasattr(jellyswipe.jellyfin_library, "JellyfinLibraryProvider")
+    assert hasattr(jellyswipe.jellyfin, "JellyfinLibrary")
+    assert hasattr(jellyswipe.jellyfin, "JellyfinVault")
+    assert hasattr(jellyswipe.jellyfin, "JellyfinClient")
+    assert hasattr(jellyswipe.jellyfin, "JellyfinWatchlistWriter")
     assert hasattr(jellyswipe.migrations, "upgrade_to_head")
 
 

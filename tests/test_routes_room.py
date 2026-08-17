@@ -8,7 +8,6 @@ and the full swipe match logic (solo match, dual match, no match).
 
 import json
 import os
-
 import sqlite3
 
 from tests.conftest import read_session_cookie, set_session_cookie
@@ -448,7 +447,21 @@ def test_swipe_right_solo_match(client, app):
         user_id="verified-user",
         authenticated=True,
     )
-    _seed_room("TEST1", ready=1, solo_mode=1)
+    _seed_room(
+        "TEST1",
+        ready=1,
+        solo_mode=1,
+        movie_data=json.dumps(
+            [
+                {
+                    "id": "m1",
+                    "title": "Test Movie",
+                    "thumb": "/proxy?path=jellyfin/m1/Primary",
+                    "media_type": "movie",
+                }
+            ]
+        ),
+    )
 
     response = client.post(
         "/room/TEST1/swipe",
@@ -470,7 +483,21 @@ def test_swipe_right_solo_match(client, app):
 
 def test_swipe_right_dual_match(client, app):
     """POST /room/<code>/swipe right in shared room matches when another user swiped right."""
-    _seed_room("TEST1", ready=1, solo_mode=0)
+    _seed_room(
+        "TEST1",
+        ready=1,
+        solo_mode=0,
+        movie_data=json.dumps(
+            [
+                {
+                    "id": "m1",
+                    "title": "Test Movie",
+                    "thumb": "/proxy?path=jellyfin/m1/Primary",
+                    "media_type": "movie",
+                }
+            ]
+        ),
+    )
     _set_session(
         client,
         os.environ["SESSION_SECRET"],
@@ -536,8 +563,8 @@ def test_swipe_right_no_match_yet(client, app):
 
 def test_set_genre_empty_deck_returns_400(client, app, mocker):
     """POST /room/{code}/genre returns 400 when genre filter results in empty deck."""
-    from tests.conftest import FakeProvider
     from jellyswipe.dependencies import get_provider
+    from tests.conftest import FakeProvider
 
     # Seed a room
     _seed_room("TEST1", ready=1, solo_mode=0)
@@ -553,10 +580,10 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
     fake_provider = FakeProvider()
     original_fetch = fake_provider.fetch_deck
 
-    def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+    async def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
         if genre_name == "NonExistent":
             return []
-        return original_fetch(media_types, genre_name)
+        return await original_fetch(media_types, genre_name)
 
     fake_provider.fetch_deck = mock_fetch
 
@@ -626,8 +653,8 @@ def test_set_watched_filter_invalid_type_returns_422(client, app):
 
 def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
     """POST /room/{code}/watched-filter returns 422 when filter results in empty deck."""
-    from tests.conftest import FakeProvider
     from jellyswipe.dependencies import get_provider
+    from tests.conftest import FakeProvider
 
     _seed_room("TEST1", ready=1, solo_mode=0)
     _set_session(
@@ -642,10 +669,10 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
     fake_provider = FakeProvider()
     original_fetch = fake_provider.fetch_deck
 
-    def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+    async def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
         if hide_watched:
             return []
-        return original_fetch(media_types, genre_name)
+        return await original_fetch(media_types, genre_name)
 
     fake_provider.fetch_deck = mock_fetch
 
@@ -731,6 +758,7 @@ def test_set_watched_filter_requires_auth(client_real_auth, app_real_auth):
 def test_join_room_notifies_after_commit(client, app):
     """POST /room/{code}/join calls notifier.notify(code) after commit."""
     from unittest.mock import patch
+
     from jellyswipe.notifier import notifier
 
     # Create a room first
@@ -752,6 +780,7 @@ def test_join_room_notifies_after_commit(client, app):
 def test_quit_room_notifies_after_commit(client, app):
     """POST /room/{code}/quit calls notifier.notify(code) after commit."""
     from unittest.mock import patch
+
     from jellyswipe.notifier import notifier
 
     # Create a room
@@ -769,6 +798,7 @@ def test_quit_room_notifies_after_commit(client, app):
 def test_set_genre_notifies_after_commit(client, app):
     """POST /room/{code}/genre calls notifier.notify(code) after commit."""
     from unittest.mock import patch
+
     from jellyswipe.notifier import notifier
 
     # Create a room
@@ -786,6 +816,7 @@ def test_set_genre_notifies_after_commit(client, app):
 def test_set_watched_filter_notifies_after_commit(client, app):
     """POST /room/{code}/watched-filter calls notifier.notify(code) after commit."""
     from unittest.mock import patch
+
     from jellyswipe.notifier import notifier
 
     # Create a room

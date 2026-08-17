@@ -11,6 +11,7 @@ from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
     get_provider,
+    get_vault,
     require_auth,
 )
 from jellyswipe.routers._helpers import make_error_response
@@ -41,7 +42,7 @@ auth_router = APIRouter()
     summary="Authenticate with Jellyfin server delegate identity",
 )
 async def jellyfin_use_server_identity(
-    request: Request, uow: DBUoW, provider=Depends(get_provider)
+    request: Request, uow: DBUoW, vault=Depends(get_vault)
 ):
     """Authenticate using Jellyfin server delegate identity.
 
@@ -52,7 +53,7 @@ async def jellyfin_use_server_identity(
     The server acts as the identity provider—the client never handles credentials
     directly, only the session cookie for subsequent API calls.
     """
-    result = await AuthService.login_delegate(provider, uow)
+    result = await AuthService.login_delegate(vault, uow)
     if result is None:
         return make_error_response("Jellyfin delegate unavailable", 401, request)
     request.session["session_id"] = result.session_id
@@ -139,7 +140,7 @@ async def get_me(
     },
     summary="Get Jellyfin server information",
 )
-def jellyfin_server_info(request: Request, provider=Depends(get_provider)):
+async def jellyfin_server_info(request: Request, provider=Depends(get_provider)):
     """Return Jellyfin server identifiers and web URLs.
 
     This is a public endpoint that does not require authentication.
@@ -148,7 +149,7 @@ def jellyfin_server_info(request: Request, provider=Depends(get_provider)):
     before authentication.
     """
     try:
-        info = provider.server_info()
+        info = await provider.server_info()
         return {
             "baseUrl": info.get("machineIdentifier", ""),
             "webUrl": info.get("webUrl", ""),

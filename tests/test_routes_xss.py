@@ -14,6 +14,25 @@ from unittest.mock import MagicMock
 from jellyswipe.dependencies import get_provider
 from tests.conftest import set_session_cookie, sqlite_test_transaction
 
+# Movie deck matching FakeProvider's library-role deck so swipe XSS tests can
+# create real (deck-sourced) matches. The swipe handler sources title/thumb
+# from this deck rather than from Jellyfin, so a card must be present for the
+# media_id being swiped (see issue #299).
+_MOVIE_DECK = json.dumps(
+    [
+        {
+            "id": f"movie-{i}",
+            "title": f"Movie {i}",
+            "thumb": f"/proxy?path=jellyfin/movie-{i}/Primary",
+            "media_type": "movie",
+            "rating": 7.0,
+            "duration": "1h 30m",
+            "year": 2024,
+        }
+        for i in range(25)
+    ]
+)
+
 # ---------------------------------------------------------------------------
 # Module-level XSS payload constants (per D-03, D-04, D-05, D-06, D-07)
 # ---------------------------------------------------------------------------
@@ -45,8 +64,21 @@ class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_supplied_title_thumb(self, client, app, db_path):
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("TEST123", 1),
+                "INSERT INTO rooms (pairing_code, solo_mode, movie_data) VALUES (?, ?, ?)",
+                (
+                    "TEST123",
+                    1,
+                    json.dumps(
+                        [
+                            {
+                                "id": "movie123",
+                                "title": "The Matrix",
+                                "thumb": "/proxy?path=jellyfin/movie123/Primary",
+                                "media_type": "movie",
+                            }
+                        ]
+                    ),
+                ),
             )
 
         _setup_vault_session(
@@ -77,7 +109,10 @@ class TestLayer1ServerSideValidation:
             response_data = response.json()
             assert response_data == {"accepted": True}
 
-            mock_provider.resolve_item_for_tmdb.assert_called_once_with("movie123")
+            # Metadata is sourced from the room deck, never from the client or
+            # a live Jellyfin call (issue #299) — the swipe handler makes zero
+            # Jellyfin calls.
+            mock_provider.resolve_item_for_tmdb.assert_not_called()
 
             with sqlite_test_transaction(db_path) as conn:
                 cursor = conn.execute(
@@ -96,8 +131,21 @@ class TestLayer1ServerSideValidation:
     def test_swipe_ignores_client_params_silently(self, client, app, db_path):
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("TEST456", 1),
+                "INSERT INTO rooms (pairing_code, solo_mode, movie_data) VALUES (?, ?, ?)",
+                (
+                    "TEST456",
+                    1,
+                    json.dumps(
+                        [
+                            {
+                                "id": "movie456",
+                                "title": "Safe Movie",
+                                "thumb": "/proxy?path=jellyfin/movie456/Primary",
+                                "media_type": "movie",
+                            }
+                        ]
+                    ),
+                ),
             )
 
         _setup_vault_session(
@@ -184,6 +232,7 @@ class TestEndToEndXSSBlocking:
                                 "media_type": "movie",
                                 "rating": "8.8",
                                 "duration": "2h 28m",
+                                "thumb": "/proxy?path=jellyfin/movie_e2e/Primary",
                             }
                         ]
                     ),
@@ -239,8 +288,21 @@ class TestEndToEndXSSBlocking:
     ):
         with sqlite_test_transaction(db_path) as conn:
             conn.execute(
-                "INSERT INTO rooms (pairing_code, solo_mode) VALUES (?, ?)",
-                ("FAIL789", 1),
+                "INSERT INTO rooms (pairing_code, solo_mode, movie_data) VALUES (?, ?, ?)",
+                (
+                    "FAIL789",
+                    1,
+                    json.dumps(
+                        [
+                            {
+                                "id": "movie_fail",
+                                "title": "Deck Movie",
+                                "thumb": "/proxy?path=jellyfin/movie_fail/Primary",
+                                "media_type": "movie",
+                            }
+                        ]
+                    ),
+                ),
             )
 
         _setup_vault_session(
@@ -258,49 +320,45 @@ class TestEndToEndXSSBlocking:
 
         client.app.dependency_overrides[get_provider] = lambda: mock_provider
         try:
-            with caplog.at_level("WARNING"):
-                response = client.post(
-                    "/room/FAIL789/swipe",
-                    json={
-                        "media_id": "movie_fail",
-                        "direction": "right",
-                    },
+            response = client.post(
+                "/room/FAIL789/swipe",
+                json={
+                    "media_id": "movie_fail",
+                    "direction": "right",
+                },
+            )
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert response_data.get("accepted") is True
+
+            # Jellyfin is never called on the swipe path (issue #299) — the
+            # swipe handler makes zero Jellyfin calls and sources match
+            # metadata from the deck, so a right-swipe still records a match
+            # even when Jellyfin is unavailable.
+            mock_provider.resolve_item_for_tmdb.assert_not_called()
+
+            with sqlite_test_transaction(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT title, thumb FROM matches WHERE room_code = ? AND movie_id = ?",
+                    ("FAIL789", "movie_fail"),
                 )
-
-                assert response.status_code == 200
-                response_data = response.json()
-                assert (
-                    response_data.get("accepted") is True
-                    or "accepted" not in response_data
+                match = cursor.fetchone()
+                assert match is not None, (
+                    "Match should be recorded from deck metadata despite Jellyfin failure"
                 )
+                assert match["title"] == "Deck Movie"
+                assert match["thumb"] == "/proxy?path=jellyfin/movie_fail/Primary"
 
-                error_logs = [
-                    record
-                    for record in caplog.records
-                    if record.levelno >= 30
-                    and "Failed to resolve metadata" in record.getMessage()
-                ]
-                assert len(error_logs) > 0, "Error was not logged"
-
-                with sqlite_test_transaction(db_path) as conn:
-                    cursor = conn.execute(
-                        "SELECT COUNT(*) as count FROM matches WHERE room_code = ? AND movie_id = ?",
-                        ("FAIL789", "movie_fail"),
-                    )
-                    result = cursor.fetchone()
-                    assert result["count"] == 0, (
-                        "Match should not be created when metadata resolution fails"
-                    )
-
-                with sqlite_test_transaction(db_path) as conn:
-                    cursor = conn.execute(
-                        "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
-                        ("FAIL789", "movie_fail"),
-                    )
-                    result = cursor.fetchone()
-                    assert result["count"] == 1, (
-                        "Swipe should still be recorded even if match creation fails"
-                    )
+            with sqlite_test_transaction(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT COUNT(*) as count FROM swipes WHERE room_code = ? AND movie_id = ?",
+                    ("FAIL789", "movie_fail"),
+                )
+                result = cursor.fetchone()
+                assert result["count"] == 1, (
+                    "Swipe should be recorded even if match creation fails"
+                )
         finally:
             client.app.dependency_overrides.pop(get_provider, None)
 
@@ -324,7 +382,7 @@ def _set_session(client, secret_key, *, active_room="ROOM1", solo_mode=False):
 
 
 def _seed_solo_room(db_path, room_code="ROOM1"):
-    """Seed a solo-mode room ready for swiping."""
+    """Seed a solo-mode room ready for swiping (with a movie deck)."""
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
@@ -332,7 +390,7 @@ def _seed_solo_room(db_path, room_code="ROOM1"):
         conn.execute(
             "INSERT INTO rooms (pairing_code, movie_data, ready, current_genre, solo_mode) "
             "VALUES (?, ?, ?, ?, ?)",
-            (room_code, json.dumps([]), 1, "All", 1),
+            (room_code, _MOVIE_DECK, 1, "All", 1),
         )
         conn.commit()
     finally:

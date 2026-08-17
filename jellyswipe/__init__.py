@@ -145,7 +145,7 @@ async def lifespan(app: FastAPI):
     yield
     from jellyswipe.dependencies import reset_provider_singleton
 
-    reset_provider_singleton()
+    await reset_provider_singleton()
     await dispose_runtime()
     _logger.info("jellyswipe_shutdown")
 

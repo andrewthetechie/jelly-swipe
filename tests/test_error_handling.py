@@ -16,11 +16,13 @@ import logging
 import re
 import sqlite3
 import time
-from unittest.mock import MagicMock
+from datetime import UTC
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-from jellyswipe.dependencies import get_provider
+
+from jellyswipe.dependencies import get_provider, get_watchlist
 
 
 @pytest.fixture
@@ -132,19 +134,17 @@ class TestErrorSanitization:
             client.app.dependency_overrides.pop(get_provider, None)
 
     def test_watchlist_500_no_exception_details(self, app_real_auth):
-        from jellyswipe.dependencies import require_auth, AuthUser
+        from jellyswipe.dependencies import AuthUser, require_auth
 
         # Override auth for this test — we're testing error sanitization, not auth
         app_real_auth.dependency_overrides[require_auth] = lambda: AuthUser(
             jf_token="test-token", user_id="test-user"
         )
         mock_prov = MagicMock()
-        mock_prov.resolve_user_id_from_token.return_value = "test-user"
-        mock_prov.extract_media_browser_token.return_value = "test-token"
-        mock_prov.add_to_user_favorites.side_effect = Exception(
-            "SECRET_WATCHLIST_ERROR"
+        mock_prov.add_to_favorites = AsyncMock(
+            side_effect=Exception("SECRET_WATCHLIST_ERROR")
         )
-        app_real_auth.dependency_overrides[get_provider] = lambda: mock_prov
+        app_real_auth.dependency_overrides[get_watchlist] = lambda: mock_prov
         try:
             auth_client = TestClient(app_real_auth, raise_server_exceptions=False)
             resp = auth_client.post(
@@ -158,7 +158,7 @@ class TestErrorSanitization:
             assert data.get("error") == "Internal server error"
         finally:
             app_real_auth.dependency_overrides.pop(require_auth, None)
-            app_real_auth.dependency_overrides.pop(get_provider, None)
+            app_real_auth.dependency_overrides.pop(get_watchlist, None)
 
     def test_server_info_500_no_exception_details(self, client):
         mock_prov = MagicMock()
@@ -192,21 +192,22 @@ class TestErrorSanitization:
                 source_segment = ast.get_source_segment(source, node.value)
                 if source_segment and "str(e)" in source_segment:
                     violations.append(f"Line {node.lineno}: {source_segment}")
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name) and node.func.id == "str":
-                    for arg in node.args:
-                        if isinstance(arg, ast.Name) and arg.id == "e":
-                            source_segment = ast.get_source_segment(source, node)
-                            if source_segment:
-                                for parent in ast.walk(tree):
-                                    if isinstance(parent, ast.Return):
-                                        seg = ast.get_source_segment(
-                                            source, parent.value
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "str"
+            ):
+                for arg in node.args:
+                    if isinstance(arg, ast.Name) and arg.id == "e":
+                        source_segment = ast.get_source_segment(source, node)
+                        if source_segment:
+                            for parent in ast.walk(tree):
+                                if isinstance(parent, ast.Return):
+                                    seg = ast.get_source_segment(source, parent.value)
+                                    if seg and "str(e)" in seg:
+                                        violations.append(
+                                            f"Line {parent.lineno}: {seg}"
                                         )
-                                        if seg and "str(e)" in seg:
-                                            violations.append(
-                                                f"Line {parent.lineno}: {seg}"
-                                            )
 
         assert len(violations) == 0, "Found str(e) in return statements:\n" + "\n".join(
             violations
@@ -353,9 +354,9 @@ class TestAdditionalRoutes:
     """Additional coverage for routes not covered by main test classes."""
 
     def test_404_join_room_includes_request_id(self, client):
-        from datetime import datetime, timezone
-        import secrets
         import os
+        import secrets
+        from datetime import datetime
 
         session_id = "test-session-" + secrets.token_hex(8)
         path = os.environ["DB_PATH"]
@@ -368,15 +369,16 @@ class TestAdditionalRoutes:
                 session_id,
                 "valid-token",
                 "verified-user",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         conn.commit()
         conn.close()
         # Set session cookie using Starlette format (replaces session_transaction())
-        import itsdangerous
-        from base64 import b64encode
         import json
+        from base64 import b64encode
+
+        import itsdangerous
 
         signer = itsdangerous.TimestampSigner(str(os.environ["SESSION_SECRET"]))
         payload = b64encode(json.dumps({"session_id": session_id}).encode("utf-8"))

@@ -13,7 +13,8 @@ from jellyswipe.repositories.auth_sessions import AuthRecord
 
 if TYPE_CHECKING:
     from jellyswipe.dependencies import AuthUser
-    from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+    from jellyswipe.jellyfin.library import JellyfinLibrary
+    from jellyswipe.jellyfin.vault import JellyfinVault
 
 _logger = logging.getLogger(__name__)
 
@@ -38,16 +39,16 @@ class AuthService:
 
     @staticmethod
     async def login_delegate(
-        provider: JellyfinLibraryProvider,
+        vault: JellyfinVault,
         uow: DatabaseUnitOfWork,
     ) -> LoginResult | None:
         """Authenticate via Jellyfin delegate identity.
 
-        Returns LoginResult on success, None when the provider raises RuntimeError.
+        Returns LoginResult on success, None when the vault raises RuntimeError.
         """
         try:
-            token = provider.server_access_token_for_delegate()
-            uid = provider.server_primary_user_id_for_delegate()
+            token = await vault.delegate_token()
+            uid = await vault.delegate_user_id()
         except RuntimeError:
             return None
 
@@ -87,7 +88,7 @@ class AuthService:
     async def get_me(
         user: AuthUser,
         active_room: str | None,
-        provider: JellyfinLibraryProvider,
+        provider: JellyfinLibrary,
         uow: DatabaseUnitOfWork,
     ) -> MeResult:
         """Return user info, clearing active_room if the pairing code no longer exists."""
@@ -95,7 +96,7 @@ class AuthService:
             active_room
         ):
             active_room = None
-        info = provider.server_info()
+        info = await provider.server_info()
         return MeResult(
             response_body={
                 "userId": user.user_id,

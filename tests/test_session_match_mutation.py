@@ -17,7 +17,6 @@ from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.services.session_match_mutation import (
-    CatalogFacts,
     DeleteChanged,
     DeleteNoOp,
     SessionActor,
@@ -201,7 +200,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="left",
-                catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -222,6 +220,7 @@ class TestApplySwipe:
             {
                 "id": "m1",
                 "title": "Test Movie",
+                "thumb": "/t.jpg",
                 "rating": 8.5,
                 "duration": "2h 10m",
                 "year": 2024,
@@ -241,7 +240,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -289,7 +287,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -306,7 +303,18 @@ class TestApplySwipe:
 
     async def test_hosted_mutual_right_swipe_creates_match(self, runtime_sessionmaker):
         """Mutual right-swipe in hosted room creates Match rows for both users and one event."""
-        await _seed_hosted_room(runtime_sessionmaker, code="ROOM1")
+        await _seed_hosted_room(
+            runtime_sessionmaker,
+            code="ROOM1",
+            movie_data=[
+                {
+                    "id": "m1",
+                    "title": "Test Movie",
+                    "thumb": "/t.jpg",
+                    "media_type": "movie",
+                }
+            ],
+        )
         await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
         await _auth_session(runtime_sessionmaker, "sess-b", jellyfin_user_id="user-B")
 
@@ -322,7 +330,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -341,7 +348,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -375,7 +381,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Test Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -402,7 +407,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="left",
-                catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -429,7 +433,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="left",
-                catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -445,6 +448,7 @@ class TestApplySwipe:
             {
                 "id": "m1",
                 "title": "Deck Movie",
+                "thumb": "/catalog.jpg",
                 "rating": 9.0,
                 "duration": "1h 45m",
                 "year": 2023,
@@ -464,7 +468,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Catalog Title", thumb="/catalog.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -473,8 +476,8 @@ class TestApplySwipe:
         async with runtime_sessionmaker() as session:
             match = await _get_match_for_user(session, "SOLO1", "m1", "user-A")
             assert match is not None
-            # Title/thumb come from CatalogFacts
-            assert match.title == "Catalog Title"
+            # Title/thumb now come from the deck (issue #299)
+            assert match.title == "Deck Movie"
             assert match.thumb == "/catalog.jpg"
             # Rating/duration/year/media_type come from deck
             assert match.rating == "9.0"
@@ -507,7 +510,6 @@ class TestApplySwipe:
                 ),
                 media_id="m1",
                 direction="right",
-                catalog_facts=CatalogFacts(title=None, thumb=None),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -523,7 +525,19 @@ class TestApplySwipe:
     async def test_same_user_different_sessions_match(self, runtime_sessionmaker):
         """Same Jellyfin user on two sessions right-swipes same media_id → match created."""
         uid = "verified-user"
-        await _seed_hosted_room(runtime_sessionmaker, code="ROOM1", deck={uid: 0})
+        await _seed_hosted_room(
+            runtime_sessionmaker,
+            code="ROOM1",
+            deck={uid: 0},
+            movie_data=[
+                {
+                    "id": "m-shared",
+                    "title": "Movie",
+                    "thumb": "/t.jpg",
+                    "media_type": "movie",
+                }
+            ],
+        )
         await _auth_session(runtime_sessionmaker, "tab-a", jellyfin_user_id=uid)
         await _auth_session(runtime_sessionmaker, "tab-b", jellyfin_user_id=uid)
 
@@ -539,7 +553,6 @@ class TestApplySwipe:
                 ),
                 media_id="m-shared",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -558,7 +571,6 @@ class TestApplySwipe:
                 ),
                 media_id="m-shared",
                 direction="right",
-                catalog_facts=CatalogFacts(title="Movie", thumb="/t.jpg"),
                 uow=uow,
                 jellyfin_url="http://test",
             )

@@ -393,7 +393,7 @@ class TestGetProvider:
 
     @pytest.mark.anyio
     async def test_returns_jellyfin_library_provider_singleton(self):
-        """get_provider returns the JellyfinLibraryProvider singleton."""
+        """get_provider returns the JellyfinLibrary (deck provider) singleton."""
         mock_provider = MagicMock()
         deps._provider_singleton = mock_provider
 
@@ -413,7 +413,7 @@ class TestGetProvider:
 
         mock_instance = MagicMock()
         with patch(
-            "jellyswipe.jellyfin_library.JellyfinLibraryProvider",
+            "jellyswipe.jellyfin.library.JellyfinLibrary",
             return_value=mock_instance,
         ):
 

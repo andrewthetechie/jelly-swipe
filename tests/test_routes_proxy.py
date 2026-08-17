@@ -4,7 +4,7 @@ Covers /proxy endpoint: valid image paths, missing params, SSRF attack vectors,
 server configuration, and provider error handling (EPIC-04).
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 import jellyswipe.dependencies as deps
 
@@ -39,7 +39,7 @@ def test_proxy_returns_image_data_from_provider(client, monkeypatch):
     monkeypatch.setattr(
         fake,
         "fetch_library_image",
-        MagicMock(return_value=(b"\x89PNG\r\n", "image/png")),
+        AsyncMock(return_value=(b"\x89PNG\r\n", "image/png")),
     )
     response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
     assert response.status_code == 200
@@ -52,7 +52,7 @@ def test_proxy_content_type_matches_provider(client, monkeypatch):
     monkeypatch.setattr(
         fake,
         "fetch_library_image",
-        MagicMock(return_value=(b"img", "image/webp")),
+        AsyncMock(return_value=(b"img", "image/webp")),
     )
     response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
     assert response.status_code == 200
@@ -163,7 +163,7 @@ def test_proxy_provider_permission_error_returns_403(client, monkeypatch):
     monkeypatch.setattr(
         fake,
         "fetch_library_image",
-        MagicMock(side_effect=PermissionError("forbidden")),
+        AsyncMock(side_effect=PermissionError("forbidden")),
     )
     response = client.get(f"/proxy?path=jellyfin/{VALID_HEX32}/Primary")
     assert response.status_code == 403

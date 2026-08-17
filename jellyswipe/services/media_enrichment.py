@@ -119,7 +119,7 @@ class MediaEnrichmentService:
                 return cached_data
 
             # Step 2: Cache miss — resolve item and call TMDB
-            item = provider.resolve_item_for_tmdb(media_id)
+            item = await provider.resolve_item_for_tmdb(media_id)
             raw_result = fetch_fn(item.title, item.year, api_token)
 
             # Step 3: Check for empty result

@@ -8,13 +8,11 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from jellyswipe import XSSSafeJSONResponse
 
+from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.dependencies import check_rate_limit, get_provider
 from jellyswipe.schemas.common import ErrorResponse
-
-import requests
 
 _logger = logging.getLogger(__name__)
 
@@ -39,7 +37,7 @@ proxy_router = APIRouter()
         },
     },
 )
-def proxy(
+async def proxy(
     request: Request,
     path: str | None = Query(
         None,
@@ -71,12 +69,12 @@ def proxy(
     if not config.jellyfin_url:
         raise HTTPException(status_code=503)
     try:
-        body, content_type = provider.fetch_library_image(path)
+        body, content_type = await provider.fetch_library_image(path)
     except PermissionError:
         raise HTTPException(status_code=403)
     except FileNotFoundError:
         raise HTTPException(status_code=404)
-    except requests.exceptions.RequestException as exc:
+    except Exception as exc:
         _logger.warning("proxy: upstream error fetching %s: %s", path, exc)
         return XSSSafeJSONResponse(
             content={"error": "Upstream server error"}, status_code=502

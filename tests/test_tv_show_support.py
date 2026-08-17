@@ -10,6 +10,7 @@ Tests cover:
 import json
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
 from jellyswipe.db_runtime import (
@@ -19,11 +20,10 @@ from jellyswipe.db_runtime import (
     initialize_runtime,
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
-from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+from jellyswipe.jellyfin import JellyfinClient, JellyfinLibrary, JellyfinVault
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.services.session_match_mutation import (
-    CatalogFacts,
     SessionActor,
     SessionMatchMutation,
     SwipeAccepted,
@@ -509,13 +509,11 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
             actor = SessionActor(
                 user_id="user-1", session_id="sess-1", active_room="ROOM1"
             )
-            catalog = CatalogFacts(title="TV Show 1", thumb="/t.jpg")
             result = await svc.apply_swipe(
                 code="ROOM1",
                 actor=actor,
                 media_id="tv-1",
                 direction="right",
-                catalog_facts=catalog,
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -594,13 +592,11 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
             actor = SessionActor(
                 user_id="user-1", session_id="sess-1", active_room="ROOM1"
             )
-            catalog = CatalogFacts(title="Movie 1", thumb="/m.jpg")
             result = await svc.apply_swipe(
                 code="ROOM1",
                 actor=actor,
                 media_id="movie-1",
                 direction="right",
-                catalog_facts=catalog,
                 uow=uow,
                 jellyfin_url="http://test",
             )
@@ -623,47 +619,43 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
-    """Test that JellyfinLibraryProvider.fetch_deck returns TV shows with media_type='tv_show'."""
+def _make_deck_library(handler, *, cached_user_id="user-123", library_ids=None):
+    """Build a JellyfinLibrary over an httpx.MockTransport for fetch_deck tests."""
+    client = JellyfinClient("http://test.local", transport=httpx.MockTransport(handler))
+    vault = JellyfinVault(client, api_key="test-api-key")
+    vault._access_token = "test-token"
+    vault._cached_user_id = cached_user_id
+    library = JellyfinLibrary(vault)
+    if library_ids is not None:
+        library._cached_library_ids = library_ids
+    return library
 
-    # Mock Session.request - library discovery, TV items
-    mock_lib_response = mocker.MagicMock()
-    mock_lib_response.ok = True
-    mock_lib_response.status_code = 200
-    mock_lib_response.json.return_value = {
-        "Items": [{"Id": "lib-tv", "CollectionType": "tvshows", "Name": "TV Shows"}]
-    }
 
-    mock_response = mocker.MagicMock()
-    mock_response.ok = True
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "Items": [
-            {
-                "Id": "series-1",
-                "Name": "TV Series 1",
-                "Overview": "Series summary 1",
-                "ProductionYear": 2024,
-                "ChildCount": 2,
-                "Type": "Series",
-            }
-        ]
-    }
-    mock_session = mocker.MagicMock()
-    mock_session.request.side_effect = [mock_lib_response, mock_response]
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
-    )
+@pytest.mark.anyio
+async def test_fetch_deck_tv_shows_only(monkeypatch):
+    """Test that JellyfinLibrary.fetch_deck returns TV shows with media_type='tv_show'."""
 
-    # Create provider and set up state
-    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
-    provider._access_token = "test-token"
-    provider._cached_user_id = "user-123"
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "Items": [
+                    {
+                        "Id": "series-1",
+                        "Name": "TV Series 1",
+                        "Overview": "Series summary 1",
+                        "ProductionYear": 2024,
+                        "ChildCount": 2,
+                        "Type": "Series",
+                    }
+                ]
+            },
+        )
 
-    # Call fetch_deck for TV shows only
-    deck = provider.fetch_deck(media_types=["tv_show"])
+    library = _make_deck_library(handler, library_ids={"tvshows": ["lib-tv"]})
 
-    # Verify deck contains TV card with correct format
+    deck = await library.fetch_deck(media_types=["tv_show"])
+
     assert len(deck) == 1
     card = deck[0]
     assert card["id"] == "series-1"
@@ -673,80 +665,59 @@ def test_fetch_deck_tv_shows_only(mocker, monkeypatch):
     assert "duration" not in card  # TV cards should NOT have duration
 
 
-def test_fetch_deck_mixed_media_interleaved(mocker, monkeypatch):
+@pytest.mark.anyio
+async def test_fetch_deck_mixed_media_interleaved(monkeypatch):
     """Test that fetch_deck with both movie and tv_show returns interleaved cards."""
 
-    mock_session = mocker.MagicMock()
-    mocker.patch(
-        "jellyswipe.jellyfin_library.requests.Session", return_value=mock_session
+    def handler(request):
+        item_type = request.url.params.get("IncludeItemTypes")
+        if item_type == "Movie":
+            return httpx.Response(
+                200,
+                json={
+                    "Items": [
+                        {
+                            "Id": "movie-1",
+                            "Name": "Movie 1",
+                            "Overview": "Movie summary",
+                            "RunTimeTicks": 54000000000,
+                            "ProductionYear": 2024,
+                            "CommunityRating": 8.5,
+                            "Type": "Movie",
+                        }
+                    ]
+                },
+            )
+        if item_type == "Series":
+            return httpx.Response(
+                200,
+                json={
+                    "Items": [
+                        {
+                            "Id": "series-1",
+                            "Name": "TV Series 1",
+                            "Overview": "Series summary",
+                            "ProductionYear": 2023,
+                            "ChildCount": 3,
+                            "Type": "Series",
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(200, json={"Items": []})
+
+    library = _make_deck_library(
+        handler, library_ids={"movies": ["lib-movies"], "tvshows": ["lib-tv"]}
     )
 
-    # Create provider and set up state with pre-populated library cache
-    provider = JellyfinLibraryProvider("http://test.local", api_key="test-api-key")
-    provider._access_token = "test-token"
-    provider._cached_user_id = "user-123"
-    provider._cached_library_ids = {
-        "movies": ["lib-movies"],
-        "tvshows": ["lib-tv"],
-    }
+    deck = await library.fetch_deck(media_types=["movie", "tv_show"])
 
-    # Configure mock responses
-    def request_side_effect(method, url, **kwargs):
-        mock_response = mocker.MagicMock()
-        mock_response.ok = True
-        mock_response.status_code = 200
-
-        params = kwargs.get("params", {})
-        if params.get("IncludeItemTypes") == "Movie":
-            mock_response.json.return_value = {
-                "Items": [
-                    {
-                        "Id": "movie-1",
-                        "Name": "Movie 1",
-                        "Overview": "Movie summary",
-                        "RunTimeTicks": 54000000000,
-                        "ProductionYear": 2024,
-                        "CommunityRating": 8.5,
-                        "Type": "Movie",
-                    }
-                ]
-            }
-        elif params.get("IncludeItemTypes") == "Series":
-            mock_response.json.return_value = {
-                "Items": [
-                    {
-                        "Id": "series-1",
-                        "Name": "TV Series 1",
-                        "Overview": "Series summary",
-                        "ProductionYear": 2023,
-                        "ChildCount": 3,
-                        "Type": "Series",
-                    }
-                ]
-            }
-        else:
-            mock_response.json.return_value = {"Items": []}
-
-        return mock_response
-
-    mock_session.request.side_effect = request_side_effect
-
-    # Call fetch_deck for both media types
-    deck = provider.fetch_deck(media_types=["movie", "tv_show"])
-
-    # Verify deck contains both movie and TV cards
     assert len(deck) == 2
-
-    # Find movie and TV cards
     movie_card = next(c for c in deck if c["media_type"] == "movie")
     tv_card = next(c for c in deck if c["media_type"] == "tv_show")
-
-    # Verify movie card
     assert movie_card["id"] == "movie-1"
     assert movie_card["duration"] == "1h 30m"
     assert movie_card["rating"] == 8.5
-
-    # Verify TV card
     assert tv_card["id"] == "series-1"
     assert tv_card["season_count"] == 3
     assert "duration" not in tv_card

@@ -4,11 +4,12 @@ Covers /auth/jellyfin-use-server-identity with header-spoof protection tests (EP
 404 regression tests for removed routes, and E2E delegate login/logout flow.
 """
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
+
+import pytest
 
 import jellyswipe.dependencies as deps
-import pytest
 
 SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
 
@@ -32,8 +33,8 @@ def test_jellyfin_use_server_identity_runtime_error_returns_401(
     fake = deps._provider_singleton
     monkeypatch.setattr(
         fake,
-        "server_access_token_for_delegate",
-        MagicMock(side_effect=RuntimeError("unavailable")),
+        "delegate_token",
+        AsyncMock(side_effect=RuntimeError("unavailable")),
     )
     response = client_real_auth.post("/auth/jellyfin-use-server-identity")
     assert response.status_code == 401
@@ -113,7 +114,7 @@ def test_expired_sessions_cleaned_up_on_delegate_login(client_real_auth, db_conn
     """Expired auth sessions are deleted when a new session is created."""
     # Seed an expired session (created 15 days ago)
     expired_sid = "expired-session-id"
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
+    cutoff = (datetime.now(UTC) - timedelta(days=15)).isoformat()
     db_connection.execute(
         "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
         (expired_sid, "old-token", "old-user", cutoff),
