@@ -11,6 +11,7 @@ no raw SQL in this module.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,8 @@ from jellyswipe.repositories.matches import parse_rating
 
 if TYPE_CHECKING:
     from jellyswipe.db_uow import DatabaseUnitOfWork
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -82,24 +85,38 @@ class DeleteNoOp:
 DeleteMatchResult = DeleteChanged | DeleteNoOp
 
 
-def _resolve_meta_from_deck(movie_data_json: str | None, media_id: str) -> dict:
-    """Look up rating, duration, year, media_type from the Room's deck JSON."""
+def _card_from_deck(movie_data_json: str | None, media_id: str) -> dict | None:
+    """Return the Room deck card for ``media_id``, or None if absent."""
     try:
         items = json.loads(movie_data_json or "[]")
         for item in items:
             if str(item.get("id", "")) == str(media_id):
-                duration = item.get("duration")
-                year = item.get("year")
-                media_type = item.get("media_type", "movie")
-                return {
-                    "rating": parse_rating(item.get("rating")),
-                    "duration": duration or "",
-                    "year": str(year) if year is not None else "",
-                    "media_type": media_type,
-                }
+                return item
     except (json.JSONDecodeError, TypeError):
         pass
-    return {"rating": None, "duration": "", "year": "", "media_type": "movie"}
+    return None
+
+
+def _catalog_facts_from_card(card: dict | None, media_id: str) -> CatalogFacts:
+    """Build CatalogFacts (title/thumb) from a deck card."""
+    if card is None:
+        return CatalogFacts(title=None, thumb=None)
+    return CatalogFacts(title=card.get("title"), thumb=card.get("thumb"))
+
+
+def _meta_from_card(card: dict | None) -> dict:
+    """Derive rating/duration/year/media_type from a deck card."""
+    if card is None:
+        return {"rating": None, "duration": "", "year": "", "media_type": "movie"}
+    duration = card.get("duration")
+    year = card.get("year")
+    media_type = card.get("media_type", "movie")
+    return {
+        "rating": parse_rating(card.get("rating")),
+        "duration": duration or "",
+        "year": str(year) if year is not None else "",
+        "media_type": media_type,
+    }
 
 
 async def _insert_match_for_user(
@@ -169,7 +186,6 @@ class SessionMatchMutation:
         actor: SessionActor,
         media_id: str,
         direction: str | None,
-        catalog_facts: CatalogFacts,
         uow: DatabaseUnitOfWork,
         jellyfin_url: str,
     ) -> ApplySwipeResult:
@@ -179,7 +195,6 @@ class SessionMatchMutation:
             actor=actor,
             media_id=media_id,
             direction=direction,
-            catalog_facts=catalog_facts,
             jellyfin_url=jellyfin_url,
         )
 
@@ -191,7 +206,6 @@ class SessionMatchMutation:
         actor: SessionActor,
         media_id: str,
         direction: str | None,
-        catalog_facts: CatalogFacts,
         jellyfin_url: str,
     ) -> ApplySwipeResult:
         """Apply one swipe atomically through the repository layer.
@@ -226,16 +240,29 @@ class SessionMatchMutation:
         positions[actor.user_id] = current_pos + 1
         await uow.rooms.set_deck_position(code, json.dumps(positions))
 
-        # 4. Match detection (only for right-swipe with title/thumb)
-        if (
-            direction != "right"
-            or catalog_facts.title is None
-            or catalog_facts.thumb is None
-        ):
+        # 4. Match detection (only for right-swipe with a card present in the deck)
+        if direction != "right":
+            return SwipeAccepted(match_created=False)
+
+        card = _card_from_deck(room.movie_data_json, media_id)
+        catalog_facts = _catalog_facts_from_card(card, media_id)
+        if catalog_facts.title is None or catalog_facts.thumb is None:
+            if card is None:
+                logger.warning(
+                    "right-swipe media_id=%s not in room %s deck; no match recorded",
+                    media_id,
+                    code,
+                )
+            else:
+                logger.warning(
+                    "right-swipe media_id=%s in room %s deck but missing title/thumb; no match recorded",
+                    media_id,
+                    code,
+                )
             return SwipeAccepted(match_created=False)
 
         # 5. Derive match metadata from room's movie_data
-        meta = _resolve_meta_from_deck(room.movie_data_json, media_id)
+        meta = _meta_from_card(card)
         deep_link = (
             f"{jellyfin_url}/web/#/details?id={media_id}" if jellyfin_url else ""
         )

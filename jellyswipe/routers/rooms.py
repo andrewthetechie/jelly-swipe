@@ -19,7 +19,12 @@ from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
-from jellyswipe.dependencies import AuthUser, DBUoW, get_provider, require_auth
+from jellyswipe.dependencies import (
+    AuthUser,
+    DBUoW,
+    get_provider,
+    require_auth,
+)
 from jellyswipe.notifier import notifier
 from jellyswipe.routers._helpers import (
     commit_and_wake,
@@ -50,7 +55,6 @@ from jellyswipe.services.room_lifecycle import (
 )
 from jellyswipe.services.session_event_stream import session_event_stream
 from jellyswipe.services.session_match_mutation import (
-    CatalogFacts,
     DeleteChanged,
     SessionActor,
     SessionMatchMutation,
@@ -173,41 +177,31 @@ async def swipe(
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
     config: AppConfig = Depends(get_config),
-    provider=Depends(get_provider),
 ):
     """Submit a swipe (left or right) on a media item within a room.
 
     Uses a ``BEGIN IMMEDIATE`` transaction to prevent race conditions in match
     detection when multiple users swipe concurrently (see D-12, D-13).
 
+    Match metadata (title/thumb) is sourced from the room's deck payload — the
+    swipe handler makes zero Jellyfin calls, so a right-swipe records a match
+    even when Jellyfin is unavailable.
+
     Returns ``{"accepted": true}`` on success. If the room no longer exists or
     the swipe is otherwise invalid, returns 404.
     """
     mid = str(body.media_id)
-
-    title = None
-    thumb = None
-    try:
-        resolved = provider.resolve_item_for_tmdb(mid)
-        title = resolved.title
-        thumb = f"/proxy?path=jellyfin/{mid}/Primary"
-    except RuntimeError as exc:
-        logging.getLogger().warning(
-            f"Failed to resolve metadata for media_id={mid}: {exc}"
-        )
 
     actor = SessionActor(
         user_id=user.user_id,
         session_id=request.session.get("session_id"),
         active_room=request.session.get("active_room"),
     )
-    catalog = CatalogFacts(title=title, thumb=thumb)
     result = await session_match_mutation.apply_swipe(
         code=code,
         actor=actor,
         media_id=mid,
         direction=body.direction,
-        catalog_facts=catalog,
         uow=uow,
         jellyfin_url=config.jellyfin_url,
     )

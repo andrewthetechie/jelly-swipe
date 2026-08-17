@@ -31,7 +31,7 @@ class TestMediaEnrichmentService:
     def _make_provider(self, title="Test Movie", year=2024):
         """Build a mock provider that resolves items."""
         provider = MagicMock()
-        provider.resolve_item_for_tmdb = MagicMock(
+        provider.resolve_item_for_tmdb = AsyncMock(
             return_value=SimpleNamespace(title=title, year=year)
         )
         return provider

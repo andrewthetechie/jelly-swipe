@@ -36,32 +36,29 @@ class TestMigration23:
 
                 for node in ast.walk(tree):
                     # Check for requests.get() calls
-                    if isinstance(node, ast.Call):
-                        if isinstance(node.func, ast.Attribute):
-                            # Check if it's requests.get or requests.post
-                            if (
-                                isinstance(node.func.value, ast.Name)
-                                and node.func.value.id == "requests"
-                                and node.func.attr in ["get", "post"]
-                            ):
-                                # Get the line number and context
-                                line_num = node.lineno
-                                lines = content.split("\n")
-                                if line_num <= len(lines):
-                                    line_content = lines[line_num - 1].strip()
-                                    # Skip if it's just a comment
-                                    if not line_content.startswith("#"):
-                                        direct_requests_calls.append(
-                                            {
-                                                "file": str(
-                                                    py_file.relative_to(
-                                                        jellyswipe_dir.parent
-                                                    )
-                                                ),
-                                                "line": line_num,
-                                                "content": line_content,
-                                            }
-                                        )
+                    if (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "requests"
+                        and node.func.attr in ["get", "post"]
+                    ):
+                        # Get the line number and context
+                        line_num = node.lineno
+                        lines = content.split("\n")
+                        if line_num <= len(lines):
+                            line_content = lines[line_num - 1].strip()
+                            # Skip if it's just a comment
+                            if not line_content.startswith("#"):
+                                direct_requests_calls.append(
+                                    {
+                                        "file": str(
+                                            py_file.relative_to(jellyswipe_dir.parent)
+                                        ),
+                                        "line": line_num,
+                                        "content": line_content,
+                                    }
+                                )
             except SyntaxError:
                 # Skip files that can't be parsed (unlikely, but safe to ignore)
                 continue
@@ -133,34 +130,32 @@ class TestMigration23:
 
                 for node in ast.walk(tree):
                     # Check for make_http_request() calls
-                    if isinstance(node, ast.Call):
-                        if (
-                            isinstance(node.func, ast.Name)
-                            and node.func.id == "make_http_request"
-                        ):
-                            # Check if timeout parameter is provided
-                            has_timeout = False
-                            for keyword in node.keywords:
-                                if keyword.arg == "timeout":
-                                    has_timeout = True
-                                    break
+                    if (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id == "make_http_request"
+                    ):
+                        # Check if timeout parameter is provided
+                        has_timeout = False
+                        for keyword in node.keywords:
+                            if keyword.arg == "timeout":
+                                has_timeout = True
+                                break
 
-                            if not has_timeout:
-                                line_num = node.lineno
-                                lines = content.split("\n")
-                                if line_num <= len(lines):
-                                    line_content = lines[line_num - 1].strip()
-                                    calls_without_timeout.append(
-                                        {
-                                            "file": str(
-                                                py_file.relative_to(
-                                                    jellyswipe_dir.parent
-                                                )
-                                            ),
-                                            "line": line_num,
-                                            "content": line_content,
-                                        }
-                                    )
+                        if not has_timeout:
+                            line_num = node.lineno
+                            lines = content.split("\n")
+                            if line_num <= len(lines):
+                                line_content = lines[line_num - 1].strip()
+                                calls_without_timeout.append(
+                                    {
+                                        "file": str(
+                                            py_file.relative_to(jellyswipe_dir.parent)
+                                        ),
+                                        "line": line_num,
+                                        "content": line_content,
+                                    }
+                                )
             except SyntaxError:
                 continue
 
@@ -185,8 +180,14 @@ class TestMigration23:
 
         assert hasattr(jellyswipe.http_client, "make_http_request")
 
-        # Test jellyfin_library.py can import http_client
-        import jellyswipe.jellyfin_library
+        # Test the jellyfin package imports cleanly (no circular import issues).
+        # The split-by-role jellyfin package replaces the former
+        # jellyswipe.jellyfin_library module (issue #299).
+        import jellyswipe.jellyfin
+        import jellyswipe.jellyfin.client
+        import jellyswipe.jellyfin.library
+        import jellyswipe.jellyfin.vault
+        import jellyswipe.jellyfin.watchlist
         # If we got here without import errors, the circular import check passed
 
     def test_http_client_module_structure(self):

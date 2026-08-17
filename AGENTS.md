@@ -23,7 +23,11 @@ jellyswipe/
 ├── repositories/    SQLAlchemy data access
 ├── models/          SQLAlchemy ORM models
 ├── utils/frontend.py  Resolves Vite dist output path
-├── jellyfin_library.py
+├── jellyfin/         Split-by-role Jellyfin integration (issue #299)
+│   ├── client.py     Async httpx transport (JellyfinClient)
+│   ├── vault.py      Delegate token + delegate user resolution (JellyfinVault)
+│   ├── library.py    DeckProvider adapter: deck, genres, items, images (JellyfinLibrary)
+│   └── watchlist.py  Add-to-favorites writer (JellyfinWatchlistWriter)
 ├── config.py
 ├── db.py
 ├── db_runtime.py
@@ -61,7 +65,7 @@ async with runtime_sessionmaker() as session:
 
 - Always use `XSSSafeJSONResponse` for JSON API responses. Do not use `JSONResponse` directly.
 - Authenticated routes should use `require_auth`.
-- `DeckProvider` is defined in `jellyswipe/services/room_lifecycle.py`. Production uses `JellyfinLibrary`; tests usually use `FakeProvider`.
+- `DeckProvider` is defined in `jellyswipe/services/room_lifecycle.py`. Production uses `JellyfinLibrary` (`jellyswipe/jellyfin/library.py`); tests usually use `FakeProvider`.
 - `fetch_deck` takes `media_types: list[str]` containing `"movie"` and/or `"tv_show"`.
 - Public API payloads use `media_id`, not `movie_id`.
 - `POST /room` expects JSON booleans for `movies`, `tv_shows`, and `solo`. String booleans should be rejected.
@@ -154,4 +158,5 @@ This project is indexed by GitNexus as **jelly-swipe**. Use GitNexus to understa
 - Refactoring: `gitnexus-refactoring`
 - Tooling reference: `gitnexus-guide`
 - CLI workflows: `gitnexus-cli`
+
 <!-- gitnexus:end -->

@@ -12,7 +12,7 @@ The only supported user-login flow. The browser hits `POST /auth/jellyfin-use-se
 
 ### Server delegate token
 
-The single Jellyfin access token that the server uses to talk to Jellyfin. Today it is set directly from the operator-provided `JELLYFIN_API_KEY` (see `JellyfinLibraryProvider._login_from_env`). This token represents the _operator's_ Jellyfin user; every authenticated browser session in Jelly-Swipe acts as that user against Jellyfin.
+The single Jellyfin access token that the server uses to talk to Jellyfin. It is set directly from the operator-provided `JELLYFIN_API_KEY` (see `JellyfinVault._login_from_env` in `jellyswipe/jellyfin/vault.py`). This token represents the _operator's_ Jellyfin user; every authenticated browser session in Jelly-Swipe acts as that user against Jellyfin.
 
 ### Vault
 
@@ -20,7 +20,9 @@ Server-side store binding a session cookie to a Jellyfin token (and Jellyfin use
 
 ### `user.jf_token`
 
-The token retrieved from the vault for an authenticated request. **Today this is always the server delegate token, not a per-user token.** The name is a remnant of the old per-user-token model; future readers should not assume it identifies the swiping user.
+The token retrieved from the vault for an authenticated request. **This is always the server delegate token, not a per-user token.** The name is a remnant of the old per-user-token model; it does not identify the swiping user.
+
+Since issue #299, no code interprets the token as a per-user token: the watchlist writer (`JellyfinWatchlistWriter.add_to_favorites`) uses the vault's delegate token and delegate user id directly, and the swipe path makes no Jellyfin calls at all (match metadata comes from the room deck).
 
 ### API key (Jellyfin)
 

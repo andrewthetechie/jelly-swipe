@@ -20,12 +20,57 @@ from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.rate_limiter import rate_limiter
 
 if TYPE_CHECKING:
-    from jellyswipe.jellyfin_library import JellyfinLibraryProvider
+    from jellyswipe.jellyfin.client import JellyfinClient
+    from jellyswipe.jellyfin.library import JellyfinLibrary
+    from jellyswipe.jellyfin.vault import JellyfinVault
+    from jellyswipe.jellyfin.watchlist import JellyfinWatchlistWriter
 
 _logger = logging.getLogger(__name__)
 
-_provider_lock = threading.Lock()
-_provider_singleton: Optional["JellyfinLibraryProvider"] = None
+# Split-by-role Jellyfin integration singletons (ADR-0001). All three role
+# objects share one async HTTP client and are constructed lazily on first
+# dependency resolution, then reset (client closed) on application shutdown.
+# ``_provider_singleton`` is retained under its historical name — it now holds
+# the JellyfinLibrary (DeckProvider adapter) role, so existing test fixtures
+# that seed ``deps._provider_singleton`` keep working unchanged.
+_client_lock = threading.Lock()
+_singletons_built: bool = False
+_client_singleton: Optional["JellyfinClient"] = None
+_vault_singleton: Optional["JellyfinVault"] = None
+_provider_singleton: Optional["JellyfinLibrary"] = None
+_watchlist_singleton: Optional["JellyfinWatchlistWriter"] = None
+
+
+def _build_jellyfin_singletons(config: AppConfig) -> None:
+    """Construct the shared client + role singletons if not already present."""
+    global \
+        _singletons_built, \
+        _client_singleton, \
+        _vault_singleton, \
+        _provider_singleton, \
+        _watchlist_singleton
+    if _singletons_built:
+        return
+    with _client_lock:
+        if _singletons_built:
+            return
+        from jellyswipe.jellyfin.client import JellyfinClient
+        from jellyswipe.jellyfin.library import JellyfinLibrary
+        from jellyswipe.jellyfin.vault import JellyfinVault
+        from jellyswipe.jellyfin.watchlist import JellyfinWatchlistWriter
+
+        _client_singleton = JellyfinClient(
+            config.jellyfin_url,
+            device_id=config.jellyfin_device_id,
+        )
+        _vault_singleton = JellyfinVault(
+            _client_singleton,
+            api_key=config.jellyfin_api_key,
+            device_id=config.jellyfin_device_id,
+        )
+        _provider_singleton = JellyfinLibrary(_vault_singleton)
+        _watchlist_singleton = JellyfinWatchlistWriter(_vault_singleton)
+        _singletons_built = True
 
 
 @dataclass
@@ -120,29 +165,52 @@ async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
     raise HTTPException(status_code=401, detail="Authentication required")
 
 
-async def get_provider(config: AppConfig = Depends(get_config)):
-    """FastAPI dependency that returns the JellyfinLibraryProvider singleton."""
-    global _provider_singleton
-    if _provider_singleton is not None:
-        return _provider_singleton
-
-    with _provider_lock:
-        if _provider_singleton is None:
-            from jellyswipe.jellyfin_library import JellyfinLibraryProvider
-
-            _provider_singleton = JellyfinLibraryProvider(
-                config.jellyfin_url,
-                api_key=config.jellyfin_api_key,
-                device_id=config.jellyfin_device_id,
-            )
-
+async def get_library(config: AppConfig = Depends(get_config)):
+    """FastAPI dependency returning the shared JellyfinLibrary (DeckProvider adapter)."""
+    _build_jellyfin_singletons(config)
     return _provider_singleton
 
 
-def reset_provider_singleton() -> None:
-    """Reset the provider singleton on application shutdown."""
-    global _provider_singleton
+async def get_vault(config: AppConfig = Depends(get_config)):
+    """FastAPI dependency returning the shared JellyfinVault."""
+    _build_jellyfin_singletons(config)
+    return _vault_singleton
+
+
+async def get_watchlist(config: AppConfig = Depends(get_config)):
+    """FastAPI dependency returning the shared JellyfinWatchlistWriter."""
+    _build_jellyfin_singletons(config)
+    return _watchlist_singleton
+
+
+async def get_provider(config: AppConfig = Depends(get_config)):
+    """Backward-compatible alias returning the JellyfinLibrary (deck provider) singleton.
+
+    Deprecated: use get_library() directly. This alias exists only for test
+    fixtures that seed deps._provider_singleton and cannot yet be updated.
+    """
+    return await get_library(config)
+
+
+async def reset_provider_singleton() -> None:
+    """Close the Jellyfin client and reset role singletons on application shutdown."""
+    global \
+        _singletons_built, \
+        _client_singleton, \
+        _vault_singleton, \
+        _provider_singleton, \
+        _watchlist_singleton
+    client = _client_singleton
+    _singletons_built = False
+    _client_singleton = None
+    _vault_singleton = None
     _provider_singleton = None
+    _watchlist_singleton = None
+    if client is not None:
+        try:
+            await client.aclose()
+        except Exception:
+            _logger.warning("jellyfin_client_close_failed", exc_info=True)
 
 
 __all__ = [
@@ -150,6 +218,9 @@ __all__ = [
     "DBUoW",
     "check_rate_limit",
     "get_db_uow",
+    "get_library",
     "get_provider",
+    "get_vault",
+    "get_watchlist",
     "require_auth",
 ]

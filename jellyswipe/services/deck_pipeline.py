@@ -23,7 +23,7 @@ class EmptyDeckError(Exception):
 
 
 class DeckProvider(Protocol):
-    def fetch_deck(
+    async def fetch_deck(
         self,
         media_types: list[str],
         genre_name: str | None = None,
@@ -81,7 +81,7 @@ async def build_deck(
         EmptyDeckError: If deck is empty after exclusion
     """
     # Step 1: Fetch from provider
-    items = provider.fetch_deck(
+    items = await provider.fetch_deck(
         media_types=media_types,
         genre_name=genre,
         hide_watched=hide_watched,

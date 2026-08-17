@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
     dispose_runtime,
@@ -371,10 +372,10 @@ async def test_empty_deck_rollback_on_genre_change(runtime_sessionmaker):
         # Mock provider to return empty deck for "Action" genre
         original_fetch = prov.fetch_deck
 
-        def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+        async def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
             if genre_name == "Action":
                 return []
-            return original_fetch(
+            return await original_fetch(
                 media_types=media_types,
                 genre_name=genre_name,
                 hide_watched=hide_watched,
@@ -417,10 +418,10 @@ async def test_empty_deck_rollback_on_watched_filter(runtime_sessionmaker):
         # Mock provider to return empty deck when hide_watched=True
         original_fetch = prov.fetch_deck
 
-        def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+        async def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
             if hide_watched:
                 return []
-            return original_fetch(
+            return await original_fetch(
                 media_types=media_types,
                 genre_name=genre_name,
                 hide_watched=hide_watched,
@@ -674,7 +675,7 @@ async def test_set_genre_empty_deck_no_event(runtime_sessionmaker):
         # Mock provider to return empty deck
         original_fetch = prov.fetch_deck
 
-        def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
+        async def mock_fetch(media_types=None, genre_name=None, hide_watched=False):
             return []
 
         prov.fetch_deck = mock_fetch
