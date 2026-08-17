@@ -1,9 +1,10 @@
 import React from "react"
-import { apiUrl, apiFetch } from "./api"
+import { apiUrl } from "./api"
 import { formatRating } from './format'
 import type { JSX } from "react"
 import sadLogo from "./assets/sad.png"
 import type { MatchItem } from "./types"
+import { fetchMatches } from "./roomApi"
 
 interface MatchListModalProps {
     handleMatchListClick: () => void
@@ -15,15 +16,8 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
     React.useEffect(() => {
         async function fetchMatchList() {
             try {
-                const res: Response = await apiFetch('/matches', {
-                    method: 'GET',
-                    headers: {'Content-Type': 'application/json'},
-                })
-                if (!res.ok) {
-                    throw new Error(`Error retrieving matches: ${res.status} ${res.statusText}`)
-                }
-                const data = await res.json()
-                setMatchList(data.matches)
+                const matches = await fetchMatches()
+                setMatchList(matches)
             } catch (err) {
                 console.error("Error retrieving matches:", err)
             }

@@ -1,7 +1,6 @@
 import { apiFetch, postJson } from "./api"
 import type {
     CardDeck,
-    CardItem,
     CastResponse,
     GenreListResponse,
     MatchItem,
@@ -84,13 +83,13 @@ export async function undoSwipe(roomCode: string, mediaId: string): Promise<void
 
 // --- Room settings (POST returns the fresh deck) ---
 
-export async function setGenre(roomCode: string, genre: string): Promise<CardDeck> {
+export async function setGenreChoice(roomCode: string, genre: string): Promise<CardDeck> {
     const res = await postJson(`/room/${roomCode}/genre`, { genre })
     await ensureOk(res, "POSTing new genre")
     return res.json()
 }
 
-export async function setHideWatched(
+export async function setWatchedFilter(
     roomCode: string,
     hideWatched: boolean,
 ): Promise<CardDeck> {

@@ -5,11 +5,11 @@ import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
-import { postJson } from "./api"
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import type { MatchItem } from "./types"
 import type { CardDeck } from './types'
+import { quitRoom } from "./roomApi"
 
 interface SwipePageProps {
     cardDeck: CardDeck
@@ -56,12 +56,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         if(!roomCode) return
 
         try {
-            const res: Response = await postJson(`/room/${roomCode}/quit`)
-            if (!res.ok) {
-                throw new Error(`Error quitting room: ${res.status} ${res.statusText}`)
-            }
-            
-            const quitRoomResponse: { status: string } = await res.json()
+            const quitRoomResponse = await quitRoom(roomCode)
             console.log("Session ended", quitRoomResponse)
             setRoomReady(false)
             setHideWatched(false)

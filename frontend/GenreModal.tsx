@@ -1,8 +1,8 @@
 import React from "react"
-import { apiFetch } from "./api"
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import type { GenreListResponse } from "./types"
 import type { JSX } from "react"
+import { fetchGenres } from "./roomApi"
 
 interface GenreModalProps {
     handleGenreClick: () => void
@@ -27,24 +27,16 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
             return
         }
 
-        const fetchGenres = async () => {
+        const fetchGenreList = async () => {
             try {
-                const res: Response = await apiFetch(`/genres`, {
-                    method: 'GET',
-                    headers: {'Content-Type': 'application/json'},
-                })
-                if (!res.ok) {
-                    throw new Error(`Error fetching genres: ${res.status} ${res.statusText}`)
-                }
-
-                const data = await res.json()
+                const data = await fetchGenres()
                 setGenreList(data)
                 sessionStorage.setItem("genres", JSON.stringify(data))
             } catch (err) {
                 console.error("Error fetching genres:", err)
             }
         }
-        fetchGenres()
+        fetchGenreList()
     }, [genreList.length])
 
     const genreElements = genreList.map((option) => (

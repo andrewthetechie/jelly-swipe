@@ -5,9 +5,9 @@ import Intro from "./Intro"
 import SwipePage from "./SwipePage"
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
-import { apiFetch, postJson } from "./api"
 import type { JSX } from "react"
 import type { CardItem, MatchItem, CardDeck } from "./types"
+import { fetchDeck, postSwipe, setGenreChoice, setWatchedFilter, undoSwipe } from "./roomApi"
 
 const DEFAULT_MATCHITEM: MatchItem = {
     title: null,
@@ -54,15 +54,7 @@ export default function Main(): JSX.Element {
         }
 
         try {
-            const res: Response = await apiFetch(`/room/${currentRoomCode}/deck`, {
-                method: 'GET',
-                headers: {'Content-Type': 'application/json'},
-            })
-            if (!res.ok) {
-                throw new Error(`Error fetching card deck: ${res.status} ${res.statusText}`)
-            }
-
-            const data: CardDeck = await res.json()
+            const data = await fetchDeck(currentRoomCode)
             setCardDeck(data)
             setSwipeHistory([])
         } catch (err) {
@@ -135,11 +127,7 @@ export default function Main(): JSX.Element {
 
         suppressNextDeckRefresh("hide_watched")
         try {
-            const res: Response = await postJson(`/room/${roomCode}/watched-filter`, { "hide_watched": !hideWatched })
-            if (!res.ok) {
-                throw new Error(`Error toggling watched filter: ${res.status} ${res.statusText}`)
-            }
-            const data = await res.json()
+            const data = await setWatchedFilter(roomCode, !hideWatched)
             setCardDeck(data)
             setSwipeHistory([])
             setHideWatched(!hideWatched)
@@ -154,11 +142,7 @@ export default function Main(): JSX.Element {
 
         suppressNextDeckRefresh("genre")
         try {
-            const res: Response = await postJson(`/room/${roomCode}/genre`, { genre })
-            if (!res.ok) {
-                throw new Error(`Error POSTing new genre: ${res.status} ${res.statusText}`)
-            }
-            const data = await res.json()
+            const data = await setGenreChoice(roomCode, genre)
             setCardDeck(data)
             setSwipeHistory([])
             setShowGenreModal(false)
@@ -175,13 +159,7 @@ export default function Main(): JSX.Element {
         if (!roomCode) return
 
         try {
-            const res  = await postJson(`/room/${roomCode}/swipe`, {
-                media_id: cardItem.media_id,
-                direction,
-            })
-            if (!res.ok) {
-                throw new Error(`Error POSTing swipe: ${res.status} ${res.statusText}`)
-            }
+            await postSwipe(roomCode, cardItem.media_id, direction)
             setSwipeHistory(prev => [...prev, cardItem])
             advanceDeck()
         } catch (err) {
@@ -202,10 +180,7 @@ export default function Main(): JSX.Element {
         if (!roomCode) return
 
         try {
-            const res: Response = await postJson(`/room/${roomCode}/undo`, { media_id: lastSwipe.media_id })
-            if (!res.ok) {
-                throw new Error(`Error undoing swipe: ${res.status} ${res.statusText}`)
-            }
+            await undoSwipe(roomCode, lastSwipe.media_id)
             setCardDeck(prev => [lastSwipe, ...prev] )
             setSwipeHistory(prev => prev.slice(0, -1))
         } catch (err) {
