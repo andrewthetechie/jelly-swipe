@@ -253,6 +253,12 @@ class SessionMatchMutation:
                     media_id,
                     code,
                 )
+            else:
+                logger.warning(
+                    "right-swipe media_id=%s in room %s deck but missing title/thumb; no match recorded",
+                    media_id,
+                    code,
+                )
             return SwipeAccepted(match_created=False)
 
         # 5. Derive match metadata from room's movie_data

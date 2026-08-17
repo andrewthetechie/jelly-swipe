@@ -34,6 +34,7 @@ _logger = logging.getLogger(__name__)
 # the JellyfinLibrary (DeckProvider adapter) role, so existing test fixtures
 # that seed ``deps._provider_singleton`` keep working unchanged.
 _client_lock = threading.Lock()
+_singletons_built: bool = False
 _client_singleton: Optional["JellyfinClient"] = None
 _vault_singleton: Optional["JellyfinVault"] = None
 _provider_singleton: Optional["JellyfinLibrary"] = None
@@ -43,14 +44,15 @@ _watchlist_singleton: Optional["JellyfinWatchlistWriter"] = None
 def _build_jellyfin_singletons(config: AppConfig) -> None:
     """Construct the shared client + role singletons if not already present."""
     global \
+        _singletons_built, \
         _client_singleton, \
         _vault_singleton, \
         _provider_singleton, \
         _watchlist_singleton
-    if _provider_singleton is not None:
+    if _singletons_built:
         return
     with _client_lock:
-        if _provider_singleton is not None:
+        if _singletons_built:
             return
         from jellyswipe.jellyfin.client import JellyfinClient
         from jellyswipe.jellyfin.library import JellyfinLibrary
@@ -68,6 +70,7 @@ def _build_jellyfin_singletons(config: AppConfig) -> None:
         )
         _provider_singleton = JellyfinLibrary(_vault_singleton)
         _watchlist_singleton = JellyfinWatchlistWriter(_vault_singleton)
+        _singletons_built = True
 
 
 @dataclass
@@ -181,18 +184,24 @@ async def get_watchlist(config: AppConfig = Depends(get_config)):
 
 
 async def get_provider(config: AppConfig = Depends(get_config)):
-    """Backward-compatible alias returning the JellyfinLibrary (deck provider) singleton."""
+    """Backward-compatible alias returning the JellyfinLibrary (deck provider) singleton.
+
+    Deprecated: use get_library() directly. This alias exists only for test
+    fixtures that seed deps._provider_singleton and cannot yet be updated.
+    """
     return await get_library(config)
 
 
 async def reset_provider_singleton() -> None:
     """Close the Jellyfin client and reset role singletons on application shutdown."""
     global \
+        _singletons_built, \
         _client_singleton, \
         _vault_singleton, \
         _provider_singleton, \
         _watchlist_singleton
     client = _client_singleton
+    _singletons_built = False
     _client_singleton = None
     _vault_singleton = None
     _provider_singleton = None

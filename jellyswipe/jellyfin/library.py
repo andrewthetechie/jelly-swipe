@@ -34,6 +34,19 @@ logger = logging.getLogger(__name__)
 _JF_IMAGE_PATH = re.compile(r"^jellyfin/([0-9a-fA-F]{32}|[0-9a-fA-F-]{36})/Primary$")
 
 
+def _names_from_genre_filter(data: dict) -> list[str]:
+    """Extract genre name strings from a /Items/Filters response."""
+    names: list[str] = []
+    for g in data.get("GenreFilters") or data.get("Genres") or []:
+        if isinstance(g, dict):
+            n = g.get("Name") or g.get("Value")
+        else:
+            n = str(g)
+        if n:
+            names.append(n)
+    return names
+
+
 class JellyfinLibrary:
     """Jellyfin-backed library: genres, deck, images, item resolution, server info."""
 
@@ -89,13 +102,7 @@ class JellyfinLibrary:
                     "IncludeItemTypes": "Movie",
                 },
             )
-            for g in data.get("GenreFilters") or data.get("Genres") or []:
-                if isinstance(g, dict):
-                    n = g.get("Name") or g.get("Value")
-                else:
-                    n = str(g)
-                if n:
-                    names.append(n)
+            names.extend(_names_from_genre_filter(data))
 
         # Query genres from TV libraries
         tv_libs = await self._library_ids_for_type("tvshows")
@@ -109,13 +116,7 @@ class JellyfinLibrary:
                     "IncludeItemTypes": "Series",
                 },
             )
-            for g in data.get("GenreFilters") or data.get("Genres") or []:
-                if isinstance(g, dict):
-                    n = g.get("Name") or g.get("Value")
-                else:
-                    n = str(g)
-                if n:
-                    names.append(n)
+            names.extend(_names_from_genre_filter(data))
 
         if not names:
             # Fallback to /Genres endpoint for movie libraries

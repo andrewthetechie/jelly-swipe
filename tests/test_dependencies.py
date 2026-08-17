@@ -396,6 +396,7 @@ class TestGetProvider:
         """get_provider returns the JellyfinLibrary (deck provider) singleton."""
         mock_provider = MagicMock()
         deps._provider_singleton = mock_provider
+        deps._singletons_built = True
 
         # Create a mock config for the Depends parameter
         class MockConfig:
@@ -403,13 +404,18 @@ class TestGetProvider:
             jellyfin_api_key = "test-key"
             jellyfin_device_id = "test-device"
 
-        provider = await get_provider(config=MockConfig())
-        assert provider == mock_provider
+        try:
+            provider = await get_provider(config=MockConfig())
+            assert provider == mock_provider
+        finally:
+            deps._provider_singleton = None
+            deps._singletons_built = False
 
     @pytest.mark.anyio
     async def test_returns_same_instance_on_multiple_calls(self):
         """Calling get_provider() multiple times returns the same instance."""
         deps._provider_singleton = None
+        deps._singletons_built = False
 
         mock_instance = MagicMock()
         with patch(
@@ -422,12 +428,15 @@ class TestGetProvider:
                 jellyfin_api_key = "test-key"
                 jellyfin_device_id = "test-device"
 
-            provider1 = await get_provider(config=MockConfig())
-            provider2 = await get_provider(config=MockConfig())
+            try:
+                provider1 = await get_provider(config=MockConfig())
+                provider2 = await get_provider(config=MockConfig())
+            finally:
+                deps._provider_singleton = None
+                deps._singletons_built = False
 
         assert provider1 is provider2
         assert provider1 is mock_instance
-        assert deps._provider_singleton is not None
 
 
 # ---------------------------------------------------------------------------

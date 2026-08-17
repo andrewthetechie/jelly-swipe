@@ -34,11 +34,10 @@ class JellyfinWatchlistWriter:
             RuntimeError: on network failure or an unauthorized/error response.
         """
         uid = await self._vault.delegate_user_id()
-        token = await self._vault.delegate_token()
         resp = await self._vault.client.request(
             "POST",
             f"/Users/{uid}/FavoriteItems/{media_id}",
-            headers=self._vault.auth_header(token),
+            headers=self._vault.auth_header(),
             timeout=30,
         )
         if resp.status_code in (401, 403):
