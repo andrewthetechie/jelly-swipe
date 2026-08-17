@@ -1,21 +1,3 @@
-// api.test.js — tests for the request layer (api.js).
-//
-// This is the ONE test file written in JavaScript, on purpose: api.js was left
-// as JS in the redesign, so its test mirrors it (and `tsconfig` has
-// checkJs: false, so it isn't type-checked — no types needed here).
-//
-// Two techniques worth understanding:
-//
-// 1. `vi.stubEnv('DEV', true|false)` — api.js branches on `import.meta.env.DEV`
-//    (Vite's dev-vs-prod flag). We can't change the real build mode mid-test,
-//    so we stub that env value per test and restore it in afterEach with
-//    `vi.unstubAllEnvs()`.
-//
-// 2. URL semantics — note api.js returns `URL` OBJECTS, not strings. A bare
-//    `new URL('http://localhost:5005')` normalises to a trailing slash, so its
-//    `.href` is `'http://localhost:5005/'`. And `new URL('/room', base)`
-//    resolves the path against the base. We therefore assert on `.href`
-//    throughout, never against a raw string.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getApiBaseUrl, apiUrl, apiFetch } from "./api";
 
