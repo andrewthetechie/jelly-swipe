@@ -428,7 +428,11 @@ class TestApplySwipe:
         await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
         await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
 
-        # Corrupt the persisted deck_position blob directly.
+        # Corrupt the persisted deck_position blob directly via raw SQL.
+        # This deliberately bypasses DatabaseUnitOfWork (the one convention this
+        # test must break): the UoW's set_deck_position serializes a valid Deck,
+        # so a corrupt blob can only be injected with a bare write. We assert
+        # the swipe path survives it and self-heals.
         async with runtime_sessionmaker() as session:
             await session.execute(
                 text(

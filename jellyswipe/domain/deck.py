@@ -93,10 +93,6 @@ class Deck:
         """Return a new Deck with ``user_id`` added at cursor 0, preserving others."""
         return Deck(cards=self.cards, cursors={**self.cursors, user_id: 0})
 
-    def reset_cursors(self) -> Deck:
-        """Return a new Deck with all cursors cleared (filter change)."""
-        return Deck(cards=self.cards, cursors={})
-
     def api_cards(self) -> list[dict[str, Any]]:
         """Return the full deck in public API shape (``id`` -> ``media_id``)."""
         return [_api_card(card) for card in self.cards]
