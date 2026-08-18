@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import text
 
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
@@ -14,6 +15,7 @@ from jellyswipe.db_runtime import (
     initialize_runtime,
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.services.session_match_mutation import (
@@ -72,17 +74,15 @@ async def _seed_solo_room(
     deck: dict | None = None,
     movie_data: list | None = None,
 ):
-    deck_json = json.dumps(deck or {"user-A": 0})
-    movie_data_json = json.dumps(movie_data or [])
+    room_deck = Deck.from_cards(movie_data or [], cursors=deck or {"user-A": 0})
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         await uow.rooms.create(
             code,
-            movie_data_json=movie_data_json,
+            deck=room_deck,
             ready=True,
             current_genre="All",
             solo_mode=True,
-            deck_position_json=deck_json,
         )
         await uow.session_instances.create(instance_id="inst-solo1", pairing_code=code)
         await session.commit()
@@ -95,17 +95,17 @@ async def _seed_hosted_room(
     deck: dict | None = None,
     movie_data: list | None = None,
 ):
-    deck_json = json.dumps(deck or {"user-A": 0, "user-B": 0})
-    movie_data_json = json.dumps(movie_data or [])
+    room_deck = Deck.from_cards(
+        movie_data or [], cursors=deck or {"user-A": 0, "user-B": 0}
+    )
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         await uow.rooms.create(
             code,
-            movie_data_json=movie_data_json,
+            deck=room_deck,
             ready=True,
             current_genre="All",
             solo_mode=False,
-            deck_position_json=deck_json,
         )
         await uow.session_instances.create(instance_id="inst-room1", pairing_code=code)
         await session.commit()
@@ -412,6 +412,52 @@ class TestApplySwipe:
             )
             await session.commit()
 
+        async with runtime_sessionmaker() as session:
+            positions = await _get_deck_position(session, "SOLO1")
+            assert positions == {"user-A": 1}
+
+    async def test_corrupt_cursor_json_does_not_raise_and_recovers(
+        self, runtime_sessionmaker
+    ):
+        """A corrupt deck_position blob degrades safely instead of crashing.
+
+        Deck.parse recovers the cursor map to empty, the swipe still applies,
+        and the recovered (advanced) cursor is persisted — overwriting the
+        corrupt value (issue #294 acceptance criterion).
+        """
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
+        await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
+
+        # Corrupt the persisted deck_position blob directly via raw SQL.
+        # This deliberately bypasses DatabaseUnitOfWork (the one convention this
+        # test must break): the UoW's set_deck_position serializes a valid Deck,
+        # so a corrupt blob can only be injected with a bare write. We assert
+        # the swipe path survives it and self-heals.
+        async with runtime_sessionmaker() as session:
+            await session.execute(
+                text(
+                    "UPDATE rooms SET deck_position = :v WHERE pairing_code = 'SOLO1'"
+                ),
+                {"v": "not valid json {{{"},
+            )
+            await session.commit()
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.apply_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                direction="left",
+                uow=uow,
+                jellyfin_url="http://test",
+            )
+            await session.commit()
+
+        assert isinstance(result, SwipeAccepted)
         async with runtime_sessionmaker() as session:
             positions = await _get_deck_position(session, "SOLO1")
             assert positions == {"user-A": 1}

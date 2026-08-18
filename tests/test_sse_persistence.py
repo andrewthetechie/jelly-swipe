@@ -11,6 +11,7 @@ from jellyswipe.db_runtime import (
     initialize_runtime,
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.repositories.rooms import RoomStatusSnapshot
 
@@ -51,11 +52,10 @@ class TestStreamSnapshotRepo:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "4242",
-                movie_data_json="[]",
+                deck=Deck.from_cards([]),
                 ready=True,
                 current_genre="All",
                 solo_mode=True,
-                deck_position_json="{}",
             )
             await session.commit()
 

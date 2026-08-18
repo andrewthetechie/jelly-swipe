@@ -56,6 +56,14 @@ A `(room_code, movie_id, user_id, direction)` record. `swipes.user_id` is a sess
 
 A client (browser)'s participation in a Room, from join/create until quit or `session_closed`. Frontend term for the slice of state that lifetime owns: the deck, swipe history, match state, and server-mirrored room settings (`genre`, `hide_watched`, readiness). Distinct from `currentRoomCode`, which is client-side membership/routing state written by the room-creation flow, and from the SSE "session" (`session_bootstrap` / `session_ready` / `session_closed` events), which is the server's broadcast vocabulary for the same lifetime.
 
+### Deck
+
+A room's ordered card list plus each participant's swipe cursor. A single `Deck` domain object (`jellyswipe/domain/deck.py`) is the one owner of deck JSON parsing, cursor advance, page slicing, card lookup, and serialization for the `movie_data` / `deck_position` room columns. Every consumer — the repository seam (`RoomRepository`), `deck_pipeline` (build/persist), `room_lifecycle` (page/genre/watched), and `session_match_mutation` (swipe) — shares this one contract.
+
+### Swipe cursor
+
+A participant's integer position into the Deck. Advanced by one on each accepted swipe; reset to 0 on join and on any deck rebuild (genre / watched-filter change). Persisted per user in the room's `deck_position` column. Malformed/empty stored cursors degrade to 0 rather than erroring.
+
 ---
 
 ## Out of scope here

@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
 
 # Session keys shared with the rooms router: the service builds
@@ -65,22 +66,6 @@ class RoomLifecycleService:
 
     page_size = 20
 
-    @staticmethod
-    def _cursor_from_deck_json(deck_position_json: str | None, user_id: str) -> int:
-        if not deck_position_json:
-            return 0
-        try:
-            positions = json.loads(deck_position_json)
-        except (json.JSONDecodeError, TypeError):
-            return 0
-        if not isinstance(positions, dict):
-            return 0
-        raw = positions.get(user_id, 0)
-        try:
-            return int(raw)
-        except (TypeError, ValueError):
-            return 0
-
     async def create_room(
         self,
         user_id: str,
@@ -112,15 +97,14 @@ class RoomLifecycleService:
                 persist=False,
             )
 
-            deck_json = json.dumps({user_id: 0})
+            room_deck = Deck.from_cards(deck).add_participant(user_id)
             instance_id = uuid4().hex
             await uow.rooms.create(
                 pairing_code,
-                movie_data_json=json.dumps(deck),
+                deck=room_deck,
                 ready=solo,  # ready defaults to True when solo=True
                 current_genre="All",
                 solo_mode=solo,
-                deck_position_json=deck_json,
                 include_movies=include_movies,
                 include_tv_shows=include_tv_shows,
             )
@@ -152,18 +136,11 @@ class RoomLifecycleService:
         if room is None:
             return None
 
-        positions: dict[str, Any] = {}
-        if room.deck_position_json:
-            try:
-                loaded = json.loads(room.deck_position_json)
-                if isinstance(loaded, dict):
-                    positions = dict(loaded)
-            except (json.JSONDecodeError, TypeError):
-                positions = {}
-        positions[user_id] = 0
+        # Add (or reset) the joining participant's cursor to 0, preserving others.
+        updated_deck = room.deck.add_participant(user_id)
 
         await uow.rooms.set_ready(code, True)
-        await uow.rooms.set_deck_position(code, json.dumps(positions))
+        await uow.rooms.set_deck_position(code, updated_deck)
 
         # Append session_ready event
         instance = await uow.session_instances.get_by_pairing_code(code)
@@ -220,24 +197,7 @@ class RoomLifecycleService:
         room = await uow.rooms.get_room(code)
         if room is None:
             return []
-        cursor_pos = self._cursor_from_deck_json(room.deck_position_json, user_id)
-        try:
-            movies = json.loads(room.movie_data_json)
-        except (json.JSONDecodeError, TypeError):
-            return []
-        if not isinstance(movies, list):
-            return []
-        start = cursor_pos + (page - 1) * self.page_size
-        end = start + self.page_size
-        slice_ = movies[start:end]
-        # Map id → media_id and add media_type for API response (exclude original id)
-        result = []
-        for m in slice_ if isinstance(slice_, list) else []:
-            item = {k: v for k, v in m.items() if k != "id"}
-            item["media_id"] = m.get("id")
-            item["media_type"] = m.get("media_type", "movie")
-            result.append(item)
-        return result
+        return room.deck.page(user_id, page, page_size=self.page_size)
 
     async def set_genre(
         self,

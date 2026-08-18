@@ -13,6 +13,7 @@ from jellyswipe.db_runtime import (
     initialize_runtime,
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.match import Match
 from jellyswipe.repositories.matches import MatchRecord
@@ -61,7 +62,7 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         pc = out.pairing_code
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
-        deck = json.loads(rec.deck_position_json or "{}")
+        deck = rec.deck.cursors
         assert deck[uid] == 0
         assert rec.ready is False
         assert rec.solo_mode is False
@@ -79,7 +80,7 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         pc2 = out2.pairing_code
         rec2 = await uow.rooms.get_room(pc2)
         assert rec2 is not None
-        deck2 = json.loads(rec2.deck_position_json or "{}")
+        deck2 = rec2.deck.cursors
         assert deck2[uid] == 0
         assert rec2.ready is True
         assert rec2.solo_mode is True
@@ -105,7 +106,7 @@ async def test_create_room_with_mixed_media_interleaves(runtime_sessionmaker):
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
 
-        deck = json.loads(rec.movie_data_json or "[]")
+        deck = list(rec.deck.cards)
         assert len(deck) == 50  # 25 movies + 25 TV shows
 
         # Verify round-robin interleaving: movie, tv, movie, tv, ...
@@ -138,7 +139,7 @@ async def test_create_room_with_tv_shows_only(runtime_sessionmaker):
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
 
-        deck = json.loads(rec.movie_data_json or "[]")
+        deck = list(rec.deck.cards)
         assert len(deck) == 25
         for card in deck:
             assert card["media_type"] == "tv_show"
@@ -171,7 +172,7 @@ async def test_join_marks_ready_and_merges_deck(runtime_sessionmaker):
         assert snap is not None and snap.ready is True
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
-        deck = json.loads(rec.deck_position_json or "{}")
+        deck = rec.deck.cursors
         assert deck[joiner] == 0
         assert deck[creator] == 0
 
@@ -233,7 +234,7 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
         assert isinstance(genre_deck, list) and genre_deck
         rec_after = await uow.rooms.get_room(pc)
         assert rec_after is not None
-        assert json.loads(rec_after.deck_position_json or "{}") == {}
+        assert rec_after.deck.cursors == {}
 
         status = await svc.get_status(pc, uow)
         assert status["ready"] is False
@@ -301,7 +302,7 @@ async def test_set_watched_filter_excludes_watched_items(runtime_sessionmaker):
         # Verify deck was rebuilt and cursors reset
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
-        assert json.loads(rec.deck_position_json or "{}") == {}
+        assert rec.deck.cursors == {}
         assert isinstance(new_deck, list)
         assert len(new_deck) > 0
 
@@ -366,8 +367,7 @@ async def test_empty_deck_rollback_on_genre_change(runtime_sessionmaker):
         initial_room = await uow.rooms.get_room(pc)
         assert initial_room is not None
         initial_genre = initial_room.current_genre
-        initial_deck_json = initial_room.movie_data_json
-        initial_cursors = initial_room.deck_position_json
+        initial_deck = initial_room.deck
 
         # Mock provider to return empty deck for "Action" genre
         original_fetch = prov.fetch_deck
@@ -392,8 +392,7 @@ async def test_empty_deck_rollback_on_genre_change(runtime_sessionmaker):
         room_after = await uow.rooms.get_room(pc)
         assert room_after is not None
         assert room_after.current_genre == initial_genre
-        assert room_after.movie_data_json == initial_deck_json
-        assert room_after.deck_position_json == initial_cursors
+        assert room_after.deck == initial_deck
 
 
 @pytest.mark.anyio
@@ -413,7 +412,7 @@ async def test_empty_deck_rollback_on_watched_filter(runtime_sessionmaker):
         initial_room = await uow.rooms.get_room(pc)
         assert initial_room is not None
         initial_hide_watched = initial_room.hide_watched
-        initial_deck_json = initial_room.movie_data_json
+        initial_deck = initial_room.deck
 
         # Mock provider to return empty deck when hide_watched=True
         original_fetch = prov.fetch_deck
@@ -438,7 +437,7 @@ async def test_empty_deck_rollback_on_watched_filter(runtime_sessionmaker):
         room_after = await uow.rooms.get_room(pc)
         assert room_after is not None
         assert room_after.hide_watched == initial_hide_watched
-        assert room_after.movie_data_json == initial_deck_json
+        assert room_after.deck == initial_deck
 
 
 @pytest.mark.anyio
@@ -475,7 +474,7 @@ async def test_genre_change_with_watched_filter_active(runtime_sessionmaker):
 
 @pytest.mark.anyio
 async def test_cursor_reset_after_deck_rebuild(runtime_sessionmaker):
-    """Test that deck_position_json resets to {} after any rebuild."""
+    """Test that deck cursors reset to {} after any rebuild."""
     svc = RoomLifecycleService()
     prov = FakeProvider()
     uid = prov._user_id
@@ -487,13 +486,15 @@ async def test_cursor_reset_after_deck_rebuild(runtime_sessionmaker):
         # Set some cursor positions
         room = await uow.rooms.get_room(pc)
         assert room is not None
-        await uow.rooms.set_deck_position(pc, json.dumps({uid: 5, "other-user": 3}))
+        await uow.rooms.set_deck_position(
+            pc, Deck.from_cards([], cursors={uid: 5, "other-user": 3})
+        )
         await session.commit()
 
         # Verify cursors are set
         room_before = await uow.rooms.get_room(pc)
         assert room_before is not None
-        cursors_before = json.loads(room_before.deck_position_json or "{}")
+        cursors_before = room_before.deck.cursors
         assert cursors_before.get(uid) == 5
 
         # Rebuild deck
@@ -503,7 +504,7 @@ async def test_cursor_reset_after_deck_rebuild(runtime_sessionmaker):
         # Verify cursors reset to {}
         room_after = await uow.rooms.get_room(pc)
         assert room_after is not None
-        cursors_after = json.loads(room_after.deck_position_json or "{}")
+        cursors_after = room_after.deck.cursors
         assert cursors_after == {}
 
 

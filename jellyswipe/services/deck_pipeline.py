@@ -6,11 +6,11 @@ validate, persist, convert) into a single function.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Protocol
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 
 logger = logging.getLogger(__name__)
 
@@ -111,22 +111,16 @@ async def build_deck(
 
     # Step 5 & 6: Persist (if requested) and return
     if persist:
-        # Persist internal format to room row
+        deck = Deck.from_cards(filtered_deck)
+        # Persist deck and reset all per-user cursors (filter change).
         await uow.rooms.set_filters_and_deck(
             room_code,
             genre=genre or "All",
             hide_watched=hide_watched,
-            movie_data_json=json.dumps(filtered_deck),
-            deck_position_json=json.dumps({}),
+            deck=deck,
         )
-        # Return API format
-        return [
-            {
-                **{k: v for k, v in card.items() if k != "id"},
-                "media_id": card.get("id"),
-            }
-            for card in filtered_deck
-        ]
+        # Return deck in public API shape (single id->media_id mapping site).
+        return deck.api_cards()
 
     # No-persist flow: return internal format
     return filtered_deck

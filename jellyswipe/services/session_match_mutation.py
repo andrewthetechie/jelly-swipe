@@ -85,18 +85,6 @@ class DeleteNoOp:
 DeleteMatchResult = DeleteChanged | DeleteNoOp
 
 
-def _card_from_deck(movie_data_json: str | None, media_id: str) -> dict | None:
-    """Return the Room deck card for ``media_id``, or None if absent."""
-    try:
-        items = json.loads(movie_data_json or "[]")
-        for item in items:
-            if str(item.get("id", "")) == str(media_id):
-                return item
-    except (json.JSONDecodeError, TypeError):
-        pass
-    return None
-
-
 def _catalog_facts_from_card(card: dict | None, media_id: str) -> CatalogFacts:
     """Build CatalogFacts (title/thumb) from a deck card."""
     if card is None:
@@ -233,18 +221,14 @@ class SessionMatchMutation:
         )
 
         # 3. Advance cursor
-        positions = (
-            json.loads(room.deck_position_json) if room.deck_position_json else {}
-        )
-        current_pos = int(positions.get(actor.user_id, 0))
-        positions[actor.user_id] = current_pos + 1
-        await uow.rooms.set_deck_position(code, json.dumps(positions))
+        updated_deck = room.deck.advance_cursor(actor.user_id)
+        await uow.rooms.set_deck_position(code, updated_deck)
 
         # 4. Match detection (only for right-swipe with a card present in the deck)
         if direction != "right":
             return SwipeAccepted(match_created=False)
 
-        card = _card_from_deck(room.movie_data_json, media_id)
+        card = room.deck.card_by_id(media_id)
         catalog_facts = _catalog_facts_from_card(card, media_id)
         if catalog_facts.title is None or catalog_facts.thumb is None:
             if card is None:

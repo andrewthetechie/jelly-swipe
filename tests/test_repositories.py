@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 
 import pytest
@@ -15,6 +14,7 @@ from jellyswipe.db_runtime import (
     initialize_runtime,
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.models.match import Match
@@ -23,6 +23,8 @@ from jellyswipe.models.swipe import Swipe
 from jellyswipe.repositories.auth_sessions import AuthRecord
 from jellyswipe.repositories.matches import MatchRecord
 from jellyswipe.repositories.rooms import RoomRecord, RoomStatusSnapshot
+
+_EMPTY_DECK = Deck.from_cards([])
 
 
 @pytest.fixture(autouse=True)
@@ -53,14 +55,13 @@ class TestRoomRepository:
     ):
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
-            deck = json.dumps({"u1": 0})
+            room_deck = Deck.from_cards([], cursors={"u1": 0})
             await uow.rooms.create(
                 "4242",
-                movie_data_json="[]",
+                deck=room_deck,
                 ready=False,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json=deck,
             )
             await session.execute(
                 update(Room)
@@ -90,25 +91,23 @@ class TestRoomRepository:
         assert record.ready is True
         assert record.solo_mode is True
         assert record.current_genre == "Action"
-        assert isinstance(record, RoomRecord)
-        assert record.pairing_code == "4242"
-        assert record.ready is True
-        assert record.solo_mode is True
-        assert record.current_genre == "Action"
-        assert record.movie_data_json == "[]"
-        assert record.deck_position_json == deck
+        assert record.deck.cards == ()
+        assert record.deck.cursors == {"u1": 0}
 
         async with runtime_sessionmaker() as session:
             uow = DatabaseUnitOfWork(session)
             exists = await uow.rooms.pairing_code_exists("4242")
             assert exists is True
 
-            n = await uow.rooms.set_genre_and_deck(
-                "4242", "Comedy", "{}", json.dumps({"u1": 3})
+            n = await uow.rooms.set_filters_and_deck(
+                "4242", "Comedy", True, deck=Deck.from_cards([], cursors={"u1": 3})
             )
             assert n == 1
-            md = await uow.rooms.fetch_movie_data("4242")
-            assert md == "{}"
+            updated = await uow.rooms.get_room("4242")
+            assert updated is not None
+            assert updated.current_genre == "Comedy"
+            assert updated.hide_watched is True
+            assert updated.deck.cursors == {"u1": 3}
             await session.commit()
 
     async def test_create_with_media_type_fields(self, runtime_sessionmaker):
@@ -117,11 +116,10 @@ class TestRoomRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "MEDIA_TEST",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=False,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
                 include_movies=False,
                 include_tv_shows=True,
             )
@@ -140,11 +138,10 @@ class TestRoomRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "DEFAULT_TEST",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=False,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             await session.commit()
 
@@ -163,11 +160,10 @@ class TestRoomRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "TEST123",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             # Add swipes for room TEST123
             session.add_all(
@@ -195,11 +191,10 @@ class TestRoomRepository:
             # Add swipes for a different room (should not be included)
             await uow.rooms.create(
                 "OTHER456",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             session.add(
                 Swipe(
@@ -222,11 +217,10 @@ class TestRoomRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "EMPTY789",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             await session.commit()
 
@@ -252,11 +246,10 @@ class TestMatchRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "9999",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json=json.dumps({"a": 0}),
             )
             session.add_all(
                 [
@@ -329,11 +322,10 @@ class TestMatchRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "MATCH1",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             await uow.matches.insert(
                 room_code="MATCH1",
@@ -362,11 +354,10 @@ class TestMatchRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "MATCH2",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             await uow.matches.insert(
                 room_code="MATCH2",
@@ -472,11 +463,10 @@ class TestSwipeRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "7777",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             session.add_all(
                 [
@@ -532,11 +522,10 @@ class TestSwipeRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "7788",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             session.add_all(
                 [
@@ -585,11 +574,10 @@ class TestSwipeRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "SWIPE1",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             await uow.swipes.insert(
                 room_code="SWIPE1",
@@ -618,11 +606,10 @@ class TestSwipeRepository:
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "SWIPE2",
-                movie_data_json="[]",
+                deck=_EMPTY_DECK,
                 ready=True,
                 current_genre="All",
                 solo_mode=False,
-                deck_position_json="{}",
             )
             await uow.auth_sessions.insert(
                 AuthRecord(
