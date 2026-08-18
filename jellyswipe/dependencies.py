@@ -17,6 +17,7 @@ from fastapi import Depends, HTTPException, Request
 from jellyswipe.config import AppConfig, get_config
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.notifier import notifier
 from jellyswipe.rate_limiter import rate_limiter
 
 if TYPE_CHECKING:
@@ -82,23 +83,49 @@ class AuthUser:
 
 
 async def get_db_uow():
-    """Yield a request-scoped async unit of work.
+    """Yield a request-scoped async unit of work — the single transaction boundary.
 
-    The caller owns commit. This dependency owns session lifecycle
-    (open, rollback-on-error, close) but NOT commit.
+    This dependency owns transaction *completion*: on a clean route return it
+    commits, then wakes SSE subscribers (commit-before-notify); on error or
+    ``uow.abort()`` it rolls back; it re-raises on exception. Routes never call
+    ``session.commit()`` themselves — they declare wake intent via
+    ``uow.wake_on_commit(code)`` and let this boundary finish the transaction.
+
+    Because ``DBUoW`` is declared with ``scope="function"``, this teardown runs
+    after the route returns but before the response is sent, so a loud failure
+    here surfaces as a 500 rather than a silent write loss.
     """
     session = get_sessionmaker()()
+    uow = DatabaseUnitOfWork(session)
     try:
-        yield DatabaseUnitOfWork(session)
+        yield uow
     except Exception:
         await session.rollback()
         raise
+    else:
+        if uow.aborted:
+            await session.rollback()
+        else:
+            try:
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            # Enforce that nothing is left dirty after the commit: an uncommitted
+            # write path must fail loudly, never be logged-and-dropped.
+            if session.dirty or session.new or session.deleted:
+                raise RuntimeError(
+                    "UoW session still has dirty/new/deleted objects after the "
+                    "request boundary committed — writes were silently lost. "
+                    "Transaction completion is owned by get_db_uow."
+                )
+            wakes = uow.drain_wakes()
+            for code in wakes:
+                notifier.notify(code)
     finally:
-        if session.dirty or session.new or session.deleted:
-            _logger.warning(
-                "UoW session closed with uncommitted dirty/new/deleted "
-                "objects — writes were silently lost. Did you forget to commit?"
-            )
+        # Clear the BEGIN IMMEDIATE guard on every exit path (success, abort,
+        # rollback, or exception) — the boundary owns transaction completion.
+        uow.mark_transaction_completed()
         await session.close()
 
 

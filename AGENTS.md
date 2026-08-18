@@ -45,6 +45,7 @@ jellyswipe/
 - This repo uses SQLAlchemy 2.x plus Alembic. Do not treat it as a raw `sqlite3` project.
 - Application/runtime database access should use SQLAlchemy async sessions from `jellyswipe.db_runtime` and the `DatabaseUnitOfWork` in `jellyswipe.db_uow`.
 - All DB writes go through `DatabaseUnitOfWork`. Do not instantiate repositories directly outside a managed session/UoW boundary.
+- Transaction completion is owned by the `get_db_uow` request boundary (see ADR-0004): it commits on success, rolls back on error/abort, and wakes SSE subscribers _after_ commit. Routes never call `session.commit()` or commit/notify helpers; declare wake intent via `uow.wake_on_commit(code)` and discard an error-return route's writes via `uow.abort()`.
 - Do not add new raw `sqlite3` application code. The existing direct `sqlite3` helpers are test-only utilities in `tests/conftest.py`.
 - If schema changes are needed, update the SQLAlchemy models and create a new Alembic revision in `alembic/versions/`.
 - Create migrations with `uv run alembic revision --autogenerate -m "short description"`.

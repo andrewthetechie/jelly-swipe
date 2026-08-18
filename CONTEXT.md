@@ -66,6 +66,27 @@ A participant's integer position into the Deck. Advanced by one on each accepted
 
 ---
 
+## Transaction & Notify
+
+### Request boundary
+
+The single place where a request's transaction is _completed_. On a clean route
+return it commits; on an error or an explicit abort it rolls back; and it wakes
+subscribers only _after_ a successful commit. Routes never commit themselves —
+they write through the unit of work and let the boundary finish. This is what
+makes the commit-before-notify ordering and the "no silently-lost writes"
+guarantee structural, not advisory.
+
+### Wake intent
+
+A route or service declaring that the subscribers of a room must be woken once
+this request's transaction has committed. The requester merely records the room
+code (`wake_on_commit`); the request boundary performs the actual wake after the
+commit. This keeps the wake decision at the code that knows the room while
+keeping the act of notifying inside the boundary.
+
+---
+
 ## Out of scope here
 
 This file describes domain language only. Implementation details (file paths, function names, schema columns) belong in `ARCHITECTURE.md`. Decisions and the reasoning behind them belong in PRDs under `.planning/` and (when appropriate) ADRs under `docs/adr/`.

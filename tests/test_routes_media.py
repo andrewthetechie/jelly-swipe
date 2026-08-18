@@ -173,8 +173,8 @@ class TestTrailerRoute:
         finally:
             deps._provider_singleton = original
 
-    def test_trailer_route_commits_after_service_fetch(self, client, app):
-        """Route handler calls commit after enrichment service fetch."""
+    def test_trailer_route_defers_commit_to_boundary(self, client, app):
+        """Trailer route returns data; it no longer commits (boundary owns commit)."""
         from unittest.mock import AsyncMock, MagicMock
 
         from jellyswipe.db_uow import DatabaseUnitOfWork
@@ -200,7 +200,8 @@ class TestTrailerRoute:
 
             assert resp.status_code == 200
             assert resp.json()["youtube_key"] == "commit-test-key"
-            mock_session.commit.assert_called_once()
+            # Transaction completion is owned by get_db_uow, never the route.
+            mock_session.commit.assert_not_called()
         finally:
             del app.dependency_overrides[get_db_uow]
 
