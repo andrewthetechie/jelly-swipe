@@ -13,6 +13,10 @@ from uuid import uuid4
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.domain.deck import Deck
+from jellyswipe.services.background_tasks import (
+    BackgroundTaskRegistry,
+    background_task_registry,
+)
 from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
 
 # Session keys shared with the rooms router: the service builds
@@ -65,6 +69,16 @@ class RoomLifecycleService:
     """Create/join/quit/deck/genre/status and match-history reads for live rooms."""
 
     page_size = 20
+
+    def __init__(
+        self,
+        registry: BackgroundTaskRegistry | None = None,
+        sleep: Any = asyncio.sleep,
+        grace_seconds: int = 60,
+    ) -> None:
+        self._registry = registry or background_task_registry
+        self._sleep = sleep
+        self._grace_seconds = grace_seconds
 
     async def create_room(
         self,
@@ -169,8 +183,9 @@ class RoomLifecycleService:
                 instance.instance_id, "session_closed", json.dumps({})
             )
             await uow.session_instances.mark_closing(instance.instance_id)
-            # Schedule background cleanup task
-            asyncio.create_task(self._cleanup_after_grace(instance.instance_id))
+            # Schedule background cleanup through the visible task registry so it
+            # is testable (injectable clock) and shutdown-aware (drained on exit).
+            self._registry.schedule(self._cleanup_after_grace(instance.instance_id))
 
         await uow.rooms.delete(code)
         await uow.swipes.delete_room_swipes(code)
@@ -178,8 +193,8 @@ class RoomLifecycleService:
         return QuitRoomResult(status="session_ended")
 
     async def _cleanup_after_grace(self, instance_id: str) -> None:
-        """Clean up session instance after 60-second grace period."""
-        await asyncio.sleep(60)
+        """Clean up session instance after the grace period."""
+        await self._sleep(self._grace_seconds)
         async with get_sessionmaker()() as session:
             uow = DatabaseUnitOfWork(session)
             await uow.session_instances.mark_closed(instance_id)

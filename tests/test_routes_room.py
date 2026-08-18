@@ -9,6 +9,7 @@ and the full swipe match logic (solo match, dual match, no match).
 import json
 import os
 import sqlite3
+from unittest import mock
 
 from tests.conftest import read_session_cookie, set_session_cookie
 
@@ -116,6 +117,19 @@ def test_room_create_stores_room_in_db(client, app):
     assert row["ready"] == 0
     assert row["solo_mode"] == 0
     assert row["current_genre"] == "All"
+
+
+def test_room_create_wakes_notifier_after_commit(client, app):
+    """AC6: create_room notifies subscribers for the new room on success."""
+    import jellyswipe.dependencies as deps
+
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)
+    with mock.patch.object(deps.notifier, "notify") as mock_notify:
+        response = _create_room_via_api(client)
+
+    assert response.status_code == 200
+    code = response.json()["pairing_code"]
+    mock_notify.assert_called_once_with(code)
 
 
 # ---------------------------------------------------------------------------
@@ -941,6 +955,49 @@ def test_delete_match_success(client, app):
 
     assert response.status_code == 200
     assert response.json() == {"status": "deleted"}
+
+
+def test_delete_match_wakes_notifier_after_commit(client, app):
+    """AC6: delete_match notifies subscribers of the actor's active room on success."""
+    import jellyswipe.dependencies as deps
+
+    conn = _sqlite_conn_for_route_tests()
+    _set_session(
+        client,
+        os.environ["SESSION_SECRET"],
+        authenticated=True,
+        active_room="TEST1",
+    )
+    _seed_room("TEST1", ready=1)
+    conn.execute(
+        "INSERT INTO matches (room_code, movie_id, title, thumb, status, user_id) "
+        "VALUES ('TEST1', 'm9', 'Movie', '/t', 'active', 'verified-user')"
+    )
+    conn.commit()
+
+    with mock.patch.object(deps.notifier, "notify") as mock_notify:
+        response = client.post("/matches/delete", json={"media_id": "m9"})
+
+    assert response.status_code == 200
+    mock_notify.assert_called_once_with("TEST1")
+
+
+def test_delete_match_noop_does_not_wake(client, app):
+    """AC6: delete_match that deletes nothing does not notify subscribers."""
+    import jellyswipe.dependencies as deps
+
+    _set_session(
+        client,
+        os.environ["SESSION_SECRET"],
+        authenticated=True,
+        active_room="TEST1",
+    )
+    _seed_room("TEST1", ready=1)
+
+    with mock.patch.object(deps.notifier, "notify") as mock_notify:
+        client.post("/matches/delete", json={"media_id": "does-not-exist"})
+
+    mock_notify.assert_not_called()
 
 
 def test_get_matches_empty_when_no_active_room(client, app):

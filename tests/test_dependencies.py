@@ -177,46 +177,10 @@ class TestRequireAuth:
 
 @pytest.mark.anyio
 class TestGetDbUow:
-    """Tests for get_db_uow() dependency."""
+    """Tests for get_db_uow() dependency — the single transaction boundary."""
 
-    async def test_no_auto_commit(self, runtime_sessionmaker, monkeypatch):
-        """No auto-commit on success — dirty session triggers warning, data not persisted."""
-        session = runtime_sessionmaker()
-        counts = _instrument_session(session)
-        dirty_session = _DirtySessionWrapper(session)
-        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: dirty_session)
-
-        generator = get_db_uow()
-        uow = await generator.__anext__()
-
-        assert isinstance(uow, DatabaseUnitOfWork)
-
-        await uow.run_sync(_begin_immediate_insert, "uncommitted")
-
-        with patch.object(deps._logger, "warning") as mock_warning:
-            with pytest.raises(StopAsyncIteration):
-                await generator.__anext__()
-            mock_warning.assert_called_once()
-            assert "uncommitted dirty/new/deleted" in mock_warning.call_args[0][0]
-
-        assert counts["commit"] == 0
-        assert counts["close"] == 1
-
-        # Data NOT persisted
-        async with runtime_sessionmaker() as verify_session:
-            rows = (
-                (
-                    await verify_session.execute(
-                        text("SELECT value FROM bridge_rows ORDER BY id")
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        assert rows == []
-
-    async def test_explicit_commit_persists(self, runtime_sessionmaker, monkeypatch):
-        """Explicit commit persists data and no warning is logged."""
+    async def test_boundary_commits_on_success(self, runtime_sessionmaker, monkeypatch):
+        """On success the boundary commits, persisting the request's writes."""
         session = runtime_sessionmaker()
         counts = _instrument_session(session)
         monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: session)
@@ -224,16 +188,16 @@ class TestGetDbUow:
         generator = get_db_uow()
         uow = await generator.__anext__()
 
+        assert isinstance(uow, DatabaseUnitOfWork)
+
         await uow.run_sync(_begin_immediate_insert, "committed")
-        await uow.session.commit()
 
         with patch.object(deps._logger, "warning") as mock_warning:
             with pytest.raises(StopAsyncIteration):
                 await generator.__anext__()
             mock_warning.assert_not_called()
 
-        assert counts["commit"] == 1
-        assert counts["close"] == 1
+        assert counts == {"commit": 1, "rollback": 0, "close": 1}
 
         # Data IS persisted
         async with runtime_sessionmaker() as verify_session:
@@ -275,30 +239,54 @@ class TestGetDbUow:
             )
         assert rows == []
 
-    async def test_warning_on_uncommitted_dirty(
-        self, runtime_sessionmaker, monkeypatch
-    ):
-        """Dirty session without commit logs a warning about uncommitted writes."""
+    async def test_boundary_abort_rolls_back(self, runtime_sessionmaker, monkeypatch):
+        """abort() on a dirty session rolls back and does NOT persist."""
         session = runtime_sessionmaker()
         counts = _instrument_session(session)
-        dirty_session = _DirtySessionWrapper(session)
-        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: dirty_session)
+        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: session)
 
         generator = get_db_uow()
         uow = await generator.__anext__()
 
-        await uow.run_sync(_begin_immediate_insert, "dirty")
+        await uow.run_sync(_begin_immediate_insert, "aborted")
+        uow.abort()
 
-        with patch.object(deps._logger, "warning") as mock_warning:
-            with pytest.raises(StopAsyncIteration):
-                await generator.__anext__()
-            mock_warning.assert_called_once()
-            assert "uncommitted dirty/new/deleted" in mock_warning.call_args[0][0]
+        with pytest.raises(StopAsyncIteration):
+            await generator.__anext__()
 
-        assert counts["commit"] == 0
+        assert counts == {"commit": 0, "rollback": 1, "close": 1}
 
-    async def test_no_warning_on_clean_exit(self, runtime_sessionmaker, monkeypatch):
-        """Clean session (no writes) exits without warning."""
+        async with runtime_sessionmaker() as verify_session:
+            rows = (
+                (
+                    await verify_session.execute(
+                        text("SELECT value FROM bridge_rows ORDER BY id")
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert rows == []
+
+    async def test_boundary_loud_fail_when_dirty_after_commit(
+        self, runtime_sessionmaker, monkeypatch
+    ):
+        """Dirty state left after the boundary commit raises instead of warning."""
+        session = runtime_sessionmaker()
+        dirty_session = _DirtySessionWrapper(session)
+        monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: dirty_session)
+
+        generator = get_db_uow()
+        await generator.__anext__()
+
+        # The commit runs, but the forced dirty state trips the loud-fail check.
+        with pytest.raises(RuntimeError, match="still has dirty/new/deleted"):
+            await generator.__anext__()
+
+    async def test_clean_exit_commits_without_error(
+        self, runtime_sessionmaker, monkeypatch
+    ):
+        """Clean session (no writes) exits via commit and close, no error."""
         session = runtime_sessionmaker()
         counts = _instrument_session(session)
         monkeypatch.setattr(deps, "get_sessionmaker", lambda: lambda: session)
@@ -306,14 +294,10 @@ class TestGetDbUow:
         generator = get_db_uow()
         await generator.__anext__()
 
-        # No writes — just yield and close
-        with patch.object(deps._logger, "warning") as mock_warning:
-            with pytest.raises(StopAsyncIteration):
-                await generator.__anext__()
-            mock_warning.assert_not_called()
+        with pytest.raises(StopAsyncIteration):
+            await generator.__anext__()
 
-        assert counts["commit"] == 0
-        assert counts["close"] == 1
+        assert counts == {"commit": 1, "rollback": 0, "close": 1}
 
 
 # ---------------------------------------------------------------------------

@@ -85,7 +85,6 @@ async def get_trailer(
         response_wrapper=lambda key: {"youtube_key": key},
         empty_response=lambda req: make_error_response("Not found", 404, req),
     )
-    await uow.session.commit()
     return result
 
 
@@ -142,7 +141,6 @@ async def get_cast(
         cache_transform=lambda cast: cast,
         error_extra_fields={"cast": []},
     )
-    await uow.session.commit()
     return result
 
 

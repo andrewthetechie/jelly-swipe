@@ -144,7 +144,10 @@ async def lifespan(app: FastAPI):
 
     yield
     from jellyswipe.dependencies import reset_provider_singleton
+    from jellyswipe.services.background_tasks import background_task_registry
 
+    # Drain any pending cleanups (grace-period tasks) before tearing down the DB.
+    await background_task_registry.shutdown()
     await reset_provider_singleton()
     await dispose_runtime()
     _logger.info("jellyswipe_shutdown")

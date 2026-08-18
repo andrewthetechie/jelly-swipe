@@ -26,9 +26,6 @@ from jellyswipe.dependencies import (
     require_auth,
 )
 from jellyswipe.notifier import notifier
-from jellyswipe.routers._helpers import (
-    commit_and_wake,
-)
 from jellyswipe.schemas.common import CardItem, ErrorResponse
 from jellyswipe.schemas.rooms import (
     CreateRoomRequest,
@@ -121,7 +118,7 @@ async def create_room(
             solo=resolved.solo,
         )
         request.session.update(result.session_updates)
-        await uow.session.commit()
+        uow.wake_on_commit(result.pairing_code)
         return {"pairing_code": result.pairing_code, "instance_id": result.instance_id}
     except UniqueRoomCodeExhaustedError:
         return XSSSafeJSONResponse(
@@ -152,7 +149,7 @@ async def join_room_route(
     if result is None:
         return XSSSafeJSONResponse(content={"error": "Invalid Code"}, status_code=404)
     request.session.update(result.session_updates)
-    await commit_and_wake(uow, code)
+    uow.wake_on_commit(code)
     return {"status": "success"}
 
 
@@ -207,8 +204,8 @@ async def swipe(
     )
     if isinstance(result, SwipeRejected):
         return XSSSafeJSONResponse(content={"error": result.reason}, status_code=404)
-    # SwipeAccepted — commit and notify
-    await commit_and_wake(uow, code)
+    # SwipeAccepted — declare wake; the boundary commits then notifies
+    uow.wake_on_commit(code)
     return SwipeResponse(accepted=True)
 
 
@@ -259,7 +256,7 @@ async def quit_room(
     result = await room_lifecycle_service.quit_room(code, user.user_id, uow)
     for key in (SESSION_ACTIVE_ROOM_KEY, SESSION_SOLO_MODE_KEY):
         request.session.pop(key, None)
-    await commit_and_wake(uow, code)
+    uow.wake_on_commit(code)
     return {"status": result.status}
 
 
@@ -294,8 +291,8 @@ async def delete_match(
         media_id=body.media_id,
         uow=uow,
     )
-    if isinstance(result, DeleteChanged):
-        await uow.session.commit()
+    if isinstance(result, DeleteChanged) and actor.active_room:
+        uow.wake_on_commit(actor.active_room)
     return {"status": "deleted"}
 
 
@@ -334,7 +331,7 @@ async def undo_swipe(
         uow=uow,
     )
     if isinstance(result, UndoChanged):
-        await commit_and_wake(uow, code)
+        uow.wake_on_commit(code)
     return UndoResponse(status="undone")
 
 
@@ -397,7 +394,7 @@ async def set_genre(
         new_list = await room_lifecycle_service.set_genre(
             code, body.genre, provider, uow
         )
-        await commit_and_wake(uow, code)
+        uow.wake_on_commit(code)
         return new_list
     except EmptyDeckError as e:
         _logger.warning(f"EmptyDeckError for room {code}: {e}")
@@ -435,7 +432,7 @@ async def set_watched_filter_route(
         result = await room_lifecycle_service.set_watched_filter(
             code, body.hide_watched, provider, uow
         )
-        await commit_and_wake(uow, code)
+        uow.wake_on_commit(code)
         return result
     except EmptyDeckError as exc:
         _logger.warning(f"EmptyDeckError for room {code} (watched filter): {exc}")

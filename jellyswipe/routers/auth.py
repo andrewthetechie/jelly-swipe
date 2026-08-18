@@ -57,7 +57,6 @@ async def jellyfin_use_server_identity(
     if result is None:
         return make_error_response("Jellyfin delegate unavailable", 401, request)
     request.session["session_id"] = result.session_id
-    await uow.session.commit()
     return result.response_body
 
 
@@ -91,7 +90,6 @@ async def logout(
     sid = request.session.get("session_id")
     request.session.clear()
     await AuthService.logout(sid, uow)
-    await uow.session.commit()
     response.delete_cookie("session", path="/")
     return {"status": "logged_out"}
 
