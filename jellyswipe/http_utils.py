@@ -2,11 +2,13 @@
 
 Home for request-scoped helpers so that services can build standardized
 error responses and log exceptions with request context without importing
-from the routers package (preserving the routers → services → repositories
-dependency direction). Router-specific helpers (e.g. ``commit_and_wake``,
-removed in issue #295) used to live in ``jellyswipe/routers/_helpers.py``, which
-re-exports these for backward compatibility. Transaction completion now lives in
-the ``get_db_uow`` request boundary (see ``jellyswipe.dependencies``).
+from the routers package (preserving the routers -> services -> repositories
+dependency direction). These helpers are re-exported from
+``jellyswipe/routers/_helpers.py`` for backward compatibility with services.
+
+Transaction completion no longer lives here: it is owned by the ``get_db_uow``
+request boundary (see ``jellyswipe.dependencies``). The former
+``commit_and_wake`` helper was removed in issue #295.
 """
 
 from __future__ import annotations

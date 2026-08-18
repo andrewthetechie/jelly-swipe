@@ -101,19 +101,16 @@ async def get_db_uow():
         yield uow
     except Exception:
         await session.rollback()
-        uow.mark_transaction_completed()
         raise
     else:
         if uow.aborted:
             await session.rollback()
-            uow.mark_transaction_completed()
         else:
             try:
                 await session.commit()
             except Exception:
                 await session.rollback()
                 raise
-            uow.mark_transaction_completed()
             # Enforce that nothing is left dirty after the commit: an uncommitted
             # write path must fail loudly, never be logged-and-dropped.
             if session.dirty or session.new or session.deleted:
@@ -126,6 +123,9 @@ async def get_db_uow():
             for code in wakes:
                 notifier.notify(code)
     finally:
+        # Clear the BEGIN IMMEDIATE guard on every exit path (success, abort,
+        # rollback, or exception) — the boundary owns transaction completion.
+        uow.mark_transaction_completed()
         await session.close()
 
 

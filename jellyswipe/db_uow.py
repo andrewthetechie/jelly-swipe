@@ -20,6 +20,17 @@ from jellyswipe.repositories.tmdb_cache import TmdbCacheRepository
 T = TypeVar("T")
 
 
+def _raw_connection(sync_session: Any) -> Any:
+    """Return the underlying DBAPI connection for a sync connection.
+
+    SQLAlchemy nests the driver connection several layers deep (sync session
+    -> wrapped connection -> DBAPI connection). This helper collapses that
+    chain for call sites that must talk to the driver connection directly
+    (e.g. SQLite ``BEGIN IMMEDIATE`` and transaction-state checks).
+    """
+    return sync_session.connection().connection.driver_connection
+
+
 class DatabaseUnitOfWork:
     """Typed async unit-of-work facade around one AsyncSession."""
 
@@ -87,7 +98,7 @@ class DatabaseUnitOfWork:
         def _run(sync_session: Any) -> T:
             result = fn(sync_session, *args, **kwargs)
             if self._immediate_active:
-                raw_conn = sync_session.connection().connection.driver_connection
+                raw_conn = _raw_connection(sync_session)
                 if not raw_conn.in_transaction:
                     raise RuntimeError(
                         "BEGIN IMMEDIATE transaction was committed/rolled back inside "
@@ -111,7 +122,7 @@ class DatabaseUnitOfWork:
 
         def _begin(sync_session: Any) -> None:
             conn = sync_session.connection()
-            raw_conn = conn.connection.driver_connection
+            raw_conn = _raw_connection(sync_session)
             raw_conn.isolation_level = None
             conn.exec_driver_sql("BEGIN IMMEDIATE")
 
