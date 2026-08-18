@@ -7,18 +7,17 @@ from dataclasses import dataclass
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from jellyswipe.domain.deck import Deck
 from jellyswipe.models.room import Room
 
 
 @dataclass(slots=True)
 class RoomRecord:
     pairing_code: str
-    movie_data_json: str
+    deck: Deck
     ready: bool
     current_genre: str
     solo_mode: bool
-    deck_position_json: str | None
-    deck_order_json: str | None
     include_movies: bool
     include_tv_shows: bool
     hide_watched: bool
@@ -50,15 +49,15 @@ class RoomRepository:
     async def create(
         self,
         pairing_code: str,
-        movie_data_json: str,
+        deck: Deck,
         ready: bool,
         current_genre: str,
         solo_mode: bool,
-        deck_position_json: str,
         include_movies: bool = True,
         include_tv_shows: bool = False,
         hide_watched: bool = False,
     ) -> None:
+        movie_data_json, deck_position_json = deck.serialize()
         self._session.add(
             Room(
                 pairing_code=pairing_code,
@@ -91,31 +90,12 @@ class RoomRepository:
         )
         return result.rowcount or 0
 
-    async def set_deck_position(
-        self, pairing_code: str, deck_position_json: str
-    ) -> int:
+    async def set_deck_position(self, pairing_code: str, deck: Deck) -> int:
+        _, deck_position_json = deck.serialize()
         result = await self._session.execute(
             update(Room)
             .where(Room.pairing_code == pairing_code)
             .values(deck_position=deck_position_json)
-        )
-        return result.rowcount or 0
-
-    async def set_genre_and_deck(
-        self,
-        pairing_code: str,
-        genre: str,
-        movie_data_json: str,
-        deck_position_json: str,
-    ) -> int:
-        result = await self._session.execute(
-            update(Room)
-            .where(Room.pairing_code == pairing_code)
-            .values(
-                current_genre=genre,
-                movie_data=movie_data_json,
-                deck_position=deck_position_json,
-            )
         )
         return result.rowcount or 0
 
@@ -124,10 +104,10 @@ class RoomRepository:
         pairing_code: str,
         genre: str,
         hide_watched: bool,
-        movie_data_json: str,
-        deck_position_json: str,
+        deck: Deck,
     ) -> int:
         """Atomically update genre, hide_watched, deck, and cursor positions."""
+        movie_data_json, deck_position_json = deck.serialize()
         result = await self._session.execute(
             update(Room)
             .where(Room.pairing_code == pairing_code)
@@ -155,11 +135,6 @@ class RoomRepository:
             hide_watched=bool(row.hide_watched),
         )
 
-    async def fetch_movie_data(self, pairing_code: str) -> str | None:
-        return await self._session.scalar(
-            select(Room.movie_data).where(Room.pairing_code == pairing_code)
-        )
-
     async def delete(self, pairing_code: str) -> int:
         result = await self._session.execute(
             delete(Room).where(Room.pairing_code == pairing_code)
@@ -170,12 +145,10 @@ class RoomRepository:
     def _to_record(row: Room) -> RoomRecord:
         return RoomRecord(
             pairing_code=row.pairing_code,
-            movie_data_json=row.movie_data,
+            deck=Deck.parse(row.movie_data, row.deck_position),
             ready=bool(row.ready),
             current_genre=row.current_genre,
             solo_mode=bool(row.solo_mode),
-            deck_position_json=row.deck_position,
-            deck_order_json=row.deck_order,
             include_movies=bool(row.include_movies),
             include_tv_shows=bool(row.include_tv_shows),
             hide_watched=bool(row.hide_watched),

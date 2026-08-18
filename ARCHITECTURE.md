@@ -528,19 +528,20 @@ Operators should pin to a versioned tag (`vX.Y.Z`) for production deployments. T
 
 ## 12. Quick reference: where each thing lives
 
-| If you want to change…                 | Edit…                                                                                             |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| A REST endpoint                        | `jellyswipe/__init__.py` (one file)                                                               |
-| How matches are computed               | `jellyswipe/__init__.py` → `swipe()`                                                              |
-| Deck composition / genre normalization | `jellyswipe/jellyfin_library.py` → `fetch_deck`, `list_genres`                                    |
-| Image proxy allowlist                  | `jellyswipe/__init__.py` (`/proxy`) **and** `jellyfin_library.py` (`_JF_IMAGE_PATH`) — duplicated |
-| Schema or "migrations"                 | `alembic/versions/` (Alembic revisions)                                                           |
-| The whole UI                           | `jellyswipe/templates/index.html`                                                                 |
-| Service worker / PWA install           | `data/sw.js`, `jellyswipe/static/manifest.json` (duplicated in `data/manifest.json`)              |
-| Container build                        | `Dockerfile`                                                                                      |
-| Container runtime                      | `docker-compose.yml`                                                                              |
-| Unraid Community Apps listing          | `unraid_template/jelly-swipe.html`                                                                |
-| CI                                     | `.github/workflows/{test,docker-image,release-ghcr}.yml`                                          |
+| If you want to change…                                  | Edit…                                                                                                                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A REST endpoint                                         | `jellyswipe/__init__.py` (one file)                                                                                                                         |
+| How matches are computed                                | `jellyswipe/__init__.py` → `swipe()`                                                                                                                        |
+| Deck composition / genre normalization                  | `jellyswipe/jellyfin_library.py` → `fetch_deck`, `list_genres`                                                                                              |
+| Deck state: parse / cursor advance / paging / serialize | `jellyswipe/domain/deck.py` → `Deck` (single owner); consumed by `room_lifecycle`, `deck_pipeline`, `session_match_mutation`, and the `RoomRepository` seam |
+| Image proxy allowlist                                   | `jellyswipe/__init__.py` (`/proxy`) **and** `jellyfin_library.py` (`_JF_IMAGE_PATH`) — duplicated                                                           |
+| Schema or "migrations"                                  | `alembic/versions/` (Alembic revisions)                                                                                                                     |
+| The whole UI                                            | `jellyswipe/templates/index.html`                                                                                                                           |
+| Service worker / PWA install                            | `data/sw.js`, `jellyswipe/static/manifest.json` (duplicated in `data/manifest.json`)                                                                        |
+| Container build                                         | `Dockerfile`                                                                                                                                                |
+| Container runtime                                       | `docker-compose.yml`                                                                                                                                        |
+| Unraid Community Apps listing                           | `unraid_template/jelly-swipe.html`                                                                                                                          |
+| CI                                                      | `.github/workflows/{test,docker-image,release-ghcr}.yml`                                                                                                    |
 
 ---
 

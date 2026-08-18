@@ -20,6 +20,7 @@ from jellyswipe.db_runtime import (
     initialize_runtime,
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
+from jellyswipe.domain.deck import Deck
 from jellyswipe.jellyfin import JellyfinClient, JellyfinLibrary, JellyfinVault
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
@@ -483,11 +484,10 @@ async def test_match_record_includes_media_type_tv_show(db_path, monkeypatch):
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "ROOM1",
-                movie_data_json=movie_data,
+                deck=Deck.parse(movie_data, '{"user-1": 0}'),
                 ready=True,
                 current_genre="All",
                 solo_mode=True,
-                deck_position_json=json.dumps({"user-1": 0}),
             )
             await session.commit()
 
@@ -566,11 +566,10 @@ async def test_match_record_includes_media_type_movie(db_path, monkeypatch):
             uow = DatabaseUnitOfWork(session)
             await uow.rooms.create(
                 "ROOM1",
-                movie_data_json=movie_data,
+                deck=Deck.parse(movie_data, '{"user-1": 0}'),
                 ready=True,
                 current_genre="All",
                 solo_mode=True,
-                deck_position_json=json.dumps({"user-1": 0}),
             )
             await session.commit()
 
