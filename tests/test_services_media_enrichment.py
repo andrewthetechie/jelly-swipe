@@ -189,6 +189,26 @@ class TestFetchTrailer(MediaEnrichmentTestBase):
         assert result.status_code == 500
         mock_lookup.assert_not_called()
 
+    async def test_cache_read_failure_returns_500(self):
+        """A cache-store failure on read returns 500, not a propagated error."""
+        service = MediaEnrichmentService()
+        uow = self._make_uow(cached=None)
+        uow.tmdb_cache.get = AsyncMock(side_effect=Exception("db down"))
+        provider = self._make_provider()
+        request = self._make_request()
+
+        with patch(_TRAILER) as mock_lookup:
+            result = await service.fetch_trailer(
+                media_id="movie-cache-err",
+                request=request,
+                uow=uow,
+                provider=provider,
+                api_token="token",
+            )
+
+        assert result.status_code == 500
+        mock_lookup.assert_not_called()
+
 
 @pytest.mark.anyio
 class TestFetchCast(MediaEnrichmentTestBase):
@@ -325,5 +345,27 @@ class TestFetchCast(MediaEnrichmentTestBase):
         assert result.status_code == 500
         body = json.loads(result.body)
         assert "Internal server error" in body["error"]
+        assert body["cast"] == []
+        mock_lookup.assert_not_called()
+
+    async def test_cache_read_failure_returns_500_with_empty_cast(self):
+        """A cache-store failure on read returns 500 with {"cast": []}."""
+        service = MediaEnrichmentService()
+        uow = self._make_uow(cached=None)
+        uow.tmdb_cache.get = AsyncMock(side_effect=Exception("db down"))
+        provider = self._make_provider()
+        request = self._make_request()
+
+        with patch(_CAST) as mock_lookup:
+            result = await service.fetch_cast(
+                media_id="movie-cache-err",
+                request=request,
+                uow=uow,
+                provider=provider,
+                api_token="token",
+            )
+
+        assert result.status_code == 500
+        body = json.loads(result.body)
         assert body["cast"] == []
         mock_lookup.assert_not_called()

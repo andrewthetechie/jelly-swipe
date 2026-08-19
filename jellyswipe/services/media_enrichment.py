@@ -78,13 +78,17 @@ class MediaEnrichmentService:
         The caller owns the commit; this method only stages writes via
         ``uow.tmdb_cache.put()``.
         """
-        # Step 1: Check cache (TTL enforced by repository, default 7 days)
-        cached = await uow.tmdb_cache.get(media_id, "trailer")
-        if cached:
-            cached_data = json.loads(cached.result_json)
-            if not cached_data:
-                return make_error_response("Not found", 404, request)
-            return cached_data
+        # Step 1: Check cache (TTL enforced by repository, default 7 days).
+        # A cache-store or parse failure is a server error, not a miss.
+        try:
+            cached = await uow.tmdb_cache.get(media_id, "trailer")
+            if cached:
+                cached_data = json.loads(cached.result_json)
+                if not cached_data:
+                    return make_error_response("Not found", 404, request)
+                return cached_data
+        except Exception as e:
+            return _server_error(e, request, None)
 
         # Step 2: Cache miss — resolve item and call TMDB
         try:
@@ -127,14 +131,18 @@ class MediaEnrichmentService:
         Transaction completion is owned by the ``get_db_uow`` request
         boundary; this method only stages writes via ``uow.tmdb_cache.put()``.
         """
-        # Step 1: Check cache (TTL enforced by repository, default 7 days)
-        cached = await uow.tmdb_cache.get(media_id, "cast")
-        if cached:
-            cached_data = json.loads(cached.result_json)
-            # Dicts are already in response shape; raw lists are wrapped.
-            if not isinstance(cached_data, dict):
-                return {"cast": cached_data}
-            return cached_data
+        # Step 1: Check cache (TTL enforced by repository, default 7 days).
+        # A cache-store or parse failure is a server error, not a miss.
+        try:
+            cached = await uow.tmdb_cache.get(media_id, "cast")
+            if cached:
+                cached_data = json.loads(cached.result_json)
+                # Dicts are already in response shape; raw lists are wrapped.
+                if not isinstance(cached_data, dict):
+                    return {"cast": cached_data}
+                return cached_data
+        except Exception as e:
+            return _server_error(e, request, {"cast": []})
 
         # Step 2: Cache miss — resolve item and call TMDB
         try:

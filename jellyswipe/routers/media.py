@@ -44,9 +44,9 @@ media_router = APIRouter()
             "model": ErrorResponse,
             "description": "Movie not found in Jellyfin or no trailer exists on TMDB",
         },
-        502: {
+        500: {
             "model": ErrorResponse,
-            "description": "Upstream failure from TMDB or Jellyfin",
+            "description": "Internal error from cache, TMDB, or Jellyfin",
         },
     },
     summary="Get trailer for a movie",
@@ -68,7 +68,7 @@ async def get_trailer(
 
     - If Jellyfin cannot resolve the item, returns ``404`` with ``ErrorResponse``.
     - If TMDB returns no trailer, caches the miss and returns ``404``.
-    - Any unhandled upstream error returns ``502`` with ``ErrorResponse``; the
+    - Any unhandled upstream error returns ``500`` with ``ErrorResponse``; the
       frontend should surface a generic "trailer unavailable" message.
     """
     result = await _enrichment.fetch_trailer(
@@ -87,9 +87,9 @@ async def get_trailer(
     response_model=CastResponse,
     responses={
         404: {"model": ErrorResponse, "description": "Movie not found in Jellyfin"},
-        502: {
+        500: {
             "model": ErrorResponse,
-            "description": "Upstream failure from TMDB or Jellyfin",
+            "description": "Internal error from cache, TMDB, or Jellyfin",
         },
     },
     summary="Get cast for a movie",
@@ -113,7 +113,7 @@ async def get_cast(
       and an empty ``cast`` list.
     - An empty cast from TMDB is valid and cached; the response will have
       ``cast: []``.
-    - Any unhandled upstream error returns ``502`` with ``ErrorResponse`` and
+    - Any unhandled upstream error returns ``500`` with ``ErrorResponse`` and
       an empty ``cast`` list.
     """
     result = await _enrichment.fetch_cast(
