@@ -26,7 +26,6 @@ from jellyswipe.schemas.media import (
     WatchlistAddResponse,
 )
 from jellyswipe.services.media_enrichment import MediaEnrichmentService
-from jellyswipe.tmdb import lookup_cast, lookup_trailer
 
 _logger = logging.getLogger(__name__)
 
@@ -72,18 +71,12 @@ async def get_trailer(
     - Any unhandled upstream error returns ``502`` with ``ErrorResponse``; the
       frontend should surface a generic "trailer unavailable" message.
     """
-    result = await _enrichment.fetch(
+    result = await _enrichment.fetch_trailer(
         media_id=movie_id,
-        lookup_type="trailer",
         request=request,
         uow=uow,
         provider=provider,
         api_token=config.tmdb_access_token,
-        fetch_fn=lambda title, year, token: lookup_trailer(
-            title, year, api_token=token
-        ),
-        response_wrapper=lambda key: {"youtube_key": key},
-        empty_response=lambda req: make_error_response("Not found", 404, req),
     )
     return result
 
@@ -123,23 +116,12 @@ async def get_cast(
     - Any unhandled upstream error returns ``502`` with ``ErrorResponse`` and
       an empty ``cast`` list.
     """
-    result = await _enrichment.fetch(
+    result = await _enrichment.fetch_cast(
         media_id=movie_id,
-        lookup_type="cast",
         request=request,
         uow=uow,
         provider=provider,
         api_token=config.tmdb_access_token,
-        fetch_fn=lambda title, year, token: lookup_cast(title, year, api_token=token),
-        response_wrapper=lambda cast: {"cast": cast},
-        empty_response=lambda req: make_error_response(
-            "Not found", 404, req, extra_fields={"cast": []}
-        ),
-        is_empty=lambda result: False,
-        # Store the raw list (pre-refactor cache format); the response
-        # wrapper is applied to cached values on read.
-        cache_transform=lambda cast: cast,
-        error_extra_fields={"cast": []},
     )
     return result
 

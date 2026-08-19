@@ -1,22 +1,26 @@
-"""Shared cache-aside enrichment service for TMDB lookups.
+"""Named cache-aside enrichment lookups for TMDB data.
 
-Extracts the duplicated cache-check → fetch → store flow from media route
-handlers into a single parameterized service. The service does NOT commit;
-the caller owns the commit, consistent with the documented convention that
-request-scoped services defer transaction completion to their route callers.
+Each named lookup (``fetch_trailer`` / ``fetch_cast``) owns its full
+cache-aside flow — cache check, TMDB fetch, miss sentinel, and storage
+policy — so sentinel/storage behavior is visible in one place per lookup
+rather than being split across callback plumbing in the route handlers.
+
+The service never commits; it stages writes through the unit of work and
+leaves transaction completion to the ``get_db_uow`` request boundary, which
+commits on success (routes never call ``session.commit()``).
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Request
 
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.http_utils import log_exception, make_error_response
+from jellyswipe.tmdb import lookup_cast, lookup_trailer
 
 if TYPE_CHECKING:
     from jellyswipe import XSSSafeJSONResponse
@@ -37,113 +41,115 @@ def _server_error(
 class MediaEnrichmentService:
     """Cache-aside service for TMDB enrichment lookups.
 
-    This service does NOT commit the caller's transaction. The caller
-    (route handler) is responsible for committing the UoW session after
-    the fetch completes, consistent with the documented convention that
-    request-scoped services defer transaction completion to their callers.
+    This service never commits. It stages writes via ``uow.tmdb_cache.put()``
+    and transaction completion is owned by the ``get_db_uow`` request
+    boundary (which commits on success); route handlers never call
+    ``session.commit()``.
 
-    Parameterizes the differences between trailer and cast routes:
-    - How to check if a result is empty
-    - How to wrap the result for the response
-    - What shape to store in the cache
-    - What to return on empty results
-    - Extra fields for error responses
+    Each public method is a single named lookup with its own storage
+    policy:
 
-    Storage format: on a miss the service stores
-    ``cache_transform(raw_result)`` when a transform is supplied, otherwise
-    the response-wrapped value. On a cache hit, stored dicts are returned
-    directly (they are already in response shape) while non-dict values
-    (e.g. cast rows storing a raw list) are wrapped via ``response_wrapper``.
-    Empty results always store the sentinel ``{}`` so that a subsequent
-    read can distinguish a cached miss from a missing row.
+    - ``fetch_trailer`` stores the wrapped response ``{"youtube_key": key}``
+      on a hit and the sentinel ``{}`` on a miss (an empty TMDB result is a
+      real miss, returned as 404). Cached dicts are returned directly.
+    - ``fetch_cast`` stores the raw cast list (empty ``[]`` is a valid
+      result, not a sentinel) and returns ``{"cast": cast}``. On a cache
+      hit, a raw-list row (pre-format migration) is wrapped for the
+      response while a dict row is returned directly.
     """
 
-    async def fetch(
+    async def fetch_trailer(
         self,
         *,
         media_id: str,
-        lookup_type: str,
         request: Request,
         uow: DatabaseUnitOfWork,
         provider: Any,
         api_token: str,
-        fetch_fn: Callable[[str, int | None, str], Any],
-        response_wrapper: Callable[[Any], dict],
-        empty_response: Callable[[Request], Any],
-        is_empty: Callable[[Any], bool] = lambda result: not result,
-        cache_transform: Callable[[Any], Any] | None = None,
-        error_extra_fields: dict | None = None,
     ) -> dict | XSSSafeJSONResponse:
-        """Execute the cache-aside flow for a TMDB enrichment lookup.
+        """Get the YouTube trailer key for a movie, cache-aside.
 
-        The caller owns the commit. This method stages writes via
-        ``uow.tmdb_cache.put()`` but does not commit the transaction.
+        On a cache hit the stored dict is returned directly (it is already
+        in response shape); a ``{}`` sentinel hit is returned as a 404.
+        On a miss the item is resolved from the provider and ``lookup_trailer``
+        is called. An empty result stores the sentinel ``{}`` and returns 404;
+        a normal hit stores and returns ``{"youtube_key": key}``.
 
-        Steps:
-        1. Check cache (TTL enforced by repository, default 7 days)
-        2. On miss: resolve item from Jellyfin, call TMDB via fetch_fn
-        3. Cache result, return wrapped response (caller commits)
-        4. Handle errors (RuntimeError for lookup failures, generic Exception)
-
-        Args:
-            media_id: The media identifier to look up.
-            lookup_type: Cache lookup type (e.g. "trailer", "cast").
-            request: FastAPI request for error responses and logging.
-            uow: Database unit of work.
-            provider: Jellyfin provider with resolve_item_for_tmdb method.
-            api_token: TMDB API token.
-            fetch_fn: Callable(title, year, api_token) returning raw result.
-            response_wrapper: Callable wrapping raw result into response dict.
-            empty_response: Callable(request) returning error response on empty.
-            is_empty: Callable checking if raw result is empty (default: falsy check).
-            cache_transform: Optional callable mapping the raw result to the
-                value stored in cache. Defaults to storing the wrapped
-                response; pass an identity transform to store the raw result.
-            error_extra_fields: Extra fields for error responses.
-
-        Returns:
-            dict on success, or an error response (XSSSafeJSONResponse) on failure.
+        The caller owns the commit; this method only stages writes via
+        ``uow.tmdb_cache.put()``.
         """
+        # Step 1: Check cache (TTL enforced by repository, default 7 days)
+        cached = await uow.tmdb_cache.get(media_id, "trailer")
+        if cached:
+            cached_data = json.loads(cached.result_json)
+            if not cached_data:
+                return make_error_response("Not found", 404, request)
+            return cached_data
+
+        # Step 2: Cache miss — resolve item and call TMDB
         try:
-            # Step 1: Check cache
-            cached = await uow.tmdb_cache.get(media_id, lookup_type)
-            if cached:
-                cached_data = json.loads(cached.result_json)
-                if is_empty(cached_data):
-                    return empty_response(request)
-                # Dicts are already in response shape (response_wrapper was
-                # applied at storage time). Non-dict values are raw results
-                # (e.g. cast rows storing a bare list) and are wrapped now.
-                if not isinstance(cached_data, dict):
-                    return response_wrapper(cached_data)
-                return cached_data
-
-            # Step 2: Cache miss — resolve item and call TMDB
             item = await provider.resolve_item_for_tmdb(media_id)
-            raw_result = fetch_fn(item.title, item.year, api_token)
+            key = lookup_trailer(item.title, item.year, api_token=api_token)
+        except RuntimeError as e:
+            if "item lookup failed" in str(e).lower():
+                return make_error_response("Movie metadata not found", 404, request)
+            return _server_error(e, request, None)
+        except Exception as e:
+            return _server_error(e, request, None)
 
-            # Step 3: Check for empty result
-            if is_empty(raw_result):
-                # Always store the sentinel {} for empty results so a
-                # subsequent read can distinguish a cached miss from a
-                # missing row.
-                await uow.tmdb_cache.put(media_id, lookup_type, json.dumps({}))
-                return empty_response(request)
+        # Step 3: Empty result — store sentinel so we can distinguish a
+        # cached miss from a missing row, and return 404.
+        if not key:
+            await uow.tmdb_cache.put(media_id, "trailer", json.dumps({}))
+            return make_error_response("Not found", 404, request)
 
-            # Step 4: Cache and return wrapped result
-            wrapped = response_wrapper(raw_result)
-            storable = cache_transform(raw_result) if cache_transform else wrapped
-            await uow.tmdb_cache.put(media_id, lookup_type, json.dumps(storable))
-            return wrapped
+        # Step 4: Store and return the wrapped response.
+        wrapped = {"youtube_key": key}
+        await uow.tmdb_cache.put(media_id, "trailer", json.dumps(wrapped))
+        return wrapped
 
+    async def fetch_cast(
+        self,
+        *,
+        media_id: str,
+        request: Request,
+        uow: DatabaseUnitOfWork,
+        provider: Any,
+        api_token: str,
+    ) -> dict | XSSSafeJSONResponse:
+        """Get the cast for a movie, cache-aside.
+
+        An empty cast is a valid result, stored as ``[]`` (never the
+        ``{}`` sentinel) and returned as ``{"cast": []}``. On a cache hit a
+        raw-list row (old cache format) is wrapped as ``{"cast": [...]}``
+        while a dict row is returned directly.
+
+        Transaction completion is owned by the ``get_db_uow`` request
+        boundary; this method only stages writes via ``uow.tmdb_cache.put()``.
+        """
+        # Step 1: Check cache (TTL enforced by repository, default 7 days)
+        cached = await uow.tmdb_cache.get(media_id, "cast")
+        if cached:
+            cached_data = json.loads(cached.result_json)
+            # Dicts are already in response shape; raw lists are wrapped.
+            if not isinstance(cached_data, dict):
+                return {"cast": cached_data}
+            return cached_data
+
+        # Step 2: Cache miss — resolve item and call TMDB
+        try:
+            item = await provider.resolve_item_for_tmdb(media_id)
+            cast = lookup_cast(item.title, item.year, api_token=api_token)
         except RuntimeError as e:
             if "item lookup failed" in str(e).lower():
                 return make_error_response(
-                    "Movie metadata not found",
-                    404,
-                    request,
-                    extra_fields=error_extra_fields,
+                    "Movie metadata not found", 404, request, extra_fields={"cast": []}
                 )
-            return _server_error(e, request, error_extra_fields)
+            return _server_error(e, request, {"cast": []})
         except Exception as e:
-            return _server_error(e, request, error_extra_fields)
+            return _server_error(e, request, {"cast": []})
+
+        # Step 3/4: An empty cast is valid — always store the raw list
+        # (which may be []) and return the wrapped response.
+        await uow.tmdb_cache.put(media_id, "cast", json.dumps(cast))
+        return {"cast": cast}
