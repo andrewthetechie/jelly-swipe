@@ -63,7 +63,9 @@ class TestTrailerRoute:
         _seed_cache("movie-1", "trailer", json.dumps({"youtube_key": "abc123"}))
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+        with patch(
+            "jellyswipe.services.media_enrichment.lookup_trailer"
+        ) as mock_lookup:
             resp = client.get("/get-trailer/movie-1")
 
         assert resp.status_code == 200
@@ -76,7 +78,9 @@ class TestTrailerRoute:
         _seed_cache("movie-2", "trailer", json.dumps({}))
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+        with patch(
+            "jellyswipe.services.media_enrichment.lookup_trailer"
+        ) as mock_lookup:
             resp = client.get("/get-trailer/movie-2")
 
         assert resp.status_code == 404
@@ -86,7 +90,9 @@ class TestTrailerRoute:
         """Cache miss resolves item, calls lookup_trailer, stores result, returns."""
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+        with patch(
+            "jellyswipe.services.media_enrichment.lookup_trailer"
+        ) as mock_lookup:
             mock_lookup.return_value = "xyz789"
             resp = client.get("/get-trailer/movie-3")
 
@@ -110,7 +116,9 @@ class TestTrailerRoute:
         """lookup_trailer returns None → route stores {}, returns 404."""
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+        with patch(
+            "jellyswipe.services.media_enrichment.lookup_trailer"
+        ) as mock_lookup:
             mock_lookup.return_value = None
             resp = client.get("/get-trailer/movie-4")
 
@@ -132,7 +140,9 @@ class TestTrailerRoute:
         """First call misses and stores; second call hits cache."""
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+        with patch(
+            "jellyswipe.services.media_enrichment.lookup_trailer"
+        ) as mock_lookup:
             mock_lookup.return_value = "first-call-key"
             resp1 = client.get("/get-trailer/movie-5")
 
@@ -141,7 +151,9 @@ class TestTrailerRoute:
         assert mock_lookup.call_count == 1
 
         # Second call — should hit cache
-        with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup2:
+        with patch(
+            "jellyswipe.services.media_enrichment.lookup_trailer"
+        ) as mock_lookup2:
             resp2 = client.get("/get-trailer/movie-5")
 
         assert resp2.status_code == 200
@@ -194,7 +206,9 @@ class TestTrailerRoute:
         app.dependency_overrides[get_db_uow] = mock_get_db_uow
 
         try:
-            with patch("jellyswipe.routers.media.lookup_trailer") as mock_lookup:
+            with patch(
+                "jellyswipe.services.media_enrichment.lookup_trailer"
+            ) as mock_lookup:
                 mock_lookup.return_value = "commit-test-key"
                 resp = client.get("/get-trailer/movie-commit-test")
 
@@ -227,7 +241,7 @@ class TestCastRoute:
         _seed_cache("movie-10", "cast", json.dumps(cast_data))
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_cast") as mock_lookup:
+        with patch("jellyswipe.services.media_enrichment.lookup_cast") as mock_lookup:
             resp = client.get("/cast/movie-10")
 
         assert resp.status_code == 200
@@ -242,7 +256,7 @@ class TestCastRoute:
             {"name": "Test Actor", "character": "Test Role", "profile_path": None}
         ]
 
-        with patch("jellyswipe.routers.media.lookup_cast") as mock_lookup:
+        with patch("jellyswipe.services.media_enrichment.lookup_cast") as mock_lookup:
             mock_lookup.return_value = expected_cast
             resp = client.get("/cast/movie-11")
 
@@ -266,7 +280,7 @@ class TestCastRoute:
         """lookup_cast returns [] → route stores [], returns {"cast": []}."""
         _set_session(client)
 
-        with patch("jellyswipe.routers.media.lookup_cast") as mock_lookup:
+        with patch("jellyswipe.services.media_enrichment.lookup_cast") as mock_lookup:
             mock_lookup.return_value = []
             resp = client.get("/cast/movie-12")
 

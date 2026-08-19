@@ -668,22 +668,22 @@ def test_media_routes_have_response_models(client):
         )
 
 
-def test_trailer_route_documents_404_and_502(client):
-    """GET /get-trailer/{movie_id} documents 404 and 502 error responses."""
+def test_trailer_route_documents_404_and_500(client):
+    """GET /get-trailer/{movie_id} documents 404 and 500 error responses."""
     response = client.get("/openapi.json")
     schema = response.json()
     responses = schema["paths"]["/get-trailer/{movie_id}"]["get"]["responses"]
     assert "404" in responses, "trailer route missing 404 documentation"
-    assert "502" in responses, "trailer route missing 502 documentation"
+    assert "500" in responses, "trailer route missing 500 documentation"
 
 
-def test_cast_route_documents_404_and_502(client):
-    """GET /cast/{movie_id} documents 404 and 502 error responses."""
+def test_cast_route_documents_404_and_500(client):
+    """GET /cast/{movie_id} documents 404 and 500 error responses."""
     response = client.get("/openapi.json")
     schema = response.json()
     responses = schema["paths"]["/cast/{movie_id}"]["get"]["responses"]
     assert "404" in responses, "cast route missing 404 documentation"
-    assert "502" in responses, "cast route missing 502 documentation"
+    assert "500" in responses, "cast route missing 500 documentation"
 
 
 def test_watchlist_post_documents_typed_request_body(client):
