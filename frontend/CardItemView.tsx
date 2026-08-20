@@ -1,7 +1,8 @@
 import React from 'react'
 import ActorElements from './ActorElements'
 import sadLogo from "./assets/sad.png"
-import { apiUrl, formatRating } from "./api"
+import { apiUrl } from "./api"
+import { formatRating } from './format'
 import type { JSX } from "react"
 import type { CardItem } from './types'
 

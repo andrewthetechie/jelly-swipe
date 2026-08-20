@@ -1,12 +1,12 @@
 import nameLogo from './assets/name-logo.png'
-import { useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
+import { useRoomSession } from './RoomSessionProvider'
 
 export default function Header(): JSX.Element {
-    const { roomReady } = useRoomStateContext()
+    const { state } = useRoomSession()
     return (
         <header className="app-header">
-            {!roomReady && <img src={nameLogo} alt="Jelly-Swipe logo" className="app-logo" />}
+            {!state.roomReady && <img src={nameLogo} alt="Jelly-Swipe logo" className="app-logo" />}
         </header>
     )
 }

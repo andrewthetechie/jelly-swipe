@@ -1,15 +1,14 @@
 import React from "react"
-import { apiFetch } from "./api"
-import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import type { GenreListResponse } from "./types"
 import type { JSX } from "react"
+import { fetchGenres } from "./roomApi"
+import { useRoomSession } from "./RoomSessionProvider"
 
 interface GenreModalProps {
     handleGenreClick: () => void
-    handleGenreChange: () => void
 }
 
-export default function GenreModal({ handleGenreClick, handleGenreChange }: GenreModalProps): JSX.Element {
+export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.Element {
     const [genreList, setGenreList] = React.useState<GenreListResponse>(() => {
         try {
             const cached = sessionStorage.getItem("genres")
@@ -19,37 +18,29 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
             return []
         }
     })
-    const { genre } = useRoomStateContext()
-    const { setGenre } = useRoomSetterContext()
+    
+    const { state, selectGenre, confirmGenre } = useRoomSession()
 
     React.useEffect(() => {
         if (genreList.length > 0) {
             return
         }
 
-        const fetchGenres = async () => {
+        const fetchGenreList = async () => {
             try {
-                const res: Response = await apiFetch(`/genres`, {
-                    method: 'GET',
-                    headers: {'Content-Type': 'application/json'},
-                })
-                if (!res.ok) {
-                    throw new Error(`Error fetching genres: ${res.status} ${res.statusText}`)
-                }
-
-                const data = await res.json()
+                const data = await fetchGenres()
                 setGenreList(data)
                 sessionStorage.setItem("genres", JSON.stringify(data))
             } catch (err) {
                 console.error("Error fetching genres:", err)
             }
         }
-        fetchGenres()
+        fetchGenreList()
     }, [genreList.length])
 
     const genreElements = genreList.map((option) => (
         <label 
-            className={`custom-radio ${genre === option ? "active" : ""}`}
+            className={`custom-radio ${state.genre === option ? "active" : ""}`}
             key={option} 
             htmlFor={option}
         >
@@ -58,8 +49,8 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
                 id={option}
                 name="genre"
                 value={option}
-                checked={genre === option}
-                onChange={(e) => setGenre(e.target.value)}
+                checked={state.genre === option}
+                onChange={(e) => selectGenre(e.target.value)}
             />
             {option}
         </label>
@@ -72,8 +63,8 @@ export default function GenreModal({ handleGenreClick, handleGenreChange }: Genr
                 <div className="genre-inputs">
                     {genreElements}
                 </div>
-                <button className="modal-button" onClick={handleGenreChange}>Confirm</button>
-                <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
+                <button className="modal-button" onClick={confirmGenre}>Confirm</button>
+                <button className="modal-button" onClick={async () => { await confirmGenre(); handleGenreClick() }}>Cancel</button>
             </div>
         </div>
     )

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
-import { postJson } from "./api"
 import type { JSX } from "react"
+import { joinRoom } from './roomApi'
 
 interface JoinModalProps {
     onClose: React.MouseEventHandler<HTMLButtonElement | HTMLDivElement>
@@ -13,17 +13,13 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
     const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
     const isValid = userInputCode.length === 4
 
-    async function joinRoom() {
+    async function doJoin() {
         if (!isValid) return
         if (isSubmitting) return
         setIsSubmitting(true)
         
         try {
-            const res: Response = await postJson(`/room/${userInputCode}/join`)
-            if (!res.ok) {
-                throw new Error(`Error joining room: ${res.status} ${res.statusText}`)
-            }
-
+            await joinRoom(userInputCode)
             setCurrentRoomCode(userInputCode)            
         } catch (err) {
             console.error("Error joining room:", err)
@@ -45,7 +41,7 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
                 value={userInputCode} 
                 onChange={(e) => setUserInputCode(e.target.value.replace(/[^0-9]/g, ''))} 
             />
-            <button className="modal-button" onClick={joinRoom} disabled={isSubmitting || !isValid}>
+            <button className="modal-button" onClick={doJoin} disabled={isSubmitting || !isValid}>
                 {isSubmitting ? "Joining Session..." : "Join Session"}
             </button>
             <button className="modal-button" onClick={onClose} data-modal-type="join">Cancel</button>

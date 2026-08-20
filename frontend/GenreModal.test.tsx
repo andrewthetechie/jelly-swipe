@@ -2,229 +2,165 @@ import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import GenreModal from "./GenreModal"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
-import { mockFetch } from "./test/mockFetch"
+import * as roomApi from "./roomApi"
+
+vi.mock("./roomApi", () => ({
+  fetchGenres: vi.fn(),
+  setGenreChoice: vi.fn(),
+}))
+
+const fetchGenresMock = vi.mocked(roomApi.fetchGenres)
+const setGenreChoiceMock = vi.mocked(roomApi.setGenreChoice)
 
 beforeEach(() => {
-    sessionStorage.clear()
-    vi.restoreAllMocks()
-})
-
-afterEach(() => {
-    vi.clearAllMocks()
+  sessionStorage.clear()
+  vi.restoreAllMocks()
+  vi.clearAllMocks()
+  fetchGenresMock.mockResolvedValue(["Action", "Comedy", "Drama"])
+  setGenreChoiceMock.mockResolvedValue([])
 })
 
 function renderGenreModal() {
-    const handleGenreClick = vi.fn()
-    const handleGenreChange = vi.fn()
+  const handleGenreClick = vi.fn()
 
-    const utils = renderWithRoom(
-        <GenreModal 
-            handleGenreClick={handleGenreClick}
-            handleGenreChange={handleGenreChange}
-        />,
-        {
-            currentRoomCode: "1234",
-            genre: "All"
-        }
-    )
+  const utils = renderWithRoom(
+    <GenreModal handleGenreClick={handleGenreClick} />,
+    {
+      currentRoomCode: "1234",
+      genre: "All",
+    },
+  )
 
-    return {
-        ...utils,
-        handleGenreClick,
-        handleGenreChange,
-    }
+  return {
+    ...utils,
+    handleGenreClick,
+  }
 }
 
 describe("GenreModal - data loading and caching", () => {
-    it("renders fetched genres", async () => {
-        const spy = mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
+  it("renders fetched genres", async () => {
+    renderGenreModal()
 
-        renderGenreModal()
+    expect(await screen.findByLabelText("Action")).toBeInTheDocument()
+    expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
+    expect(screen.getByLabelText("Drama")).toBeInTheDocument()
 
-        expect(await screen.findByLabelText("Action")).toBeInTheDocument()
-        expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
-        expect(screen.getByLabelText("Drama")).toBeInTheDocument()
+    expect(fetchGenresMock).toHaveBeenCalledOnce()
+  })
 
-        expect(spy).toHaveBeenCalledOnce()
+  it("uses cached genres instead of fetching them", () => {
+    sessionStorage.setItem("genres", JSON.stringify(["Action", "Comedy"]))
 
-        const [url, options] = spy.mock.calls[0]
+    renderGenreModal()
 
-        expect((url as URL).href).toMatch(/\/genres$/)
-        expect((options as RequestInit).method).toBe("GET")
-    })
+    expect(screen.getByLabelText("Action")).toBeInTheDocument()
+    expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
 
-    it("uses cached genres instead of fetching them", () => {
-        sessionStorage.setItem(
-            "genres",
-            JSON.stringify(["Action", "Comedy"])
-        )
+    expect(fetchGenresMock).not.toHaveBeenCalled()
+  })
 
-        const fetchSpy = vi.spyOn(globalThis, "fetch")
+  it("caches fetched genres", async () => {
+    renderGenreModal()
 
-        renderGenreModal()
+    expect(await screen.findByLabelText("Action")).toBeInTheDocument()
 
-        expect(screen.getByLabelText("Action")).toBeInTheDocument()
-        expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
-
-        expect(fetchSpy).not.toHaveBeenCalled()
-    })
-
-    it("caches fetched genres", async () => {
-        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
-        renderGenreModal()
-
-        expect(await screen.findByLabelText("Action")).toBeInTheDocument()
-
-        expect(
-            JSON.parse(
-                sessionStorage.getItem("genres")!
-            )
-        ).toEqual([
-            "Action", "Comedy", "Drama"
-        ])
-    })
+    expect(JSON.parse(sessionStorage.getItem("genres")!)).toEqual([
+      "Action",
+      "Comedy",
+      "Drama",
+    ])
+  })
 })
 
 describe("GenreModal - radio group behavior", () => {
-    it("selected genre is checked", async () => {
-        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
+  it("selected genre is checked", async () => {
+    renderWithRoomStateful(
+      <GenreModal handleGenreClick={vi.fn()} />,
+      { genre: "Action" },
+    )
 
-        renderWithRoomStateful(
-            <GenreModal 
-                handleGenreClick={vi.fn()}
-                handleGenreChange={vi.fn()}
-            />,
-            { genre: "Action", }
-        )
+    const action = await screen.findByLabelText("Action")
+    expect(action).toBeChecked()
+  })
 
-        const action = await screen.findByLabelText("Action")
-        expect(action).toBeChecked()
-    })
+  it("clicking another genre changes the selection", async () => {
+    const user = userEvent.setup()
 
-    it("clicking another genre changes the selection", async () => {
-        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
+    renderWithRoomStateful(
+      <GenreModal handleGenreClick={vi.fn()} />,
+      { genre: "Action" },
+    )
 
-        const user = userEvent.setup()
+    const action = await screen.findByLabelText("Action")
+    const comedy = screen.getByLabelText("Comedy")
 
-        renderWithRoomStateful(
-            <GenreModal 
-                handleGenreClick={vi.fn()}
-                handleGenreChange={vi.fn()}
-            />,
-            { genre: "Action", }
-        )
+    expect(action).toBeChecked()
+    expect(comedy).not.toBeChecked()
 
-        const action = await screen.findByLabelText("Action")
-        const comedy = screen.getByLabelText("Comedy")
+    await user.click(comedy)
 
-        expect(action).toBeChecked()
-        expect(comedy).not.toBeChecked()
-
-        await user.click(comedy)
-
-        expect(comedy).toBeChecked()
-        expect(action).not.toBeChecked()
-    })
-
-    it("selecting another genre calls setGenre", async () => {
-        mockFetch({ ok: true, body: ["Action", "Comedy", "Drama"] })
-
-        const user = userEvent.setup()
-
-        const { ctx } = renderWithRoom(
-            <GenreModal 
-                handleGenreClick={vi.fn()}
-                handleGenreChange={vi.fn()}
-            />,
-            { genre: "Action", }
-        )
-        
-        const comedy = await screen.findByLabelText("Comedy")
-        await user.click(comedy)
-        
-        expect(ctx.setGenre).toHaveBeenCalledTimes(1)
-        expect(ctx.setGenre).toHaveBeenCalledWith("Comedy")
-    })
+    expect(comedy).toBeChecked()
+    expect(action).not.toBeChecked()
+  })
 })
 
 describe("GenreModal - buttons", () => {
-    it("confirm button calls handleGenreChange", async () => {
-        mockFetch({ ok: true, body: ["Action", "Comedy"] })
+  it("confirm button calls roomApi.setGenreChoice with current room code + genre", async () => {
+    const user = userEvent.setup()
+    renderGenreModal()
 
-        const user = userEvent.setup()
-        const { handleGenreChange } = renderGenreModal()
+    await screen.findByLabelText("Action")
 
-        await screen.findByLabelText("Action")
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
 
-        await user.click(
-            screen.getByRole("button", { name: /confirm/i, })
-        )
+    await waitFor(() => expect(setGenreChoiceMock).toHaveBeenCalledTimes(1))
+    expect(setGenreChoiceMock).toHaveBeenCalledWith("1234", "All")
+  })
 
-        expect(handleGenreChange).toHaveBeenCalledOnce
-    })
+  it("cancel button calls handleGenreClick", async () => {
+    const user = userEvent.setup()
+    const { handleGenreClick } = renderGenreModal()
 
-    it("cancel button calls handleGenreClick", async () => {
-        mockFetch({ ok: true, body: ["Action", "Comedy"] })
+    await screen.findByLabelText("Action")
 
-        const user = userEvent.setup()
-        const { handleGenreClick} = renderGenreModal()
+    await user.click(screen.getByRole("button", { name: /cancel/i }))
 
-        await screen.findByLabelText("Action")
-
-        await user.click(
-            screen.getByRole("button", { name: /cancel/i, })
-        )
-
-        expect(handleGenreClick).toHaveBeenCalledOnce
-    })
+    expect(handleGenreClick).toHaveBeenCalledOnce()
+  })
 })
 
 describe("GenreModal - error path", () => {
-    it("fetch failure does not load genres", async () => {
-        const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+  it("fetch failure does not load genres", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    fetchGenresMock.mockRejectedValueOnce(new Error("Error fetching genres"))
 
-        const spy = mockFetch({ ok: false })
+    renderGenreModal()
 
-        renderGenreModal()
-
-        await waitFor(() => {
-            expect(spy).toHaveBeenCalledOnce()
-        })
-
-        expect(errSpy).toHaveBeenCalled()
-
-        expect(
-            screen.queryByLabelText("Action")
-        ).not.toBeInTheDocument()
-
-        expect(
-            screen.queryByLabelText("Comedy")
-        ).not.toBeInTheDocument()
-
-        expect(
-            screen.queryByLabelText("Drama")
-        ).not.toBeInTheDocument()
-
-        errSpy.mockRestore()
+    await waitFor(() => {
+      expect(fetchGenresMock).toHaveBeenCalledOnce()
     })
 
-    it("fetch rejection does not load genres", async () => {
-        const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    expect(errSpy).toHaveBeenCalled()
+    expect(screen.queryByLabelText("Action")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Comedy")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Drama")).not.toBeInTheDocument()
 
-        const spy = mockFetch({ reject: true })
+    errSpy.mockRestore()
+  })
 
-        renderGenreModal()
+  it("fetch rejection does not load genres", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    fetchGenresMock.mockRejectedValueOnce(new Error("network error"))
 
-        await waitFor(() => {
-            expect(spy).toHaveBeenCalledOnce()
-        })
+    renderGenreModal()
 
-        expect(errSpy).toHaveBeenCalled()
-
-        expect(
-            screen.queryByLabelText("Action")
-        ).not.toBeInTheDocument()
-
-        errSpy.mockRestore()
+    await waitFor(() => {
+      expect(fetchGenresMock).toHaveBeenCalledOnce()
     })
+
+    expect(errSpy).toHaveBeenCalled()
+    expect(screen.queryByLabelText("Action")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
 })

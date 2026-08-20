@@ -4,34 +4,17 @@ import CardItemView from "./CardItemView"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
-import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
-import { postJson } from "./api"
+import { useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
 import type { CardItem } from './types'
-import type { MatchItem } from "./types"
-import type { CardDeck } from './types'
+import { useRoomSession } from "./RoomSessionProvider"
 
-interface SwipePageProps {
-    cardDeck: CardDeck
-    onSwipe?: (
-        cardItem: CardItem,
-        direction: "left" | "right"
-    ) => Promise<void>
-    matchFound: boolean
-    handleMatchClose: () => void
-    matchItem: MatchItem
-    handleUndo: () => void
-    handleGenreChange: () => void
-    showGenreModal: boolean
-    setShowGenreModal: React.Dispatch<React.SetStateAction<boolean>>
-    handleWatchedFilterToggle: () => void
-}
-
-export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchClose, matchItem, handleUndo, handleGenreChange, showGenreModal, setShowGenreModal, handleWatchedFilterToggle }: SwipePageProps): JSX.Element {
+export default function SwipePage(): JSX.Element {
+    const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession } = useRoomSession()
     const [dragX, setDragX] = React.useState<number>(0)
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
-    const { currentRoomCode, roomReady, hideWatched, isSoloMode } = useRoomStateContext()
-    const { setCurrentRoomCode, setRoomReady, setHideWatched } = useRoomSetterContext()
+    const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
+    const { isSoloMode } = useRoomStateContext()
 
     const rightOpacity: number = 
         dragX > 20
@@ -41,36 +24,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         dragX < -20
             ? Math.min(Math.abs(dragX) / 200, 1)
             : 0
-    const visibleCards = cardDeck.slice(0, 5).reverse()
-
-    const requireRoomCode = React.useCallback((action: string): string | null => {
-        if (!currentRoomCode) {
-            console.error(`Cannot ${action} without currentRoomCode`)
-            return null
-        }
-        return currentRoomCode
-    }, [currentRoomCode])
-
-    async function handleEndSession() {
-        const roomCode = requireRoomCode("end session")
-        if(!roomCode) return
-
-        try {
-            const res: Response = await postJson(`/room/${roomCode}/quit`)
-            if (!res.ok) {
-                throw new Error(`Error quitting room: ${res.status} ${res.statusText}`)
-            }
-            
-            const quitRoomResponse: { status: string } = await res.json()
-            console.log("Session ended", quitRoomResponse)
-            setRoomReady(false)
-            setHideWatched(false)
-            setCurrentRoomCode(null)
-            
-        } catch (err) {
-            console.error("Error quitting room:", err)
-        }
-    }
+    const visibleCards = state.cardDeck.slice(0, 5).reverse()
 
     const handleGenreClick = () => {
         setShowGenreModal(prev => !prev)
@@ -80,7 +34,7 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
         setShowMatchListModal(prev => !prev)
     }
 
-    if (roomReady) {
+    if (state.roomReady) {
         return (
             <>
                 <div className="swipe-header">
@@ -95,8 +49,10 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                             type="checkbox"
                             id="hideWatched"
                             name="hideWatched"
-                            checked={hideWatched}
-                            onChange={() => handleWatchedFilterToggle()}
+                            checked={state.hideWatched}
+                            onChange={() => {
+                                void toggleHideWatched()
+                            }}
                         />
                         <span className="slider"></span>
 
@@ -113,29 +69,29 @@ export default function SwipePage({ cardDeck, onSwipe, matchFound, handleMatchCl
                                 isTopCard={index === visibleCards.length - 1}
                                 setDragX={setDragX}
                                 zIndex={index}
-                                onSwipe={onSwipe}
+                                onSwipe={swipe}
                             />
                         ))}
                     </div>
 
-                    <button className="undo-button" onClick={handleUndo}>Undo</button>
+                    <button className="undo-button" onClick={undo}>Undo</button>
                     <p className="card-item-instructions">Tap poster for full details</p>
                 </div>
 
                 <div className="swipe-footer">
-                    <button className="end-session" onClick={handleEndSession}>End Session</button>
+                    <button className="end-session" onClick={endSession}>End Session</button>
                     <button className="shortlist" onClick={handleMatchListClick}>Shortlist</button>
                 </div>
 
                 <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
                 <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
-                {matchFound && <MatchFoundModal onClick={handleMatchClose} matchItem={matchItem} />}
-                {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} handleGenreChange={handleGenreChange} />}
+                {state.matchFound && <MatchFoundModal onClick={dismissMatch} matchItem={state.matchItem} />}
+                {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} />}
                 {showMatchListModal && <MatchListModal handleMatchListClick={handleMatchListClick} />}
             </>
         )
     } else {
-        return <HostWaiting endSession={handleEndSession} />
+        return <HostWaiting endSession={endSession} />
     }
     
 }

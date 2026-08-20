@@ -1,7 +1,7 @@
 import React from "react"
 import type { CastMember } from "./types"
 import type { CastResponse } from "./types"
-import { apiFetch } from "./api"
+import { fetchCast } from "./roomApi"
 
 export default function useMovieCast(mediaId: string) {
     const [cast, setCast] = React.useState<CastMember[]>([])
@@ -16,19 +16,10 @@ export default function useMovieCast(mediaId: string) {
             setError(null)
 
             try {
-                const res: Response = await apiFetch(`/cast/${mediaId}`, {
-                    method: 'GET',
-                    headers: {'Content-Type': 'application/json'},
-                    signal: controller.signal,
-                })
-                if (!res.ok) {
-                    throw new Error(`Error fetching cast: ${res.status} ${res.statusText}`)
-                }
-
-                const data: CastResponse = await res.json()
+                const data: CastResponse = await fetchCast(mediaId, controller.signal)
                 setCast(data.cast)
             } catch (err) {
-                if ((err as Error).name === "AbordError") return
+                if ((err as Error).name === "AbortError") return
                 console.error("Error fetching cast:", err)
                 setError("Error fetching cast")
             } finally {

@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import React from "react"
 import { useSSE } from "./useSSE"
 import { apiUrl } from "./api"

@@ -4,24 +4,18 @@ import React from "react"
 
 export interface RoomStateContextType {
     currentRoomCode: string | null
-    roomReady: boolean
     movies: boolean
     tvShows: boolean
     isSoloMode: boolean
     userInputCode: string
-    genre: string
-    hideWatched: boolean
 }
 
 export interface RoomSetterContextType {
     setCurrentRoomCode: React.Dispatch<React.SetStateAction<string | null>>
-    setRoomReady: React.Dispatch<React.SetStateAction<boolean>>
     setMovies: React.Dispatch<React.SetStateAction<boolean>>
     setTvShows: React.Dispatch<React.SetStateAction<boolean>>
     setIsSoloMode: React.Dispatch<React.SetStateAction<boolean>>
     setUserInputCode: React.Dispatch<React.SetStateAction<string>>
-    setGenre: React.Dispatch<React.SetStateAction<string>>
-    setHideWatched: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 interface RoomProviderProps {
@@ -54,44 +48,32 @@ export function useRoomSetterContext() {
 
 export function RoomContextProvider({ children }: RoomProviderProps) {
     const [currentRoomCode, setCurrentRoomCode] = React.useState<string | null>(null)
-    const [roomReady, setRoomReady] = React.useState<boolean>(false)
     const [movies, setMovies] = React.useState<boolean>(true)
     const [tvShows, setTvShows] = React.useState<boolean>(false)
     const [isSoloMode, setIsSoloMode] = React.useState<boolean>(false)
     const [userInputCode, setUserInputCode] = React.useState<string>("")
-    const [genre, setGenre] = React.useState<string>("All")
-    const [hideWatched, setHideWatched] = React.useState<boolean>(false)
 
     const roomStateValue = React.useMemo(() => ({
         currentRoomCode,
-        roomReady,
         movies,
         tvShows,
         isSoloMode,
         userInputCode,
-        genre,
-        hideWatched
     }), 
     [
         currentRoomCode,
-        roomReady,
         movies,
         tvShows,
         isSoloMode,
         userInputCode,
-        genre,
-        hideWatched
     ])
 
     const roomSetterValue = React.useMemo(() => ({
         setCurrentRoomCode,
-        setRoomReady,
         setMovies,
         setTvShows,
         setIsSoloMode,
         setUserInputCode,
-        setGenre,
-        setHideWatched
     }), [])
 
     return (
