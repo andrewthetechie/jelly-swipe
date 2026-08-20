@@ -224,12 +224,17 @@ def create_app(config: AppConfig | None = None):
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
+        # Function-local import: the session adapter transitively needs
+        # ``XSSSafeJSONResponse`` from this module, so importing "dependencies"
+        # at module load would create a circular import.
+        from jellyswipe.dependencies import session_cookie_cleared
+
         response = XSSSafeJSONResponse(
             content={"detail": exc.detail},
             status_code=exc.status_code,
             headers=exc.headers,
         )
-        if getattr(request.state, "clear_session_cookie", False):
+        if session_cookie_cleared(request):
             response.delete_cookie("session", path="/")
         return response
 

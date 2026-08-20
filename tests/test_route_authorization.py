@@ -935,10 +935,10 @@ class TestGetMeActiveRoom:
     def test_join_sets_active_room_in_session(self, db_connection, client_real_auth):
         """After POST /room/{code}/join, GET /me returns activeRoom == code.
 
-        This is a genuine regression guard: if join_room_route omits
-        request.session.update(result.session_updates), the joiner's session
-        has no active_room and /me returns null. The room still exists in the
-        DB, so /me's self-heal (pairing_code_exists check) does not apply.
+        This is a genuine regression guard: if join_room_route fails to set the
+        joiner's active_room in the session, /me returns null. The room still
+        exists in the DB, so /me's self-heal (pairing_code_exists check) does
+        not apply.
         """
         secret_key = os.environ["SESSION_SECRET"]
 
@@ -1149,3 +1149,48 @@ class TestPhase27Compliance:
         resp = client_real_auth.get("/me")
         assert resp.status_code == 200
         assert resp.json()["activeRoom"] is None
+
+
+class TestSessionActorInjection:
+    """The ``get_session_actor`` seam is exercisable on real production routes.
+
+    Swipe/delete/undo/matches consume ``Depends(get_session_actor)``. Overriding
+    that dependency must drive those routes without the full session-middleware
+    stack, and the injected ``SessionActor``'s fields must flow into the service
+    layer (rather than the router hand-reading ``request.session``).
+    """
+
+    def test_matches_route_consumes_injected_actor(
+        self, db_connection, client_real_auth, monkeypatch
+    ):
+        """GET /matches honors an overridden get_session_actor on the real app.
+
+        No session cookie is set; if the route read ``request.session`` directly
+        (the old behavior) ``active_room`` would be ``None`` and the service would
+        be called with it. Instead we inject an actor carrying
+        ``active_room="ROOM1"``/``user_id="user-A"`` and assert those exact values
+        reach the service — proving the seam, not synthetic-state, drives the route.
+        """
+        from jellyswipe.dependencies import get_session_actor
+        from jellyswipe.routers.rooms import room_lifecycle_service
+        from jellyswipe.services.session_match_mutation import SessionActor
+
+        injected = SessionActor(user_id="user-A", session_id="sid", active_room="ROOM1")
+        client_real_auth.app.dependency_overrides[get_session_actor] = lambda: injected
+
+        captured = {}
+
+        async def fake_get_matches(active_room, user_id, view, uow):
+            captured["active_room"] = active_room
+            captured["user_id"] = user_id
+            return [{"media_id": "movie-1", "title": "Injected Title"}]
+
+        # Patch the instance method (not the class) so `self` is not injected.
+        monkeypatch.setattr(room_lifecycle_service, "get_matches", fake_get_matches)
+
+        resp = client_real_auth.get("/matches")
+        assert resp.status_code == 200
+        assert resp.json()["matches"][0]["media_id"] == "movie-1"
+        # The injected actor's fields must reach the service layer unchanged.
+        assert captured["active_room"] == "ROOM1"
+        assert captured["user_id"] == "user-A"

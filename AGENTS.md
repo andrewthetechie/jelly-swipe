@@ -66,6 +66,7 @@ async with runtime_sessionmaker() as session:
 
 - Always use `XSSSafeJSONResponse` for JSON API responses. Do not use `JSONResponse` directly.
 - Authenticated routes should use `require_auth`.
+- Routes that only need the caller's identity/room may declare `actor: SessionActor = Depends(get_session_actor)` instead — `get_session_actor` composes `require_auth` (401 on missing auth), so auth is still enforced and the route does not declare `require_auth` again. Session key names live only in the session adapter in `dependencies.py`; never read `request.session` keys directly in routers or services.
 - `DeckProvider` is defined in `jellyswipe/services/room_lifecycle.py`. Production uses `JellyfinLibrary` (`jellyswipe/jellyfin/library.py`); tests usually use `FakeProvider`.
 - `fetch_deck` takes `media_types: list[str]` containing `"movie"` and/or `"tv_show"`.
 - Public API payloads use `media_id`, not `movie_id`.

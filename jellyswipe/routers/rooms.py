@@ -22,8 +22,11 @@ from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
+    clear_room_session,
     get_provider,
+    get_session_actor,
     require_auth,
+    set_room_session,
 )
 from jellyswipe.notifier import notifier
 from jellyswipe.schemas.common import CardItem, ErrorResponse
@@ -44,8 +47,6 @@ from jellyswipe.schemas.rooms import (
     UndoResponse,
 )
 from jellyswipe.services.room_lifecycle import (
-    SESSION_ACTIVE_ROOM_KEY,
-    SESSION_SOLO_MODE_KEY,
     EmptyDeckError,
     RoomLifecycleService,
     UniqueRoomCodeExhaustedError,
@@ -117,7 +118,7 @@ async def create_room(
             include_tv_shows=resolved.tv_shows,
             solo=resolved.solo,
         )
-        request.session.update(result.session_updates)
+        set_room_session(request, result.pairing_code, resolved.solo)
         uow.wake_on_commit(result.pairing_code)
         return {"pairing_code": result.pairing_code, "instance_id": result.instance_id}
     except UniqueRoomCodeExhaustedError:
@@ -145,10 +146,10 @@ async def join_room_route(
     for swiping. A ``session_ready`` event is published so connected SSE
     clients are notified immediately.
     """
-    result = await room_lifecycle_service.join_room(code, user.user_id, uow)
-    if result is None:
+    joined = await room_lifecycle_service.join_room(code, user.user_id, uow)
+    if not joined:
         return XSSSafeJSONResponse(content={"error": "Invalid Code"}, status_code=404)
-    request.session.update(result.session_updates)
+    set_room_session(request, code, False)
     uow.wake_on_commit(code)
     return {"status": "success"}
 
@@ -170,9 +171,8 @@ async def join_room_route(
 async def swipe(
     code: str,
     body: SwipeRequest,
-    request: Request,
     uow: DBUoW,
-    user: AuthUser = Depends(require_auth),
+    actor: SessionActor = Depends(get_session_actor),
     config: AppConfig = Depends(get_config),
 ):
     """Submit a swipe (left or right) on a media item within a room.
@@ -188,12 +188,6 @@ async def swipe(
     the swipe is otherwise invalid, returns 404.
     """
     mid = str(body.media_id)
-
-    actor = SessionActor(
-        user_id=user.user_id,
-        session_id=request.session.get("session_id"),
-        active_room=request.session.get("active_room"),
-    )
     result = await session_match_mutation.apply_swipe(
         code=code,
         actor=actor,
@@ -220,18 +214,18 @@ async def swipe(
     summary="List matches",
 )
 async def get_matches(
-    request: Request,
     uow: DBUoW,
     view: Literal["history"] | None = None,
-    user: AuthUser = Depends(require_auth),
+    actor: SessionActor = Depends(get_session_actor),
 ):
     """Return the current room's matches, or the user's full match history.
 
     Omit ``view`` to get matches for the caller's current active room.
     Pass ``view=history`` to retrieve archived matches across all past rooms.
     """
-    code = request.session.get("active_room")
-    rows = await room_lifecycle_service.get_matches(code, user.user_id, view, uow)
+    rows = await room_lifecycle_service.get_matches(
+        actor.active_room, actor.user_id, view, uow
+    )
     return {"matches": rows}
 
 
@@ -254,8 +248,7 @@ async def quit_room(
     ``session_closed`` event so connected SSE clients can react.
     """
     result = await room_lifecycle_service.quit_room(code, user.user_id, uow)
-    for key in (SESSION_ACTIVE_ROOM_KEY, SESSION_SOLO_MODE_KEY):
-        request.session.pop(key, None)
+    clear_room_session(request)
     uow.wake_on_commit(code)
     return {"status": result.status}
 
@@ -271,21 +264,15 @@ async def quit_room(
     summary="Delete a match",
 )
 async def delete_match(
-    request: Request,
     body: DeleteMatchRequest,
     uow: DBUoW,
-    user: AuthUser = Depends(require_auth),
+    actor: SessionActor = Depends(get_session_actor),
 ):
     """Delete a single match from history by media ID.
 
     Removes the match row from the database. If no matching record is found,
     the operation still returns successfully.
     """
-    actor = SessionActor(
-        user_id=user.user_id,
-        session_id=request.session.get("session_id"),
-        active_room=request.session.get("active_room"),
-    )
     result = await session_match_mutation.delete_match(
         actor=actor,
         media_id=body.media_id,
@@ -309,9 +296,8 @@ async def delete_match(
 async def undo_swipe(
     code: str,
     body: UndoRequest,
-    request: Request,
     uow: DBUoW,
-    user: AuthUser = Depends(require_auth),
+    actor: SessionActor = Depends(get_session_actor),
 ):
     """Undo the last swipe on a media item within a room.
 
@@ -319,11 +305,6 @@ async def undo_swipe(
     Notifies connected SSE clients if the undo changed room state.
     """
     mid = str(body.media_id)
-    actor = SessionActor(
-        user_id=user.user_id,
-        session_id=request.session.get("session_id"),
-        active_room=request.session.get("active_room"),
-    )
     result = await session_match_mutation.undo_swipe(
         code=code,
         actor=actor,
