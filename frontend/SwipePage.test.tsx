@@ -247,8 +247,14 @@ describe("SwipePage - GenreModal behavior", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("renders GenreModal when showGenreModal is true", () => {
-    renderSwipePage(2, true, true)
+  it("renders GenreModal after clicking the Genres button", async () => {
+    const user = userEvent.setup()
+    renderSwipePage()
+    await user.click(
+      screen.getByRole("button", {
+        name: /genres/i,
+      }),
+    )
     expect(
       screen.queryByText("Select Genre")
     ).toBeInTheDocument()

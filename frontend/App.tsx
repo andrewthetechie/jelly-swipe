@@ -3,6 +3,7 @@ import Main from "./Main"
 import Header from "./Header"
 import { apiFetch } from "./api"
 import { RoomContextProvider } from "./RoomContextProvider" 
+import { RoomSessionProvider } from "./RoomSessionProvider"
 import { SSEContextProvider } from "./SSEContextProvider"
 
 export default function App() {
@@ -27,8 +28,10 @@ export default function App() {
     return (
         <RoomContextProvider>
             <SSEContextProvider>
-                <Header />
-                <Main />
+                <RoomSessionProvider>
+                    <Header />
+                    <Main />
+                </RoomSessionProvider>
             </SSEContextProvider>
         </RoomContextProvider>
     )

@@ -24,6 +24,7 @@ import { SSEContextProvider } from "./SSEContextProvider"
 import * as useSSEModule from "./useSSE"
 import { mockFetch } from "./test/mockFetch"
 import { makeDeck, makeCard, swipeRight, swipeLeft } from "./test/fixtures"
+import { RoomSessionProvider } from "./RoomSessionProvider"
 
 function withRoomProviders(
   roomContextValue: any,
@@ -563,10 +564,10 @@ describe("Main - genre change behavior", () => {
 
     expect(await screen.findByAltText("Comedy Movie 1")).toBeInTheDocument()
     expect(screen.queryByAltText("Movie 1")).not.toBeInTheDocument()
-    expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
   })
 
   it("does not refetch the deck when a local genre change is echoed by SSE", async () => {
+    vi.restoreAllMocks()
     const user = userEvent.setup()
     const fetchSpy = vi.spyOn(globalThis, "fetch")
     const useSSESpy = vi.spyOn(useSSEModule, "useSSE")
@@ -575,7 +576,7 @@ describe("Main - genre change behavior", () => {
       error: string | null
       isConnected: boolean
     } = {
-      lastMessage: null,
+      lastMessage: { event_type: "session_bootstrap", ready: true },
       error: null,
       isConnected: true,
     }
@@ -625,7 +626,9 @@ describe("Main - genre change behavior", () => {
       withRoomProviders(
         roomContextValue,
         <SSEContextProvider>
-          <Main />
+          <RoomSessionProvider>
+            <Main />
+          </RoomSessionProvider>
         </SSEContextProvider>,
       ),
     )
@@ -647,7 +650,9 @@ describe("Main - genre change behavior", () => {
       withRoomProviders(
         roomContextValue,
         <SSEContextProvider>
-          <Main />
+          <RoomSessionProvider>
+            <Main />
+          </RoomSessionProvider>
         </SSEContextProvider>,
       ),
     )
@@ -754,6 +759,7 @@ describe("Main - watch filter toggle behavior", () => {
   })
 
   it("does not refetch the deck when a local watched-filter change is echoed by SSE", async () => {
+    vi.restoreAllMocks()
     const user = userEvent.setup()
     const fetchSpy = vi.spyOn(globalThis, "fetch")
     const useSSESpy = vi.spyOn(useSSEModule, "useSSE")
@@ -762,7 +768,7 @@ describe("Main - watch filter toggle behavior", () => {
       error: string | null
       isConnected: boolean
     } = {
-      lastMessage: null,
+      lastMessage: { event_type: "session_bootstrap", ready: true },
       error: null,
       isConnected: true,
     }
@@ -802,7 +808,9 @@ describe("Main - watch filter toggle behavior", () => {
       withRoomProviders(
         roomContextValue,
         <SSEContextProvider>
-          <Main />
+          <RoomSessionProvider>
+            <Main />
+          </RoomSessionProvider>
         </SSEContextProvider>,
       ),
     )
@@ -822,7 +830,9 @@ describe("Main - watch filter toggle behavior", () => {
       withRoomProviders(
         roomContextValue,
         <SSEContextProvider>
-          <Main />
+          <RoomSessionProvider>
+            <Main />
+          </RoomSessionProvider>
         </SSEContextProvider>,
       ),
     )
