@@ -935,10 +935,10 @@ class TestGetMeActiveRoom:
     def test_join_sets_active_room_in_session(self, db_connection, client_real_auth):
         """After POST /room/{code}/join, GET /me returns activeRoom == code.
 
-        This is a genuine regression guard: if join_room_route omits
-        request.session.update(result.session_updates), the joiner's session
-        has no active_room and /me returns null. The room still exists in the
-        DB, so /me's self-heal (pairing_code_exists check) does not apply.
+        This is a genuine regression guard: if join_room_route fails to set the
+        joiner's active_room in the session, /me returns null. The room still
+        exists in the DB, so /me's self-heal (pairing_code_exists check) does
+        not apply.
         """
         secret_key = os.environ["SESSION_SECRET"]
 

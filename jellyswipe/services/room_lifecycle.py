@@ -19,19 +19,10 @@ from jellyswipe.services.background_tasks import (
 )
 from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
 
-# Session keys shared with the rooms router: the service builds
-# ``session_updates`` dicts with these keys; the router applies or pops them.
-SESSION_ACTIVE_ROOM_KEY = "active_room"
-SESSION_SOLO_MODE_KEY = "solo_mode"
-
-# Re-export for backward compatibility
 __all__ = [
-    "SESSION_ACTIVE_ROOM_KEY",
-    "SESSION_SOLO_MODE_KEY",
     "CreateRoomResult",
     "DeckProvider",
     "EmptyDeckError",
-    "JoinRoomResult",
     "QuitRoomResult",
     "RoomLifecycleService",
     "UniqueRoomCodeExhaustedError",
@@ -42,12 +33,6 @@ __all__ = [
 class CreateRoomResult:
     pairing_code: str
     instance_id: str
-    session_updates: dict[str, str | bool]
-
-
-@dataclass(frozen=True)
-class JoinRoomResult:
-    session_updates: dict[str, str | bool]
 
 
 @dataclass(frozen=True)
@@ -132,10 +117,6 @@ class RoomLifecycleService:
             return CreateRoomResult(
                 pairing_code=pairing_code,
                 instance_id=instance_id,
-                session_updates={
-                    SESSION_ACTIVE_ROOM_KEY: pairing_code,
-                    SESSION_SOLO_MODE_KEY: solo,
-                },
             )
 
         raise UniqueRoomCodeExhaustedError()
@@ -145,10 +126,15 @@ class RoomLifecycleService:
         code: str,
         user_id: str,
         uow: DatabaseUnitOfWork,
-    ) -> JoinRoomResult | None:
+    ) -> bool:
+        """Add ``user_id`` to the room and mark it ready for swiping.
+
+        Returns ``True`` if the room exists and the user joined, ``False`` if
+        the pairing code is unknown.
+        """
         room = await uow.rooms.get_room(code)
         if room is None:
-            return None
+            return False
 
         # Add (or reset) the joining participant's cursor to 0, preserving others.
         updated_deck = room.deck.add_participant(user_id)
@@ -163,12 +149,7 @@ class RoomLifecycleService:
                 instance.instance_id, "session_ready", json.dumps({})
             )
 
-        return JoinRoomResult(
-            session_updates={
-                SESSION_ACTIVE_ROOM_KEY: code,
-                SESSION_SOLO_MODE_KEY: False,
-            }
-        )
+        return True
 
     async def quit_room(
         self,

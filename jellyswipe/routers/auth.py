@@ -10,9 +10,14 @@ from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
+    clear_room_session,
+    clear_session,
     get_provider,
+    get_session_actor,
     get_vault,
+    read_auth_session_id,
     require_auth,
+    set_auth_session,
 )
 from jellyswipe.routers._helpers import make_error_response
 from jellyswipe.schemas import (
@@ -23,6 +28,7 @@ from jellyswipe.schemas import (
     ServerInfoResponse,
 )
 from jellyswipe.services.auth import AuthService
+from jellyswipe.services.session_match_mutation import SessionActor
 
 # Create router with no prefix (D-14)
 auth_router = APIRouter()
@@ -56,7 +62,7 @@ async def jellyfin_use_server_identity(
     result = await AuthService.login_delegate(vault, uow)
     if result is None:
         return make_error_response("Jellyfin delegate unavailable", 401, request)
-    request.session["session_id"] = result.session_id
+    set_auth_session(request, result.session_id)
     return result.response_body
 
 
@@ -87,8 +93,8 @@ async def logout(
     After logout, all subsequent API calls will fail with 401 until the user
     authenticates again via the delegate identity endpoint.
     """
-    sid = request.session.get("session_id")
-    request.session.clear()
+    sid = read_auth_session_id(request)
+    clear_session(request)
     await AuthService.logout(sid, uow)
     response.delete_cookie("session", path="/")
     return {"status": "logged_out"}
@@ -111,6 +117,7 @@ async def get_me(
     request: Request,
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
+    actor: SessionActor = Depends(get_session_actor),
     provider=Depends(get_provider),
 ):
     """Return the current authenticated user and server information.
@@ -121,11 +128,10 @@ async def get_me(
     of any active swipe room. The server holds all credentials; the client only
     operates through the session cookie and server-provided data.
     """
-    active_room = request.session.get("active_room")
+    active_room = actor.active_room
     result = await AuthService.get_me(user, active_room, provider, uow)
     if result.response_body["activeRoom"] is None and active_room is not None:
-        request.session.pop("active_room", None)
-        request.session.pop("solo_mode", None)
+        clear_room_session(request)
     return result.response_body
 
 

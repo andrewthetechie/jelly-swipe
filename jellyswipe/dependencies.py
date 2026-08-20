@@ -19,6 +19,7 @@ from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.notifier import notifier
 from jellyswipe.rate_limiter import rate_limiter
+from jellyswipe.services.session_match_mutation import SessionActor
 
 if TYPE_CHECKING:
     from jellyswipe.jellyfin.client import JellyfinClient
@@ -174,9 +175,60 @@ def check_rate_limit(request: Request) -> None:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
 
+# Session adapter — the single module that owns the request.session key names.
+# No raw session-key string literal ("session_id", "active_room", "solo_mode")
+# or the ``clear_session_cookie`` request-state flag may appear elsewhere in
+# backend source; routers and services consume this adapter instead.
+SESSION_ID_KEY = "session_id"
+SESSION_ACTIVE_ROOM_KEY = "active_room"
+SESSION_SOLO_MODE_KEY = "solo_mode"
+
+
+def read_auth_session_id(request: Request) -> str | None:
+    """Return the auth ``session_id`` currently stored in the request session."""
+    return request.session.get(SESSION_ID_KEY)
+
+
+def set_auth_session(request: Request, session_id: str) -> None:
+    """Store the authenticated ``session_id`` in the request session."""
+    request.session[SESSION_ID_KEY] = session_id
+
+
+def set_room_session(request: Request, code: str, solo: bool) -> None:
+    """Set the caller's active room and solo-mode flags in the session."""
+    request.session[SESSION_ACTIVE_ROOM_KEY] = code
+    request.session[SESSION_SOLO_MODE_KEY] = solo
+
+
+def clear_room_session(request: Request) -> None:
+    """Pop the active-room and solo-mode keys from the request session."""
+    request.session.pop(SESSION_ACTIVE_ROOM_KEY, None)
+    request.session.pop(SESSION_SOLO_MODE_KEY, None)
+
+
+def clear_session(request: Request) -> None:
+    """Clear the entire request session."""
+    request.session.clear()
+
+
+def mark_session_cookie_cleared(request: Request) -> None:
+    """Flag the request so the response handler deletes the session cookie."""
+    request.state.clear_session_cookie = True
+
+
+def session_cookie_cleared(request: Request) -> bool:
+    """Return whether the response handler should delete the session cookie.
+
+    Inverse of :func:`mark_session_cookie_cleared`; read by the app-level
+    exception handler so the ``clear_session_cookie`` flag name lives only in
+    this adapter module.
+    """
+    return bool(getattr(request.state, "clear_session_cookie", False))
+
+
 async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
     """FastAPI dependency that requires authentication."""
-    prior_session_id = request.session.get("session_id")
+    prior_session_id = read_auth_session_id(request)
     record = (
         await uow.auth_sessions.get_by_session_id(prior_session_id)
         if prior_session_id
@@ -186,10 +238,26 @@ async def require_auth(request: Request, uow: DBUoW) -> AuthUser:
         return AuthUser(jf_token=record.jf_token, user_id=record.user_id)
 
     if prior_session_id is not None:
-        request.session.clear()
-        request.state.clear_session_cookie = True
+        clear_session(request)
+        mark_session_cookie_cleared(request)
 
     raise HTTPException(status_code=401, detail="Authentication required")
+
+
+async def get_session_actor(
+    request: Request, user: AuthUser = Depends(require_auth)
+) -> SessionActor:
+    """Build the request's ``SessionActor`` from the auth user and session state.
+
+    Composes ``require_auth`` (401 on missing/invalid auth) so routes that only
+    need the actor do not declare ``require_auth`` themselves. The actor is the
+    read-only view of the session passed into the service layer.
+    """
+    return SessionActor(
+        user_id=user.user_id,
+        session_id=read_auth_session_id(request),
+        active_room=request.session.get(SESSION_ACTIVE_ROOM_KEY),
+    )
 
 
 async def get_library(config: AppConfig = Depends(get_config)):
@@ -241,13 +309,24 @@ async def reset_provider_singleton() -> None:
 
 
 __all__ = [
+    "SESSION_ACTIVE_ROOM_KEY",
+    "SESSION_ID_KEY",
+    "SESSION_SOLO_MODE_KEY",
     "AuthUser",
     "DBUoW",
     "check_rate_limit",
+    "clear_room_session",
+    "clear_session",
     "get_db_uow",
     "get_library",
     "get_provider",
+    "get_session_actor",
     "get_vault",
     "get_watchlist",
+    "mark_session_cookie_cleared",
+    "read_auth_session_id",
     "require_auth",
+    "session_cookie_cleared",
+    "set_auth_session",
+    "set_room_session",
 ]

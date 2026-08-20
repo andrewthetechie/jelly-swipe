@@ -70,9 +70,6 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert rec.include_tv_shows is False
         await session.commit()
 
-    assert out.session_updates["active_room"] == pc
-    assert out.session_updates["solo_mode"] is False
-
     # Test solo room
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
@@ -85,9 +82,6 @@ async def test_create_and_solo_set_session_cursor_defaults(runtime_sessionmaker)
         assert rec2.ready is True
         assert rec2.solo_mode is True
         await session.commit()
-
-    assert out2.session_updates["active_room"] == pc2
-    assert out2.session_updates["solo_mode"] is True
 
 
 @pytest.mark.anyio
@@ -162,9 +156,7 @@ async def test_join_marks_ready_and_merges_deck(runtime_sessionmaker):
         resp = await svc.join_room(pc, joiner, uow)
         await session.commit()
 
-    assert resp is not None
-    assert resp.session_updates["active_room"] == pc
-    assert resp.session_updates["solo_mode"] is False
+    assert resp is True
 
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
@@ -620,7 +612,7 @@ async def test_join_room_appends_session_ready_event(runtime_sessionmaker):
         resp = await svc.join_room(pc, joiner, uow)
         await session.commit()
 
-        assert resp is not None
+        assert resp is True
 
         # Verify session_ready event was appended
         events = await uow.session_events.read_after(instance_id, 0)
