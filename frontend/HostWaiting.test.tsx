@@ -3,35 +3,12 @@ import HostWaiting from "./HostWaiting"
 import SwipePage from "./SwipePage"
 import { renderWithRoom } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
-import { makeDeck } from "./test/fixtures"
 import { SSEContextProvider } from "./SSEContextProvider"
-import type { MatchItem } from "./types"
-
-const DEFAULT_MATCHITEM: MatchItem = {
-    title: null,
-    thumb: null,
-    media_id: null,
-    media_type: null,
-    deep_link: null,
-    rating: null,
-    duration: null,
-    year: null
-}
 
 function renderSwipePage() {
   const utils = renderWithRoom(
     <SSEContextProvider>
-      <SwipePage 
-        cardDeck={makeDeck(2)} 
-        matchFound={false} 
-        handleMatchClose={vi.fn()} 
-        matchItem={DEFAULT_MATCHITEM}
-        handleUndo={vi.fn()}
-        handleGenreChange={vi.fn()}
-        showGenreModal={false}
-        setShowGenreModal={vi.fn()}
-        handleWatchedFilterToggle={vi.fn()}
-      />
+      <SwipePage />
     </SSEContextProvider>,
     { currentRoomCode: "1234", roomReady: false }
   )

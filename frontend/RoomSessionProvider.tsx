@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import React from "react"
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
@@ -38,7 +40,10 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
     const { sseData, sseError } = useSSEContext()
     const [state, dispatch] = React.useReducer(roomSessionReducer, initialRoomSessionState)
     const stateRef = React.useRef(state)
-    stateRef.current = state
+    
+    React.useEffect(() => {
+        stateRef.current = state
+    }, [state])
 
     // Deck fetch on room join
     React.useEffect(() => {

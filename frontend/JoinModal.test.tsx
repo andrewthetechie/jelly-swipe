@@ -18,7 +18,18 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import JoinModal from "./JoinModal";
 import { renderWithRoom } from "./test/renderWithRoom";
-import { mockFetch } from "./test/mockFetch";
+import * as roomApi from "./roomApi";
+
+vi.mock("./roomApi", () => ({
+  joinRoom: vi.fn(),
+}));
+
+const joinRoomMock = vi.mocked(roomApi.joinRoom);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  joinRoomMock.mockResolvedValue({ status: "ok" });
+});
 
 describe("JoinModal — input sanitization", () => {
   it("strips non-digits and preserves digit order (asserted via the setter spy)", () => {
@@ -57,7 +68,6 @@ describe("JoinModal — cancel button", () => {
 describe("JoinModal — join (3-part network contract)", () => {
   it("does not submit when room code length is not 4", async () => {
     const user = userEvent.setup()
-    const spy = mockFetch({ ok: true, body: { status: "ok" } })
     const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "12",
     })
@@ -67,29 +77,21 @@ describe("JoinModal — join (3-part network contract)", () => {
 
     await user.click(joinButton)
 
-    expect(spy).not.toHaveBeenCalled()
+    expect(joinRoomMock).not.toHaveBeenCalled()
     expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
   })
 
-  it("POSTs to /room/{code}/join and sets the room code on success", async () => {
+  it("calls joinRoom with the code and sets the room code on success", async () => {
     const user = userEvent.setup();
-    const spy = mockFetch({ ok: true, body: { status: "ok" } });
     const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "1234",
     });
 
     await user.click(screen.getByRole("button", { name: /join session/i }));
 
-    // 1. The request: URL ends /room/1234/join, POST, JSON content type.
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
-    const [url, options] = spy.mock.calls[0];
-    expect((url as URL).href).toMatch(/\/room\/1234\/join$/);
-    const opts = options as RequestInit;
-    expect(opts.method).toBe("POST");
-    const requestHeaders = new Headers(opts.headers);
-    expect(requestHeaders.get("Content-Type")).toBe("application/json");
+    await waitFor(() => expect(joinRoomMock).toHaveBeenCalledTimes(1));
+    expect(joinRoomMock).toHaveBeenCalledWith("1234");
 
-    // 2. The success effect: the entered code becomes the current room code.
     await waitFor(() =>
       expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("1234"),
     );
@@ -98,7 +100,7 @@ describe("JoinModal — join (3-part network contract)", () => {
   it("does not set a room code and does not throw when the request returns non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
-    mockFetch({ ok: false });
+    joinRoomMock.mockRejectedValueOnce(new Error("Error joining room: 500 Server Error"));
     const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "1234",
     });
@@ -114,15 +116,14 @@ describe("JoinModal — join (3-part network contract)", () => {
   it("does not set a room code and does not throw when the request rejects", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
-    const spy = mockFetch({ reject: true });
+    joinRoomMock.mockRejectedValueOnce(new Error("network error"));
     const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "1234",
     });
 
     await user.click(screen.getByRole("button", { name: /join session/i }));
 
-    // 3. The failure path: request attempted, success effect never runs.
-    await waitFor(() => expect(spy).toHaveBeenCalled());
+    await waitFor(() => expect(joinRoomMock).toHaveBeenCalled());
     expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled();
 
     errSpy.mockRestore();

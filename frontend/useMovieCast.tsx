@@ -19,7 +19,7 @@ export default function useMovieCast(mediaId: string) {
                 const data: CastResponse = await fetchCast(mediaId, controller.signal)
                 setCast(data.cast)
             } catch (err) {
-                if ((err as Error).name === "AbordError") return
+                if ((err as Error).name === "AbortError") return
                 console.error("Error fetching cast:", err)
                 setError("Error fetching cast")
             } finally {

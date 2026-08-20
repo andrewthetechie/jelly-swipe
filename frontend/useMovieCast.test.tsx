@@ -1,25 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { renderHook, waitFor } from "@testing-library/react"
 import useMovieCast from "./useMovieCast"
-import { mockFetch } from "./test/mockFetch"
 import { makeCast } from "./test/fixtures"
+import * as roomApi from "./roomApi"
+
+vi.mock("./roomApi", () => ({
+  fetchCast: vi.fn(),
+}))
+
+const fetchCastMock = vi.mocked(roomApi.fetchCast)
 
 describe("useMovieCast", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {})
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
   describe("successful fetch", () => {
     it("fetches cast and sets state correctly", async () => {
       const cast = makeCast(2)
-      const spy = mockFetch({ ok: true, body: { cast } })
+      fetchCastMock.mockResolvedValueOnce({ cast })
 
       const { result } = renderHook(() => useMovieCast("media123"))
-
 
       expect(result.current.isLoading).toBe(true)
 
@@ -29,30 +35,13 @@ describe("useMovieCast", () => {
 
       expect(result.current.cast).toEqual(cast)
       expect(result.current.error).toBeNull()
-
-      const url = spy.mock.calls[0][0] as URL
-      expect(url.href).toContain("/cast/media123")
-    })
-
-    it("uses GET method with correct headers", async () => {
-      const cast = makeCast(1)
-      const spy = mockFetch({ ok: true, body: { cast } })
-
-      renderHook(() => useMovieCast("media456"))
-
-      await waitFor(() => {
-        expect(spy).toHaveBeenCalled()
-      })
-
-      const options = spy.mock.calls[0][1] as RequestInit
-      expect(options.method).toBe("GET")
-      expect(options.headers).toEqual({ "Content-Type": "application/json" })
+      expect(fetchCastMock).toHaveBeenCalledWith("media123", expect.any(AbortSignal))
     })
   })
 
   describe("error handling", () => {
-    it("sets error on non-ok response", async () => {
-      mockFetch({ ok: false })
+    it("sets error on fetch rejection", async () => {
+      fetchCastMock.mockRejectedValueOnce(new Error("Error fetching cast"))
 
       const { result } = renderHook(() => useMovieCast("media789"))
 
@@ -64,8 +53,8 @@ describe("useMovieCast", () => {
       expect(result.current.cast).toEqual([])
     })
 
-    it("sets error on network error (fetch rejection)", async () => {
-      mockFetch({ reject: true })
+    it("sets error on network error", async () => {
+      fetchCastMock.mockRejectedValueOnce(new Error("network error"))
       const consoleErrorSpy = vi.spyOn(console, "error")
 
       const { result } = renderHook(() => useMovieCast("media000"))
@@ -87,7 +76,8 @@ describe("useMovieCast", () => {
     it("refetches cast when mediaId prop changes", async () => {
       const castA = makeCast(1, () => ({ name: "Actor A" }))
       const castB = makeCast(1, () => ({ name: "Actor B" }))
-      const spy = mockFetch({ ok: true, body: { cast: castA } })
+      fetchCastMock.mockResolvedValueOnce({ cast: castA })
+      fetchCastMock.mockResolvedValueOnce({ cast: castB })
 
       const { result, rerender } = renderHook(
         ({ mediaId }) => useMovieCast(mediaId),
@@ -99,27 +89,21 @@ describe("useMovieCast", () => {
       })
 
       expect(result.current.cast).toEqual(castA)
-      expect(spy.mock.calls).toHaveLength(1)
-
-      spy.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ cast: castB }),
-      } as Response)
+      expect(fetchCastMock.mock.calls).toHaveLength(1)
 
       rerender({ mediaId: "mediaB" })
 
       await waitFor(() => {
-        expect(spy.mock.calls.length).toBeGreaterThan(1)
+        expect(fetchCastMock.mock.calls.length).toBeGreaterThan(1)
       })
 
-      const newUrl = spy.mock.calls[1][0] as URL
-      expect(newUrl.href).toContain("/cast/mediaB")
+      expect(fetchCastMock).toHaveBeenNthCalledWith(2, "mediaB", expect.any(AbortSignal))
     })
   })
 
   describe("edge cases", () => {
     it("handles empty cast array", async () => {
-      mockFetch({ ok: true, body: { cast: [] } })
+      fetchCastMock.mockResolvedValueOnce({ cast: [] })
 
       const { result } = renderHook(() => useMovieCast("media555"))
 
@@ -132,7 +116,8 @@ describe("useMovieCast", () => {
     })
 
     it("clears error on successful refetch after prior error", async () => {
-      const spy = mockFetch({ ok: false })
+      fetchCastMock.mockRejectedValueOnce(new Error("Error fetching cast"))
+      fetchCastMock.mockResolvedValueOnce({ cast: makeCast(1) })
 
       const { result, rerender } = renderHook(
         ({ mediaId }) => useMovieCast(mediaId),
@@ -144,11 +129,6 @@ describe("useMovieCast", () => {
       })
 
       expect(result.current.error).toBe("Error fetching cast")
-
-      spy.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ cast: makeCast(1) }),
-      } as Response)
 
       rerender({ mediaId: "media2" })
 

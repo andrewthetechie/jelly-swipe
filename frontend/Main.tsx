@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import Intro from "./Intro"
 import SwipePage from "./SwipePage"
 import { useRoomStateContext } from "./RoomContextProvider"

@@ -2,7 +2,18 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HostModal from "./HostModal";
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom";
-import { mockFetch } from "./test/mockFetch";
+import * as roomApi from "./roomApi";
+
+vi.mock("./roomApi", () => ({
+  createRoom: vi.fn(),
+}));
+
+const createRoomMock = vi.mocked(roomApi.createRoom);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  createRoomMock.mockResolvedValue({ pairing_code: "4321" });
+});
 
 describe("HostModal — toggles", () => {
   it("clicking Movies (default on) reports the new unchecked value", async () => {
@@ -49,11 +60,11 @@ describe("HostModal — toggles", () => {
 describe("HostModal — create session (3-part network contract)", () => {
   it("disables Create Session while submitting and prevents double-submit", async () => {
     const user = userEvent.setup()
-    let resolveFetch!: (value: Response) => void
-    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(
+    let resolveCreate!: (value: { pairing_code: string }) => void
+    createRoomMock.mockImplementationOnce(
       () =>
-        new Promise<Response>((resolve) => {
-          resolveFetch = resolve
+        new Promise<{ pairing_code: string }>((resolve) => {
+          resolveCreate = resolve
         }),
     )
     const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />)
@@ -67,24 +78,18 @@ describe("HostModal — create session (3-part network contract)", () => {
     expect(createButton).toHaveTextContent("Creating Session...")
 
     await user.click(createButton)
-    expect(spy).toHaveBeenCalledTimes(1)
+    expect(createRoomMock).toHaveBeenCalledTimes(1)
 
-    resolveFetch({
-      ok: true,
-      json: () => Promise.resolve({ pairing_code: "4321" }),
-    } as Response)
+    resolveCreate({ pairing_code: "4321" })
 
     await waitFor(() =>
       expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("4321"),
     )
     await waitFor(() => expect(createButton).toBeEnabled());
-
-    spy.mockRestore()
   })
 
-  it("POSTs {movies, tv_shows, solo} to /room and stores the pairing_code", async () => {
+  it("calls createRoom with {movies, tvShows, solo} and stores pairing_code", async () => {
     const user = userEvent.setup();
-    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" } });
     const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />, {
       movies: true,
       tvShows: false,
@@ -93,29 +98,20 @@ describe("HostModal — create session (3-part network contract)", () => {
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
 
-    // 1. The request: URL, method, headers, and the JSON body.
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
-    const [url, options] = spy.mock.calls[0];
-    expect((url as URL).href).toMatch(/\/room$/);
-    const opts = options as RequestInit;
-    expect(opts.method).toBe("POST");
-    const requestHeaders = new Headers(opts.headers);
-    expect(requestHeaders.get("Content-Type")).toBe("application/json");
-    expect(JSON.parse(opts.body as string)).toEqual({
+    await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1));
+    expect(createRoomMock).toHaveBeenCalledWith({
       movies: true,
-      tv_shows: false,
+      tvShows: false,
       solo: false,
     });
 
-    // 2. The success effect: the returned pairing_code becomes the room code.
     await waitFor(() =>
       expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("4321"),
     );
   });
 
-  it("reflects overridden context values in the request body", async () => {
+  it("reflects overridden context values in createRoom payload", async () => {
     const user = userEvent.setup();
-    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" } });
     renderWithRoom(<HostModal onClose={vi.fn()} />, {
       movies: false,
       tvShows: true,
@@ -124,18 +120,16 @@ describe("HostModal — create session (3-part network contract)", () => {
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
-    const [, options] = spy.mock.calls[0];
-    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+    await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1));
+    expect(createRoomMock).toHaveBeenCalledWith({
       movies: false,
-      tv_shows: true,
+      tvShows: true,
       solo: true,
-    });
+    })
   });
 
   it("submits updated movies option after toggling before create", async () => {
     const user = userEvent.setup()
-    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" }})
 
     renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       movies: true,
@@ -146,18 +140,16 @@ describe("HostModal — create session (3-part network contract)", () => {
     await user.click(screen.getByRole("checkbox", { name: /movies/i }))
     await user.click(screen.getByRole("button", { name: /create session/i }))
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
-    const [, options] = spy.mock.calls[0]
-    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+    await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1))
+    expect(createRoomMock).toHaveBeenCalledWith({
       movies: false,
-      tv_shows: true,
+      tvShows: true,
       solo: false,
     })
   })
 
   it("submits updated tvShows option after toggling before create", async () => {
     const user = userEvent.setup()
-    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" }})
 
     renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       movies: true,
@@ -168,18 +160,16 @@ describe("HostModal — create session (3-part network contract)", () => {
     await user.click(screen.getByRole("checkbox", { name: /tv shows/i }))
     await user.click(screen.getByRole("button", { name: /create session/i }))
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
-    const [, options] = spy.mock.calls[0]
-    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+    await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1))
+    expect(createRoomMock).toHaveBeenCalledWith({
       movies: true,
-      tv_shows: false,
+      tvShows: false,
       solo: false,
     })
   })  
 
   it("submits updated isSoloMode option after toggling before create", async () => {
     const user = userEvent.setup()
-    const spy = mockFetch({ ok: true, body: { pairing_code: "4321" }})
 
     renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       movies: true,
@@ -190,11 +180,10 @@ describe("HostModal — create session (3-part network contract)", () => {
     await user.click(screen.getByRole("checkbox", { name: /solo/i }))
     await user.click(screen.getByRole("button", { name: /create session/i }))
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
-    const [, options] = spy.mock.calls[0]
-    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+    await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1))
+    expect(createRoomMock).toHaveBeenCalledWith({
       movies: true,
-      tv_shows: true,
+      tvShows: true,
       solo: true,
     })
   })
@@ -202,7 +191,7 @@ describe("HostModal — create session (3-part network contract)", () => {
   it("does not set a room code and does not throw when the request returns non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
-    mockFetch({ ok: false });
+    createRoomMock.mockRejectedValueOnce(new Error("Error creating session: 500 Server Error"));
     const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
@@ -216,12 +205,12 @@ describe("HostModal — create session (3-part network contract)", () => {
   it("does not set a room code when fetch rejects", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const user = userEvent.setup()
-    const spy = mockFetch({ reject: true })
+    createRoomMock.mockRejectedValueOnce(new Error("network error"))
     const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />)
 
     await user.click(screen.getByRole("button", { name: /create session/i }))
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1))
     expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
     expect(errSpy).toHaveBeenCalled()
 
