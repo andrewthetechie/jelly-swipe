@@ -309,9 +309,6 @@ async def reset_provider_singleton() -> None:
 
 
 __all__ = [
-    "SESSION_ACTIVE_ROOM_KEY",
-    "SESSION_ID_KEY",
-    "SESSION_SOLO_MODE_KEY",
     "AuthUser",
     "DBUoW",
     "check_rate_limit",
