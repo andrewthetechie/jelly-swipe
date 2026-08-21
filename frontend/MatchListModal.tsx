@@ -1,8 +1,7 @@
 import React from "react"
-import { apiUrl } from "./api"
 import { formatRating } from './format'
 import type { JSX } from "react"
-import sadLogo from "./assets/sad.png"
+import PosterImage from "./PosterImage"
 import type { MatchItem } from "./types"
 import { fetchMatches } from "./roomApi"
 
@@ -38,7 +37,7 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
 
         return (
             <div className="match-list-item" key={mediaId}>
-                <img src={posterUrl ? apiUrl(posterUrl).toString(): sadLogo} alt={title ?? ""} className="match-list-img" />
+                <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-list-img" />
                 <div className="match-list-info">
                     <h3 className="match-list-title">{title}</h3>
                     {rating && <div className="match-list-score">IMDb {formatRating(rating)}</div>}

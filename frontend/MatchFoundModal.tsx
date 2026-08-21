@@ -1,6 +1,5 @@
 import logo from "./assets/logo.png"
-import sadLogo from "./assets/sad.png"
-import { apiUrl } from "./api"
+import PosterImage from "./PosterImage"
 import { formatRating } from './format'
 import type { JSX } from "react"
 import type { MatchItem } from "./types"
@@ -17,7 +16,7 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
             <div className="modal-inner">
                 <img src={logo} className="match-logo" alt="Jelly-Swipe logo" />
                 <h2>It's a match!</h2>
-                <img src={posterUrl ? apiUrl(posterUrl).toString(): sadLogo} className="match-poster" alt={title ?? ""} />
+                <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-poster" />
                 <h3 className="match-title">{title}</h3>
                 <div className="card-item-info match-info">
                     {rating && <div className="card-item-score">IMDb {formatRating(rating)}</div>}

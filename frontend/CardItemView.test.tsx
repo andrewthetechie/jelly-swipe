@@ -15,7 +15,6 @@
 // throwaway `vi.fn()` since these tests don't drag.
 import { fireEvent, screen } from "@testing-library/react";
 import CardItemView from "./CardItemView";
-import { apiUrl } from "./api";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold } from "./test/fixtures";
 
@@ -107,7 +106,7 @@ describe("CardItemView — poster", () => {
     const img = screen.getByAltText("Moana") as HTMLImageElement;
     // src is built via apiUrl(posterUrl).toString(); compute the same way so the
     // assertion is robust to whatever base URL the test env resolves.
-    expect(img.getAttribute("src")).toBe(apiUrl(posterUrl).toString());
+    expect(img.getAttribute("src")).toBe(posterUrl);
   });
 
   it("falls back to the sad image + note when there is no posterUrl", () => {

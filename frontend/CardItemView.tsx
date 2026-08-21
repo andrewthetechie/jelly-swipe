@@ -1,7 +1,6 @@
 import React from 'react'
 import ActorElements from './ActorElements'
-import sadLogo from "./assets/sad.png"
-import { apiUrl } from "./api"
+import PosterImage from './PosterImage'
 import { formatRating } from './format'
 import type { JSX } from "react"
 import type { CardItem } from './types'
@@ -125,8 +124,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
           <div className="card-item-inner">
                 <div className="card-item front">
                     <div className="media-type">{mediaText}{seasonsText}</div>
-                    <img src={posterUrl ? apiUrl(posterUrl).toString() : sadLogo} alt={title} className="card-item-poster" draggable="false" />
-                    {!posterUrl && <div className="no-poster">No poster available</div>}
+                    <PosterImage posterUrl={posterUrl} alt={title} className="card-item-poster" draggable={false} showNoPosterLabel />
                 </div>
 
                 <div className="card-item back">
