@@ -3,7 +3,6 @@ import type {
     CardItem,
     GenreChangedEvent,
     HideWatchedChangedEvent,
-    MatchFoundEvent,
     MatchItem
 } from "./types"
 
@@ -20,8 +19,8 @@ export interface RoomSessionState {
 }
 
 export const EMPTY_MATCH_ITEM: MatchItem = {
-    title: null, thumb: null, media_id: null, media_type: null, 
-    deep_link: null, rating: null, duration: null, year: null
+    title: null, posterUrl: null, mediaId: null, mediaType: null, 
+    deepLink: null, rating: null, duration: null, year: null
 }
 
 export const initialRoomSessionState: RoomSessionState = {
@@ -53,19 +52,6 @@ export type RoomSessionAction =
     | { type: "COMMAND_FAILED"; message: string }
     | { type: "SESSION_ENDED" }
 
-
-export function matchItemFromEvent(event: MatchFoundEvent): MatchItem {
-    return {
-        title: event.title ?? null,
-        thumb: event.thumb ?? null,
-        media_id: event.media_id ?? null, 
-        media_type: event.media_type ?? null, 
-        deep_link: event.deep_link ?? null, 
-        rating: event.rating ?? null, 
-        duration: event.duration ?? null, 
-        year: event.year ?? null
-    }
-}
 
 export function shouldRefreshDeck(
     state: RoomSessionState,

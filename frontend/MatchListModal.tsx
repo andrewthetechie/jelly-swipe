@@ -28,9 +28,9 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
     const matchElements = matchList.map((match) => {
         const { 
             title, 
-            thumb, 
-            media_id: mediaId, 
-            deep_link: deepLink, 
+            posterUrl, 
+            mediaId, 
+            deepLink, 
             rating, 
             duration, 
             year 
@@ -38,7 +38,7 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
 
         return (
             <div className="match-list-item" key={mediaId}>
-                <img src={thumb ? apiUrl(thumb).toString(): sadLogo} alt={title ?? ""} className="match-list-img" />
+                <img src={posterUrl ? apiUrl(posterUrl).toString(): sadLogo} alt={title ?? ""} className="match-list-img" />
                 <div className="match-list-info">
                     <h3 className="match-list-title">{title}</h3>
                     {rating && <div className="match-list-score">IMDb {formatRating(rating)}</div>}

@@ -116,7 +116,7 @@ function RoomSessionTestProvider({
   }, [currentRoomCode, seededDeck])
 
   const swipe = async (
-    card: { media_id: string },
+    card: { mediaId: string },
     direction: "left" | "right",
   ) => {
     if (!currentRoomCode) {
@@ -124,7 +124,7 @@ function RoomSessionTestProvider({
       return
     }
     try {
-      await roomApi.postSwipe(currentRoomCode, card.media_id, direction)
+      await roomApi.postSwipe(currentRoomCode, card.mediaId, direction)
       setState((prev) => ({
         ...prev,
         cardDeck: prev.cardDeck.slice(1),
@@ -148,7 +148,7 @@ function RoomSessionTestProvider({
       return
     }
     try {
-      await roomApi.undoSwipe(currentRoomCode, lastSwipe.media_id)
+      await roomApi.undoSwipe(currentRoomCode, lastSwipe.mediaId)
       setState((prev) => ({
         ...prev,
         cardDeck: [lastSwipe, ...prev.cardDeck],

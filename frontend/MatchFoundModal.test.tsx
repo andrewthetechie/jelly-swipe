@@ -41,7 +41,7 @@ describe("MatchFoundModal - rendering", () => {
     it("renders the correct poster", () => {
         const match = makeMatch({
             title: "Moana",
-            thumb: "/moana-poster.jpg",
+            posterUrl: "/moana-poster.jpg",
         })
 
         render(
@@ -63,7 +63,7 @@ describe("MatchFoundModal - rendering", () => {
 describe("MatchFoundModal - watch on Jellyfin functionality", () => {
     it("uses deepLink when provided", () => {
         const match = makeMatch({
-            deep_link: "https://jellyfin.example.com/web/index.html#!/details?id=movie-1",
+            deepLink: "https://jellyfin.example.com/web/index.html#!/details?id=movie-1",
         })
 
         render(
@@ -85,7 +85,7 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
 
     it("falls back to # when there is no deepLink", () => {
         const match = makeMatch({
-            deep_link: null,
+            deepLink: null,
         })
 
         render(

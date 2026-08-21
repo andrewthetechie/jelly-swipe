@@ -4,13 +4,13 @@
 // tests would be noisy and would break whenever the type changed. Instead,
 // `makeCard()` returns a fully-shaped, valid default card, and a test overrides
 // only the field it cares about — keeping each test to (almost) one line:
-//   makeCard({ season_count: 1 })        // exercise the singular "1 Season"
-//   makeCard({ media_type: "tv_show" })  // exercise the "TV" label
+//   makeCard({ seasonCount: 1 })        // exercise the singular "1 Season"
+//   makeCard({ mediaType: "tv_show" })  // exercise the "TV" label
 //
 // SHAPE GOTCHAS (per types.ts — easy to get wrong):
-//   - `media_id` is a STRING (not a number)
+//   - `mediaId` is a STRING (not a number)
 //   - `duration` is a STRING (e.g. "1h 47m", not minutes)
-//   - `season_count` is `number | undefined` — use `undefined`, never `null`
+//   - `seasonCount` is `number | undefined` — use `undefined`, never `null`
 import { fireEvent } from "@testing-library/dom"
 import type { CardItem, CardDeck } from "../types"
 import type { MatchItem } from "../types"
@@ -19,34 +19,34 @@ import type { CastMember } from "../types"
 // A complete, sensible default card. Override any field via `overrides`.
 export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
   return {
-    media_id: "1",
+    mediaId: "1",
     title: "Moana",
     summary: "A young woman sails beyond the reef.",
-    thumb: "/proxy?path=/poster.jpg",
+    posterUrl: "/proxy?path=/poster.jpg",
     year: 2016,
-    media_type: "movie",
+    mediaType: "movie",
     rating: 7.5,
     duration: "1h 47m",
-    season_count: undefined,
+    seasonCount: undefined,
     ...overrides,
   }
 }
 
-// Build a deck of `n` cards with distinct media_id/title, so tests can assert
+// Build a deck of `n` cards with distinct mediaId/title, so tests can assert
 // ordering and counts unambiguously (e.g. card-stack slicing in SwipePage).
 export function makeDeck(n: number): CardDeck {
   return Array.from({ length: n }, (_, i) =>
-    makeCard({ media_id: String(i + 1), title: `Movie ${i + 1}` }),
+    makeCard({ mediaId: String(i + 1), title: `Movie ${i + 1}` }),
   )
 }
 
 export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
   return {
-    media_id: "1",
-    media_type: "movie",
+    mediaId: "1",
+    mediaType: "movie",
     title: "Movie 1",
-    thumb: "/poster.jpg",
-    deep_link: "https://jellyfin.example.com/web/index.html#!/details?id=movie-1",
+    posterUrl: "/poster.jpg",
+    deepLink: "https://jellyfin.example.com/web/index.html#!/details?id=movie-1",
     rating: 8.25,
     duration: "107 min",
     year: 2016,
@@ -56,7 +56,7 @@ export function makeMatch(overrides: Partial<MatchItem> = {}): MatchItem {
 
 export function makeMatchList(n: number): MatchItem[] {
   return Array.from({ length: n }, (_, i) =>
-    makeMatch({ media_id: String(i + 1), title: `Movie ${i + 1}` })
+    makeMatch({ mediaId: String(i + 1), title: `Movie ${i + 1}` })
   )
 }
 

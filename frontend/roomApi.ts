@@ -1,4 +1,6 @@
 import { apiFetch, postJson } from "./api"
+import { toCardItem, toMatchItem } from "./mediaAdapter"
+import type { CardItemDto, MatchItemDto } from "./mediaAdapter"
 import type {
     CardDeck,
     CastResponse,
@@ -61,7 +63,8 @@ export async function quitRoom(roomCode: string): Promise<{ status: string }> {
 export async function fetchDeck(roomCode: string): Promise<CardDeck> {
     const res = await apiFetch(`/room/${roomCode}/deck`, GET_JSON)
     await ensureOk(res, "fetching card deck")
-    return res.json()
+    const raw: CardItemDto[] = await res.json()
+    return raw.map(toCardItem)
 }
 
 export async function postSwipe(
@@ -86,7 +89,8 @@ export async function undoSwipe(roomCode: string, mediaId: string): Promise<void
 export async function setGenreChoice(roomCode: string, genre: string): Promise<CardDeck> {
     const res = await postJson(`/room/${roomCode}/genre`, { genre })
     await ensureOk(res, "POSTing new genre")
-    return res.json()
+    const raw: CardItemDto[] = await res.json()
+    return raw.map(toCardItem)
 }
 
 export async function setWatchedFilter(
@@ -97,7 +101,8 @@ export async function setWatchedFilter(
         hide_watched: hideWatched,
     })
     await ensureOk(res, "toggling wtached filter")
-    return res.json()
+    const raw: CardItemDto[] = await res.json()
+    return raw.map(toCardItem)
 }
 
 // --- Library metadata ---
@@ -120,6 +125,6 @@ export async function fetchCast(
 export async function fetchMatches(): Promise<MatchItem[]> {
     const res = await apiFetch(`/matches`, GET_JSON)
     await ensureOk(res, "retrieving matches")
-    const data: { matches: MatchItem[] } = await res.json()
-    return data.matches
+    const data: { matches: MatchItemDto[] } = await res.json()
+    return data.matches.map(toMatchItem)
 }

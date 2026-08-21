@@ -6,10 +6,10 @@ import { useSSEContext } from "./SSEContextProvider"
 import * as roomApi from "./roomApi"
 import {
     initialRoomSessionState,
-    matchItemFromEvent,
     roomSessionReducer,
     shouldRefreshDeck
 } from "./roomSession"
+import { toMatchItem } from "./mediaAdapter"
 import type { RoomSessionState } from "./roomSession"
 import type { CardItem } from "./types"
 
@@ -67,7 +67,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
                 dispatch({ type: "SSE_SESSION_BOOTSTRAP", ready: sseData.ready })
                 break
             case "match_found":
-                dispatch({ type: "MATCH_FOUND", matchItem: matchItemFromEvent(sseData) })
+                dispatch({ type: "MATCH_FOUND", matchItem: toMatchItem(sseData) })
                 break
             case "genre_changed": {
                 if (shouldRefreshDeck(stateRef.current, sseData) && currentRoomCode) {
@@ -111,7 +111,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             return
         }
         try {
-            await roomApi.postSwipe(currentRoomCode, card.media_id, direction)
+            await roomApi.postSwipe(currentRoomCode, card.mediaId, direction)
             dispatch({ type: "SWIPE_SUCCEEDED", card })
         } catch (err) {
             console.error("Error POSTing swipe", err)
@@ -130,7 +130,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             return
         }
         try {
-            await roomApi.undoSwipe(currentRoomCode, lastSwipe.media_id)
+            await roomApi.undoSwipe(currentRoomCode, lastSwipe.mediaId)
             dispatch({ type: "UNDO_SUCCEEDED", card: lastSwipe })
         } catch (err) {
             console.error("Error undoing swipe", err)
