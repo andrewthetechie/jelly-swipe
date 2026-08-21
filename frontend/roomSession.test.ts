@@ -4,7 +4,6 @@ import { expectTypeOf, vi } from "vitest"
 import {
 	EMPTY_MATCH_ITEM,
 	initialRoomSessionState,
-	matchItemFromEvent,
 	roomSessionReducer,
 	shouldRefreshDeck,
 	type RoomSessionAction,
@@ -78,32 +77,6 @@ describe("roomSession reducer and utils", () => {
 		})
 
 		expect(next.roomReady).toBe(true)
-	})
-
-	it("MATCH_FOUND uses matchItemFromEvent and normalizes sparse fields to null", () => {
-		const sparseMatchEvent = {
-			event_type: "match_found" as const,
-			event_id: 10,
-			title: "The Matrix",
-			media_id: "m-1",
-		}
-
-		const next = roomSessionReducer(initialRoomSessionState, {
-			type: "MATCH_FOUND",
-			matchItem: matchItemFromEvent(sparseMatchEvent),
-		})
-
-		expect(next.matchFound).toBe(true)
-		expect(next.matchItem).toEqual({
-			title: "The Matrix",
-			media_id: "m-1",
-			thumb: null,
-			media_type: null,
-			deep_link: null,
-			rating: null,
-			duration: null,
-			year: null,
-		})
 	})
 
 	it("SSE_GENRE_CHANGED updates genre and clears pendingDeckRefresh genre flag", () => {
@@ -237,8 +210,8 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("swipe success appends history and pops the deck", async () => {
-		const first = makeCard({ media_id: "m-1", title: "Movie m-1" })
-		const second = makeCard({ media_id: "m-2", title: "Movie m-2" })
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
+		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
 
@@ -255,8 +228,8 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("swipe failure sets lastError and leaves deck untouched", async () => {
-		const first = makeCard({ media_id: "m-1", title: "Movie m-1" })
-		const second = makeCard({ media_id: "m-2", title: "Movie m-2" })
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
+		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockRejectedValue(new Error("swipe failed"))
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
@@ -275,7 +248,7 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("undo with empty history logs error and does not call API", async () => {
-		const first = makeCard({ media_id: "m-1", title: "Movie m-1" })
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first])
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
 
@@ -292,8 +265,8 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("undo success restores the card to the deck front", async () => {
-		const first = makeCard({ media_id: "m-1", title: "Movie m-1" })
-		const second = makeCard({ media_id: "m-2", title: "Movie m-2" })
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
+		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
 		vi.mocked(roomApi.undoSwipe).mockResolvedValue()
@@ -315,9 +288,9 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("confirmGenre success replaces deck, clears history, and sets pending genre refresh", async () => {
-		const first = makeCard({ media_id: "m-1", title: "Movie m-1" })
-		const second = makeCard({ media_id: "m-2", title: "Movie m-2" })
-		const refreshedDeck = [makeCard({ media_id: "m-3", title: "Movie m-3" })]
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
+		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
+		const refreshedDeck = [makeCard({ mediaId: "m-3", title: "Movie m-3" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
 		vi.mocked(roomApi.setGenreChoice).mockResolvedValue(refreshedDeck)
@@ -344,7 +317,7 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("toggleHideWatched uses current state value (no stale closure)", async () => {
-		const initialDeck = [makeCard({ media_id: "m-1", title: "Movie m-1" })]
+		const initialDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue(initialDeck)
 		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue(initialDeck)
 
@@ -365,8 +338,8 @@ describe("RoomSessionProvider commands", () => {
 	})
 
 	it("endSession success dispatches SESSION_ENDED reset", async () => {
-		const first = makeCard({ media_id: "m-1", title: "Movie m-1" })
-		const second = makeCard({ media_id: "m-2", title: "Movie m-2" })
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
+		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
 		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue([second])

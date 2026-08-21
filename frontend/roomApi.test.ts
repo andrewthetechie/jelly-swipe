@@ -139,7 +139,7 @@ describe("fetchDeck", () => {
 
         const [path] = spy.mock.calls[0] as [string, RequestInit]
         expect(path).toBe("/room/ABCD/deck")
-        expect(result).toEqual(deck)
+        expect(result).toMatchObject([{mediaId: "abc", title: "Film"}])
     })
 
     it("rejects with RoomApiError on !res.ok", async () => {
@@ -216,7 +216,7 @@ describe("setGenreChoice", () => {
         const result = await setGenreChoice("ABCD", "Horror")
 
         expect(spy).toHaveBeenCalledWith("/room/ABCD/genre", { genre: "Horror" })
-        expect(result).toEqual(deck)
+        expect(result).toMatchObject([{ mediaId: "x", title: "X" }])
     })
 
     it("rejects with RoomApiError on !res.ok", async () => {
@@ -242,7 +242,7 @@ describe("setWatchedFilter", () => {
         const result = await setWatchedFilter("ABCD", true)
 
         expect(spy).toHaveBeenCalledWith("/room/ABCD/watched-filter", { hide_watched: true })
-        expect(result).toEqual(deck)
+        expect(result).toMatchObject([{ mediaId: "y", title: "Y" }])
     })
 
     it("rejects with RoomApiError on !res.ok", async () => {
@@ -327,7 +327,7 @@ describe("fetchCast", () => {
 describe("fetchMatches", () => {
     it("GETs /matches and unwraps .matches array", async () => {
         const matches = [
-            { title: "Film A", thumb: null, media_id: "1", media_type: "movie", deep_link: null, rating: null, duration: null, year: null },
+            { title: "Film A", posterUrl: null, media_id: "1", media_type: "movie", deep_link: null, rating: null, duration: null, year: null },
         ]
         const spy = vi
             .spyOn(api, "apiFetch")
@@ -337,7 +337,9 @@ describe("fetchMatches", () => {
 
         const [path] = spy.mock.calls[0] as [string, RequestInit]
         expect(path).toBe("/matches")
-        expect(result).toEqual(matches)
+        expect(result).toMatchObject(
+            [{ title: "Film A", posterUrl: null, mediaId: "1", mediaType: "movie", deepLink: null, rating: null, duration: null, year: null }]
+        )
     })
 
     it("returns an empty array when .matches is empty", async () => {

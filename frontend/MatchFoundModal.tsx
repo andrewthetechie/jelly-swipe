@@ -1,6 +1,5 @@
 import logo from "./assets/logo.png"
-import sadLogo from "./assets/sad.png"
-import { apiUrl } from "./api"
+import PosterImage from "./PosterImage"
 import { formatRating } from './format'
 import type { JSX } from "react"
 import type { MatchItem } from "./types"
@@ -11,13 +10,13 @@ interface MatchFoundModalProps {
 }
 
 export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalProps): JSX.Element {
-    const { title, thumb, deep_link: deepLink, rating, duration, year }: MatchItem = matchItem
+    const { title, posterUrl, deepLink, rating, duration, year }: MatchItem = matchItem
     return (
         <div className="modal">
             <div className="modal-inner">
                 <img src={logo} className="match-logo" alt="Jelly-Swipe logo" />
                 <h2>It's a match!</h2>
-                <img src={thumb ? apiUrl(thumb).toString(): sadLogo} className="match-poster" alt={title ?? ""} />
+                <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-poster" />
                 <h3 className="match-title">{title}</h3>
                 <div className="card-item-info match-info">
                     {rating && <div className="card-item-score">IMDb {formatRating(rating)}</div>}

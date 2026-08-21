@@ -8,9 +8,21 @@ const apiProxy = {
   changeOrigin: true,
 }
 
+const apiContexts = [
+  "auth",
+  "room",
+  "matches",
+  "genres",
+  "cast",
+  "me",
+  "jellyfin",
+  "healthz",
+  "readyz",
+  "proxy",
+]
+
 const proxy = Object.fromEntries(
-  ["/auth", "/room", "/matches", "/genres", "/cast", "/me", "/jellyfin", "/healthz", "/readyz", "/proxy"]
-    .map((path) => [path, apiProxy]),
+  apiContexts.map((path) => [`^/${path}(?:/|$)`, apiProxy]),
 )
 
 export default defineConfig({

@@ -64,7 +64,7 @@ export default function SwipePage(): JSX.Element {
                     <div className="swipe-deck">
                         {visibleCards.map((cardItem: CardItem, index: number) => (
                             <CardItemView 
-                                key={cardItem.media_id}
+                                key={cardItem.mediaId}
                                 cardItem={cardItem}
                                 isTopCard={index === visibleCards.length - 1}
                                 setDragX={setDragX}

@@ -1,21 +1,21 @@
 export interface CardItem {
-    media_id: string,
+    mediaId: string,
     title: string,
     summary?: string,
-    thumb?: string,
+    posterUrl?: string | null,
     year?: number | null,
-    media_type?: string,
+    mediaType?: string,
     rating?: number | null,
     duration?: string | null,
-    season_count?: number | null
+    seasonCount?: number | null
 }
 
 export interface MatchItem {
     title: string | null
-    thumb: string | null
-    media_id: string | null
-    media_type: string | null
-    deep_link: string | null
+    posterUrl: string | null
+    mediaId: string | null
+    mediaType: string | null
+    deepLink: string | null
     rating: number | null
     duration: string | null
     year: number | null
@@ -40,11 +40,6 @@ export interface RoomStatusResponse {
     genre?: string | null
     solo?: boolean | null
     hide_watched?: boolean | null
-}
-
-export interface SwipeRequest {
-    media_id: string,
-    direction: string | null
 }
 
 interface BaseSSEEvent {

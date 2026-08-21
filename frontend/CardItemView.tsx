@@ -1,7 +1,6 @@
 import React from 'react'
 import ActorElements from './ActorElements'
-import sadLogo from "./assets/sad.png"
-import { apiUrl } from "./api"
+import PosterImage from './PosterImage'
 import { formatRating } from './format'
 import type { JSX } from "react"
 import type { CardItem } from './types'
@@ -38,9 +37,9 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     const startX = React.useRef<number>(0)
     const currentX = React.useRef<number>(0)
 
-    const { duration, media_id: mediaId, media_type: mediaType, rating, season_count = null, summary, thumb, title, year }: CardItem = cardItem
+    const { duration, mediaId, mediaType, rating, seasonCount = null, summary, posterUrl, title, year }: CardItem = cardItem
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
-    const seasonsText: string = season_count !== null && season_count === 1 ? ` • ${season_count} Season` : season_count !== null && season_count > 1 ? ` • ${season_count} Seasons` : ""
+    const seasonsText: string = seasonCount !== null && seasonCount === 1 ? ` • ${seasonCount} Season` : seasonCount !== null && seasonCount > 1 ? ` • ${seasonCount} Seasons` : ""
     
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -125,8 +124,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
           <div className="card-item-inner">
                 <div className="card-item front">
                     <div className="media-type">{mediaText}{seasonsText}</div>
-                    <img src={thumb ? apiUrl(thumb).toString() : sadLogo} alt={title} className="card-item-poster" draggable="false" />
-                    {!thumb && <div className="no-poster">No poster available</div>}
+                    <PosterImage posterUrl={posterUrl} alt={title} className="card-item-poster" draggable={false} showNoPosterLabel />
                 </div>
 
                 <div className="card-item back">

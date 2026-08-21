@@ -15,7 +15,6 @@
 // throwaway `vi.fn()` since these tests don't drag.
 import { fireEvent, screen } from "@testing-library/react";
 import CardItemView from "./CardItemView";
-import { apiUrl } from "./api";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold } from "./test/fixtures";
 
@@ -34,37 +33,37 @@ function renderCard(cardOverrides = {}) {
 }
 
 describe("CardItemView — derived display (mediaText)", () => {
-  it("maps media_type 'movie' to 'Movie'", () => {
-    const { container } = renderCard({ media_type: "movie", season_count: undefined });
+  it("maps mediaType 'movie' to 'Movie'", () => {
+    const { container } = renderCard({ mediaType: "movie", seasonCount: undefined });
     expect(container.querySelector(".media-type")?.textContent).toBe("Movie");
   });
 
-  it("maps media_type 'tv_show' to 'TV' (backend-confirmed value, not a bug)", () => {
-    const { container } = renderCard({ media_type: "tv_show", season_count: undefined });
+  it("maps mediaType 'tv_show' to 'TV' (backend-confirmed value, not a bug)", () => {
+    const { container } = renderCard({ mediaType: "tv_show", seasonCount: undefined });
     expect(container.querySelector(".media-type")?.textContent).toBe("TV");
   });
 
-  it("renders empty media text for any other media_type", () => {
-    const { container } = renderCard({ media_type: "podcast", season_count: undefined });
+  it("renders empty media text for any other mediaType", () => {
+    const { container } = renderCard({ mediaType: "podcast", seasonCount: undefined });
     expect(container.querySelector(".media-type")?.textContent).toBe("");
   });
 });
 
 describe("CardItemView — derived display (seasonsText)", () => {
-  // seasonsText is only meaningful behind the `season_count !== undefined` guard.
+  // seasonsText is only meaningful behind the `seasonCount !== undefined` guard.
   it("uses the singular 'Season' for a count of 1", () => {
-    const { container } = renderCard({ media_type: "tv_show", season_count: 1 });
+    const { container } = renderCard({ mediaType: "tv_show", seasonCount: 1 });
     expect(container.querySelector(".media-type")?.textContent).toContain("1 Season");
     expect(container.querySelector(".media-type")?.textContent).not.toContain("Seasons");
   });
 
   it("uses the plural 'Seasons' for a count greater than 1", () => {
-    const { container } = renderCard({ media_type: "tv_show", season_count: 2 });
+    const { container } = renderCard({ mediaType: "tv_show", seasonCount: 2 });
     expect(container.querySelector(".media-type")?.textContent).toContain("2 Seasons");
   });
 
-  it("renders no seasons text when season_count is undefined", () => {
-    const { container } = renderCard({ media_type: "tv_show", season_count: undefined });
+  it("renders no seasons text when seasonCount is undefined", () => {
+    const { container } = renderCard({ mediaType: "tv_show", seasonCount: undefined });
     expect(container.querySelector(".media-type")?.textContent).toBe("TV");
   });
 });
@@ -102,19 +101,19 @@ describe("CardItemView — rating formatting", () => {
 
 describe("CardItemView — poster", () => {
   it("renders the poster with the title as alt text and the apiUrl src", () => {
-    const thumb = "/proxy?path=/poster.jpg";
-    renderCard({ title: "Moana", thumb });
+    const posterUrl = "/proxy?path=/poster.jpg";
+    renderCard({ title: "Moana", posterUrl });
     const img = screen.getByAltText("Moana") as HTMLImageElement;
-    // src is built via apiUrl(thumb).toString(); compute the same way so the
+    // src is built via apiUrl(posterUrl).toString(); compute the same way so the
     // assertion is robust to whatever base URL the test env resolves.
-    expect(img.getAttribute("src")).toBe(apiUrl(thumb).toString());
+    expect(img.getAttribute("src")).toBe(posterUrl);
   });
 
-  it("falls back to the sad image + note when there is no thumb", () => {
-    renderCard({ title: "Moana", thumb: undefined });
+  it("falls back to the sad image + note when there is no posterUrl", () => {
+    renderCard({ title: "Moana", posterUrl: undefined });
     // The image still renders (with the fallback asset) and keeps its alt text…
     expect(screen.getByAltText("Moana")).toBeInTheDocument();
-    // …and the "No poster available" note appears only in the no-thumb branch.
+    // …and the "No poster available" note appears only in the no-posterUrl branch.
     expect(screen.getByText("No poster available")).toBeInTheDocument();
   });
 });
@@ -195,7 +194,7 @@ describe("CardItemView - swipe behavior", () => {
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({
-        media_id: "1",
+        mediaId: "1",
       }),
       "right"
     )
@@ -219,7 +218,7 @@ describe("CardItemView - swipe behavior", () => {
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({
-        media_id: "1",
+        mediaId: "1",
       }),
       "left"
     )
