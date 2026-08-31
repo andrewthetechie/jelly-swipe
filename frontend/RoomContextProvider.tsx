@@ -22,9 +22,9 @@ interface RoomProviderProps {
     children: React.ReactNode
 }
 
-export const RoomStateContext = React.createContext<RoomStateContextType | undefined>(undefined)
+const RoomStateContext = React.createContext<RoomStateContextType | undefined>(undefined)
 
-export const RoomSetterContext = React.createContext<RoomSetterContextType | undefined>(undefined)
+const RoomSetterContext = React.createContext<RoomSetterContextType | undefined>(undefined)
 
 export function useRoomStateContext() {
     const context = React.useContext(RoomStateContext)

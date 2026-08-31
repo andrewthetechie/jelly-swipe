@@ -4,6 +4,10 @@ import HostModal from "./HostModal";
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom";
 import * as roomApi from "./roomApi";
 
+function getRoomState() {
+  return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
+}
+
 vi.mock("./roomApi", () => ({
   createRoom: vi.fn(),
 }));
@@ -18,29 +22,29 @@ beforeEach(() => {
 describe("HostModal — toggles", () => {
   it("clicking Movies (default on) reports the new unchecked value", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />, {
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       movies: true,
     });
     await user.click(screen.getByRole("checkbox", { name: /movies/i }));
-    expect(ctx.setMovies).toHaveBeenCalledWith(false);
+    expect(screen.getByRole("checkbox", { name: /movies/i })).not.toBeChecked();
   });
 
   it("clicking the TV toggle (input name='tvShows') drives setTvShows", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />, {
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       tvShows: false,
     });
     await user.click(screen.getByRole("checkbox", { name: /tv shows/i }));
-    expect(ctx.setTvShows).toHaveBeenCalledWith(true);
+    expect(screen.getByRole("checkbox", { name: /tv shows/i })).toBeChecked();
   });
 
   it("clicking Solo drives setIsSoloMode", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />, {
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       isSoloMode: false,
     });
     await user.click(screen.getByRole("checkbox", { name: /solo/i }));
-    expect(ctx.setIsSoloMode).toHaveBeenCalledWith(true);
+    expect(screen.getByRole("checkbox", { name: /solo/i })).toBeChecked();
   });
 
   it("calls onClose when Cancel is clicked", async () => {
@@ -67,7 +71,7 @@ describe("HostModal — create session (3-part network contract)", () => {
           resolveCreate = resolve
         }),
     )
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />)
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />)
 
     const createButton = screen.getByRole("button", { name: /create session/i })
     expect(createButton).toBeEnabled()
@@ -82,15 +86,13 @@ describe("HostModal — create session (3-part network contract)", () => {
 
     resolveCreate({ pairing_code: "4321" })
 
-    await waitFor(() =>
-      expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("4321"),
-    )
+    await waitFor(() => expect(getRoomState()).toMatchObject({ currentRoomCode: "4321" }))
     await waitFor(() => expect(createButton).toBeEnabled());
   })
 
   it("calls createRoom with {movies, tvShows, solo} and stores pairing_code", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />, {
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       movies: true,
       tvShows: false,
       isSoloMode: false,
@@ -105,9 +107,7 @@ describe("HostModal — create session (3-part network contract)", () => {
       solo: false,
     });
 
-    await waitFor(() =>
-      expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("4321"),
-    );
+    await waitFor(() => expect(getRoomState()).toMatchObject({ currentRoomCode: "4321" }))
   });
 
   it("reflects overridden context values in createRoom payload", async () => {
@@ -192,12 +192,12 @@ describe("HostModal — create session (3-part network contract)", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     createRoomMock.mockRejectedValueOnce(new Error("Error creating session: 500 Server Error"));
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />);
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
 
     await waitFor(() => expect(errSpy).toHaveBeenCalled());
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled();
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null });
 
     errSpy.mockRestore();
   });
@@ -206,12 +206,12 @@ describe("HostModal — create session (3-part network contract)", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const user = userEvent.setup()
     createRoomMock.mockRejectedValueOnce(new Error("network error"))
-    const { ctx } = renderWithRoom(<HostModal onClose={vi.fn()} />)
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />)
 
     await user.click(screen.getByRole("button", { name: /create session/i }))
 
     await waitFor(() => expect(createRoomMock).toHaveBeenCalledTimes(1))
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null })
     expect(errSpy).toHaveBeenCalled()
 
     errSpy.mockRestore()

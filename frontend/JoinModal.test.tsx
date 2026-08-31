@@ -20,6 +20,10 @@ import JoinModal from "./JoinModal";
 import { renderWithRoom } from "./test/renderWithRoom";
 import * as roomApi from "./roomApi";
 
+function getRoomState() {
+  return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
+}
+
 vi.mock("./roomApi", () => ({
   joinRoom: vi.fn(),
 }));
@@ -33,7 +37,7 @@ beforeEach(() => {
 
 describe("JoinModal — input sanitization", () => {
   it("strips non-digits and preserves digit order (asserted via the setter spy)", () => {
-    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "",
     });
 
@@ -46,7 +50,8 @@ describe("JoinModal — input sanitization", () => {
     });
 
     // Letters dropped, digits kept in order.
-    expect(ctx.setUserInputCode).toHaveBeenLastCalledWith("123");
+    expect(screen.getByPlaceholderText("Enter Host Code")).toHaveValue("123");
+    expect(getRoomState()).toMatchObject({ userInputCode: "123" });
   });
 });
 
@@ -68,7 +73,7 @@ describe("JoinModal — cancel button", () => {
 describe("JoinModal — join (3-part network contract)", () => {
   it("does not submit when room code length is not 4", async () => {
     const user = userEvent.setup()
-    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "12",
     })
 
@@ -78,12 +83,12 @@ describe("JoinModal — join (3-part network contract)", () => {
     await user.click(joinButton)
 
     expect(joinRoomMock).not.toHaveBeenCalled()
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null })
   })
 
   it("calls joinRoom with the code and sets the room code on success", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "1234",
     });
 
@@ -92,23 +97,21 @@ describe("JoinModal — join (3-part network contract)", () => {
     await waitFor(() => expect(joinRoomMock).toHaveBeenCalledTimes(1));
     expect(joinRoomMock).toHaveBeenCalledWith("1234");
 
-    await waitFor(() =>
-      expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith("1234"),
-    );
+    await waitFor(() => expect(getRoomState()).toMatchObject({ currentRoomCode: "1234" }));
   });
 
   it("does not set a room code and does not throw when the request returns non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     joinRoomMock.mockRejectedValueOnce(new Error("Error joining room: 500 Server Error"));
-    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "1234",
     });
 
     await user.click(screen.getByRole("button", { name: /join session/i }));
 
     await waitFor(() => expect(errSpy).toHaveBeenCalled());
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled();
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null });
 
     errSpy.mockRestore();
   });
@@ -117,14 +120,14 @@ describe("JoinModal — join (3-part network contract)", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     joinRoomMock.mockRejectedValueOnce(new Error("network error"));
-    const { ctx } = renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "1234",
     });
 
     await user.click(screen.getByRole("button", { name: /join session/i }));
 
     await waitFor(() => expect(joinRoomMock).toHaveBeenCalled());
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled();
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null });
 
     errSpy.mockRestore();
   });
