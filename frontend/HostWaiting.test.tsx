@@ -5,6 +5,10 @@ import { renderWithRoom } from "./test/renderWithRoom"
 import { mockFetch } from "./test/mockFetch"
 import { SSEContextProvider } from "./SSEContextProvider"
 
+function getRoomState() {
+  return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
+}
+
 function renderSwipePage() {
   const utils = renderWithRoom(
     <SSEContextProvider>
@@ -33,7 +37,7 @@ describe("HostWaiting - Room Code rendering", () => {
 describe("HostWaiting — end session (3-part network contract)", () => {
   it("POSTs to /room/{code}/quit, then clears the room code on success", async () => {
     const spy = mockFetch({ ok: true, body: { pairing_code: "1234" } })
-    const { ctx } = renderSwipePage()
+    renderSwipePage()
 
     fireEvent.click(screen.getByText("End Session"))
 
@@ -43,19 +47,19 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     expect((url as URL).href).toMatch(/\/room\/1234\/quit$/)
     expect((options as RequestInit).method).toBe("POST")
 
-    // 2. The success effect: setCurrentRoomCode(null).
-    await waitFor(() => expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith(null))
+    // 2. The success effect: currentRoomCode is cleared.
+    await waitFor(() => expect(getRoomState()).toMatchObject({ currentRoomCode: null }))
   })
 
   it("leaves the room code untouched when quit responds non-ok", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const spy = mockFetch({ ok: false })
-    const { ctx } = renderSwipePage()
+    renderSwipePage()
 
     fireEvent.click(screen.getByText("End Session"))
 
     await waitFor(() => expect(spy).toHaveBeenCalled())
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+    expect(getRoomState()).toMatchObject({ currentRoomCode: "1234" })
 
     errSpy.mockRestore()    
   })
@@ -64,14 +68,14 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     // Silence the expected console.error so the failure path stays quiet.
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const spy = mockFetch({ reject: true })
-   const { ctx } = renderSwipePage()
+  renderSwipePage()
 
     fireEvent.click(screen.getByText("End Session"))
 
     // 3. The failure path: the request was attempted, but the success effect
     // never runs and nothing throws.
     await waitFor(() => expect(spy).toHaveBeenCalled())
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+    expect(getRoomState()).toMatchObject({ currentRoomCode: "1234" })
 
     errSpy.mockRestore()
   })

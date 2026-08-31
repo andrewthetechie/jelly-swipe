@@ -17,12 +17,16 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Intro from "./Intro";
-import { renderWithRoom } from "./test/renderWithRoom";
+import { renderWithRoomStateful } from "./test/renderWithRoom";
+
+function getRoomState() {
+  return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
+}
 
 describe("Intro — modal open/close + state reset", () => {
   it("opens the host modal when the Host button is clicked", async () => {
     const user = userEvent.setup();
-    renderWithRoom(<Intro />);
+    renderWithRoomStateful(<Intro />);
 
     await user.click(screen.getByRole("button", { name: /host/i }));
     expect(screen.getByText("Session Setup")).toBeInTheDocument();
@@ -30,7 +34,7 @@ describe("Intro — modal open/close + state reset", () => {
 
   it("opens the join modal when the Join button is clicked", async () => {
     const user = userEvent.setup();
-    renderWithRoom(<Intro />);
+    renderWithRoomStateful(<Intro />);
 
     await user.click(screen.getByRole("button", { name: /join/i }));
     expect(screen.getByText("Enter Room Code")).toBeInTheDocument();
@@ -38,28 +42,31 @@ describe("Intro — modal open/close + state reset", () => {
 
   it("resets host options and closes when the host modal is cancelled", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<Intro />);
+    renderWithRoomStateful(<Intro />);
 
     await user.click(screen.getByRole("button", { name: /host/i }));
-    // The host modal's Cancel control carries data-modal-type="host".
+    await user.click(screen.getByRole("checkbox", { name: /movies/i }));
+    await user.click(screen.getByRole("checkbox", { name: /tv shows/i }));
+    await user.click(screen.getByRole("checkbox", { name: /solo/i }));
     await user.click(screen.getByText("Cancel"));
 
-    // Closing resets the host-related context to its defaults…
-    expect(ctx.setMovies).toHaveBeenCalledWith(true);
-    expect(ctx.setTvShows).toHaveBeenCalledWith(false);
-    expect(ctx.setIsSoloMode).toHaveBeenCalledWith(false);
-    // …and the modal is gone.
+    expect(getRoomState()).toMatchObject({
+      movies: true,
+      tvShows: false,
+      isSoloMode: false,
+    });
     expect(screen.queryByText("Session Setup")).not.toBeInTheDocument();
   });
 
   it("clears the entered code and closes when the join modal is cancelled", async () => {
     const user = userEvent.setup();
-    const { ctx } = renderWithRoom(<Intro />);
+    renderWithRoomStateful(<Intro />);
 
     await user.click(screen.getByRole("button", { name: /join/i }));
+    await user.type(screen.getByPlaceholderText("Enter Host Code"), "1234");
     await user.click(screen.getByText("Cancel"));
 
-    expect(ctx.setUserInputCode).toHaveBeenCalledWith("");
+    expect(getRoomState()).toMatchObject({ userInputCode: "" });
     expect(screen.queryByText("Enter Room Code")).not.toBeInTheDocument();
   });
 });

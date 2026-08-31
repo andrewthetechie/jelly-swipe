@@ -1,16 +1,20 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import React, { useEffect, useState } from "react";
-import { RoomStateContext, RoomSetterContext } from "../RoomContextProvider";
-import type { RoomStateContextType, RoomSetterContextType } from "../RoomContextProvider";
-import { useRoomSetterContext, useRoomStateContext } from "../RoomContextProvider";
+import { RoomContextProvider, useRoomSetterContext, useRoomStateContext } from "../RoomContextProvider";
 import * as roomApi from "../roomApi";
 import * as roomSessionModule from "../RoomSessionProvider";
 import type { RoomSessionContextType } from "../RoomSessionProvider";
 import type { CardDeck, MatchItem } from "../types";
 import { EMPTY_MATCH_ITEM } from "../roomSession";
 
-type RoomTestContext = RoomStateContextType & RoomSetterContextType
+type RoomStateSeedOverrides = {
+  currentRoomCode?: string | null;
+  movies?: boolean;
+  tvShows?: boolean;
+  isSoloMode?: boolean;
+  userInputCode?: string;
+}
 
 type RoomSessionTestOverrides = {
   cardDeck?: CardDeck;
@@ -24,31 +28,9 @@ type RoomSessionTestOverrides = {
   lastError?: string | null;
 }
 
-type RoomTestOverrides = Partial<RoomTestContext> & RoomSessionTestOverrides
+type RoomTestOverrides = RoomStateSeedOverrides & RoomSessionTestOverrides
 
-function makeDefaultStateCtx(): RoomStateContextType {
-  return {
-    currentRoomCode: null,
-    movies: true,
-    tvShows: false,
-    isSoloMode: false,
-    userInputCode: "",
-  };
-}
-
-function makeDefaultSetterCtx(): RoomSetterContextType {
-  return {
-    setCurrentRoomCode: vi.fn(),
-    setMovies: vi.fn(),
-    setTvShows: vi.fn(),
-    setIsSoloMode: vi.fn(),
-    setUserInputCode: vi.fn(),
-  };
-}
-
-export interface RenderWithRoomResult extends ReturnType<typeof render> {
-  ctx: RoomTestContext;
-}
+export type RenderWithRoomResult = ReturnType<typeof render>
 
 export type RenderWithRoomStatefulResult = ReturnType<typeof render>
 
@@ -77,6 +59,75 @@ function installRoomSessionHookMock(): void {
     }
     return value
   })
+}
+
+function RoomStateSeeder({
+  children,
+  currentRoomCode,
+  movies,
+  tvShows,
+  isSoloMode,
+  userInputCode,
+}: {
+  children: React.ReactNode;
+  currentRoomCode?: string | null;
+  movies?: boolean;
+  tvShows?: boolean;
+  isSoloMode?: boolean;
+  userInputCode?: string;
+}) {
+  const { setCurrentRoomCode, setMovies, setTvShows, setIsSoloMode, setUserInputCode } = useRoomSetterContext()
+  const seededRef = React.useRef(false)
+  const [isReady, setIsReady] = React.useState(false)
+
+  React.useLayoutEffect(() => {
+    if (seededRef.current) {
+      return
+    }
+
+    seededRef.current = true
+
+    if (currentRoomCode !== undefined) {
+      setCurrentRoomCode(currentRoomCode)
+    }
+    if (movies !== undefined) {
+      setMovies(movies)
+    }
+    if (tvShows !== undefined) {
+      setTvShows(tvShows)
+    }
+    if (isSoloMode !== undefined) {
+      setIsSoloMode(isSoloMode)
+    }
+    if (userInputCode !== undefined) {
+      setUserInputCode(userInputCode)
+    }
+
+    setIsReady(true)
+  }, [
+    currentRoomCode,
+    movies,
+    tvShows,
+    isSoloMode,
+    userInputCode,
+    setCurrentRoomCode,
+    setMovies,
+    setTvShows,
+    setIsSoloMode,
+    setUserInputCode,
+  ])
+
+  if (!isReady) {
+    return null
+  }
+
+  return <>{children}</>
+}
+
+function RoomStateProbe() {
+  const state = useRoomStateContext()
+
+  return <pre data-testid="room-state" hidden>{JSON.stringify(state)}</pre>
 }
 
 function RoomSessionTestProvider({
@@ -253,7 +304,6 @@ function RoomSessionTestProvider({
   )
 }
 
-// Spy-oriented helper: use when you need to assert setter calls via returned ctx.
 export function renderWithRoom(
   ui: ReactElement,
   overrides: RoomTestOverrides = {},
@@ -261,116 +311,27 @@ export function renderWithRoom(
   const seededDeck = overrides.cardDeck ?? extractDeckFromUi(ui)
   installRoomSessionHookMock()
 
-  const defaultState = makeDefaultStateCtx()
-  const defaultSetters = makeDefaultSetterCtx()
-
-  const stateCtx: RoomStateContextType = {
-    currentRoomCode: overrides.currentRoomCode ?? defaultState.currentRoomCode,
-    movies: overrides.movies ?? defaultState.movies,
-    tvShows: overrides.tvShows ?? defaultState.tvShows,
-    isSoloMode: overrides.isSoloMode ?? defaultState.isSoloMode,
-    userInputCode: overrides.userInputCode ?? defaultState.userInputCode,
-  }
-
-  const setterCtx: RoomSetterContextType = {
-    setCurrentRoomCode: overrides.setCurrentRoomCode ?? defaultSetters.setCurrentRoomCode,
-    setMovies: overrides.setMovies ?? defaultSetters.setMovies,
-    setTvShows: overrides.setTvShows ?? defaultSetters.setTvShows,
-    setIsSoloMode: overrides.setIsSoloMode ?? defaultSetters.setIsSoloMode,
-    setUserInputCode: overrides.setUserInputCode ?? defaultSetters.setUserInputCode,
-  }
-
-  const result = render(
-    <RoomSetterContext.Provider value={setterCtx}>
-      <RoomStateContext.Provider value={stateCtx}>
+  return render(
+    <RoomContextProvider>
+      <RoomStateSeeder
+        currentRoomCode={overrides.currentRoomCode}
+        movies={overrides.movies}
+        tvShows={overrides.tvShows}
+        isSoloMode={overrides.isSoloMode}
+        userInputCode={overrides.userInputCode}
+      >
         <RoomSessionTestProvider overrides={overrides} seededDeck={seededDeck}>
+          <RoomStateProbe />
           {ui}
         </RoomSessionTestProvider>
-      </RoomStateContext.Provider>
-    </RoomSetterContext.Provider>
-  );
-  return { ...result, ctx: { ...stateCtx, ...setterCtx } };
+      </RoomStateSeeder>
+    </RoomContextProvider>
+  )
 }
 
-// Stateful DOM helper: use for UI/state transition assertions; intentionally does not return ctx.
 export function renderWithRoomStateful(
   ui: ReactElement,
   overrides: RoomTestOverrides = {},
 ): RenderWithRoomStatefulResult {
-  const seededDeck = overrides.cardDeck ?? extractDeckFromUi(ui)
-  installRoomSessionHookMock()
-
-  function Provider({ children }: { children: React.ReactNode }) {
-    const [movies, setMoviesState] = useState<boolean>(overrides.movies ?? true)
-    const [tvShows, setTvShowsState] = useState<boolean>(overrides.tvShows ?? false)
-    const [isSoloMode, setIsSoloModeState] = useState<boolean>(overrides.isSoloMode ?? false)
-    const [currentRoomCode, setCurrentRoomCodeState] = useState<string | null>(
-      overrides.currentRoomCode ?? null,
-    )
-    const [userInputCode, setUserInputCodeState] = useState<string>(
-      overrides.userInputCode ?? "",
-    )
-
-    const applySetStateAction = <T,>(
-      action: React.SetStateAction<T>,
-      setState: React.Dispatch<React.SetStateAction<T>>,
-    ) => {
-      setState((prev) =>
-        typeof action === "function"
-          ? (action as (prev: T) => T)(prev)
-          : action,
-      )
-    }
-
-    const setCurrentRoomCodeSpy = overrides.setCurrentRoomCode ?? vi.fn()
-    const setMoviesSpy = overrides.setMovies ?? vi.fn()
-    const setTvShowsSpy = overrides.setTvShows ?? vi.fn()
-    const setIsSoloModeSpy = overrides.setIsSoloMode ?? vi.fn()
-    const setUserInputCodeSpy = overrides.setUserInputCode ?? vi.fn()
-
-    const stateCtx: RoomStateContextType = {
-      currentRoomCode,
-      movies,
-      tvShows,
-      isSoloMode,
-      userInputCode,
-  }
-
-  const setterCtx: RoomSetterContextType = {
-      setCurrentRoomCode: vi.fn((action: React.SetStateAction<string | null>) => {
-        setCurrentRoomCodeSpy(action)
-        applySetStateAction(action, setCurrentRoomCodeState)
-      }),
-      setMovies: vi.fn((action: React.SetStateAction<boolean>) => {
-        setMoviesSpy(action)
-        applySetStateAction(action, setMoviesState)
-      }),
-      setTvShows: vi.fn((action: React.SetStateAction<boolean>) => {
-        setTvShowsSpy(action)
-        applySetStateAction(action, setTvShowsState)
-      }),
-      setIsSoloMode: vi.fn((action: React.SetStateAction<boolean>) => {
-        setIsSoloModeSpy(action)
-        applySetStateAction(action, setIsSoloModeState)
-      }),
-      setUserInputCode: vi.fn((action: React.SetStateAction<string>) => {
-        setUserInputCodeSpy(action)
-        applySetStateAction(action, setUserInputCodeState)
-      }),
-    }
-
-    return (
-      <RoomSetterContext.Provider value={setterCtx}>
-        <RoomStateContext.Provider value={stateCtx}>
-          <RoomSessionTestProvider overrides={overrides} seededDeck={seededDeck}>
-            {children}
-          </RoomSessionTestProvider>
-        </RoomStateContext.Provider>
-      </RoomSetterContext.Provider>
-    )
-  }
-
-  const result = render(<Provider>{ui}</Provider>);
-
-  return { ...result }
+  return renderWithRoom(ui, overrides)
 }

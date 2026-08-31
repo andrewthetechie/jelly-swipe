@@ -42,14 +42,15 @@ PRs the same way the Python suite does.
   - `test/setup.ts` — registers the jest-dom matchers (e.g.
     `toBeInTheDocument`) and installs no-op `setPointerCapture` stubs jsdom
     lacks. Wired in via `setupFiles`; you never import it directly.
-  - `test/renderWithRoom.tsx` — exports two room-context helpers:
-      - `renderWithRoom` (spy helper): use when you need to assert setter calls via
-        returned `ctx`, for example asserting `setCurrentRoomCode` was called.
-      - `renderWithRoomStateful` (DOM/state helper): use when you need realistic
-        state transitions and DOM assertions after user interaction. This helper
-        intentionally does not return `ctx`.
-      Overrides are a flat object combining state and setter fields — helpers split
-      them internally into the two providers.
+  - `test/renderWithRoom.tsx` — exports two room helpers built on the real
+    `<RoomContextProvider>` and the public hooks:
+      - `renderWithRoom` — seeds room state for tests that only need the shared
+        provider and normal React Testing Library queries.
+      - `renderWithRoomStateful` — use when you need realistic state transitions
+        after user interaction.
+      Pass a flat overrides object with room state and session state; the helper
+      applies the initial room values through the public hooks, then renders the
+      UI inside the real provider.
   - `test/mockFetch.ts` — swaps `globalThis.fetch` for a spy resolving to a fake
     `{ ok, json }` response (or rejecting, with `{ reject: true }`). Use it for
     any component that makes a network call. It returns the spy so you can assert
@@ -69,30 +70,43 @@ PRs the same way the Python suite does.
      unchanged and does not throw. Silence the expected `console.error` with a
      spy so the output stays clean.
 
-### The split room context (`RoomStateContext` and `RoomSetterContext`)
+### The room context hooks
 
-Room state is split across two contexts defined in `RoomContextProvider.tsx`:
+`RoomContextProvider.tsx` owns the room state provider, but application code and
+tests should only consume the public hooks:
 
-- **`RoomStateContext`** — holds all state values (`currentRoomCode`,
-  `roomReady`, `movies`, `tvShows`, `isSoloMode`, `userInputCode`, `genre`,
-  `hideWatched`). Read with `useRoomStateContext()`.
-- **`RoomSetterContext`** — holds all setter functions. These are referentially
-  stable (React state setters never change identity), so this context never
-  triggers a re-render on its own. Read with `useRoomSetterContext()`.
+- **`useRoomStateContext()`** — reads room state values such as
+  `currentRoomCode`, `movies`, `tvShows`, `isSoloMode`, `userInputCode`,
+  `genre`, and `hideWatched`.
+- **`useRoomSetterContext()`** — reads the room setter functions.
 
-Components that only dispatch (e.g. `Intro`) should use `useRoomSetterContext()`
-alone. Components that only read (e.g. `Header`) should use
-`useRoomStateContext()` alone. Mixed components use both.
+Components that only dispatch (e.g. `Intro`) should use
+`useRoomSetterContext()` alone. Components that only read (e.g. `Header`)
+should use `useRoomStateContext()` alone. Mixed components use both.
 
-Both contexts are provided by the single `<RoomContextProvider>` in `App.tsx` —
-you never nest them manually in application code.
+Both hooks are backed by the single `<RoomContextProvider>` in `App.tsx`.
+`RoomStateContext` and `RoomSetterContext` are implementation details and should
+not be imported directly in app code or tests.
 
-In tests, `renderWithRoom` and `renderWithRoomStateful` provide both contexts
-automatically. Pass a flat overrides object with any mix of state values and
-setter spies — the helper splits them into the correct providers internally.
-Use `renderWithRoom` for setter-spy assertions, and `renderWithRoomStateful`
-for DOM/state assertions. Never wire a test directly to `RoomStateContext.Provider`
-or `RoomSetterContext.Provider` — always go through the test helpers.
+In tests, `renderWithRoom` and `renderWithRoomStateful` keep you inside the real
+provider and let you seed initial room state without wiring raw providers by
+hand. Always go through those helpers instead of reaching for
+`RoomStateContext.Provider` or `RoomSetterContext.Provider` directly.
+
+Example:
+
+```tsx
+import { screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { renderWithRoomStateful } from "./test/renderWithRoom"
+import Intro from "./Intro"
+
+const user = userEvent.setup()
+renderWithRoomStateful(<Intro />)
+
+await user.click(screen.getByRole("button", { name: /host/i }))
+expect(screen.getByText("Session Setup")).toBeInTheDocument()
+```
 
 ### The skipped "desired behavior" pattern
 

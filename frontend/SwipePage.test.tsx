@@ -5,6 +5,10 @@ import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { makeDeck } from "./test/fixtures"
 import * as roomApi from "./roomApi"
 
+function getRoomState() {
+  return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
+}
+
 vi.mock("./roomApi", () => ({
   quitRoom: vi.fn(),
 }))
@@ -121,25 +125,25 @@ describe("SwipePage — glow opacity", () => {
 describe("SwipePage — end session command", () => {
   it("calls roomApi.quitRoom with current room code and clears room code on success", async () => {
     const user = userEvent.setup()
-    const { ctx } = renderSwipePage()
+    renderSwipePage()
 
     await user.click(screen.getByText("End Session"))
 
     await waitFor(() => expect(quitRoomMock).toHaveBeenCalledTimes(1))
     expect(quitRoomMock).toHaveBeenCalledWith("1234")
-    await waitFor(() => expect(ctx.setCurrentRoomCode).toHaveBeenCalledWith(null))
+    await waitFor(() => expect(getRoomState()).toMatchObject({ currentRoomCode: null }))
   })
 
   it("leaves the room code untouched when quit rejects", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const user = userEvent.setup()
     quitRoomMock.mockRejectedValueOnce(new Error("quit failed"))
-    const { ctx } = renderSwipePage()
+    renderSwipePage()
 
     await user.click(screen.getByText("End Session"))
 
     await waitFor(() => expect(quitRoomMock).toHaveBeenCalled())
-    expect(ctx.setCurrentRoomCode).not.toHaveBeenCalled()
+    expect(getRoomState()).toMatchObject({ currentRoomCode: "1234" })
 
     errSpy.mockRestore()
   })
