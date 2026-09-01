@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization, react-hooks/exhaustive-deps, react-hooks/immutability */
 
 import React from "react"
 import type { SSEEvent } from "./types"
@@ -12,24 +11,24 @@ interface UseSSEReturn {
 }
 
 export const useSSE = (url: string | null): UseSSEReturn => {
-    const [lastMessage, setLastMessage] = React.useState<SSEEvent | null>(null) // Store received data, most recent message
-    const [error, setError] = React.useState<string | null>(null) // Store error state
-    const [isConnected, setIsConnected] = React.useState<boolean>(false) // Connection status
+    const [lastMessage, setLastMessage] = React.useState<SSEEvent | null>(null)
+    const [error, setError] = React.useState<string | null>(null)
+    const [isConnected, setIsConnected] = React.useState<boolean>(false)
 
-
-    const eventSourceRef = React.useRef<EventSource | null>(null) // EventSource object reference - maintains object across re-renders
-    const reconnectTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null) // Reconnection timer reference - for cleanup on component unmount
+    const eventSourceRef = React.useRef<EventSource | null>(null)
+    const reconnectTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
     const lastSeenEventIdRef = React.useRef<number>(0)
+    const connectRef = React.useRef<(() => void) | null>(null)
 
-    // useCallback memoizes function - creates new one only when dependencies change (in this case, url) - prevents unnecessary re-creation of functions on every render
-    
     const scheduleReconnect = React.useCallback((delayMs: number) => {
-        if (!reconnectTimeoutRef.current) {
-            reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectTimeoutRef.current = null
-            connect()
-            }, delayMs)
+        if (reconnectTimeoutRef.current) {
+            return
         }
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null
+            connectRef.current?.()
+        }, delayMs)
     }, [])
 
     const handleSessionReset = React.useCallback(() => {
@@ -49,45 +48,35 @@ export const useSSE = (url: string | null): UseSSEReturn => {
         }
 
         try {
-            // Close existing connection if present
             if (eventSourceRef.current) {
                 eventSourceRef.current.close()
                 eventSourceRef.current = null
             }
 
-            // Create new EventSource object with credentials for authentication
             const streamUrl = new URL(url, window.location.origin)
 
             if (lastSeenEventIdRef.current > 0) {
-                streamUrl.searchParams.set(
-                    "after_event_id",
-                    String(lastSeenEventIdRef.current)
-                )
+                streamUrl.searchParams.set("after_event_id", String(lastSeenEventIdRef.current))
             }
 
             const eventSource = new EventSource(streamUrl, { withCredentials: true })
             eventSourceRef.current = eventSource
 
-            // Event handler for succesful connection
             eventSource.onopen = () => {
                 console.log("SSE connection opened")
                 setIsConnected(true)
                 setError(null)
             }
 
-            // Event handler for message reception - parses incoming data and updates state
             eventSource.onmessage = (e) => {
                 if (e.lastEventId) {
                     const eventId = Number.parseInt(e.lastEventId, 10)
 
-                    if (
-                        !Number.isNaN(eventId) &&
-                        eventId > lastSeenEventIdRef.current
-                    ) {
+                    if (!Number.isNaN(eventId) && eventId > lastSeenEventIdRef.current) {
                         lastSeenEventIdRef.current = eventId
                     }
                 }
-                
+
                 try {
                     const parsedData: SSEEvent = JSON.parse(e.data)
 
@@ -95,7 +84,7 @@ export const useSSE = (url: string | null): UseSSEReturn => {
                         handleSessionReset()
                         return
                     }
-                    
+
                     setLastMessage(parsedData)
                 } catch (parseErr) {
                     console.error("Error parsing SSE data:", parseErr)
@@ -103,7 +92,6 @@ export const useSSE = (url: string | null): UseSSEReturn => {
                 }
             }
 
-            // Event handler for connection errors
             eventSource.onerror = (e) => {
                 console.error("SSE connection error:", e)
                 setError("Connection lost. Attempting to reconnect...")
@@ -113,26 +101,23 @@ export const useSSE = (url: string | null): UseSSEReturn => {
                 eventSourceRef.current = null
 
                 scheduleReconnect(3000)
-                
             }
         } catch (err) {
-            // Handle EventSource creation errors (e.g., invalid URL, browser incompatibility)
             console.error("Error establishing SSE connection:", err)
             setError("Error establishing SSE connection")
         }
-    }, [url, handleSessionReset, scheduleReconnect])
+    }, [handleSessionReset, scheduleReconnect, url])
 
-    
+    React.useEffect(() => {
+        connectRef.current = connect
+    }, [connect])
 
-    // Disconnect function - closes existing connection and clears reconnection timer
     const disconnect = React.useCallback(() => {
-        // Close EventSource connection if it exists
         if (eventSourceRef.current) {
             eventSourceRef.current.close()
             eventSourceRef.current = null
         }
 
-        // Cancel reconnection timer if running
         if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current)
             reconnectTimeoutRef.current = null
@@ -145,26 +130,90 @@ export const useSSE = (url: string | null): UseSSEReturn => {
         setIsConnected(false)
     }, [])
 
-    
-
     React.useEffect(() => {
         if (!url) {
-            disconnect()
             return
         }
 
-        connect()
+        const establishConnection = () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close()
+                eventSourceRef.current = null
+            }
+
+            const streamUrl = new URL(url, window.location.origin)
+
+            if (lastSeenEventIdRef.current > 0) {
+                streamUrl.searchParams.set("after_event_id", String(lastSeenEventIdRef.current))
+            }
+
+            const eventSource = new EventSource(streamUrl, { withCredentials: true })
+            eventSourceRef.current = eventSource
+
+            eventSource.onopen = () => {
+                console.log("SSE connection opened")
+                setIsConnected(true)
+                setError(null)
+            }
+
+            eventSource.onmessage = (e) => {
+                if (e.lastEventId) {
+                    const eventId = Number.parseInt(e.lastEventId, 10)
+
+                    if (!Number.isNaN(eventId) && eventId > lastSeenEventIdRef.current) {
+                        lastSeenEventIdRef.current = eventId
+                    }
+                }
+
+                try {
+                    const parsedData: SSEEvent = JSON.parse(e.data)
+
+                    if (parsedData.event_type === "session_reset") {
+                        handleSessionReset()
+                        return
+                    }
+
+                    setLastMessage(parsedData)
+                } catch (parseErr) {
+                    console.error("Error parsing SSE data:", parseErr)
+                    setError("Error parsing SSE data")
+                }
+            }
+
+            eventSource.onerror = (e) => {
+                console.error("SSE connection error:", e)
+                setError("Connection lost. Attempting to reconnect...")
+                setIsConnected(false)
+
+                eventSource.close()
+                eventSourceRef.current = null
+
+                scheduleReconnect(3000)
+            }
+        }
+
+        establishConnection()
 
         return () => {
-            disconnect()
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close()
+                eventSourceRef.current = null
+            }
+
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current)
+                reconnectTimeoutRef.current = null
+            }
+
+            lastSeenEventIdRef.current = 0
         }
-    }, [url, connect, disconnect])
+    }, [handleSessionReset, scheduleReconnect, url])
 
     return {
         lastMessage,
         error,
         isConnected,
         connect,
-        disconnect
+        disconnect,
     }
 }
