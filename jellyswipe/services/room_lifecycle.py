@@ -231,13 +231,15 @@ class RoomLifecycleService:
             hide_watched=room.hide_watched,
             persist=True,
         )
-        # Append genre_changed event on success and return its event_id
+        # Append genre_changed event on success and return its event_id.
+        # event_id stays 0 (never a real autoincrement id) when no session
+        # instance exists — the frontend treats 0 as "nothing to suppress".
         instance = await uow.session_instances.get_by_pairing_code(code)
-        if instance is None:
-            raise RuntimeError(f"No session instance found for room {code}")
-        event_id = await uow.session_events.append(
-            instance.instance_id, "genre_changed", json.dumps({"genre": genre})
-        )
+        event_id = 0
+        if instance:
+            event_id = await uow.session_events.append(
+                instance.instance_id, "genre_changed", json.dumps({"genre": genre})
+            )
         return MutationResult(deck=new_deck, event_id=event_id)
 
     async def set_watched_filter(
@@ -267,15 +269,17 @@ class RoomLifecycleService:
             hide_watched=hide_watched,
             persist=True,
         )
-        # Append hide_watched_changed event on success
+        # Append hide_watched_changed event on success and return its event_id.
+        # event_id stays 0 (never a real autoincrement id) when no session
+        # instance exists — the frontend treats 0 as "nothing to suppress".
         instance = await uow.session_instances.get_by_pairing_code(code)
-        if instance is None:
-            raise RuntimeError(f"No session instance found for room {code}")
-        event_id = await uow.session_events.append(
-            instance.instance_id,
-            "hide_watched_changed",
-            json.dumps({"hide_watched": hide_watched}),
-        )
+        event_id = 0
+        if instance:
+            event_id = await uow.session_events.append(
+                instance.instance_id,
+                "hide_watched_changed",
+                json.dumps({"hide_watched": hide_watched}),
+            )
         return MutationResult(deck=new_deck, event_id=event_id)
 
     async def get_status(self, code: str, uow: DatabaseUnitOfWork) -> dict[str, Any]:

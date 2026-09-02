@@ -187,7 +187,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         try {
             const result = await roomApi.setGenreChoice(currentRoomCode, stateRef.current.genre)
             dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
-            registerIgnoredEventId(result.mutationEventId)
+            if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error changing genre", err)
             dispatch({ type: "COMMAND_FAILED", message: String(err) })
@@ -206,7 +206,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         try {
             const result = await roomApi.setWatchedFilter(currentRoomCode, next)
             dispatch({ type: "HIDE_WATCHED_COMMAND_SUCCEEDED", deck: result.deck, hideWatched: next })
-            registerIgnoredEventId(result.mutationEventId)
+            if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error toggling watched filter", err)
             dispatch({ type: "COMMAND_FAILED", message: String(err) })
