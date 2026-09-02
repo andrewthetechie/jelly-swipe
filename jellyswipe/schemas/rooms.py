@@ -1,10 +1,10 @@
 """Pydantic v2 models for room lifecycle and swiping endpoints."""
 
-from typing import Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, StrictBool, model_validator
 
-from jellyswipe.schemas.common import MatchItem
+from jellyswipe.schemas.common import CardItem, MatchItem
 
 
 class CreateRoomRequest(BaseModel):
@@ -42,9 +42,9 @@ class RoomStatusResponse(BaseModel):
     """Response from GET /room/{code}/status."""
 
     ready: bool = Field(..., description="Whether the room is ready to start")
-    genre: Optional[str] = Field(None, description="Current genre filter")
-    solo: Optional[bool] = Field(None, description="Whether this is a solo room")
-    hide_watched: Optional[bool] = Field(
+    genre: str | None = Field(None, description="Current genre filter")
+    solo: bool | None = Field(None, description="Whether this is a solo room")
+    hide_watched: bool | None = Field(
         None, description="Whether watched items are hidden"
     )
 
@@ -59,7 +59,7 @@ class SwipeRequest(BaseModel):
     """Request body for POST /room/{code}/swipe."""
 
     media_id: str = Field(..., description="Media ID to swipe on")
-    direction: Optional[str] = Field(None, description="Swipe direction (left/right)")
+    direction: str | None = Field(None, description="Swipe direction (left/right)")
 
 
 class SwipeResponse(BaseModel):
@@ -110,3 +110,19 @@ class MatchListResponse(BaseModel):
     """Response from GET /matches."""
 
     matches: list[MatchItem] = Field(..., description="List of matched items")
+
+
+class MutationChangeResponse(BaseModel):
+    """Response from POST /room/{code}/genre and /watched-filter.
+
+    Returns the freshly rebuilt deck plus the identity of the settings-change
+    event that was just appended, so clients can correlate their own SSE echo.
+    """
+
+    deck: list[CardItem] = Field(..., description="The rebuilt card deck")
+    mutation_event_id: int = Field(
+        ..., description="Event ID of the appended mutation event"
+    )
+    mutation_type: Literal["genre_changed", "hide_watched_changed"] = Field(
+        ..., description="Event type of the mutation"
+    )

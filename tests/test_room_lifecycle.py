@@ -223,7 +223,7 @@ async def test_deck_genre_status_matches_semantics(runtime_sessionmaker):
         assert await svc.get_deck("9999", uid, 1, uow) == []
 
         genre_deck = await svc.set_genre(pc, "Action", prov, uow)
-        assert isinstance(genre_deck, list) and genre_deck
+        assert isinstance(genre_deck.deck, list) and genre_deck.deck
         rec_after = await uow.rooms.get_room(pc)
         assert rec_after is not None
         assert rec_after.deck.cursors == {}
@@ -295,8 +295,8 @@ async def test_set_watched_filter_excludes_watched_items(runtime_sessionmaker):
         rec = await uow.rooms.get_room(pc)
         assert rec is not None
         assert rec.deck.cursors == {}
-        assert isinstance(new_deck, list)
-        assert len(new_deck) > 0
+        assert isinstance(new_deck.deck, list)
+        assert len(new_deck.deck) > 0
 
 
 @pytest.mark.anyio
@@ -336,7 +336,7 @@ async def test_swipe_exclusion_on_deck_rebuild(runtime_sessionmaker):
         # Verify swiped item is excluded from new deck
         swiped_ids = await uow.swipes.list_swiped_media_ids(pc)
         assert first_item_id in swiped_ids
-        for item in new_deck:
+        for item in new_deck.deck:
             assert item["media_id"] != first_item_id, (
                 "Swiped item should be excluded from rebuilt deck"
             )
@@ -461,7 +461,7 @@ async def test_genre_change_with_watched_filter_active(runtime_sessionmaker):
         assert snap_after is not None
         assert snap_after.hide_watched is True
         assert snap_after.genre == "Comedy"
-        assert isinstance(new_deck, list)
+        assert isinstance(new_deck.deck, list)
 
 
 @pytest.mark.anyio
@@ -529,8 +529,8 @@ async def test_solo_session_watched_filter(runtime_sessionmaker):
         assert snap_after is not None
         assert snap_after.hide_watched is True
         assert snap_after.solo is True
-        assert isinstance(new_deck, list)
-        assert len(new_deck) > 0
+        assert isinstance(new_deck.deck, list)
+        assert len(new_deck.deck) > 0
 
 
 # ============================================================================

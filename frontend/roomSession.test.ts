@@ -5,9 +5,9 @@ import {
 	EMPTY_MATCH_ITEM,
 	initialRoomSessionState,
 	roomSessionReducer,
-	shouldRefreshDeck,
 	type RoomSessionAction,
 } from "./roomSession"
+import type { MutationChangeResult } from "./types"
 import { RoomContextProvider, useRoomSetterContext } from "./RoomContextProvider"
 import { RoomSessionProvider, useRoomSession } from "./RoomSessionProvider"
 import { useSSEContext, type SSEContextType } from "./SSEContextProvider"
@@ -69,6 +69,16 @@ async function waitForDeckLoad(
 	})
 }
 
+function emitSSE(
+	hook: { result: { current: ReturnType<typeof useRoomSession> } },
+	event: NonNullable<SSEContextType["sseData"]>
+) {
+	mockSSEContext = { sseData: event, sseError: null, isConnected: true }
+	vi.mocked(useSSEContext).mockImplementation(() => mockSSEContext)
+	// Force the provider to re-render to it re-reads the context and its SSE effect runs.
+	act(() => { hook.result.current.dismissMatch() })
+}
+
 describe("roomSession reducer and utils", () => {
 	it("SSE_SESSION_BOOTSTRAP sets roomReady from the bootstrap event", () => {
 		const next = roomSessionReducer(initialRoomSessionState, {
@@ -83,7 +93,6 @@ describe("roomSession reducer and utils", () => {
 		const start = {
 			...initialRoomSessionState,
 			genre: "Action",
-			pendingDeckRefresh: "genre" as const,
 		}
 
 		const next = roomSessionReducer(start, {
@@ -92,14 +101,12 @@ describe("roomSession reducer and utils", () => {
 		})
 
 		expect(next.genre).toBe("Comedy")
-		expect(next.pendingDeckRefresh).toBeNull()
 	})
 
 	it("SSE_HIDE_WATCHED_CHANGED updates flag and clears pending hide_watched refresh", () => {
 		const start = {
 			...initialRoomSessionState,
 			hideWatched: false,
-			pendingDeckRefresh: "hide_watched" as const,
 		}
 
 		const next = roomSessionReducer(start, {
@@ -108,7 +115,6 @@ describe("roomSession reducer and utils", () => {
 		})
 
 		expect(next.hideWatched).toBe(true)
-		expect(next.pendingDeckRefresh).toBeNull()
 	})
 
 	it("SSE_SESSION_READY sets roomReady true", () => {
@@ -135,69 +141,6 @@ describe("roomSession reducer and utils", () => {
 		>
 
 		expectTypeOf<SessionResetReducerAction>().toEqualTypeOf<never>()
-	})
-
-	it("shouldRefreshDeck returns false for own genre change echo while pending", () => {
-		const start = {
-			...initialRoomSessionState,
-			genre: "Action",
-			pendingDeckRefresh: "genre" as const,
-		}
-
-		const value = shouldRefreshDeck(start, {
-			event_type: "genre_changed",
-			event_id: 1,
-			genre: "Comedy",
-		})
-
-		expect(value).toBe(false)
-	})
-
-	it("shouldRefreshDeck returns true for other participant genre change", () => {
-		const start = {
-			...initialRoomSessionState,
-			genre: "Action",
-			pendingDeckRefresh: null,
-		}
-
-		const value = shouldRefreshDeck(start, {
-			event_type: "genre_changed",
-			event_id: 2,
-			genre: "Comedy",
-		})
-
-		expect(value).toBe(true)
-	})
-
-	it("shouldRefreshDeck returns false for same-value genre event without pending", () => {
-		const start = {
-			...initialRoomSessionState,
-			genre: "Action",
-			pendingDeckRefresh: null,
-		}
-
-		const value = shouldRefreshDeck(start, {
-			event_type: "genre_changed",
-			event_id: 3,
-			genre: "Action",
-		})
-
-		expect(value).toBe(false)
-	})
-
-	it("shouldRefreshDeck returns false when genre field is null/absent", () => {
-		const start = {
-			...initialRoomSessionState,
-			genre: "Action",
-			pendingDeckRefresh: null,
-		}
-
-		const value = shouldRefreshDeck(start, {
-			event_type: "genre_changed",
-			event_id: 4,
-		})
-
-		expect(value).toBe(false)
 	})
 })
 
@@ -293,7 +236,11 @@ describe("RoomSessionProvider commands", () => {
 		const refreshedDeck = [makeCard({ mediaId: "m-3", title: "Movie m-3" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
-		vi.mocked(roomApi.setGenreChoice).mockResolvedValue(refreshedDeck)
+		vi.mocked(roomApi.setGenreChoice).mockResolvedValue({
+			deck: refreshedDeck,
+			mutationEventId: 5,
+			mutationType: "genre_changed"
+		})
 
 		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
 		await waitForDeckLoad(hook, 2)
@@ -313,13 +260,16 @@ describe("RoomSessionProvider commands", () => {
 		expect(roomApi.setGenreChoice).toHaveBeenCalledWith(ROOM_CODE, "Comedy")
 		expect(hook.result.current.state.cardDeck).toEqual(refreshedDeck)
 		expect(hook.result.current.state.swipeHistory).toEqual([])
-		expect(hook.result.current.state.pendingDeckRefresh).toBe("genre")
 	})
 
 	it("toggleHideWatched uses current state value (no stale closure)", async () => {
 		const initialDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue(initialDeck)
-		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue(initialDeck)
+		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue({
+			deck: initialDeck,
+			mutationEventId: 6,
+			mutationType: "hide_watched_changed"
+		})
 
 		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
 		await waitForDeckLoad(hook, 1)
@@ -342,7 +292,7 @@ describe("RoomSessionProvider commands", () => {
 		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
-		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue([second])
+		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue({ deck: [second], mutationEventId: 6, mutationType: "hide_watched_changed" })
 		vi.mocked(roomApi.quitRoom).mockResolvedValue({ status: "ok" })
 
 		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
@@ -367,6 +317,151 @@ describe("RoomSessionProvider commands", () => {
 		expect(hook.result.current.state.swipeHistory).toEqual([])
 		expect(hook.result.current.state.matchFound).toBe(false)
 		expect(hook.result.current.state.matchItem).toEqual(EMPTY_MATCH_ITEM)
-		expect(hook.result.current.state.pendingDeckRefresh).toBeNull()
+	})
+})
+
+describe("SSE suppression (event id correlation)", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		mockSSEContext = { sseData: null, sseError: null, isConnected: true }
+		vi.mocked(useSSEContext).mockImplementation(() => mockSSEContext)
+	})
+
+	it("suppresses own genre echo by registered event id and updates mirrored genre", async () => {
+		const genreDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(genreDeck)
+		vi.mocked(roomApi.setGenreChoice).mockResolvedValue({
+			deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+			mutationEventId: 41,
+			mutationType: "genre_changed"
+		})
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		act(() => { hook.result.current.selectGenre("Comedy") })
+		await act(async () => { await hook.result.current.confirmGenre() })
+
+		// Its own echo arrives with the same event_id -> no refetch.
+		emitSSE(hook, { event_type: "genre_changed", event_id: 41, genre: "Comedy"} )
+
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+		expect(hook.result.current.state.genre).toBe("Comedy")
+	})
+
+	it("refetches deck on a remote genre echo (unrelated event id, nothing in flight)", async () => {
+		const genreDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(genreDeck)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		emitSSE(hook, { event_type: "genre_changed", event_id: 99, genre: "Comedy" })
+
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+		expect(hook.result.current.state.genre).toBe("Comedy")
+	})
+
+	it("suppresses own echo arriving before the POST resolves, then still honors a later remote change", async () => {
+		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)
+
+		let release: (r: MutationChangeResult) => void
+		const genrePromise = new Promise<MutationChangeResult>((res) => { release = res })
+		vi.mocked(roomApi.setGenreChoice).mockImplementation(() => genrePromise)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		act(() => { hook.result.current.selectGenre("Comedy") })
+
+		let confirmPromise: Promise<void>
+		act(() => { confirmPromise = hook.result.current.confirmGenre() })
+
+		// Own echo arrives while the POST is still in flight -> suppressed, no refetch.
+		emitSSE(hook, { event_type: "genre_changed", event_id: 50, genre: "Comedy" })
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+
+		// POST resolves.
+		await act(async () => {
+			release!({ deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })], mutationEventId: 60, mutationType: "genre_changed" })
+			await confirmPromise!
+		})
+
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		// A later remote change must refetch (no stuck suppression).
+		emitSSE(hook, { event_type: "genre_changed", event_id: 200, genre: "Drama" })
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+	})
+
+	it("does not leave stale suppression after a failed mutation", async () => {
+		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)
+		vi.mocked(roomApi.setWatchedFilter).mockRejectedValue(new Error("boom"))
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		await act(async () => { await hook.result.current.toggleHideWatched() })
+		expect(hook.result.current.state.lastError).toContain("boom")
+
+		// A remote hide_watched change must still refetch.
+		emitSSE(hook, { event_type: "hide_watched_changed", event_id: 77, hide_watched: true })
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+		expect(errorSpy).toHaveBeenCalled()
+	})
+
+	it("suppresses delayed echo after reconnect (session_reset) — ignoredEventIds retained", async () => {
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue([makeCard({ mediaId: "m-1", title: "Movie m-1" })])
+		vi.mocked(roomApi.setGenreChoice).mockResolvedValue({
+			deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+			mutationEventId: 41,
+			mutationType: "genre_changed",
+		})
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		act(() => { hook.result.current.selectGenre("Comedy") })
+		await act(async () => { await hook.result.current.confirmGenre() })
+		// event_id 41 is now in ignoredEventIds
+
+		// Reconnect clears inFlight but must NOT clear ignoredEventIds.
+		emitSSE(hook, { event_type: "session_reset" })
+
+		// Delayed own echo arrives after reconnect with the same id -> still suppressed.
+		emitSSE(hook, { event_type: "genre_changed", event_id: 41, genre: "Comedy" })
+
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+		expect(hook.result.current.state.genre).toBe("Comedy")
+	})
+
+	it("suppresses own hide_watched echo and still updates mirrored hideWatched state", async () => {
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue([makeCard({ mediaId: "m-1", title: "Movie m-1" })])
+		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue({
+			deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+			mutationEventId: 42,
+			mutationType: "hide_watched_changed",
+		})
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		await act(async () => { await hook.result.current.toggleHideWatched() })
+		// event_id 42 is now registered as ignored
+
+		// Own SSE echo arrives -> must suppress refetch but still update mirrored state.
+		emitSSE(hook, { event_type: "hide_watched_changed", event_id: 42, hide_watched: true })
+
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+		expect(hook.result.current.state.hideWatched).toBe(true)
 	})
 })

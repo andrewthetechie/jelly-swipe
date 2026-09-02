@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.clearAllMocks()
   fetchGenresMock.mockResolvedValue(["Action", "Comedy", "Drama"])
-  setGenreChoiceMock.mockResolvedValue([])
+  setGenreChoiceMock.mockResolvedValue({ deck: [], mutationEventId: 1, mutationType: "genre_changed" })
 })
 
 function renderGenreModal() {

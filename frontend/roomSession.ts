@@ -1,8 +1,6 @@
 import type {
     CardDeck,
     CardItem,
-    GenreChangedEvent,
-    HideWatchedChangedEvent,
     MatchItem
 } from "./types"
 
@@ -14,12 +12,11 @@ export interface RoomSessionState {
     roomReady: boolean
     genre: string
     hideWatched: boolean
-    pendingDeckRefresh: "genre" | "hide_watched" | null
     lastError: string | null
 }
 
 export const EMPTY_MATCH_ITEM: MatchItem = {
-    title: null, posterUrl: null, mediaId: null, mediaType: null, 
+    title: null, posterUrl: null, mediaId: null, mediaType: null,
     deepLink: null, rating: null, duration: null, year: null
 }
 
@@ -31,11 +28,10 @@ export const initialRoomSessionState: RoomSessionState = {
     roomReady: false,
     genre: "All",
     hideWatched: false,
-    pendingDeckRefresh: null,
     lastError: null
 }
 
-export type RoomSessionAction = 
+export type RoomSessionAction =
     | { type: "DECK_LOADED"; deck: CardDeck }
     | { type: "SWIPE_SUCCEEDED"; card: CardItem }
     | { type: "UNDO_SUCCEEDED"; card: CardItem}
@@ -52,18 +48,6 @@ export type RoomSessionAction =
     | { type: "COMMAND_FAILED"; message: string }
     | { type: "SESSION_ENDED" }
 
-
-export function shouldRefreshDeck(
-    state: RoomSessionState,
-    event: GenreChangedEvent | HideWatchedChangedEvent
-): boolean {
-    if (event.event_type === "genre_changed") {
-        if (state.pendingDeckRefresh === "genre") return false
-        return event.genre != null && event.genre !== state.genre
-    }
-    if (state.pendingDeckRefresh === "hide_watched") return false
-    return event.hide_watched != null && event.hide_watched !== state.hideWatched
-}
 
 export function roomSessionReducer(
     state: RoomSessionState,
@@ -93,7 +77,6 @@ export function roomSessionReducer(
                 ...state,
                 cardDeck: action.deck,
                 swipeHistory: [],
-                pendingDeckRefresh: "genre",
                 lastError: null
             }
         case "HIDE_WATCHED_COMMAND_SUCCEEDED":
@@ -102,7 +85,6 @@ export function roomSessionReducer(
                 cardDeck: action.deck,
                 swipeHistory: [],
                 hideWatched: action.hideWatched,
-                pendingDeckRefresh: "hide_watched",
                 lastError: null
             }
         case "MATCH_FOUND":
@@ -116,19 +98,9 @@ export function roomSessionReducer(
         case "SSE_SESSION_CLOSED":
             return { ...state, roomReady: false }
         case "SSE_GENRE_CHANGED":
-            return {
-                ...state,
-                genre: action.genre ?? state.genre,
-                pendingDeckRefresh:
-                    state.pendingDeckRefresh === "genre" ? null : state.pendingDeckRefresh
-            }
+            return { ...state, genre: action.genre ?? state.genre }
         case "SSE_HIDE_WATCHED_CHANGED":
-            return {
-                ...state,
-                hideWatched: action.hideWatched ?? state.hideWatched,
-                pendingDeckRefresh:
-                    state.pendingDeckRefresh === "hide_watched" ? null : state.pendingDeckRefresh
-            }
+            return { ...state, hideWatched: action.hideWatched ?? state.hideWatched }
         case "COMMAND_FAILED":
             return { ...state, lastError: action.message }
         case "SESSION_ENDED":
@@ -140,7 +112,7 @@ export function roomSessionReducer(
                 swipeHistory: [],
                 matchFound: false,
                 matchItem: EMPTY_MATCH_ITEM,
-                pendingDeckRefresh: null
+                lastError: null
             }
         default: {
             const _exhaustive: never = action

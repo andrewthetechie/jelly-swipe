@@ -614,6 +614,35 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
         app.dependency_overrides.pop(get_provider, None)
 
 
+def test_set_genre_returns_mutation_envelope(client, app):                                                                                                                                                                               
+    """POST /room/{code}/genre returns deck + mutation_event_id + mutation_type."""                                                                                                                                                      
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)                                                                                                                                                               
+    create_resp = client.post("/room")                                                                                                                                                                                                   
+    assert create_resp.status_code == 200                                                                                                                                                                                                
+    code = create_resp.json()["pairing_code"]                                                                                                                                                                                            
+                                                                                                                                                                                                                                        
+    response = client.post(f"/room/{code}/genre", json={"genre": "Action"})                                                                                                                                                              
+                                                                                                                                                                                                                                        
+    assert response.status_code == 200                                                                                                                                                                                                   
+    body = response.json()                                                                                                                                                                                                               
+    assert isinstance(body["deck"], list)                                                                                                                                                                                                
+    assert isinstance(body["mutation_event_id"], int)                                                                                                                                                                                    
+    assert body["mutation_type"] == "genre_changed"                                                                                                                                                                                      
+                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                            
+def test_set_genre_mutation_event_ids_increase(client, app):                                                                                                                                                                             
+    """Each successful mutation returns a strictly increasing event_id."""                                                                                                                                                               
+    _set_session(client, os.environ["SESSION_SECRET"], authenticated=True)                                                                                                                                                               
+    create_resp = client.post("/room")                                                                                                                                                                                                   
+    assert create_resp.status_code == 200                                                                                                                                                                                                
+    code = create_resp.json()["pairing_code"]                                                                                                                                                                                            
+                                                                                                                                                                                                                                        
+    first = client.post(f"/room/{code}/genre", json={"genre": "Action"}).json()                                                                                                                                                          
+    second = client.post(f"/room/{code}/genre", json={"genre": "Comedy"}).json()                                                                                                                                                         
+                                                                                                                                                                                                                                        
+    assert second["mutation_event_id"] > first["mutation_event_id"]  
+
+
 def test_set_watched_filter_returns_new_deck_on_success(client, app):
     """POST /room/{code}/watched-filter returns new deck on success."""
     # Seed a room and set up auth
@@ -630,7 +659,10 @@ def test_set_watched_filter_returns_new_deck_on_success(client, app):
     response = client.post("/room/TEST1/watched-filter", json={"hide_watched": True})
 
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    body = response.json()
+    assert isinstance(body["deck"], list)
+    assert isinstance(body["mutation_event_id"], int)
+    assert body["mutation_type"] == "hide_watched_changed"
 
 
 def test_set_watched_filter_missing_hide_watched_returns_422(client, app):

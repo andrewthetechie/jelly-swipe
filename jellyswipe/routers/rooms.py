@@ -37,6 +37,7 @@ from jellyswipe.schemas.rooms import (
     DeleteMatchResponse,
     JoinRoomResponse,
     MatchListResponse,
+    MutationChangeResponse,
     QuitRoomResponse,
     RoomStatusResponse,
     SetGenreRequest,
@@ -347,7 +348,7 @@ async def get_deck(
 @rooms_router.post(
     "/room/{code}/genre",
     tags=["Swiping"],
-    response_model=list[CardItem],
+    response_model=MutationChangeResponse,
     responses={
         200: {"description": "Genre updated; new deck returned"},
         400: {
@@ -372,11 +373,13 @@ async def set_genre(
     genre yields an empty deck, returns 400 with a descriptive error.
     """
     try:
-        new_list = await room_lifecycle_service.set_genre(
-            code, body.genre, provider, uow
-        )
+        result = await room_lifecycle_service.set_genre(code, body.genre, provider, uow)
         uow.wake_on_commit(code)
-        return new_list
+        return MutationChangeResponse(
+            deck=result.deck,
+            mutation_event_id=result.event_id,
+            mutation_type="genre_changed",
+        )
     except EmptyDeckError as e:
         _logger.warning(f"EmptyDeckError for room {code}: {e}")
         return XSSSafeJSONResponse(
@@ -387,7 +390,7 @@ async def set_genre(
 @rooms_router.post(
     "/room/{code}/watched-filter",
     tags=["Swiping"],
-    response_model=list[CardItem],
+    response_model=MutationChangeResponse,
     responses={
         200: {"description": "Watched filter updated; new deck returned"},
         422: {"model": ErrorResponse, "description": "No unwatched items available"},
@@ -414,7 +417,11 @@ async def set_watched_filter_route(
             code, body.hide_watched, provider, uow
         )
         uow.wake_on_commit(code)
-        return result
+        return MutationChangeResponse(
+            deck=result.deck,
+            mutation_event_id=result.event_id,
+            mutation_type="hide_watched_changed",
+        )
     except EmptyDeckError as exc:
         _logger.warning(f"EmptyDeckError for room {code} (watched filter): {exc}")
         return XSSSafeJSONResponse(

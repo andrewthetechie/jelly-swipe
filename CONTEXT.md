@@ -66,6 +66,22 @@ A participant's integer position into the Deck. Advanced by one on each accepted
 
 ---
 
+## Events & Mutation Echo
+
+### Event identity
+
+The monotonic `event_id` that uniquely identifies a single room event in the session ledger. It distinguishes one emitted event from another even when two events share the same `event_type` (the kind of event, such as `genre_changed`). The client correlates against the identity, never the type alone.
+
+### Mutation echo
+
+An SSE event a client receives that was caused by *its own* mutation (a genre or watched-filter change this client just issued). A client must tell a mutation echo apart from a **remote mutation** — an event caused by another participant — so that only remote mutations trigger a deck refetch. The client marks a mutation as locally originated via an in-flight flag while its POST is pending and by the returned `mutation_event_id` once it completes.
+
+### Remote mutation
+
+An SSE event caused by another participant's mutation. Only remote mutations (and never a client's own mutation echo) trigger a deck refetch; both update the mirrored `genre` / `hide_watched` room state.
+
+---
+
 ## Transaction & Notify
 
 ### Request boundary

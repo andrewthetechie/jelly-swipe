@@ -23,6 +23,12 @@ export interface MatchItem {
 
 export type CardDeck = CardItem[]
 
+export interface MutationChangeResult {
+    deck: CardDeck
+    mutationEventId: number
+    mutationType: "genre_changed" | "hide_watched_changed"
+}
+
 export interface CastMember {
     name: string
     character: string

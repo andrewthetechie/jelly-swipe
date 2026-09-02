@@ -4,11 +4,7 @@ import React from "react"
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import * as roomApi from "./roomApi"
-import {
-    initialRoomSessionState,
-    roomSessionReducer,
-    shouldRefreshDeck
-} from "./roomSession"
+import { initialRoomSessionState, roomSessionReducer } from "./roomSession"
 import { toMatchItem } from "./mediaAdapter"
 import type { RoomSessionState } from "./roomSession"
 import type { CardItem } from "./types"
@@ -34,16 +30,65 @@ export function useRoomSession(): RoomSessionContextType {
     return context
 }
 
+const MAX_REGISTERED_EVENT_IDS = 50
+
 export function RoomSessionProvider({ children }: { children: React.ReactNode }) {
     const { currentRoomCode } = useRoomStateContext()
     const { setCurrentRoomCode } = useRoomSetterContext()
     const { sseData, sseError } = useSSEContext()
     const [state, dispatch] = React.useReducer(roomSessionReducer, initialRoomSessionState)
     const stateRef = React.useRef(state)
-    
+
+    // A mutation type whose POST is currently in flight (sent, not yet resolved).
+    const inFlightRef = React.useRef<Set<"genre" | "hide_watched">>(new Set())
+    // Event IDs of THIS client's own completed mutations, so their SSE echoes
+    // can be recognized and their deck refetch suppressed deterministically.
+    const ignoredEventIdsRef = React.useRef<Set<number>>(new Set())
+
     React.useEffect(() => {
         stateRef.current = state
     }, [state])
+
+    // Clear transient suppression state when leaving a room.
+    React.useEffect(() => {
+        if (!currentRoomCode) {
+            inFlightRef.current.clear()
+            ignoredEventIdsRef.current.clear()
+        }
+    }, [currentRoomCode])
+
+    function registerIgnoredEventId(eventId: number): void {
+        const ids = ignoredEventIdsRef.current
+        ids.add(eventId)
+        if (ids.size > MAX_REGISTERED_EVENT_IDS) {
+            const oldest = ids.values().next().value
+            if (oldest !== undefined) {
+                ids.delete(oldest)
+            }
+        }
+    }
+
+    function consumeIgnoredEventId(eventId: number): void {
+        ignoredEventIdsRef.current.delete(eventId)
+    }
+
+    function handleSettingsChangedEvent(
+        mutationType: "genre" | "hide_watched",
+        eventId: number,
+        dispatchMirroredState: () => void,
+    ): void {
+        const isLocalEcho =
+            inFlightRef.current.has(mutationType) ||
+            ignoredEventIdsRef.current.has(eventId)
+        if (isLocalEcho) {
+            consumeIgnoredEventId(eventId)
+        } else if (currentRoomCode) {
+            roomApi.fetchDeck(currentRoomCode)
+                .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
+                .catch((err) => console.error("Error fetching card deck:", err))
+        }
+        dispatchMirroredState()
+    }
 
     // Deck fetch on room join
     React.useEffect(() => {
@@ -69,32 +114,27 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             case "match_found":
                 dispatch({ type: "MATCH_FOUND", matchItem: toMatchItem(sseData) })
                 break
-            case "genre_changed": {
-                if (shouldRefreshDeck(stateRef.current, sseData) && currentRoomCode) {
-                    roomApi.fetchDeck(currentRoomCode)
-                        .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
-                        .catch((err) => console.error("Error fetching card deck:", err))
-                }
-                dispatch({ type: "SSE_GENRE_CHANGED", genre: sseData.genre })
+            case "genre_changed":
+                handleSettingsChangedEvent("genre", sseData.event_id, () =>
+                    dispatch({ type: "SSE_GENRE_CHANGED", genre: sseData.genre })
+                )
                 break
-            }
-            case "hide_watched_changed": {
-                if (shouldRefreshDeck(stateRef.current, sseData) && currentRoomCode) {
-                    roomApi.fetchDeck(currentRoomCode)
-                        .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
-                        .catch((err) => console.error("Error fetching card deck:", err))
-                }
-                dispatch({ type: "SSE_HIDE_WATCHED_CHANGED", hideWatched: sseData.hide_watched })
+            case "hide_watched_changed":
+                handleSettingsChangedEvent("hide_watched", sseData.event_id, () =>
+                    dispatch({ type: "SSE_HIDE_WATCHED_CHANGED", hideWatched: sseData.hide_watched })
+                )
                 break
-            }
             case "session_ready":
                 dispatch({ type: "SSE_SESSION_READY" })
                 break
             case "session_closed":
+                inFlightRef.current.clear()
+                ignoredEventIdsRef.current.clear()
                 dispatch({ type: "SSE_SESSION_CLOSED" })
                 setCurrentRoomCode(null)
                 break
             case "session_reset":
+                inFlightRef.current.clear()
                 break
             default: {
                 const _exhaustive: never = sseData
@@ -143,12 +183,16 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             console.error("Cannot change genre without currentRoomCode")
             return
         }
+        inFlightRef.current.add("genre")
         try {
-            const deck = await roomApi.setGenreChoice(currentRoomCode, stateRef.current.genre)
-            dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck })
+            const result = await roomApi.setGenreChoice(currentRoomCode, stateRef.current.genre)
+            dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
+            if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error changing genre", err)
             dispatch({ type: "COMMAND_FAILED", message: String(err) })
+        } finally {
+            inFlightRef.current.delete("genre")
         }
     }, [currentRoomCode])
 
@@ -158,12 +202,16 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             return
         }
         const next = !stateRef.current.hideWatched
+        inFlightRef.current.add("hide_watched")
         try {
-            const deck = await roomApi.setWatchedFilter(currentRoomCode, next)
-            dispatch({ type: "HIDE_WATCHED_COMMAND_SUCCEEDED", deck, hideWatched: next })
+            const result = await roomApi.setWatchedFilter(currentRoomCode, next)
+            dispatch({ type: "HIDE_WATCHED_COMMAND_SUCCEEDED", deck: result.deck, hideWatched: next })
+            if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error toggling watched filter", err)
             dispatch({ type: "COMMAND_FAILED", message: String(err) })
+        } finally {
+            inFlightRef.current.delete("hide_watched")
         }
     }, [currentRoomCode])
 
