@@ -23,6 +23,7 @@ __all__ = [
     "CreateRoomResult",
     "DeckProvider",
     "EmptyDeckError",
+    "MutationResult",
     "QuitRoomResult",
     "RoomLifecycleService",
     "UniqueRoomCodeExhaustedError",
@@ -38,6 +39,14 @@ class CreateRoomResult:
 @dataclass(frozen=True)
 class QuitRoomResult:
     status: str
+
+
+@dataclass(frozen=True)
+class MutationResult:
+    """Deck plus the event_id of the mutation event that was appended."""
+
+    deck: list[dict[str, Any]]
+    event_id: int
 
 
 logger = logging.getLogger(__name__)
@@ -201,7 +210,7 @@ class RoomLifecycleService:
         genre: str,
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
-    ) -> list[dict[str, Any]]:
+    ) -> MutationResult:
         """Set genre filter and rebuild deck."""
         room = await uow.rooms.get_room(code)
         if room is None:
@@ -222,13 +231,14 @@ class RoomLifecycleService:
             hide_watched=room.hide_watched,
             persist=True,
         )
-        # Append genre_changed event on success
+        # Append genre_changed event on success and return its event_id
         instance = await uow.session_instances.get_by_pairing_code(code)
+        event_id = 0
         if instance:
-            await uow.session_events.append(
+            event_id = await uow.session_events.append(
                 instance.instance_id, "genre_changed", json.dumps({"genre": genre})
             )
-        return new_deck
+        return MutationResult(deck=new_deck, event_id=event_id)
 
     async def set_watched_filter(
         self,
@@ -236,7 +246,7 @@ class RoomLifecycleService:
         hide_watched: bool,
         provider: DeckProvider,
         uow: DatabaseUnitOfWork,
-    ) -> list[dict[str, Any]]:
+    ) -> MutationResult:
         """Set watched filter and rebuild deck."""
         room = await uow.rooms.get_room(code)
         if room is None:
@@ -259,13 +269,14 @@ class RoomLifecycleService:
         )
         # Append hide_watched_changed event on success
         instance = await uow.session_instances.get_by_pairing_code(code)
+        event_id = 0
         if instance:
-            await uow.session_events.append(
+            event_id = await uow.session_events.append(
                 instance.instance_id,
                 "hide_watched_changed",
                 json.dumps({"hide_watched": hide_watched}),
             )
-        return new_deck
+        return MutationResult(deck=new_deck, event_id=event_id)
 
     async def get_status(self, code: str, uow: DatabaseUnitOfWork) -> dict[str, Any]:
         snapshot = await uow.rooms.fetch_status(code)

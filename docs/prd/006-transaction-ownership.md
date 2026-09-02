@@ -54,6 +54,7 @@ No auto-commit. Rollback-on-error preserved. Warning on uncommitted writes.
 ```python
 # jellyswipe/routers/_helpers.py
 
+
 async def commit_and_wake(uow: DatabaseUnitOfWork, code: str) -> None:
     await uow.session.commit()
     notifier.notify(code)

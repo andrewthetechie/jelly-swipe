@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, StrictBool, model_validator
 
-from jellyswipe.schemas.common import MatchItem
+from jellyswipe.schemas.common import CardItem, MatchItem
 
 
 class CreateRoomRequest(BaseModel):
@@ -110,3 +110,19 @@ class MatchListResponse(BaseModel):
     """Response from GET /matches."""
 
     matches: list[MatchItem] = Field(..., description="List of matched items")
+
+
+class MutationChangeResponse(BaseModel):
+    """Response from POST /room/{code}/genre and /watched-filter.
+
+    Returns the freshly rebuilt deck plus the identity of the settings-change
+    event that was just appended, so clients can correlate their own SSE echo.
+    """
+
+    deck: list[CardItem] = Field(..., description="The rebuilt card deck")
+    mutation_event_id: int = Field(
+        ..., description="Event ID of the appended mutation event"
+    )
+    mutation_type: str = Field(
+        ..., description="Event type of the mutation, e.g. genre_changed"
+    )
