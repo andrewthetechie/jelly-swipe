@@ -87,9 +87,7 @@ export async function undoSwipe(roomCode: string, mediaId: string): Promise<void
 
 // --- Room settings (POST returns the fresh deck) ---
 
-export async function setGenreChoice(roomCode: string, genre: string): Promise<MutationChangeResult> {
-    const res = await postJson(`/room/${roomCode}/genre`, { genre })
-    await ensureOk(res, "POSTing new genre")
+async function parseMutationResponse(res: Response): Promise<MutationChangeResult> {
     const raw: {
         deck: CardItemDto[]
         mutation_event_id: number
@@ -98,8 +96,14 @@ export async function setGenreChoice(roomCode: string, genre: string): Promise<M
     return {
         deck: raw.deck.map(toCardItem),
         mutationEventId: raw.mutation_event_id,
-        mutationType: raw.mutation_type as MutationChangeResult["mutationType"]
+        mutationType: raw.mutation_type as MutationChangeResult["mutationType"],
     }
+}
+
+export async function setGenreChoice(roomCode: string, genre: string): Promise<MutationChangeResult> {
+    const res = await postJson(`/room/${roomCode}/genre`, { genre })
+    await ensureOk(res, "POSTing new genre")
+    return parseMutationResponse(res)
 }
 
 export async function setWatchedFilter(
@@ -110,16 +114,7 @@ export async function setWatchedFilter(
         hide_watched: hideWatched,
     })
     await ensureOk(res, "toggling watched filter")
-    const raw: {
-        deck: CardItemDto[]
-        mutation_event_id: number
-        mutation_type: string
-    } = await res.json()
-    return {
-        deck: raw.deck.map(toCardItem),
-        mutationEventId: raw.mutation_event_id,
-        mutationType: raw.mutation_type as MutationChangeResult["mutationType"]
-    }
+    return parseMutationResponse(res)
 }
 
 // --- Library metadata ---
