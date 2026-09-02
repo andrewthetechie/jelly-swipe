@@ -207,16 +207,23 @@ describe("undoSwipe", () => {
 // ---------------------------------------------------------------------------
 
 describe("setGenreChoice", () => {
-    it("POSTs to /room/:code/genre with genre", async () => {
-        const deck = [{ media_id: "x", title: "X" }]
-        const spy = vi
-            .spyOn(api, "postJson")
-            .mockResolvedValue(okResponse(deck))
+    it("POSTs to /room/:code/genre with genre and returns the deck + mutation identity", async () => {
+        const spy = vi.spyOn(api, "postJson").mockResolvedValue(
+            okResponse({
+                deck: [{ media_id: "x", title: "X" }],
+                mutation_event_id: 7,
+                mutation_type: "genre_changed",
+            })
+        )
 
         const result = await setGenreChoice("ABCD", "Horror")
 
         expect(spy).toHaveBeenCalledWith("/room/ABCD/genre", { genre: "Horror" })
-        expect(result).toMatchObject([{ mediaId: "x", title: "X" }])
+        expect(result).toMatchObject({
+            deck: [{ mediaId: "x", title: "X" }],
+            mutationEventId: 7,
+            mutationType: "genre_changed",
+        })
     })
 
     it("rejects with RoomApiError on !res.ok", async () => {
@@ -233,16 +240,23 @@ describe("setGenreChoice", () => {
 // ---------------------------------------------------------------------------
 
 describe("setWatchedFilter", () => {
-    it("POSTs to /room/:code/watched-filter with hide_watched", async () => {
-        const deck = [{ media_id: "y", title: "Y" }]
-        const spy = vi
-            .spyOn(api, "postJson")
-            .mockResolvedValue(okResponse(deck))
+    it("POSTs to /room/:code/watched-filter with hide_watched and returns the deck + mutation identity", async () => {
+        const spy = vi.spyOn(api, "postJson").mockResolvedValue(
+            okResponse({
+                deck: [{ media_id: "y", title: "Y" }],
+                mutation_event_id: 8,
+                mutation_type: "hide_watched_changed",
+            })
+        )
 
         const result = await setWatchedFilter("ABCD", true)
 
         expect(spy).toHaveBeenCalledWith("/room/ABCD/watched-filter", { hide_watched: true })
-        expect(result).toMatchObject([{ mediaId: "y", title: "Y" }])
+        expect(result).toMatchObject({
+            deck: [{ mediaId: "y", title: "Y" }],
+            mutationEventId: 8,
+            mutationType: "hide_watched_changed",
+        })
     })
 
     it("rejects with RoomApiError on !res.ok", async () => {

@@ -142,11 +142,9 @@ except PackageNotFoundError:
 
 health_router = APIRouter()
 
-
 @health_router.get("/healthz")
 async def healthz() -> dict:
     return {"status": "ok", "version": __version__}
-
 
 @health_router.get("/readyz")
 async def readyz(response: Response) -> dict:

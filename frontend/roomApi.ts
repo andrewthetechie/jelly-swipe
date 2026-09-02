@@ -6,6 +6,7 @@ import type {
     CastResponse,
     GenreListResponse,
     MatchItem,
+    MutationChangeResult,
 } from "./types"
 
 export class RoomApiError extends Error {
@@ -86,23 +87,39 @@ export async function undoSwipe(roomCode: string, mediaId: string): Promise<void
 
 // --- Room settings (POST returns the fresh deck) ---
 
-export async function setGenreChoice(roomCode: string, genre: string): Promise<CardDeck> {
+export async function setGenreChoice(roomCode: string, genre: string): Promise<MutationChangeResult> {
     const res = await postJson(`/room/${roomCode}/genre`, { genre })
     await ensureOk(res, "POSTing new genre")
-    const raw: CardItemDto[] = await res.json()
-    return raw.map(toCardItem)
+    const raw: {
+        deck: CardItemDto[]
+        mutation_event_id: number
+        mutation_type: string
+    } = await res.json()
+    return {
+        deck: raw.deck.map(toCardItem),
+        mutationEventId: raw.mutation_event_id,
+        mutationType: raw.mutation_type as MutationChangeResult["mutationType"]
+    }
 }
 
 export async function setWatchedFilter(
     roomCode: string,
     hideWatched: boolean,
-): Promise<CardDeck> {
+): Promise<MutationChangeResult> {
     const res = await postJson(`/room/${roomCode}/watched-filter`, {
         hide_watched: hideWatched,
     })
-    await ensureOk(res, "toggling wtached filter")
-    const raw: CardItemDto[] = await res.json()
-    return raw.map(toCardItem)
+    await ensureOk(res, "toggling watched filter")
+    const raw: {
+        deck: CardItemDto[]
+        mutation_event_id: number
+        mutation_type: string
+    } = await res.json()
+    return {
+        deck: raw.deck.map(toCardItem),
+        mutationEventId: raw.mutation_event_id,
+        mutationType: raw.mutation_type as MutationChangeResult["mutationType"]
+    }
 }
 
 // --- Library metadata ---

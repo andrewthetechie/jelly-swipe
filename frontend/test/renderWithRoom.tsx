@@ -24,7 +24,6 @@ type RoomSessionTestOverrides = {
   roomReady?: boolean;
   genre?: string;
   hideWatched?: boolean;
-  pendingDeckRefresh?: "genre" | "hide_watched" | null;
   lastError?: string | null;
 }
 
@@ -149,7 +148,6 @@ function RoomSessionTestProvider({
     roomReady: overrides.roomReady ?? false,
     genre: overrides.genre ?? "All",
     hideWatched: overrides.hideWatched ?? false,
-    pendingDeckRefresh: overrides.pendingDeckRefresh ?? null,
     lastError: overrides.lastError ?? null,
   })
 
@@ -222,12 +220,11 @@ function RoomSessionTestProvider({
       return
     }
     try {
-      const deck = await roomApi.setGenreChoice(currentRoomCode, state.genre)
+      const result = await roomApi.setGenreChoice(currentRoomCode, state.genre)
       setState((prev) => ({
         ...prev,
-        cardDeck: deck,
+        cardDeck: result.deck,
         swipeHistory: [],
-        pendingDeckRefresh: "genre",
         lastError: null,
       }))
     } catch (err) {
@@ -243,13 +240,12 @@ function RoomSessionTestProvider({
     }
     const next = !state.hideWatched
     try {
-      const deck = await roomApi.setWatchedFilter(currentRoomCode, next)
+      const result = await roomApi.setWatchedFilter(currentRoomCode, next)
       setState((prev) => ({
         ...prev,
-        cardDeck: deck,
+        cardDeck: result.deck,
         swipeHistory: [],
         hideWatched: next,
-        pendingDeckRefresh: "hide_watched",
         lastError: null,
       }))
     } catch (err) {
@@ -277,7 +273,6 @@ function RoomSessionTestProvider({
         swipeHistory: [],
         matchFound: false,
         matchItem: EMPTY_MATCH_ITEM,
-        pendingDeckRefresh: null,
       }))
       setCurrentRoomCode(null)
     } catch (err) {
