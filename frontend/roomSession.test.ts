@@ -236,9 +236,9 @@ describe("RoomSessionProvider commands", () => {
 		const refreshedDeck = [makeCard({ mediaId: "m-3", title: "Movie m-3" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
 		vi.mocked(roomApi.postSwipe).mockResolvedValue()
-		vi.mocked(roomApi.setGenreChoice).mockResolvedValue({ 
-			deck: refreshedDeck, 
-			mutationEventId: 5, 
+		vi.mocked(roomApi.setGenreChoice).mockResolvedValue({
+			deck: refreshedDeck,
+			mutationEventId: 5,
 			mutationType: "genre_changed"
 		})
 
@@ -266,8 +266,8 @@ describe("RoomSessionProvider commands", () => {
 		const initialDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue(initialDeck)
 		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue({
-			deck: initialDeck, 
-			mutationEventId: 6, 
+			deck: initialDeck,
+			mutationEventId: 6,
 			mutationType: "hide_watched_changed"
 		})
 
@@ -350,70 +350,118 @@ describe("SSE suppression (event id correlation)", () => {
 		expect(hook.result.current.state.genre).toBe("Comedy")
 	})
 
-	it("refetches deck on a remote genre echo (unrelated event id, nothing in flight)", async () => {                                                        
-		const genreDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]                                                                                 
-		vi.mocked(roomApi.fetchDeck).mockResolvedValue(genreDeck)                                                                                            
-																																							
-		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })                                                                          
-		await waitForDeckLoad(hook, 1)                                                                                                                       
-		vi.mocked(roomApi.fetchDeck).mockClear()                                                                                                             
-																																							
-		emitSSE(hook, { event_type: "genre_changed", event_id: 99, genre: "Comedy" })                                                                        
-																																							
-		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))                                                                       
-		expect(hook.result.current.state.genre).toBe("Comedy")                                                                                               
-	})                                                                                                                                                       
-																																							
-	it("suppresses own echo arriving before the POST resolves, then still honors a later remote change", async () => {                                       
-		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]                                                                                     
-		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)                                                                                                
-																																							
-		let release: (r: MutationChangeResult) => void                                                                                                       
-		const genrePromise = new Promise<MutationChangeResult>((res) => { release = res })                                                                   
-		vi.mocked(roomApi.setGenreChoice).mockImplementation(() => genrePromise)                                                                             
-																																							
-		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })                                                                          
-		await waitForDeckLoad(hook, 1)                                                                                                                       
-		vi.mocked(roomApi.fetchDeck).mockClear()                                                                                                             
-																																							
-		act(() => { hook.result.current.selectGenre("Comedy") })                                                                                             
-																																							
-		let confirmPromise: Promise<void>                                                                                                                    
-		act(() => { confirmPromise = hook.result.current.confirmGenre() })                                                                                   
-																																							
-		// Own echo arrives while the POST is still in flight -> suppressed, no refetch.                                                                     
-		emitSSE(hook, { event_type: "genre_changed", event_id: 50, genre: "Comedy" })                                                                        
-		expect(roomApi.fetchDeck).not.toHaveBeenCalled()                                                                                                     
-																																							
-		// POST resolves.                                                                                                                                    
-		await act(async () => {                                                                                                                              
-			release!({ deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })], mutationEventId: 60, mutationType: "genre_changed" })                       
-			await confirmPromise!                                                                                                                            
-		})                                                                                                                                                   
-																																							
-		vi.mocked(roomApi.fetchDeck).mockClear()                                                                                                             
-																																							
-		// A later remote change must refetch (no stuck suppression).                                                                                        
-		emitSSE(hook, { event_type: "genre_changed", event_id: 200, genre: "Drama" })                                                                        
-		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))                                                                       
-	})                                                                                                                                                       
-																																							
-	it("does not leave stale suppression after a failed mutation", async () => {                                                                             
-		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]                                                                                     
-		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)                                                                                                
-		vi.mocked(roomApi.setWatchedFilter).mockRejectedValue(new Error("boom"))                                                                             
-		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)                                                                      
-																																							
-		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })                                                                          
-		await waitForDeckLoad(hook, 1)                                                                                                                       
-		vi.mocked(roomApi.fetchDeck).mockClear()                                                                                                             
-																																							
-		await act(async () => { await hook.result.current.toggleHideWatched() })                                                                             
-		expect(hook.result.current.state.lastError).toContain("boom")                                                                                        
-																																							
-		// A remote hide_watched change must still refetch.                                                                                                  
-		emitSSE(hook, { event_type: "hide_watched_changed", event_id: 77, hide_watched: true })                                                              
-		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))                                                                       
-		expect(errorSpy).toHaveBeenCalled()                                                                                                                  
-	})              
+	it("refetches deck on a remote genre echo (unrelated event id, nothing in flight)", async () => {
+		const genreDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(genreDeck)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		emitSSE(hook, { event_type: "genre_changed", event_id: 99, genre: "Comedy" })
+
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+		expect(hook.result.current.state.genre).toBe("Comedy")
+	})
+
+	it("suppresses own echo arriving before the POST resolves, then still honors a later remote change", async () => {
+		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)
+
+		let release: (r: MutationChangeResult) => void
+		const genrePromise = new Promise<MutationChangeResult>((res) => { release = res })
+		vi.mocked(roomApi.setGenreChoice).mockImplementation(() => genrePromise)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		act(() => { hook.result.current.selectGenre("Comedy") })
+
+		let confirmPromise: Promise<void>
+		act(() => { confirmPromise = hook.result.current.confirmGenre() })
+
+		// Own echo arrives while the POST is still in flight -> suppressed, no refetch.
+		emitSSE(hook, { event_type: "genre_changed", event_id: 50, genre: "Comedy" })
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+
+		// POST resolves.
+		await act(async () => {
+			release!({ deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })], mutationEventId: 60, mutationType: "genre_changed" })
+			await confirmPromise!
+		})
+
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		// A later remote change must refetch (no stuck suppression).
+		emitSSE(hook, { event_type: "genre_changed", event_id: 200, genre: "Drama" })
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+	})
+
+	it("does not leave stale suppression after a failed mutation", async () => {
+		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)
+		vi.mocked(roomApi.setWatchedFilter).mockRejectedValue(new Error("boom"))
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		await act(async () => { await hook.result.current.toggleHideWatched() })
+		expect(hook.result.current.state.lastError).toContain("boom")
+
+		// A remote hide_watched change must still refetch.
+		emitSSE(hook, { event_type: "hide_watched_changed", event_id: 77, hide_watched: true })
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+		expect(errorSpy).toHaveBeenCalled()
+	})
+
+	it("suppresses delayed echo after reconnect (session_reset) — ignoredEventIds retained", async () => {
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue([makeCard({ mediaId: "m-1", title: "Movie m-1" })])
+		vi.mocked(roomApi.setGenreChoice).mockResolvedValue({
+			deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+			mutationEventId: 41,
+			mutationType: "genre_changed",
+		})
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		act(() => { hook.result.current.selectGenre("Comedy") })
+		await act(async () => { await hook.result.current.confirmGenre() })
+		// event_id 41 is now in ignoredEventIds
+
+		// Reconnect clears inFlight but must NOT clear ignoredEventIds.
+		emitSSE(hook, { event_type: "session_reset" })
+
+		// Delayed own echo arrives after reconnect with the same id -> still suppressed.
+		emitSSE(hook, { event_type: "genre_changed", event_id: 41, genre: "Comedy" })
+
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+		expect(hook.result.current.state.genre).toBe("Comedy")
+	})
+
+	it("suppresses own hide_watched echo and still updates mirrored hideWatched state", async () => {
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue([makeCard({ mediaId: "m-1", title: "Movie m-1" })])
+		vi.mocked(roomApi.setWatchedFilter).mockResolvedValue({
+			deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+			mutationEventId: 42,
+			mutationType: "hide_watched_changed",
+		})
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+
+		await act(async () => { await hook.result.current.toggleHideWatched() })
+		// event_id 42 is now registered as ignored
+
+		// Own SSE echo arrives -> must suppress refetch but still update mirrored state.
+		emitSSE(hook, { event_type: "hide_watched_changed", event_id: 42, hide_watched: true })
+
+		expect(roomApi.fetchDeck).not.toHaveBeenCalled()
+		expect(hook.result.current.state.hideWatched).toBe(true)
+	})
 })
