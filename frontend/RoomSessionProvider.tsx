@@ -38,7 +38,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
     const { sseData, sseError } = useSSEContext()
     const [state, dispatch] = React.useReducer(roomSessionReducer, initialRoomSessionState)
     const stateRef = React.useRef(state)
-    
+
     // A mutation type whose POST is currently in flight (sent, not yet resolved).
     const inFlightRef = React.useRef<Set<"genre" | "hide_watched">>(new Set())
     // Event IDs of THIS client's own completed mutations, so their SSE echoes
@@ -55,8 +55,8 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             inFlightRef.current.clear()
             ignoredEventIdsRef.current.clear()
         }
-    }, [currentRoomCode])   
-    
+    }, [currentRoomCode])
+
     function registerIgnoredEventId(eventId: number): void {
         const ids = ignoredEventIdsRef.current
         ids.add(eventId)
@@ -97,7 +97,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
                 dispatch({ type: "MATCH_FOUND", matchItem: toMatchItem(sseData) })
                 break
             case "genre_changed": {
-                const isLocalEcho = 
+                const isLocalEcho =
                     inFlightRef.current.has("genre") ||
                     ignoredEventIdsRef.current.has(sseData.event_id)
                 if (isLocalEcho) {
@@ -111,7 +111,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
                 break
             }
             case "hide_watched_changed": {
-                const isLocalEcho = 
+                const isLocalEcho =
                     inFlightRef.current.has("hide_watched") ||
                     ignoredEventIdsRef.current.has(sseData.event_id)
                 if (isLocalEcho) {
@@ -186,11 +186,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         inFlightRef.current.add("genre")
         try {
             const result = await roomApi.setGenreChoice(currentRoomCode, stateRef.current.genre)
-            dispatch({ 
-                type: "GENRE_COMMAND_SUCCEEDED",
-                deck: result.deck,
-                mutationEventId: result.mutationEventId,
-            })
+            dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
             registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error changing genre", err)
@@ -209,12 +205,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         inFlightRef.current.add("hide_watched")
         try {
             const result = await roomApi.setWatchedFilter(currentRoomCode, next)
-            dispatch({ 
-                type: "HIDE_WATCHED_COMMAND_SUCCEEDED",
-                deck: result.deck,
-                hideWatched: next,
-                mutationEventId: result.mutationEventId,
-            })
+            dispatch({ type: "HIDE_WATCHED_COMMAND_SUCCEEDED", deck: result.deck, hideWatched: next })
             registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error toggling watched filter", err)

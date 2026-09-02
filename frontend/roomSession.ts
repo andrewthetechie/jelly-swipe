@@ -16,7 +16,7 @@ export interface RoomSessionState {
 }
 
 export const EMPTY_MATCH_ITEM: MatchItem = {
-    title: null, posterUrl: null, mediaId: null, mediaType: null, 
+    title: null, posterUrl: null, mediaId: null, mediaType: null,
     deepLink: null, rating: null, duration: null, year: null
 }
 
@@ -31,13 +31,13 @@ export const initialRoomSessionState: RoomSessionState = {
     lastError: null
 }
 
-export type RoomSessionAction = 
+export type RoomSessionAction =
     | { type: "DECK_LOADED"; deck: CardDeck }
     | { type: "SWIPE_SUCCEEDED"; card: CardItem }
     | { type: "UNDO_SUCCEEDED"; card: CardItem}
     | { type: "GENRE_SELECTED"; genre: string }
-    | { type: "GENRE_COMMAND_SUCCEEDED"; deck: CardDeck; mutationEventId: number }
-    | { type: "HIDE_WATCHED_COMMAND_SUCCEEDED"; deck: CardDeck; hideWatched: boolean; mutationEventId: number }
+    | { type: "GENRE_COMMAND_SUCCEEDED"; deck: CardDeck }
+    | { type: "HIDE_WATCHED_COMMAND_SUCCEEDED"; deck: CardDeck; hideWatched: boolean }
     | { type: "MATCH_FOUND"; matchItem: MatchItem }
     | { type: "MATCH_DISMISSED" }
     | { type: "SSE_SESSION_BOOTSTRAP"; ready: boolean }
