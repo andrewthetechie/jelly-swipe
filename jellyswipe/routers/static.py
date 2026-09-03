@@ -44,10 +44,19 @@ def _get_static_file_response(filename: str, request: Request) -> FileResponse:
     media_type = _PWA_ROOT_FILES.get(filename)
     if media_type is None:
         raise HTTPException(status_code=404, detail="Not Found")
-    path = os.path.join(frontend_dist, filename)
-    if not os.path.isfile(path):
+
+    # Containment check (CodeQL py/path-injection): resolve the joined path
+    # and ensure it stays inside frontend_dist before serving. The whitelist
+    # gate above limits filename to fixed constants, but this verifies the
+    # resolved path too so a future weakening cannot enable traversal or a
+    # symlink escape.
+    base = Path(frontend_dist).resolve()
+    resolved_path = (base / filename).resolve()
+    if not resolved_path.is_relative_to(base):
         raise HTTPException(status_code=404, detail="Not Found")
-    return FileResponse(path=path, media_type=media_type)
+    if not resolved_path.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(path=resolved_path, media_type=media_type)
 
 
 @static_router.get("/{filename}", include_in_schema=False)
