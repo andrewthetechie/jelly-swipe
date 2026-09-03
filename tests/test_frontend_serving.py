@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from jellyswipe.utils.frontend import find_frontend_dist_path
 
-
 # ---------------------------------------------------------------------------
 # Unit tests for find_frontend_dist_path
 # ---------------------------------------------------------------------------
@@ -65,8 +64,8 @@ def make_frontend_app(tmp_path, monkeypatch):
     Returns a callable taking a dist path (str) or None. Each call yields a
     TestClient whose app resolved dist presence exactly once in create_app().
     """
-    from jellyswipe import create_app
     import jellyswipe.dependencies as deps
+    from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
     from jellyswipe.rate_limiter import rate_limiter as _rl
     from tests.conftest import (
@@ -148,8 +147,8 @@ def test_index_and_assets_consistent_across_create_app(tmp_path, monkeypatch):
     dist.mkdir()
     _make_dist(dist)
 
-    from jellyswipe import create_app
     import jellyswipe.dependencies as deps
+    from jellyswipe import create_app
     from jellyswipe.dependencies import get_provider
     from jellyswipe.rate_limiter import rate_limiter as _rl
     from tests.conftest import (
@@ -192,3 +191,40 @@ def test_index_and_assets_consistent_across_create_app(tmp_path, monkeypatch):
         deps._provider_singleton = None
     finally:
         _dispose_test_runtime()
+
+
+def test_traversal_attempt_returns_404(make_frontend_app, tmp_path):
+    """Path traversal in the filename parameter must not reach the filesystem.
+
+    Guards CodeQL py/path-injection on the /{filename} route: the whitelist
+    gate rejects non-constant filenames, and the resolved-path containment
+    check backs it up.
+    """
+    dist = tmp_path / "fake_dist"
+    dist.mkdir()
+    _make_dist(dist)
+    (tmp_path / "secret.txt").write_text("should not be served")
+    app = make_frontend_app(str(dist))
+    with TestClient(app) as client:
+        assert client.get("/../secret.txt").status_code == 404
+        assert client.get("/%2E%2E%2Fsecret.txt").status_code == 404
+
+
+def test_symlink_escape_returns_404(make_frontend_app, tmp_path):
+    """A whitelisted filename that is a symlink escaping frontend_dist must 404.
+
+    The containment check (resolve + is_relative_to) rejects symlinks whose
+    target resolves outside the dist root, even when the link name passes the
+    whitelist.
+    """
+    dist = tmp_path / "fake_dist"
+    dist.mkdir()
+    _make_dist(dist)
+    target = tmp_path / "secret.txt"
+    target.write_text("should not be served")
+    (dist / "icon-192.png").symlink_to(target)
+    (dist / "sw.js").symlink_to(target)
+    app = make_frontend_app(str(dist))
+    with TestClient(app) as client:
+        assert client.get("/icon-192.png").status_code == 404
+        assert client.get("/sw.js").status_code == 404
