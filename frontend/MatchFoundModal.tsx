@@ -15,7 +15,7 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
         <div className="modal">
             <div className="modal-inner">
                 <img src={logo} className="match-logo" alt="Jelly-Swipe logo" />
-                <h2>It's a match!</h2>
+                <h2 className="match-headline">It's a match!</h2>
                 <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-poster" />
                 <h3 className="match-title">{title}</h3>
                 <div className="card-item-info match-info">

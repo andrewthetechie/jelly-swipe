@@ -23,14 +23,14 @@ function renderSwipePage() {
 }
 
 describe("HostWaiting - Room Code rendering", () => {
-    it("renders the correct room code", () => {
+    it("renders the room code as its own prominent element", () => {
         renderWithRoom(
             <HostWaiting endSession={vi.fn()}/>,
             { currentRoomCode: "1234" }
         )
-        expect(
-            screen.queryByText("Room Code: 1234")
-        ).toBeInTheDocument()
+        // Label and code are split so the code can be set in the display face.
+        expect(screen.getByText("Room Code")).toBeInTheDocument()
+        expect(screen.getByTestId("room-code")).toHaveTextContent("1234")
     })
 })
 
@@ -61,7 +61,7 @@ describe("HostWaiting — end session (3-part network contract)", () => {
     await waitFor(() => expect(spy).toHaveBeenCalled())
     expect(getRoomState()).toMatchObject({ currentRoomCode: "1234" })
 
-    errSpy.mockRestore()    
+    errSpy.mockRestore()
   })
 
   it("leaves the room code untouched and does not throw when the request fails", async () => {
