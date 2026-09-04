@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { renderHook, waitFor } from "@testing-library/react"
+import { renderHook, waitFor, act } from "@testing-library/react"
 import useMovieCast from "./useMovieCast"
 import { makeCast } from "./test/fixtures"
 import * as roomApi from "./roomApi"
@@ -130,8 +130,8 @@ describe("useMovieCast", () => {
 
       expect(result.current.error).toBe("Error fetching cast")
 
-      rerender({ mediaId: "media2" })
-
+      act(() => rerender({ mediaId: "media2" }))
+      
       await waitFor(() => {
         expect(result.current.error).toBeNull()
       })
