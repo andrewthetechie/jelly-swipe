@@ -72,24 +72,6 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         ignoredEventIdsRef.current.delete(eventId)
     }
 
-    function handleSettingsChangedEvent(
-        mutationType: "genre" | "hide_watched",
-        eventId: number,
-        dispatchMirroredState: () => void,
-    ): void {
-        const isLocalEcho =
-            inFlightRef.current.has(mutationType) ||
-            ignoredEventIdsRef.current.has(eventId)
-        if (isLocalEcho) {
-            consumeIgnoredEventId(eventId)
-        } else if (currentRoomCode) {
-            roomApi.fetchDeck(currentRoomCode)
-                .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
-                .catch((err) => console.error("Error fetching card deck:", err))
-        }
-        dispatchMirroredState()
-    }
-
     // Deck fetch on room join
     React.useEffect(() => {
         if (!currentRoomCode) {
@@ -107,6 +89,25 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (sseError) console.error("SSE error:", sseError)
             return
         }
+
+        function handleSettingsChangedEvent(
+            mutationType: "genre" | "hide_watched",
+            eventId: number,
+            dispatchMirroredState: () => void,
+        ): void {
+            const isLocalEcho =
+                inFlightRef.current.has(mutationType) ||
+                ignoredEventIdsRef.current.has(eventId)
+            if (isLocalEcho) {
+                consumeIgnoredEventId(eventId)
+            } else if (currentRoomCode) {
+                roomApi.fetchDeck(currentRoomCode)
+                    .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
+                    .catch((err) => console.error("Error fetching card deck:", err))
+            }
+            dispatchMirroredState()
+        }
+        
         switch (sseData.event_type) {
             case "session_bootstrap":
                 dispatch({ type: "SSE_SESSION_BOOTSTRAP", ready: sseData.ready })
