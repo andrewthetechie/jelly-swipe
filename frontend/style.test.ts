@@ -55,6 +55,19 @@ describe('global typography styles', () => {
     expect(mediaTypeRule![0]).not.toContain('font-family');
   });
 
+  it('sets the LIKE/NOPE jelly buttons in the display face', () => {
+    const jellyRule = css.match(/\.jelly-button\s*\{[^}]*\}/);
+    expect(jellyRule, '.jelly-button rule').toBeTruthy();
+    expect(jellyRule![0]).toContain('font-family: var(--font-display)');
+  });
+
+  it('keeps the genre modal heading on the body face', () => {
+    // "Select Genre" (h2 in .modal-inner) is intentionally Raleway, not Orbitron.
+    const modalH2Rule = css.match(/\.modal-inner h2\s*\{[^}]*\}/);
+    expect(modalH2Rule, '.modal-inner h2 rule').toBeTruthy();
+    expect(modalH2Rule![0]).not.toContain('font-family');
+  });
+
   it('sets a readable weight on the metadata pills', () => {
     // Scoped to the pill rules (not the whole file) so a legitimate weight-200
     // elsewhere could never break this, and so it can't pass vacuously.

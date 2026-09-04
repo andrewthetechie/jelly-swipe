@@ -93,6 +93,7 @@ img {
       );
 
     color: #fdfdfe;
+    font-family: var(--font-display);
     font-size: var(--text-lg);
     font-weight: 800;
     letter-spacing: 0.03em;
