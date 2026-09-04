@@ -12,8 +12,11 @@ export default function HostWaiting({ endSession }: HostWaitingProps): JSX.Eleme
 
     return (
         <div className="host-waiting">
-            <h1>Room Code: {currentRoomCode}</h1>
-            
+            <h1 className="room-code-block">
+                <span className="room-code-label">Room Code</span>
+                <span className="room-code" data-testid="room-code">{currentRoomCode}</span>
+            </h1>
+
             <p className="waiting-text">
                 Waiting for partner...
             </p>
@@ -24,7 +27,7 @@ export default function HostWaiting({ endSession }: HostWaitingProps): JSX.Eleme
             </div>
 
             <button className="end-session" onClick={endSession}>End Session</button>
-        
+
         </div>
     )
 }

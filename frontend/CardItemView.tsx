@@ -40,7 +40,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     const { duration, mediaId, mediaType, rating, seasonCount = null, summary, posterUrl, title, year }: CardItem = cardItem
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
     const seasonsText: string = seasonCount !== null && seasonCount === 1 ? ` • ${seasonCount} Season` : seasonCount !== null && seasonCount > 1 ? ` • ${seasonCount} Seasons` : ""
-    
+
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         setIsDragging(true)
@@ -93,18 +93,18 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
         }
      }
 
-    
+
     const toggleDetails = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.currentTarget.tagName === "BUTTON") return
         if (hasDragged.current) return
         setShowDetails(prev => !prev)
-    } 
+    }
 
     return (
-        <div 
+        <div
             ref={divRef}
-            className={`card-item-container ${showDetails ? "flipped" : ""}`} 
-            onClick={toggleDetails} 
+            className={`card-item-container ${showDetails ? "flipped" : ""}`}
+            onClick={toggleDetails}
             onPointerDown={isTopCard ? handlePointerDown : undefined}
             onPointerMove={isTopCard ? handlePointerMove : undefined}
             onPointerUp={isTopCard ? handlePointerUp : undefined}
@@ -135,22 +135,22 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                         {year && <div className="card-item-year">{year}</div>}
                     </div>
                     <div className="trailer">
-                        <button 
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()} 
-                            onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()} 
+                        <button
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
+                            onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()}
                             className="watch-trailer"
                         >
-                            WATCH TRAILER
+                            Watch Trailer
                         </button>
                     </div>
                     <p className="card-item-description">
                         {summary}
                     </p>
-                    
+
                     {showDetails && (
                         <ActorElements mediaId={mediaId} />
                     )}
-                    
+
                 </div>
             </div>
         </div>

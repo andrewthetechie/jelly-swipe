@@ -18,7 +18,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
             return []
         }
     })
-    
+
     const { state, selectGenre, confirmGenre } = useRoomSession()
 
     React.useEffect(() => {
@@ -39,12 +39,12 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
     }, [genreList.length])
 
     const genreElements = genreList.map((option) => (
-        <label 
+        <label
             className={`custom-radio ${state.genre === option ? "active" : ""}`}
-            key={option} 
+            key={option}
             htmlFor={option}
         >
-            <input 
+            <input
                 type="radio"
                 id={option}
                 name="genre"
@@ -59,7 +59,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
     return (
         <div className="modal">
             <div className="modal-inner modal-genre">
-                <h2 className="card-item-title">Select Genre</h2>
+                <h2>Select Genre</h2>
                 <div className="genre-inputs">
                     {genreElements}
                 </div>

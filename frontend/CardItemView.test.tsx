@@ -136,8 +136,21 @@ describe("CardItem — flip toggle (non-drag click)", () => {
   });
 });
 
+describe("CardItemView — Watch Trailer label casing", () => {
+  // Guards the AC "no all-caps button labels" — case-sensitive on purpose, so a
+  // revert to "WATCH TRAILER" fails here (the /watch trailer/i queries elsewhere
+  // are case-insensitive and would not catch it).
+  it("renders a mixed-case label, never an all-caps one", () => {
+    const { container } = renderCard();
+    const label = container
+      .querySelector("button.watch-trailer")!
+      .textContent!.trim();
+    expect(label).toBe("Watch Trailer");
+  });
+});
+
 // Eventually, the Watch Trailer button should also open the trailer div and display the video
-// For now, this test just asserts that clicking the button doesn't flip the card 
+// For now, this test just asserts that clicking the button doesn't flip the card
 
 describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
   it("does not toggle the 'flipped' class when the trailer button is clicked", () => {
@@ -179,7 +192,7 @@ describe("CardItemView - swipe behavior", () => {
   it("calls onSwipe with the correct card and direction - right", async () => {
     const onSwipe = vi.fn()
     const { container } = renderWithRoom(
-      <CardItemView 
+      <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
         isTopCard={true}
@@ -203,7 +216,7 @@ describe("CardItemView - swipe behavior", () => {
   it("calls onSwipe with the correct card and direction - left", async () => {
     const onSwipe = vi.fn()
     const { container } = renderWithRoom(
-      <CardItemView 
+      <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
         isTopCard={true}
@@ -227,7 +240,7 @@ describe("CardItemView - swipe behavior", () => {
   it("does not call onSwipe when the swipe does not pass the threshold", async () => {
     const onSwipe = vi.fn()
     const { container } = renderWithRoom(
-      <CardItemView 
+      <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
         isTopCard={true}
@@ -265,6 +278,3 @@ describe("CardItem — pointer drag (documented, hard to test)", () => {
     // Intentionally left unimplemented — see the comment above.
   });
 });
-
-
-
