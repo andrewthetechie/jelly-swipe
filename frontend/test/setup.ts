@@ -27,7 +27,7 @@ import { vi } from "vitest"
 import { createMockEventSource } from "./mockEventSource"
 
 if (!globalThis.EventSource) {
-  const EventSourceMock = vi.fn((url: string) => {
+  const EventSourceMock = vi.fn(function (url: string) {
     const mock = createMockEventSource()
     mock.url = url
     return mock as unknown as EventSource

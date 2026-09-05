@@ -9,7 +9,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
   it("establishes an SSE connection to the given URL and updates state on events", async () => {
 
     const mockEventSource = createMockEventSource()
-    const EventSourceMock = vi.fn(() => mockEventSource as unknown as EventSource) as unknown as EventSourceMockConstructor
+    const EventSourceMock = vi.fn(function () { return mockEventSource as unknown as EventSource }) as unknown as EventSourceMockConstructor 
     EventSourceMock.CONNECTING = 0
     EventSourceMock.OPEN = 1
     EventSourceMock.CLOSED = 2
@@ -51,7 +51,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
 
     const mockEventSource = createMockEventSource()
     const EventSourceMock = vi.fn(
-      () => mockEventSource as unknown as EventSource,
+      function () { mockEventSource as unknown as EventSource },
     ) as unknown as EventSourceMockConstructor
     EventSourceMock.CONNECTING = 0
     EventSourceMock.OPEN = 1
@@ -67,7 +67,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
 
   it("onopen sets isConnected to true and clears error", () => {
     const mockEventSource = createMockEventSource()
-    const EventSourceMock = vi.fn(() => mockEventSource as unknown as EventSource) as unknown as { new (url: string): EventSource }
+    const EventSourceMock = vi.fn(function () { return mockEventSource as unknown as EventSource }) as unknown as { new (url: string): EventSource }
     vi.stubGlobal("EventSource", EventSourceMock as unknown as typeof EventSource)
 
     const { result } = renderHook(() => useSSE("/test-sse"))
@@ -85,7 +85,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
 
   it("onmessage parses data and updates state, handling parse errors", () => {
     const mockEventSource = createMockEventSource()
-    const EventSourceMock = vi.fn(() => mockEventSource as unknown as EventSource) as unknown as { new (url: string): EventSource }
+    const EventSourceMock = vi.fn(function () { return mockEventSource as unknown as EventSource }) as unknown as { new (url: string): EventSource }
     vi.stubGlobal("EventSource", EventSourceMock as unknown as typeof EventSource)
 
     const { result } = renderHook(() => useSSE("/test-sse"))
@@ -111,7 +111,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
   it("onerror handles connection errors and triggers reconnection logic", () => {
     const mockEventSource = createMockEventSource()
     const EventSourceMock = vi.fn(
-    () => mockEventSource as unknown as EventSource,
+      function () { return mockEventSource as unknown as EventSource },
     ) as unknown as EventSourceMockConstructor
 
     EventSourceMock.CONNECTING = 0
@@ -137,7 +137,7 @@ describe("useSSE - connection lifecycle and error handling", () => {
 
   it("disconnect function closes connection and clears reconnection timer", () => {
     const mockEventSource = createMockEventSource()
-    const EventSourceMock = vi.fn(() => mockEventSource as unknown as EventSource) as unknown as { new (url: string): EventSource }
+    const EventSourceMock = vi.fn(function () { return mockEventSource as unknown as EventSource }) as unknown as { new (url: string): EventSource }
     vi.stubGlobal("EventSource", EventSourceMock as unknown as typeof EventSource)
 
     const { result } = renderHook(() => useSSE("/test-sse"))
