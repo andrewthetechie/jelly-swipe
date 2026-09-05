@@ -25,8 +25,21 @@ function renderCard(cardOverrides = {}) {
     <CardItemView
       cardItem={makeCard(cardOverrides)}
       setDragX={vi.fn()}
-      isTopCard={true}
+      stackIndex={0}
       zIndex={0}
+      onSwipe={vi.fn()}
+    />,
+  );
+}
+
+// Render a card at a given stack depth (0 = top card, see issue #343).
+function renderStackCard(stackIndex = 0) {
+  return renderWithRoom(
+    <CardItemView
+      cardItem={makeCard()}
+      setDragX={vi.fn()}
+      stackIndex={stackIndex}
+      zIndex={stackIndex}
       onSwipe={vi.fn()}
     />,
   );
@@ -195,7 +208,7 @@ describe("CardItemView - swipe behavior", () => {
       <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
-        isTopCard={true}
+        stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
       />,
@@ -219,7 +232,7 @@ describe("CardItemView - swipe behavior", () => {
       <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
-        isTopCard={true}
+        stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
       />,
@@ -243,7 +256,7 @@ describe("CardItemView - swipe behavior", () => {
       <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
-        isTopCard={true}
+        stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
       />,
@@ -254,6 +267,57 @@ describe("CardItemView - swipe behavior", () => {
     swipeUnderThreshold(topCard)
 
     expect(onSwipe).not.toHaveBeenCalled()
+  })
+})
+
+describe("CardItemView — stack depth (issue #343)", () => {
+  it("treats stackIndex 0 as the interactive top card with no stack styling", () => {
+    const { container } = renderStackCard(0)
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.pointerEvents).toBe("auto")
+    expect(card).not.toHaveClass("stack-back")
+    expect(card.style.filter).toBe("")
+    expect(card.style.transform).not.toContain("translateY")
+    expect(card.style.transform).not.toContain("scale")
+  })
+
+  it("marks stackIndex > 0 as non-interactive with the stack-back class", () => {
+    const { container } = renderStackCard(1)
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.pointerEvents).toBe("none")
+    expect(card).toHaveClass("stack-back")
+  })
+
+  it("applies depth-ordered offset, scale, and brightness to back cards", () => {
+    // Assert the ordering pattern (deeper = more offset, less scale, less brightness),
+    // not exact pixel values — those may be fine-tuned without breaking the intent.
+    // Back cards are pushed *up* out of the top card's outline, so the offset
+    // is a negative percentage; deeper cards sit further up.
+    const parseTranslateY = (transform: string) =>
+      parseFloat(transform.match(/translateY\(([^%]+)%\)/)?.[1] ?? "0")
+    const parseScale = (transform: string) =>
+      parseFloat(transform.match(/scale\(([^)]+)\)/)?.[1] ?? "1")
+    const parseBrightness = (filter: string) =>
+      parseFloat(filter.match(/brightness\(([^)]+)\)/)?.[1] ?? "1")
+
+    const { container: c0 } = renderStackCard(0)
+    const top = c0.querySelector(".card-item-container") as HTMLElement
+    const { container: c1 } = renderStackCard(1)
+    const back1 = c1.querySelector(".card-item-container") as HTMLElement
+    const { container: c2 } = renderStackCard(2)
+    const back2 = c2.querySelector(".card-item-container") as HTMLElement
+
+    // Offset grows with depth (further up, so more negative).
+    expect(parseTranslateY(back1.style.transform)).toBeLessThan(parseTranslateY(top.style.transform))
+    expect(parseTranslateY(back2.style.transform)).toBeLessThan(parseTranslateY(back1.style.transform))
+
+    // Scale shrinks with depth.
+    expect(parseScale(back1.style.transform)).toBeLessThan(parseScale(top.style.transform) || 1)
+    expect(parseScale(back2.style.transform)).toBeLessThan(parseScale(back1.style.transform))
+
+    // Brightness dims with depth.
+    expect(parseBrightness(back1.style.filter)).toBeLessThan(1)
+    expect(parseBrightness(back2.style.filter)).toBeLessThan(parseBrightness(back1.style.filter))
   })
 })
 

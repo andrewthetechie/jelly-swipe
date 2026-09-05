@@ -16,15 +16,18 @@ export default function SwipePage(): JSX.Element {
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { isSoloMode } = useRoomStateContext()
 
-    const rightOpacity: number = 
+    const rightOpacity: number =
         dragX > 20
             ? Math.min(Math.abs(dragX) / 200, 1)
             : 0
-    const leftOpacity: number = 
+    const leftOpacity: number =
         dragX < -20
             ? Math.min(Math.abs(dragX) / 200, 1)
             : 0
-    const visibleCards = state.cardDeck.slice(0, 5).reverse()
+    // Render at most 3 cards (the top card + ≤2 back cards). Deeper cards are
+    // dropped entirely (issue #343) — undo still works because undo re-adds the
+    // card to `cardDeck` state and it mounts fresh at the top (see roomSession).
+    const visibleCards = state.cardDeck.slice(0, 3).reverse()
 
     const handleGenreClick = () => {
         setShowGenreModal(prev => !prev)
@@ -45,7 +48,7 @@ export default function SwipePage(): JSX.Element {
                         data-testid="watched-toggle"
                     >
                         <span className="hide-watched-span">Hide Watched</span>
-                        <input 
+                        <input
                             type="checkbox"
                             id="hideWatched"
                             name="hideWatched"
@@ -63,10 +66,11 @@ export default function SwipePage(): JSX.Element {
                 <div className="swipe-main">
                     <div className="swipe-deck">
                         {visibleCards.map((cardItem: CardItem, index: number) => (
-                            <CardItemView 
+                            <CardItemView
                                 key={cardItem.mediaId}
                                 cardItem={cardItem}
-                                isTopCard={index === visibleCards.length - 1}
+                                // rendered order is reversed: the last card is the top.
+                                stackIndex={visibleCards.length - 1 - index}
                                 setDragX={setDragX}
                                 zIndex={index}
                                 onSwipe={swipe}
@@ -93,5 +97,5 @@ export default function SwipePage(): JSX.Element {
     } else {
         return <HostWaiting endSession={endSession} />
     }
-    
+
 }

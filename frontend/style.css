@@ -889,15 +889,28 @@ button.genres:hover {
   width: 100%;
   max-width: 400px;
   height: 650px;
+  /* Room at the top of the deck for the back cards of the stack to peek into
+     (issue #343). Cards are inset by this much rather than filling the deck,
+     so the stack stays inside the deck's own footprint instead of riding up
+     over the header. Must clear the deepest card's sliver — see the geometry
+     note in CardItemView.tsx. */
+  --deck-stack-reserve: 32px;
 }
 
 .card-item-container {
   perspective: 1200px;
-  width: 100%;
-  height: 100%;
   position: absolute;
-  inset: 0;
+  inset: var(--deck-stack-reserve, 0) 0 0 0;
   user-select: none;
+}
+
+/* Back cards of the deck stack (issue #343): soften the shadow so several
+   stacked cards don't turn muddy when offset. The top card keeps the strong
+   full-size shadow. */
+.card-item-container.stack-back .card-item {
+  box-shadow:
+      2px 4px 6px rgba(0, 0, 0, 0.22),
+      inset 0 2px 6px rgba(255, 255, 255, 0.08);
 }
 
 .glow {
@@ -939,7 +952,7 @@ div.card-item {
   background: #0A357C;
   border-radius: 20px;
   box-shadow:
-      4px 8px 8px hsl(0deg 0% 0% / 0.38),
+      4px 8px 8px rgba(0, 0, 0, 0.38),
       inset 0 2px 6px rgba(255,255,255,0.08);
   overflow: hidden;
   backface-visibility: hidden;
@@ -1360,10 +1373,6 @@ div.match-list-info {
     height: 700px;
   }
 
-  .card-item-container {
-    height: 700px;
-  }
-
   div.match-list-container {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
@@ -1374,5 +1383,15 @@ div.match-list-info {
     max-height: 85%;
     width: 80%;
     padding: 1.5rem 0;
+  }
+}
+
+/* Reduced motion (issue #343, coordinating with #353): the deck promote
+   animation is a state-change transition, so per the #353 philosophy we keep
+   it but shorten it rather than removing it. Scoped to the card container so
+   direct-manipulation drag feedback is untouched. */
+@media (prefers-reduced-motion: reduce) {
+  .card-item-container {
+    transition-duration: 0.15s;
   }
 }

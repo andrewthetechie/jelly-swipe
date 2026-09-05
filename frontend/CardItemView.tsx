@@ -20,7 +20,8 @@ const DEFAULT_POSITION: Position = {
 interface CardItemViewProps {
     cardItem: CardItem,
     setDragX: React.Dispatch<React.SetStateAction<number>>,
-    isTopCard: boolean,
+    /** 0 = the top card; 1, 2 = cards offset behind it (see SwipePage slicing). */
+    stackIndex: number,
     zIndex: number
     onSwipe?: (
         cardItem: CardItem,
@@ -28,7 +29,38 @@ interface CardItemViewProps {
     ) => void
 }
 
-export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, onSwipe }: CardItemViewProps): JSX.Element {
+// Stack depth styling (see issue #343). Depth `i` is how many cards this one
+// sits behind (i === 0 is the top card).
+//
+// Back cards are scaled down *and* pushed up past the top card's edge. The
+// push is what makes the stack visible at all: transform-origin is the centre,
+// so scaling by `s` already insets every edge by height * (1 - s) / 2, and a
+// card that only shrinks disappears entirely inside the top card's opaque
+// rectangle. The sliver that shows above the top card is therefore
+//   height * (STACK_STEP_Y_PCT / 100 - STACK_STEP_SCALE / 2) * i ≈ 14px per step,
+// and `.swipe-deck` reserves `--deck-stack-reserve` at the top of the deck so
+// the stack sits inside the deck's footprint instead of over the header.
+//
+// translateY is a percentage (of the card's own height) rather than pixels so
+// the sliver stays proportional across the deck's three breakpoint heights.
+const STACK_STEP_Y_PCT = 4.75
+const STACK_STEP_SCALE = 0.05
+const STACK_STEP_BRIGHTNESS = 0.15
+
+function stackTransform(i: number): string {
+    if (i === 0) return ""
+    return `translateY(${-i * STACK_STEP_Y_PCT}%) scale(${1 - i * STACK_STEP_SCALE})`
+}
+
+function stackBrightness(i: number): string | undefined {
+    // Only back cards get a filter, so the top card keeps its exact rendering
+    // path (no filter-created containing block around the 3D flip).
+    if (i === 0) return undefined
+    return `brightness(${1 - i * STACK_STEP_BRIGHTNESS})`
+}
+
+export default function CardItemView({ cardItem, setDragX, stackIndex, zIndex, onSwipe }: CardItemViewProps): JSX.Element {
+    const isTopCard = stackIndex === 0
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
@@ -103,7 +135,7 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
     return (
         <div
             ref={divRef}
-            className={`card-item-container ${showDetails ? "flipped" : ""}`}
+            className={`card-item-container ${showDetails ? "flipped" : ""} ${!isTopCard ? "stack-back" : ""}`}
             onClick={toggleDetails}
             onPointerDown={isTopCard ? handlePointerDown : undefined}
             onPointerMove={isTopCard ? handlePointerMove : undefined}
@@ -116,9 +148,10 @@ export default function CardItemView({ cardItem, setDragX, isTopCard, zIndex, on
                 touchAction: "none",
                 transform: `
                     translate(${position.x}px, ${position.y}px)
-                    rotate(${position.rotation}deg)
+                    rotate(${position.rotation}deg) ${stackTransform(stackIndex)}
                 `,
-                transition: isDragging ? "none" : "transform 0.4s ease"
+                filter: stackBrightness(stackIndex),
+                transition: isDragging ? "none" : "transform 0.4s ease, filter 0.4s ease"
             }}
         >
           <div className="card-item-inner">
