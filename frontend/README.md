@@ -44,10 +44,10 @@ PRs the same way the Python suite does.
     lacks. Wired in via `setupFiles`; you never import it directly.
   - `test/renderWithRoom.tsx` — exports two room helpers built on the real
     `<RoomContextProvider>` and the public hooks:
-      - `renderWithRoom` — seeds room state for tests that only need the shared
-        provider and normal React Testing Library queries.
-      - `renderWithRoomStateful` — use when you need realistic state transitions
-        after user interaction.
+    - `renderWithRoom` — seeds room state for tests that only need the shared
+      provider and normal React Testing Library queries.
+    - `renderWithRoomStateful` — use when you need realistic state transitions
+      after user interaction.
       Pass a flat overrides object with room state and session state; the helper
       applies the initial room values through the public hooks, then renders the
       UI inside the real provider.
@@ -96,16 +96,16 @@ hand. Always go through those helpers instead of reaching for
 Example:
 
 ```tsx
-import { screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithRoomStateful } from "./test/renderWithRoom"
-import Intro from "./Intro"
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { renderWithRoomStateful } from "./test/renderWithRoom";
+import Intro from "./Intro";
 
-const user = userEvent.setup()
-renderWithRoomStateful(<Intro />)
+const user = userEvent.setup();
+renderWithRoomStateful(<Intro />);
 
-await user.click(screen.getByRole("button", { name: /host/i }))
-expect(screen.getByText("Session Setup")).toBeInTheDocument()
+await user.click(screen.getByRole("button", { name: /host/i }));
+expect(screen.getByText("Session Setup")).toBeInTheDocument();
 ```
 
 ### The skipped "desired behavior" pattern
@@ -132,13 +132,17 @@ make it convenient.
 
 Worked example: the **pointer-drag stub** in `CardItemView.test.tsx`. The drag
 gesture uses the Pointer Capture API (`setPointerCapture` /
-`releasePointerCapture`) and real `PointerEvent`s, which jsdom doesn't fully
+`releasePointerCapture`) and real `PointerEvents`, which jsdom doesn't fully
 implement. `test/setup.ts` stubs the capture methods so firing pointer events
-doesn't crash (this is enough for `SwipePage`'s glow-opacity math, which only
-needs `dragX` to update), but a full drag-gesture assertion still can't be done
-in jsdom — so that test is a clearly-commented `it.skip` that explains the
-limitation and what a future change (extracting the pointer math into a pure
-function, or an end-to-end test in a real browser) would require.
+doesn't crash, but a full drag-gesture assertion still can't be done in jsdom —
+so that test remains a clearly-commented `it.skip`.
+
+The gap is now bounded: every decision the gesture makes lives in the pure
+module `swipeGesture.ts` and is unit-tested directly against numbers in
+`swipeGesture.test.ts`. What is left untested is only the browser-specific
+wiring — real pointer coordinates, capture semantics, and the
+transform/transition animation — which needs an end-to-end test (Playwright or
+Cypress) in a real browser.
 
 There is also an `it.todo("swiping right should POST to /room/{code}/swipe")`
 breadcrumb in `CardItemView.test.tsx`: the swipe gesture animates the card away but
