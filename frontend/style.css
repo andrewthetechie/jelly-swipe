@@ -905,7 +905,7 @@ button.genres:hover {
    full-size shadow. */
 .card-item-container.stack-back .card-item {
   box-shadow:
-      2px 4px 6px hsl(0deg 0% 0% / 0.22),
+      2px 4px 6px rgba(0, 0, 0, 0.22),
       inset 0 2px 6px rgba(255, 255, 255, 0.08);
 }
 
@@ -948,7 +948,7 @@ div.card-item {
   background: #0A357C;
   border-radius: 20px;
   box-shadow:
-      4px 8px 8px hsl(0deg 0% 0% / 0.38),
+      4px 8px 8px rgba(0, 0, 0, 0.38),
       inset 0 2px 6px rgba(255,255,255,0.08);
   overflow: hidden;
   backface-visibility: hidden;

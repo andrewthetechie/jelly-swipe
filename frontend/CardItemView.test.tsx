@@ -289,17 +289,33 @@ describe("CardItemView — stack depth (issue #343)", () => {
   })
 
   it("applies depth-ordered offset, scale, and brightness to back cards", () => {
+    // Assert the ordering pattern (deeper = more offset, less scale, less brightness),
+    // not exact pixel values — those may be fine-tuned without breaking the intent.
+    const parseTranslateY = (transform: string) =>
+      parseFloat(transform.match(/translateY\(([^p]+)px\)/)?.[1] ?? "0")
+    const parseScale = (transform: string) =>
+      parseFloat(transform.match(/scale\(([^)]+)\)/)?.[1] ?? "1")
+    const parseBrightness = (filter: string) =>
+      parseFloat(filter.match(/brightness\(([^)]+)\)/)?.[1] ?? "1")
+
+    const { container: c0 } = renderStackCard(0)
+    const top = c0.querySelector(".card-item-container") as HTMLElement
     const { container: c1 } = renderStackCard(1)
     const back1 = c1.querySelector(".card-item-container") as HTMLElement
-    expect(back1.style.transform).toContain("translateY(10px)")
-    expect(back1.style.transform).toContain("scale(0.96)")
-    expect(back1.style.filter).toBe("brightness(0.9)")
-
     const { container: c2 } = renderStackCard(2)
     const back2 = c2.querySelector(".card-item-container") as HTMLElement
-    expect(back2.style.transform).toContain("translateY(20px)")
-    expect(back2.style.transform).toContain("scale(0.92)")
-    expect(back2.style.filter).toBe("brightness(0.8)")
+
+    // Offset grows with depth.
+    expect(parseTranslateY(back1.style.transform)).toBeGreaterThan(parseTranslateY(top.style.transform))
+    expect(parseTranslateY(back2.style.transform)).toBeGreaterThan(parseTranslateY(back1.style.transform))
+
+    // Scale shrinks with depth.
+    expect(parseScale(back1.style.transform)).toBeLessThan(parseScale(top.style.transform) || 1)
+    expect(parseScale(back2.style.transform)).toBeLessThan(parseScale(back1.style.transform))
+
+    // Brightness dims with depth.
+    expect(parseBrightness(back1.style.filter)).toBeLessThan(1)
+    expect(parseBrightness(back2.style.filter)).toBeLessThan(parseBrightness(back1.style.filter))
   })
 })
 

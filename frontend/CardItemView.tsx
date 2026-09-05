@@ -40,7 +40,7 @@ const STACK_STEP_BRIGHTNESS = 0.1
 
 function stackTransform(i: number): string {
     if (i === 0) return ""
-    return ` translateY(${i * STACK_STEP_Y_PX}px) scale(${1 - i * STACK_STEP_SCALE})`
+    return `translateY(${i * STACK_STEP_Y_PX}px) scale(${1 - i * STACK_STEP_SCALE})`
 }
 
 function stackBrightness(i: number): string | undefined {
@@ -126,7 +126,7 @@ export default function CardItemView({ cardItem, setDragX, stackIndex, zIndex, o
     return (
         <div
             ref={divRef}
-            className={`card-item-container ${showDetails ? "flipped" : ""} ${stackIndex > 0 ? "stack-back" : ""}`}
+            className={`card-item-container ${showDetails ? "flipped" : ""} ${!isTopCard ? "stack-back" : ""}`}
             onClick={toggleDetails}
             onPointerDown={isTopCard ? handlePointerDown : undefined}
             onPointerMove={isTopCard ? handlePointerMove : undefined}
@@ -139,7 +139,7 @@ export default function CardItemView({ cardItem, setDragX, stackIndex, zIndex, o
                 touchAction: "none",
                 transform: `
                     translate(${position.x}px, ${position.y}px)
-                    rotate(${position.rotation}deg)${stackTransform(stackIndex)}
+                    rotate(${position.rotation}deg) ${stackTransform(stackIndex)}
                 `,
                 filter: stackBrightness(stackIndex),
                 transition: isDragging ? "none" : "transform 0.4s ease, filter 0.4s ease"

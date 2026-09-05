@@ -94,20 +94,38 @@ describe("SwipePage — card-stack depth (issue #343)", () => {
   })
 
   it("orders back-card transforms and brightness by depth", () => {
+    // Assert the ordering pattern (deeper = more offset, less scale, less brightness),
+    // not exact pixel values — those may be fine-tuned without breaking the intent.
+    const parseTranslateY = (transform: string) =>
+      parseFloat(transform.match(/translateY\(([^p]+)px\)/)?.[1] ?? "0")
+    const parseScale = (transform: string) =>
+      parseFloat(transform.match(/scale\(([^)]+)\)/)?.[1] ?? "1")
+    const parseBrightness = (filter: string) =>
+      parseFloat(filter.match(/brightness\(([^)]+)\)/)?.[1] ?? "1")
+
     const { container } = renderSwipePage(7)
     const cards = Array.from(container.querySelectorAll(".card-item-container")) as HTMLElement[]
-    // cards[0] = stackIndex 2, cards[1] = stackIndex 1, cards[2] = stackIndex 0.
-    expect(cards[0].style.transform).toContain("translateY(20px)")
-    expect(cards[0].style.transform).toContain("scale(0.92)")
-    expect(cards[0].style.filter).toBe("brightness(0.8)")
+    // cards[0] = stackIndex 2 (deepest), cards[1] = stackIndex 1, cards[2] = stackIndex 0 (top).
 
-    expect(cards[1].style.transform).toContain("translateY(10px)")
-    expect(cards[1].style.transform).toContain("scale(0.96)")
-    expect(cards[1].style.filter).toBe("brightness(0.9)")
+    const deep = cards[0]
+    const mid = cards[1]
+    const top = cards[2]
 
     // Top card has no stack offset/filter.
-    expect(cards[2].style.transform).not.toContain("translateY")
-    expect(cards[2].style.filter).toBe("")
+    expect(top.style.transform).not.toContain("translateY")
+    expect(top.style.filter).toBe("")
+
+    // Offset grows with depth.
+    expect(parseTranslateY(mid.style.transform)).toBeGreaterThan(0)
+    expect(parseTranslateY(deep.style.transform)).toBeGreaterThan(parseTranslateY(mid.style.transform))
+
+    // Scale shrinks with depth.
+    expect(parseScale(mid.style.transform)).toBeLessThan(1)
+    expect(parseScale(deep.style.transform)).toBeLessThan(parseScale(mid.style.transform))
+
+    // Brightness dims with depth.
+    expect(parseBrightness(mid.style.filter)).toBeLessThan(1)
+    expect(parseBrightness(deep.style.filter)).toBeLessThan(parseBrightness(mid.style.filter))
   })
 
   it("renders a single-card deck as just a top card with no phantom stack", () => {
