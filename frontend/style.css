@@ -889,14 +889,18 @@ button.genres:hover {
   width: 100%;
   max-width: 400px;
   height: 650px;
+  /* Room at the top of the deck for the back cards of the stack to peek into
+     (issue #343). Cards are inset by this much rather than filling the deck,
+     so the stack stays inside the deck's own footprint instead of riding up
+     over the header. Must clear the deepest card's sliver — see the geometry
+     note in CardItemView.tsx. */
+  --deck-stack-reserve: 32px;
 }
 
 .card-item-container {
   perspective: 1200px;
-  width: 100%;
-  height: 100%;
   position: absolute;
-  inset: 0;
+  inset: var(--deck-stack-reserve, 0) 0 0 0;
   user-select: none;
 }
 
@@ -1366,10 +1370,6 @@ div.match-list-info {
     grid-template-columns: 1fr 1fr 1fr;
   }
   .swipe-deck {
-    height: 700px;
-  }
-
-  .card-item-container {
     height: 700px;
   }
 

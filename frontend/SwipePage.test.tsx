@@ -96,8 +96,10 @@ describe("SwipePage — card-stack depth (issue #343)", () => {
   it("orders back-card transforms and brightness by depth", () => {
     // Assert the ordering pattern (deeper = more offset, less scale, less brightness),
     // not exact pixel values — those may be fine-tuned without breaking the intent.
+    // Back cards are pushed *up* out of the top card's outline, so the offset
+    // is a negative percentage; deeper cards sit further up.
     const parseTranslateY = (transform: string) =>
-      parseFloat(transform.match(/translateY\(([^p]+)px\)/)?.[1] ?? "0")
+      parseFloat(transform.match(/translateY\(([^%]+)%\)/)?.[1] ?? "0")
     const parseScale = (transform: string) =>
       parseFloat(transform.match(/scale\(([^)]+)\)/)?.[1] ?? "1")
     const parseBrightness = (filter: string) =>
@@ -115,9 +117,9 @@ describe("SwipePage — card-stack depth (issue #343)", () => {
     expect(top.style.transform).not.toContain("translateY")
     expect(top.style.filter).toBe("")
 
-    // Offset grows with depth.
-    expect(parseTranslateY(mid.style.transform)).toBeGreaterThan(0)
-    expect(parseTranslateY(deep.style.transform)).toBeGreaterThan(parseTranslateY(mid.style.transform))
+    // Offset grows with depth (further up, so more negative).
+    expect(parseTranslateY(mid.style.transform)).toBeLessThan(0)
+    expect(parseTranslateY(deep.style.transform)).toBeLessThan(parseTranslateY(mid.style.transform))
 
     // Scale shrinks with depth.
     expect(parseScale(mid.style.transform)).toBeLessThan(1)

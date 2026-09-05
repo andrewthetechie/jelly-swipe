@@ -291,8 +291,10 @@ describe("CardItemView — stack depth (issue #343)", () => {
   it("applies depth-ordered offset, scale, and brightness to back cards", () => {
     // Assert the ordering pattern (deeper = more offset, less scale, less brightness),
     // not exact pixel values — those may be fine-tuned without breaking the intent.
+    // Back cards are pushed *up* out of the top card's outline, so the offset
+    // is a negative percentage; deeper cards sit further up.
     const parseTranslateY = (transform: string) =>
-      parseFloat(transform.match(/translateY\(([^p]+)px\)/)?.[1] ?? "0")
+      parseFloat(transform.match(/translateY\(([^%]+)%\)/)?.[1] ?? "0")
     const parseScale = (transform: string) =>
       parseFloat(transform.match(/scale\(([^)]+)\)/)?.[1] ?? "1")
     const parseBrightness = (filter: string) =>
@@ -305,9 +307,9 @@ describe("CardItemView — stack depth (issue #343)", () => {
     const { container: c2 } = renderStackCard(2)
     const back2 = c2.querySelector(".card-item-container") as HTMLElement
 
-    // Offset grows with depth.
-    expect(parseTranslateY(back1.style.transform)).toBeGreaterThan(parseTranslateY(top.style.transform))
-    expect(parseTranslateY(back2.style.transform)).toBeGreaterThan(parseTranslateY(back1.style.transform))
+    // Offset grows with depth (further up, so more negative).
+    expect(parseTranslateY(back1.style.transform)).toBeLessThan(parseTranslateY(top.style.transform))
+    expect(parseTranslateY(back2.style.transform)).toBeLessThan(parseTranslateY(back1.style.transform))
 
     // Scale shrinks with depth.
     expect(parseScale(back1.style.transform)).toBeLessThan(parseScale(top.style.transform) || 1)

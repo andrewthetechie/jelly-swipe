@@ -29,18 +29,27 @@ interface CardItemViewProps {
     ) => void
 }
 
-// Stack depth styling (see issue #343). Depth `i` is offset behind the top
-// card (i === 0 is the top card). Values are deliberately subtle — a hint of
-// a deck, not a fanned hand. They may be fine-tuned visually.
-//   translate BEFORE scale so the 10px step isn't itself shrunk by the scale.
-//   brightness step dims cards the deeper they sit.
-const STACK_STEP_Y_PX = 10
-const STACK_STEP_SCALE = 0.04
-const STACK_STEP_BRIGHTNESS = 0.1
+// Stack depth styling (see issue #343). Depth `i` is how many cards this one
+// sits behind (i === 0 is the top card).
+//
+// Back cards are scaled down *and* pushed up past the top card's edge. The
+// push is what makes the stack visible at all: transform-origin is the centre,
+// so scaling by `s` already insets every edge by height * (1 - s) / 2, and a
+// card that only shrinks disappears entirely inside the top card's opaque
+// rectangle. The sliver that shows above the top card is therefore
+//   height * (STACK_STEP_Y_PCT / 100 - STACK_STEP_SCALE / 2) * i ≈ 14px per step,
+// and `.swipe-deck` reserves `--deck-stack-reserve` at the top of the deck so
+// the stack sits inside the deck's footprint instead of over the header.
+//
+// translateY is a percentage (of the card's own height) rather than pixels so
+// the sliver stays proportional across the deck's three breakpoint heights.
+const STACK_STEP_Y_PCT = 4.75
+const STACK_STEP_SCALE = 0.05
+const STACK_STEP_BRIGHTNESS = 0.15
 
 function stackTransform(i: number): string {
     if (i === 0) return ""
-    return `translateY(${i * STACK_STEP_Y_PX}px) scale(${1 - i * STACK_STEP_SCALE})`
+    return `translateY(${-i * STACK_STEP_Y_PCT}%) scale(${1 - i * STACK_STEP_SCALE})`
 }
 
 function stackBrightness(i: number): string | undefined {
