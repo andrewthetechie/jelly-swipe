@@ -49,26 +49,72 @@ describe("SwipePage - HostWaiting rendering logic", () => {
 })
 
 describe("SwipePage — card-stack slicing", () => {
-  it("renders at most 5 cards (visibleCards = deck.slice(0,5)) in reverse order", () => {
+  it("renders at most 3 cards (visibleCards = deck.slice(0,3)) in reverse order", () => {
     const { container } = renderSwipePage(7)
     const cards = container.querySelectorAll(".card-item-container")
-    expect(cards).toHaveLength(5)
+    expect(cards).toHaveLength(3)
 
     const titles = Array.from(cards).map(
       (c) => c.querySelector(".card-item-title")?.textContent,
     )
     expect(titles).toEqual([
-      "Movie 5",
-      "Movie 4",
       "Movie 3",
       "Movie 2",
       "Movie 1",
     ])
   })
 
-  it("renders every card when the deck is smaller than 5", () => {
-    const { container } = renderSwipePage(3)
-    expect(container.querySelectorAll(".card-item-container")).toHaveLength(3)
+  it("renders every card when the deck is smaller than 3", () => {
+    const { container } = renderSwipePage(2)
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(2)
+  })
+})
+
+describe("SwipePage — card-stack depth (issue #343)", () => {
+  it("marks only the top card as interactive and the back cards as dimmed stack", () => {
+    const { container } = renderSwipePage(7)
+    const cards = Array.from(container.querySelectorAll(".card-item-container"))
+    // Rendered reversed: index 0 is deepest (stackIndex 2), last is top (stackIndex 0).
+    expect(cards).toHaveLength(3)
+
+    const top = cards[2] as HTMLElement
+    const mid = cards[1] as HTMLElement
+    const deep = cards[0] as HTMLElement
+
+    // Top card: interactive, full shadow, no dim/stack class.
+    expect(top.style.pointerEvents).toBe("auto")
+    expect(top).not.toHaveClass("stack-back")
+    expect(top.style.filter).toBe("")
+
+    // Back cards: non-interactive and stacked.
+    expect(mid.style.pointerEvents).toBe("none")
+    expect(deep.style.pointerEvents).toBe("none")
+    expect(mid).toHaveClass("stack-back")
+    expect(deep).toHaveClass("stack-back")
+  })
+
+  it("orders back-card transforms and brightness by depth", () => {
+    const { container } = renderSwipePage(7)
+    const cards = Array.from(container.querySelectorAll(".card-item-container")) as HTMLElement[]
+    // cards[0] = stackIndex 2, cards[1] = stackIndex 1, cards[2] = stackIndex 0.
+    expect(cards[0].style.transform).toContain("translateY(20px)")
+    expect(cards[0].style.transform).toContain("scale(0.92)")
+    expect(cards[0].style.filter).toBe("brightness(0.8)")
+
+    expect(cards[1].style.transform).toContain("translateY(10px)")
+    expect(cards[1].style.transform).toContain("scale(0.96)")
+    expect(cards[1].style.filter).toBe("brightness(0.9)")
+
+    // Top card has no stack offset/filter.
+    expect(cards[2].style.transform).not.toContain("translateY")
+    expect(cards[2].style.filter).toBe("")
+  })
+
+  it("renders a single-card deck as just a top card with no phantom stack", () => {
+    const { container } = renderSwipePage(1)
+    const cards = container.querySelectorAll(".card-item-container")
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).not.toHaveClass("stack-back")
   })
 })
 

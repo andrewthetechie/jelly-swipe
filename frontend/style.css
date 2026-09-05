@@ -900,6 +900,15 @@ button.genres:hover {
   user-select: none;
 }
 
+/* Back cards of the deck stack (issue #343): soften the shadow so several
+   stacked cards don't turn muddy when offset. The top card keeps the strong
+   full-size shadow. */
+.card-item-container.stack-back .card-item {
+  box-shadow:
+      2px 4px 6px hsl(0deg 0% 0% / 0.22),
+      inset 0 2px 6px rgba(255, 255, 255, 0.08);
+}
+
 .glow {
   position: fixed;
   top: 0;
@@ -1374,5 +1383,15 @@ div.match-list-info {
     max-height: 85%;
     width: 80%;
     padding: 1.5rem 0;
+  }
+}
+
+/* Reduced motion (issue #343, coordinating with #353): the deck promote
+   animation is a state-change transition, so per the #353 philosophy we keep
+   it but shorten it rather than removing it. Scoped to the card container so
+   direct-manipulation drag feedback is untouched. */
+@media (prefers-reduced-motion: reduce) {
+  .card-item-container {
+    transition-duration: 0.15s;
   }
 }

@@ -25,8 +25,21 @@ function renderCard(cardOverrides = {}) {
     <CardItemView
       cardItem={makeCard(cardOverrides)}
       setDragX={vi.fn()}
-      isTopCard={true}
+      stackIndex={0}
       zIndex={0}
+      onSwipe={vi.fn()}
+    />,
+  );
+}
+
+// Render a card at a given stack depth (0 = top card, see issue #343).
+function renderStackCard(stackIndex = 0) {
+  return renderWithRoom(
+    <CardItemView
+      cardItem={makeCard()}
+      setDragX={vi.fn()}
+      stackIndex={stackIndex}
+      zIndex={stackIndex}
       onSwipe={vi.fn()}
     />,
   );
@@ -195,7 +208,7 @@ describe("CardItemView - swipe behavior", () => {
       <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
-        isTopCard={true}
+        stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
       />,
@@ -219,7 +232,7 @@ describe("CardItemView - swipe behavior", () => {
       <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
-        isTopCard={true}
+        stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
       />,
@@ -243,7 +256,7 @@ describe("CardItemView - swipe behavior", () => {
       <CardItemView
         cardItem={makeCard()}
         setDragX={vi.fn()}
-        isTopCard={true}
+        stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
       />,
@@ -254,6 +267,39 @@ describe("CardItemView - swipe behavior", () => {
     swipeUnderThreshold(topCard)
 
     expect(onSwipe).not.toHaveBeenCalled()
+  })
+})
+
+describe("CardItemView — stack depth (issue #343)", () => {
+  it("treats stackIndex 0 as the interactive top card with no stack styling", () => {
+    const { container } = renderStackCard(0)
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.pointerEvents).toBe("auto")
+    expect(card).not.toHaveClass("stack-back")
+    expect(card.style.filter).toBe("")
+    expect(card.style.transform).not.toContain("translateY")
+    expect(card.style.transform).not.toContain("scale")
+  })
+
+  it("marks stackIndex > 0 as non-interactive with the stack-back class", () => {
+    const { container } = renderStackCard(1)
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.pointerEvents).toBe("none")
+    expect(card).toHaveClass("stack-back")
+  })
+
+  it("applies depth-ordered offset, scale, and brightness to back cards", () => {
+    const { container: c1 } = renderStackCard(1)
+    const back1 = c1.querySelector(".card-item-container") as HTMLElement
+    expect(back1.style.transform).toContain("translateY(10px)")
+    expect(back1.style.transform).toContain("scale(0.96)")
+    expect(back1.style.filter).toBe("brightness(0.9)")
+
+    const { container: c2 } = renderStackCard(2)
+    const back2 = c2.querySelector(".card-item-container") as HTMLElement
+    expect(back2.style.transform).toContain("translateY(20px)")
+    expect(back2.style.transform).toContain("scale(0.92)")
+    expect(back2.style.filter).toBe("brightness(0.8)")
   })
 })
 
