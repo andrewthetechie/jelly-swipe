@@ -83,3 +83,52 @@ describe('global typography styles', () => {
     }
   });
 });
+
+describe('swipe verdict feedback styles (issue #345)', () => {
+  const css = fs.readFileSync(
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'style.css'),
+    'utf8',
+  );
+
+  it('declares the LIKE/NOPE verdict colour tokens on :root', () => {
+    expect(css).toContain('--color-like:');
+    expect(css).toContain('--color-nope:');
+  });
+
+  it('paints each stamp in its own verdict colour via the token', () => {
+    const likeRule = css.match(/\.swipe-stamp-like\s*\{[^}]*\}/);
+    const nopeRule = css.match(/\.swipe-stamp-nope\s*\{[^}]*\}/);
+    expect(likeRule, '.swipe-stamp-like rule').toBeTruthy();
+    expect(nopeRule, '.swipe-stamp-nope rule').toBeTruthy();
+    expect(likeRule![0]).toContain('var(--color-like)');
+    expect(nopeRule![0]).toContain('var(--color-nope)');
+  });
+
+  it('differentiates LIKE and NOPE by shape, not colour alone (colourblind guard)', () => {
+    // The five non-colour cues are glyph, word, border-style, corner radius and
+    // tilt/edge. This asserts the two that a "simplify to colour-only" change
+    // would drop: border-style and a differing border-radius.
+    const likeRule = css.match(/\.swipe-stamp-like\s*\{[^}]*\}/)![0];
+    const nopeRule = css.match(/\.swipe-stamp-nope\s*\{[^}]*\}/)![0];
+    expect(likeRule).toContain('border: 4px solid');
+    expect(nopeRule).toContain('border: 4px dashed');
+    const likeRadius = likeRule.match(/border-radius:\s*([^;]+);/)?.[1];
+    const nopeRadius = nopeRule.match(/border-radius:\s*([^;]+);/)?.[1];
+    expect(likeRadius).toBeTruthy();
+    expect(nopeRadius).toBeTruthy();
+    expect(likeRadius).not.toBe(nopeRadius);
+  });
+
+  it('keeps the stamp/rim transition tight (60ms, not the old 0.2s lag)', () => {
+    // The single shared rule is the only transition these elements carry, so one
+    // assertion guards both against reintroducing the finger-chasing lag.
+    const shared = css.match(/\.swipe-stamp,\s*\.swipe-rim\s*\{[^}]*\}/);
+    expect(shared, '.swipe-stamp, .swipe-rim rule').toBeTruthy();
+    expect(shared![0]).toContain('60ms');
+    expect(shared![0]).not.toContain('0.2s');
+  });
+
+  it('removes the old full-screen edge glow', () => {
+    expect(css).not.toContain('.glow');
+  });
+});

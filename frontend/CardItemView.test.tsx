@@ -11,12 +11,13 @@
 // Both front and back faces of the card are always in the DOM (CSS handles the
 // visual flip), so we can query back-face text like "IMDb 7.50" without
 // simulating the flip. CardItem doesn't read context, but we render it through
-// `renderWithRoom` for consistency with the rest of the suite; `setDragX` is a
-// throwaway `vi.fn()` since these tests don't drag.
+// `renderWithRoom` for consistency with the rest of the suite; all drag feedback
+// state (velocity, stamps, rim) is now local to the component, so there is no
+// throwaway `setDragX` prop to pass.
 import { fireEvent, screen } from "@testing-library/react";
 import CardItemView from "./CardItemView";
 import { renderWithRoom } from "./test/renderWithRoom";
-import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold } from "./test/fixtures";
+import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
 
 // Small helper: render a card with the required props filled in, overriding
 // only the card fields a given test cares about.
@@ -24,7 +25,6 @@ function renderCard(cardOverrides = {}) {
   return renderWithRoom(
     <CardItemView
       cardItem={makeCard(cardOverrides)}
-      setDragX={vi.fn()}
       stackIndex={0}
       zIndex={0}
       onSwipe={vi.fn()}
@@ -37,7 +37,6 @@ function renderStackCard(stackIndex = 0) {
   return renderWithRoom(
     <CardItemView
       cardItem={makeCard()}
-      setDragX={vi.fn()}
       stackIndex={stackIndex}
       zIndex={stackIndex}
       onSwipe={vi.fn()}
@@ -207,7 +206,6 @@ describe("CardItemView - swipe behavior", () => {
     const { container } = renderWithRoom(
       <CardItemView
         cardItem={makeCard()}
-        setDragX={vi.fn()}
         stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
@@ -231,7 +229,6 @@ describe("CardItemView - swipe behavior", () => {
     const { container } = renderWithRoom(
       <CardItemView
         cardItem={makeCard()}
-        setDragX={vi.fn()}
         stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
@@ -255,7 +252,6 @@ describe("CardItemView - swipe behavior", () => {
     const { container } = renderWithRoom(
       <CardItemView
         cardItem={makeCard()}
-        setDragX={vi.fn()}
         stackIndex={0}
         zIndex={0}
         onSwipe={onSwipe}
@@ -267,6 +263,126 @@ describe("CardItemView - swipe behavior", () => {
     swipeUnderThreshold(topCard)
 
     expect(onSwipe).not.toHaveBeenCalled()
+  })
+})
+
+describe("CardItemView — swipe verdict feedback (issue #345)", () => {
+  it("renders both stamps at opacity 0 at rest", () => {
+    const { container } = renderCard()
+    const like = container.querySelector(".swipe-stamp-like") as HTMLElement
+    const nope = container.querySelector(".swipe-stamp-nope") as HTMLElement
+    expect(like).toBeTruthy()
+    expect(nope).toBeTruthy()
+    expect(like.style.opacity).toBe("0")
+    expect(nope.style.opacity).toBe("0")
+  })
+
+  it("lights LIKE (and not NOPE) on a rightward drag", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, 250)
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("lights NOPE (and not LIKE) on a leftward drag", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, -250)
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("shows no stamp inside the dead zone (10px travel)", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, 10)
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("tracks the LIKE rim opacity with the LIKE stamp opacity mid-drag", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    // 50px is past the dead zone, so LIKE must be lit and the rim must equal the
+    // stamp. We deliberately do NOT pin the exact strength: whether jsdom's
+    // pointerDown/pointerMove timestamps land inside or outside
+    // MIN_SAMPLE_DT_MS decides if this drag reads as a ramp (0.49) or a flick
+    // commit (1). Both are correct, so only the shared value is asserted.
+    dragTo(card, 50)
+    const rim = (container.querySelector(".swipe-rim-like") as HTMLElement).style.opacity
+    const stamp = (container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity
+    expect(stamp).not.toBe("0")
+    expect(rim).toBe(stamp)
+  })
+
+  it("renders no stamp and no rim for a back card (stackIndex 1)", () => {
+    const { container } = renderStackCard(1)
+    expect(container.querySelector(".swipe-stamp")).toBeNull()
+    expect(container.querySelector(".swipe-rim")).toBeNull()
+  })
+})
+
+describe("CardItemView — interrupted drag (issue #342)", () => {
+  // A spy wired to onSwipe, since renderCard's internal handler is not exposed.
+  function renderCardWithSpy() {
+    const onSwipe = vi.fn()
+    const result = renderWithRoom(
+      <CardItemView cardItem={makeCard()} stackIndex={0} zIndex={0} onSwipe={onSwipe} />,
+      { currentRoomCode: "1234" },
+    )
+    return { onSwipe, ...result }
+  }
+
+  it("resets cleanly on pointercancel (OS/browser took the pointer)", () => {
+    const { container, onSwipe } = renderCardWithSpy()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, 250)
+    cancelDrag(card)
+
+    expect(onSwipe).not.toHaveBeenCalled()
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+    expect(card.style.transform).toContain("translate(0px, 0px)")
+    expect(card.style.transform).toContain("rotate(0deg)")
+  })
+
+  it("resets cleanly when pointer capture is lost mid-drag", () => {
+    const { container, onSwipe } = renderCardWithSpy()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, 250)
+    fireEvent.lostPointerCapture(card, { pointerId: 1 })
+
+    expect(onSwipe).not.toHaveBeenCalled()
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+    expect(card.style.transform).toContain("translate(0px, 0px)")
+    expect(card.style.transform).toContain("rotate(0deg)")
+  })
+
+  it("does NOT undo a committed swipe when capture is lost after a normal release", () => {
+    const { container } = renderCardWithSpy()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    swipeRight(card)
+    // releasePointerCapture() in handlePointerUp synthesises this in a real
+    // browser; the dragActive guard must let the exit transform stand.
+    fireEvent.lostPointerCapture(card, { pointerId: 1 })
+
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(Math.abs(x)).toBeGreaterThan(500)
+  })
+
+  it("does NOT undo a committed swipe when a stray pointercancel arrives after release", () => {
+    const { container, onSwipe } = renderCardWithSpy()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    swipeRight(card)
+    expect(onSwipe).toHaveBeenCalledTimes(1)
+    // e.g. a second finger lifting after the first one committed the swipe.
+    cancelDrag(card)
+
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(Math.abs(x)).toBeGreaterThan(500)
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
   })
 })
 
@@ -334,10 +450,11 @@ describe("CardItem — pointer drag (documented, hard to test)", () => {
   // here would be testing the stub, not the component.
   //
   // WHAT WOULD MAKE IT TESTABLE LATER (for whoever refactors this):
-  //   • extract the pointer math into a pure function (input deltaX → output
-  //     position) and unit-test THAT directly, leaving the DOM wiring thin; or
-  //   • cover the real gesture with an end-to-end test (Playwright/Cypress) in
-  //     a real browser where Pointer Capture actually works.
+  //   • the pointer math now lives in the pure module `swipeGesture.ts` and is
+  //     unit-tested there directly (see swipeGesture.test.ts); the remaining
+  //     gap is the browser-only wiring: real Pointer Events, capture semantics,
+  //     and the transform/transition animation, which need an end-to-end test
+  //     (Playwright/Cypress) in a real browser where Pointer Capture works.
   it.skip("slides the card off-screen when dragged past the swipe threshold", () => {
     // Intentionally left unimplemented — see the comment above.
   });

@@ -11,19 +11,10 @@ import { useRoomSession } from "./RoomSessionProvider"
 
 export default function SwipePage(): JSX.Element {
     const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession } = useRoomSession()
-    const [dragX, setDragX] = React.useState<number>(0)
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { isSoloMode } = useRoomStateContext()
 
-    const rightOpacity: number =
-        dragX > 20
-            ? Math.min(Math.abs(dragX) / 200, 1)
-            : 0
-    const leftOpacity: number =
-        dragX < -20
-            ? Math.min(Math.abs(dragX) / 200, 1)
-            : 0
     // Render at most 3 cards (the top card + ≤2 back cards). Deeper cards are
     // dropped entirely (issue #343) — undo still works because undo re-adds the
     // card to `cardDeck` state and it mounts fresh at the top (see roomSession).
@@ -71,7 +62,6 @@ export default function SwipePage(): JSX.Element {
                                 cardItem={cardItem}
                                 // rendered order is reversed: the last card is the top.
                                 stackIndex={visibleCards.length - 1 - index}
-                                setDragX={setDragX}
                                 zIndex={index}
                                 onSwipe={swipe}
                             />
@@ -87,8 +77,6 @@ export default function SwipePage(): JSX.Element {
                     <button className="shortlist" onClick={handleMatchListClick}>Shortlist</button>
                 </div>
 
-                <div className="glow glow-left" style={{ opacity: leftOpacity }}></div>
-                <div className="glow glow-right" style={{ opacity: rightOpacity }}></div>
                 {state.matchFound && <MatchFoundModal onClick={dismissMatch} matchItem={state.matchItem} />}
                 {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} />}
                 {showMatchListModal && <MatchListModal handleMatchListClick={handleMatchListClick} />}

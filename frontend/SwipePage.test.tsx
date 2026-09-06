@@ -1,8 +1,8 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import SwipePage from "./SwipePage"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
-import { makeDeck } from "./test/fixtures"
+import { makeDeck, dragTo, cancelDrag } from "./test/fixtures"
 import * as roomApi from "./roomApi"
 
 function getRoomState() {
@@ -138,53 +138,56 @@ describe("SwipePage — card-stack depth (issue #343)", () => {
   })
 })
 
-describe("SwipePage — glow opacity", () => {
-  it("has zero glow opacity at rest (dragX === 0)", () => {
-    const { container } = renderSwipePage()
-    const left = container.querySelector(".glow-left") as HTMLElement
-    const right = container.querySelector(".glow-right") as HTMLElement
-    expect(left.style.opacity).toBe("0")
-    expect(right.style.opacity).toBe("0")
-  })
-
-  it("clamps right-glow opacity to 1 once dragged well past the threshold", () => {
+describe("SwipePage — swipe verdict feedback", () => {
+  it("has both stamps at opacity 0 at rest", () => {
     const { container } = renderSwipePage()
     const cards = container.querySelectorAll(".card-item-container")
-    const topCard = cards[cards.length - 1]
-
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: 250, pointerId: 1 })
-
-    const right = container.querySelector(".glow-right") as HTMLElement
-    const left = container.querySelector(".glow-left") as HTMLElement
-    expect(right.style.opacity).toBe("1")
-    expect(left.style.opacity).toBe("0")
+    const topCard = cards[cards.length - 1] as HTMLElement
+    expect((topCard.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+    expect((topCard.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
   })
 
-  it("clamps left-glow opacity to 1 once dragged well past the threshold", () => {
+  it("lights LIKE on the top card when dragged well past the threshold", () => {
     const { container } = renderSwipePage()
     const cards = container.querySelectorAll(".card-item-container")
-    const topCard = cards[cards.length - 1]
-
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: -250, pointerId: 1 })
-
-    const right = container.querySelector(".glow-right") as HTMLElement
-    const left = container.querySelector(".glow-left") as HTMLElement
-    expect(left.style.opacity).toBe("1")
-    expect(right.style.opacity).toBe("0")
+    const topCard = cards[cards.length - 1] as HTMLElement
+    dragTo(topCard, 250)
+    expect((topCard.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
+    expect((topCard.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
   })
 
-  it("keeps glow at 0 at the exact threshold boundary (dragX === 20)", () => {
+  it("lights NOPE on the top card when dragged left past the threshold", () => {
     const { container } = renderSwipePage()
     const cards = container.querySelectorAll(".card-item-container")
-    const topCard = cards[cards.length - 1]
+    const topCard = cards[cards.length - 1] as HTMLElement
+    dragTo(topCard, -250)
+    expect((topCard.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
+    expect((topCard.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+  })
 
-    fireEvent.pointerDown(topCard, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(topCard, { clientX: 20, pointerId: 1 })
+  it("keeps both stamps at 0 inside the dead zone (clientX === 10)", () => {
+    const { container } = renderSwipePage()
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+    dragTo(topCard, 10)
+    expect((topCard.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+    expect((topCard.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+  })
 
-    const right = container.querySelector(".glow-right") as HTMLElement
-    expect(right.style.opacity).toBe("0")
+  it("renders verdict feedback only on the top card (3-card deck)", () => {
+    const { container } = renderSwipePage(3)
+    // Two stamps (like + nope), both on the top card only.
+    expect(container.querySelectorAll(".swipe-stamp")).toHaveLength(2)
+  })
+
+  it("clears both stamps when a live drag is cancelled", () => {
+    const { container } = renderSwipePage()
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+    dragTo(topCard, 250)
+    cancelDrag(topCard)
+    expect((topCard.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+    expect((topCard.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
   })
 })
 
