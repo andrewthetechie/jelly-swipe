@@ -45,13 +45,35 @@ describe("JoinModal — input sanitization", () => {
     // `value.replace(/[^0-9]/g, '')` regex is tested on a genuine multi-char
     // string rather than the single characters a controlled-input `type()`
     // would produce.
-    fireEvent.change(screen.getByPlaceholderText("Enter Host Code"), {
+    fireEvent.change(screen.getByPlaceholderText("0000"), {
       target: { value: "1a2b3" },
     });
 
     // Letters dropped, digits kept in order.
-    expect(screen.getByPlaceholderText("Enter Host Code")).toHaveValue("123");
+    expect(screen.getByPlaceholderText("0000")).toHaveValue("123");
     expect(getRoomState()).toMatchObject({ userInputCode: "123" });
+  });
+});
+
+describe("JoinModal — room code accessibility", () => {
+  it("labels the input and gives it an accessible name", () => {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "",
+    });
+
+    const input = screen.getByRole("textbox", { name: /room code/i });
+    expect(input).toHaveAttribute("id", "roomCode");
+    expect(screen.getByLabelText(/room code/i)).toBe(input);
+    // Placeholder is a format hint, not a duplicate label.
+    expect(input).toHaveAttribute("placeholder", "0000");
+  });
+
+  it("does not use the heading name 'Host Code' anywhere", () => {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "",
+    });
+
+    expect(screen.queryByText(/host code/i)).not.toBeInTheDocument();
   });
 });
 

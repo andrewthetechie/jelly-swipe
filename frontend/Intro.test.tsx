@@ -63,7 +63,7 @@ describe("Intro — modal open/close + state reset", () => {
     renderWithRoomStateful(<Intro />);
 
     await user.click(screen.getByRole("button", { name: /join/i }));
-    await user.type(screen.getByPlaceholderText("Enter Host Code"), "1234");
+    await user.type(screen.getByPlaceholderText("0000"), "1234");
     await user.click(screen.getByText("Cancel"));
 
     expect(getRoomState()).toMatchObject({ userInputCode: "" });
