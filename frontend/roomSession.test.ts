@@ -249,17 +249,38 @@ describe("RoomSessionProvider commands", () => {
 			await hook.result.current.swipe(first, "left")
 		})
 
-		act(() => {
-			hook.result.current.selectGenre("Comedy")
-		})
-
 		await act(async () => {
-			await hook.result.current.confirmGenre()
+			await hook.result.current.confirmGenre("Comedy")
 		})
 
 		expect(roomApi.setGenreChoice).toHaveBeenCalledWith(ROOM_CODE, "Comedy")
+		expect(hook.result.current.state.genre).toBe("Comedy")
 		expect(hook.result.current.state.cardDeck).toEqual(refreshedDeck)
 		expect(hook.result.current.state.swipeHistory).toEqual([])
+	})
+
+	it("confirmGenre failure does not throw, leaves genre/deck/history untouched, and sets lastError", async () => {
+		const first = makeCard({ mediaId: "m-1", title: "Movie m-1" })
+		const second = makeCard({ mediaId: "m-2", title: "Movie m-2" })
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue([first, second])
+		vi.mocked(roomApi.setGenreChoice).mockRejectedValue(new Error("genre failed"))
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 2)
+
+		await act(async () => {
+			await hook.result.current.confirmGenre("Comedy")
+		})
+
+		expect(roomApi.setGenreChoice).toHaveBeenCalledWith(ROOM_CODE, "Comedy")
+		// genre stays at the prior value (no eager GENRE_SELECTED)
+		expect(hook.result.current.state.genre).toBe("All")
+		// deck and swipe history untouched
+		expect(hook.result.current.state.cardDeck).toEqual([first, second])
+		expect(hook.result.current.state.swipeHistory).toEqual([])
+		expect(hook.result.current.state.lastError).toContain("genre failed")
+		expect(errorSpy).toHaveBeenCalled()
 	})
 
 	it("toggleHideWatched uses current state value (no stale closure)", async () => {
@@ -340,8 +361,7 @@ describe("SSE suppression (event id correlation)", () => {
 		await waitForDeckLoad(hook, 1)
 		vi.mocked(roomApi.fetchDeck).mockClear()
 
-		act(() => { hook.result.current.selectGenre("Comedy") })
-		await act(async () => { await hook.result.current.confirmGenre() })
+		await act(async () => { await hook.result.current.confirmGenre("Comedy") })
 
 		// Its own echo arrives with the same event_id -> no refetch.
 		emitSSE(hook, { event_type: "genre_changed", event_id: 41, genre: "Comedy"} )
@@ -376,10 +396,8 @@ describe("SSE suppression (event id correlation)", () => {
 		await waitForDeckLoad(hook, 1)
 		vi.mocked(roomApi.fetchDeck).mockClear()
 
-		act(() => { hook.result.current.selectGenre("Comedy") })
-
 		let confirmPromise: Promise<void>
-		act(() => { confirmPromise = hook.result.current.confirmGenre() })
+		act(() => { confirmPromise = hook.result.current.confirmGenre("Comedy") })
 
 		// Own echo arrives while the POST is still in flight -> suppressed, no refetch.
 		emitSSE(hook, { event_type: "genre_changed", event_id: 50, genre: "Comedy" })
@@ -429,8 +447,7 @@ describe("SSE suppression (event id correlation)", () => {
 		await waitForDeckLoad(hook, 1)
 		vi.mocked(roomApi.fetchDeck).mockClear()
 
-		act(() => { hook.result.current.selectGenre("Comedy") })
-		await act(async () => { await hook.result.current.confirmGenre() })
+		await act(async () => { await hook.result.current.confirmGenre("Comedy") })
 		// event_id 41 is now in ignoredEventIds
 
 		// Reconnect clears inFlight but must NOT clear ignoredEventIds.
