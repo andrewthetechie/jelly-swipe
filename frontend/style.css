@@ -1348,6 +1348,36 @@ div.match-list-info {
     inset 0 2px 4px rgba(0, 0, 0, 0.16);
   filter: brightness(0.97);
 }
+
+.match-list-button:disabled {
+  background: linear-gradient(
+    to bottom,
+    rgba(95, 226, 255, 0.35) 0%,
+    rgba(53, 214, 255, 0.28) 100%
+  );
+  color: rgba(7, 20, 38, 0.55);
+  border-color: rgba(155, 242, 255, 0.38);
+  box-shadow: none;
+  transform: none;
+  filter: saturate(0.55) brightness(0.95);
+  cursor: not-allowed;
+}
+
+.match-list-button:disabled:hover,
+.match-list-button:disabled:focus,
+.match-list-button:disabled:active {
+  background: linear-gradient(
+    to bottom,
+    rgba(95, 226, 255, 0.35) 0%,
+    rgba(53, 214, 255, 0.28) 100%
+  );
+  border-color: rgba(155, 242, 255, 0.38);
+  box-shadow: none;
+  transform: none;
+  filter: saturate(0.55) brightness(0.95);
+  cursor: not-allowed;
+}
+
 @media (max-width: 400px) {
   img.card-item-poster {
     margin-top: 20px;

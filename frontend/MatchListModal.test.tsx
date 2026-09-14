@@ -64,6 +64,19 @@ describe("MatchListModal - rendering", () => {
     )
   })
 
+  it("renders a disabled button when there is no deepLink", async () => {
+    fetchMatchesMock.mockResolvedValueOnce([makeMatch({ deepLink: null })])
+
+    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+
+    expect(await screen.findByText("Movie 1")).toBeInTheDocument()
+
+    const button = screen.getByRole("button", { name: /open in jellyfin 🍿/i })
+    expect(button).toBeDisabled()
+    expect(screen.queryByRole("link", { name: /open in jellyfin 🍿/i })).not.toBeInTheDocument()
+    expect(document.querySelector('[href="#"]')).not.toBeInTheDocument()
+  })
+
   it("Keep Swiping button calls handleMatchListClick", async () => {
     const user = userEvent.setup()
     const handleMatchListClick = vi.fn()
