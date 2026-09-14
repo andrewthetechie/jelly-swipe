@@ -14,7 +14,7 @@ export interface RoomSessionContextType {
     swipe: (card: CardItem, direction: "left" | "right") => Promise<void>
     undo: () => Promise<void>
     selectGenre: (genre: string) => void
-    confirmGenre: () => Promise<void>
+    confirmGenre: (genre?: string) => Promise<void>
     toggleHideWatched: () => Promise<void>
     dismissMatch: () => void
     endSession: () => Promise<void>
@@ -179,14 +179,16 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         }
     }, [currentRoomCode])
 
-    const confirmGenre = React.useCallback(async () => {
+    const confirmGenre = React.useCallback(async (genre?: string) => {
         if (!currentRoomCode) {
             console.error("Cannot change genre without currentRoomCode")
             return
         }
+        const appliedGenre = genre ?? stateRef.current.genre
         inFlightRef.current.add("genre")
         try {
-            const result = await roomApi.setGenreChoice(currentRoomCode, stateRef.current.genre)
+            const result = await roomApi.setGenreChoice(currentRoomCode, appliedGenre)
+            dispatch({ type: "GENRE_SELECTED", genre: appliedGenre })
             dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {

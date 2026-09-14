@@ -83,7 +83,7 @@ describe("GenreModal - radio group behavior", () => {
     expect(action).toBeChecked()
   })
 
-  it("clicking another genre changes the selection", async () => {
+  it("clicking another genre changes the local selection without committing", async () => {
     const user = userEvent.setup()
 
     renderWithRoomStateful(
@@ -101,11 +101,29 @@ describe("GenreModal - radio group behavior", () => {
 
     expect(comedy).toBeChecked()
     expect(action).not.toBeChecked()
+
+    // Tapping through options must not commit to the session (no setGenreChoice).
+    expect(setGenreChoiceMock).not.toHaveBeenCalled()
   })
 })
 
 describe("GenreModal - buttons", () => {
-  it("confirm button calls roomApi.setGenreChoice with current room code + genre", async () => {
+  it("confirm button commits the pending genre and closes the modal", async () => {
+    const user = userEvent.setup()
+    const { handleGenreClick } = renderGenreModal()
+
+    await screen.findByLabelText("Action")
+
+    // Select a pending genre locally, then confirm.
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
+
+    await waitFor(() => expect(setGenreChoiceMock).toHaveBeenCalledTimes(1))
+    expect(setGenreChoiceMock).toHaveBeenCalledWith("1234", "Comedy")
+    expect(handleGenreClick).toHaveBeenCalledOnce()
+  })
+
+  it("confirm with no selection commits the active genre", async () => {
     const user = userEvent.setup()
     renderGenreModal()
 
@@ -117,15 +135,18 @@ describe("GenreModal - buttons", () => {
     expect(setGenreChoiceMock).toHaveBeenCalledWith("1234", "All")
   })
 
-  it("cancel button calls handleGenreClick", async () => {
+  it("cancel button closes the modal without committing", async () => {
     const user = userEvent.setup()
     const { handleGenreClick } = renderGenreModal()
 
     await screen.findByLabelText("Action")
 
+    // Pick a genre, then cancel: the selection must be discarded.
+    await user.click(screen.getByLabelText("Comedy"))
     await user.click(screen.getByRole("button", { name: /cancel/i }))
 
     expect(handleGenreClick).toHaveBeenCalledOnce()
+    expect(setGenreChoiceMock).not.toHaveBeenCalled()
   })
 })
 

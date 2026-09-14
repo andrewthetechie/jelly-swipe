@@ -214,15 +214,16 @@ function RoomSessionTestProvider({
     setState((prev) => ({ ...prev, genre }))
   }
 
-  const confirmGenre = async () => {
+  const confirmGenre = async (genre?: string) => {
     if (!currentRoomCode) {
       console.error("Cannot change genre without currentRoomCode")
       return
     }
     try {
-      const result = await roomApi.setGenreChoice(currentRoomCode, state.genre)
+      const result = await roomApi.setGenreChoice(currentRoomCode, genre ?? state.genre)
       setState((prev) => ({
         ...prev,
+        genre: genre ?? state.genre,
         cardDeck: result.deck,
         swipeHistory: [],
         lastError: null,
