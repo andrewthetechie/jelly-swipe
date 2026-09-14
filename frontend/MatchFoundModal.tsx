@@ -23,9 +23,17 @@ export default function MatchFoundModal({ onClick, matchItem }: MatchFoundModalP
                     {duration && <div className="card-item-runtime">{duration}</div>}
                     <div className="card-item-year">{year}</div>
                 </div>
-                <a href={deepLink ? deepLink : "#"} target="_blank" rel="noopener noreferrer" className="modal-button modal-button-link">
-                    Open in Jellyfin 🍿
-                </a>
+                {deepLink
+                    ? (
+                        <a href={deepLink} target="_blank" rel="noopener noreferrer" className="modal-button modal-button-link">
+                            Open in Jellyfin 🍿
+                        </a>
+                    )
+                    : (
+                        <button type="button" className="modal-button" disabled>
+                            Open in Jellyfin 🍿
+                        </button>
+                    )}
                 <button className="modal-button" onClick={onClick}>Keep Swiping</button>
             </div>
         </div>
