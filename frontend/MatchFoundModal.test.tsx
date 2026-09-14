@@ -83,7 +83,7 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
         )
     })
 
-    it("falls back to # when there is no deepLink", () => {
+    it("renders a disabled button when there is no deepLink", () => {
         const match = makeMatch({
             deepLink: null,
         })
@@ -95,14 +95,15 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
             />
         )
 
-        const link = screen.getByRole("link", {
+        const button = screen.getByRole("button", {
             name: /open in jellyfin 🍿/i
         })
 
-        expect(link).toHaveAttribute(
-            "href",
-            "#"
-        )
+        expect(button).toBeDisabled()
+        expect(screen.queryByRole("link", {
+            name: /open in jellyfin 🍿/i
+        })).not.toBeInTheDocument()
+        expect(document.querySelector('[href="#"]')).not.toBeInTheDocument()
     })
 })
 
