@@ -183,11 +183,10 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             console.error("Cannot change genre without currentRoomCode")
             return
         }
-        const appliedGenre = genre
         inFlightRef.current.add("genre")
         try {
-            const result = await roomApi.setGenreChoice(currentRoomCode, appliedGenre)
-            dispatch({ type: "GENRE_SELECTED", genre: appliedGenre })
+            const result = await roomApi.setGenreChoice(currentRoomCode, genre)
+            dispatch({ type: "GENRE_SELECTED", genre })
             dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
