@@ -43,9 +43,17 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
                     {rating && <div className="match-list-score">IMDb {formatRating(rating)}</div>}
                     {duration && <div className="match-list-runtime">{duration}</div>}
                     <div className="match-list-year">{year}</div>
-                    <a href={deepLink ? deepLink : "#"} target="_blank" rel="noopener noreferrer" className="match-list-button">
-                        Open in Jellyfin 🍿
-                    </a>
+                    {deepLink
+                        ? (
+                            <a href={deepLink} target="_blank" rel="noopener noreferrer" className="match-list-button">
+                                Open in Jellyfin 🍿
+                            </a>
+                        )
+                        : (
+                            <button type="button" className="match-list-button" disabled>
+                                Open in Jellyfin 🍿
+                            </button>
+                        )}
                 </div>
             </div>
         )
