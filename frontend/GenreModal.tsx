@@ -19,7 +19,8 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
         }
     })
 
-    const { state, selectGenre, confirmGenre } = useRoomSession()
+    const { state, confirmGenre } = useRoomSession()
+    const [pendingGenre, setPendingGenre] = React.useState<string>(state.genre)
 
     React.useEffect(() => {
         if (genreList.length > 0) {
@@ -40,7 +41,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
 
     const genreElements = genreList.map((option) => (
         <label
-            className={`custom-radio ${state.genre === option ? "active" : ""}`}
+            className={`custom-radio ${pendingGenre === option ? "active" : ""}`}
             key={option}
             htmlFor={option}
         >
@@ -49,12 +50,17 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 id={option}
                 name="genre"
                 value={option}
-                checked={state.genre === option}
-                onChange={(e) => selectGenre(e.target.value)}
+                checked={pendingGenre === option}
+                onChange={(e) => setPendingGenre(e.target.value)}
             />
             {option}
         </label>
     ))
+
+    const handleConfirm = async () => {
+        await confirmGenre(pendingGenre)
+        handleGenreClick()
+    }
 
     return (
         <div className="modal">
@@ -63,8 +69,8 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 <div className="genre-inputs">
                     {genreElements}
                 </div>
-                <button className="modal-button" onClick={confirmGenre}>Confirm</button>
-                <button className="modal-button" onClick={async () => { await confirmGenre(); handleGenreClick() }}>Cancel</button>
+                <button className="modal-button" onClick={handleConfirm}>Confirm</button>
+                <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
             </div>
         </div>
     )

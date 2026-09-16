@@ -13,8 +13,7 @@ export interface RoomSessionContextType {
     state: RoomSessionState
     swipe: (card: CardItem, direction: "left" | "right") => Promise<void>
     undo: () => Promise<void>
-    selectGenre: (genre: string) => void
-    confirmGenre: () => Promise<void>
+    confirmGenre: (genre: string) => Promise<void>
     toggleHideWatched: () => Promise<void>
     dismissMatch: () => void
     endSession: () => Promise<void>
@@ -179,14 +178,15 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         }
     }, [currentRoomCode])
 
-    const confirmGenre = React.useCallback(async () => {
+    const confirmGenre = React.useCallback(async (genre: string) => {
         if (!currentRoomCode) {
             console.error("Cannot change genre without currentRoomCode")
             return
         }
         inFlightRef.current.add("genre")
         try {
-            const result = await roomApi.setGenreChoice(currentRoomCode, stateRef.current.genre)
+            const result = await roomApi.setGenreChoice(currentRoomCode, genre)
+            dispatch({ type: "GENRE_SELECTED", genre })
             dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
@@ -231,12 +231,11 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         }
     }, [currentRoomCode, setCurrentRoomCode])
 
-    const selectGenre = React.useCallback((genre: string) => dispatch({ type: "GENRE_SELECTED", genre }), [])
     const dismissMatch = React.useCallback(() => dispatch({ type: "MATCH_DISMISSED" }), [])
 
     const value = React.useMemo(() => ({
-        state, swipe, undo, selectGenre, confirmGenre, toggleHideWatched, dismissMatch, endSession
-    }), [state, swipe, undo, selectGenre, confirmGenre, toggleHideWatched, dismissMatch, endSession])
+        state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession
+    }), [state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession])
 
     return <RoomSessionContext.Provider value={value}>{children}</RoomSessionContext.Provider>
 }
