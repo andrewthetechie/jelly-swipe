@@ -276,32 +276,52 @@ describe("SwipePage — deck error retry (issue #340)", () => {
     quitRoomMock.mockResolvedValue({ status: "ok" })
   })
 
-  it("shows the deck-error message and a Try again button instead of a blank deck", () => {
+  it("shows the deck-error message and a Try again button instead of a blank deck", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
+    fetchDeckMock.mockRejectedValue(new Error("fetch failed"))
+
+    renderSwipePageWithError(null, {
+      cardDeck: [],
+      deckError: "Couldn't load your cards. Check your connection and try again.",
+    })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your cards. Check your connection and try again.")
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
+    expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
+
+  it("keeps the loaded deck visible when a deck error is set (transient refetch failure)", () => {
     renderSwipePageWithError(null, {
       cardDeck: makeDeck(2),
       deckError: "Couldn't load your cards. Check your connection and try again.",
     })
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load your cards. Check your connection and try again.")
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
-    expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(screen.getByText("Movie 1")).toBeInTheDocument()
   })
 
   it("retries the deck fetch and clears deckError on success", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
+    fetchDeckMock.mockRejectedValueOnce(new Error("fetch failed"))
     fetchDeckMock.mockResolvedValue(makeDeck(2))
 
     const user = userEvent.setup()
     renderSwipePageWithError(null, {
-      cardDeck: makeDeck(2),
+      cardDeck: [],
       deckError: "Couldn't load your cards. Check your connection and try again.",
     })
 
-    await user.click(screen.getByRole("button", { name: "Try again" }))
+    await user.click(await screen.findByRole("button", { name: "Try again" }))
 
     await waitFor(() => expect(fetchDeckMock).toHaveBeenCalledWith("1234"))
+    expect(await screen.findByText("Movie 1")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-    expect(screen.getByText("Movie 1")).toBeInTheDocument()
+
+    errSpy.mockRestore()
   })
 })
 

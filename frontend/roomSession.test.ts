@@ -117,6 +117,35 @@ describe("roomSession reducer and utils", () => {
 		expect(next.hideWatched).toBe(true)
 	})
 
+	it("GENRE_COMMAND_SUCCEEDED clears a stale deckError", () => {
+		const start = {
+			...initialRoomSessionState,
+			deckError: "Couldn't load your cards. Check your connection and try again.",
+		}
+
+		const next = roomSessionReducer(start, {
+			type: "GENRE_COMMAND_SUCCEEDED",
+			deck: [],
+		})
+
+		expect(next.deckError).toBeNull()
+	})
+
+	it("HIDE_WATCHED_COMMAND_SUCCEEDED clears a stale deckError", () => {
+		const start = {
+			...initialRoomSessionState,
+			deckError: "Couldn't load your cards. Check your connection and try again.",
+		}
+
+		const next = roomSessionReducer(start, {
+			type: "HIDE_WATCHED_COMMAND_SUCCEEDED",
+			deck: [],
+			hideWatched: true,
+		})
+
+		expect(next.deckError).toBeNull()
+	})
+
 	it("SSE_SESSION_READY sets roomReady true", () => {
 		const next = roomSessionReducer(initialRoomSessionState, {
 			type: "SSE_SESSION_READY",
@@ -433,6 +462,28 @@ describe("SSE suppression (event id correlation)", () => {
 		expect(hook.result.current.state.genre).toBe("Comedy")
 	})
 
+	it("surfaces a remote-refetch failure as a banner without blanking the loaded deck", async () => {
+		const genreDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(genreDeck)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+		vi.mocked(roomApi.fetchDeck).mockRejectedValue(new Error("network down"))
+
+		emitSSE(hook, { event_type: "genre_changed", event_id: 99, genre: "Comedy" })
+
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+		await waitFor(() =>
+			expect(hook.result.current.state.lastError).toContain("Couldn't refresh your cards")
+		)
+		expect(hook.result.current.state.deckError).toBeNull()
+		expect(hook.result.current.state.cardDeck).toEqual(genreDeck)
+
+		errorSpy.mockRestore()
+	})
+
 	it("suppresses own echo arriving before the POST resolves, then still honors a later remote change", async () => {
 		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)
@@ -445,7 +496,7 @@ describe("SSE suppression (event id correlation)", () => {
 		await waitForDeckLoad(hook, 1)
 		vi.mocked(roomApi.fetchDeck).mockClear()
 
-		let confirmPromise: Promise<void>
+		let confirmPromise: Promise<boolean>
 		act(() => { confirmPromise = hook.result.current.confirmGenre("Comedy") })
 
 		// Own echo arrives while the POST is still in flight -> suppressed, no refetch.

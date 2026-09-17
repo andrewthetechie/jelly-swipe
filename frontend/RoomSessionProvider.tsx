@@ -13,7 +13,7 @@ export interface RoomSessionContextType {
     state: RoomSessionState
     swipe: (card: CardItem, direction: "left" | "right") => Promise<void>
     undo: () => Promise<void>
-    confirmGenre: (genre: string) => Promise<void>
+    confirmGenre: (genre: string) => Promise<boolean>
     toggleHideWatched: () => Promise<void>
     dismissMatch: () => void
     endSession: () => Promise<void>
@@ -73,18 +73,26 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         ignoredEventIdsRef.current.delete(eventId)
     }
 
-    // Shared deck-fetch code path: dispatches DECK_LOADED on success and
-    // DECK_FETCH_FAILED on failure (issue #340).
-    const loadDeck = React.useCallback(async (roomCode: string) => {
+    // Shared deck-fetch code path: dispatches DECK_LOADED on success. On
+    // failure, the initial load surfaces DECK_FETCH_FAILED (deck-error panel
+    // with retry, issue #340), while a background refetch over an already
+    // loaded deck only raises the dismissible banner via COMMAND_FAILED so a
+    // transient failure never blanks visible cards.
+    const loadDeck = React.useCallback(async (roomCode: string, failureTarget: "panel" | "banner" = "panel") => {
         try {
             const deck = await roomApi.fetchDeck(roomCode)
             dispatch({ type: "DECK_LOADED", deck })
         } catch (err) {
             console.error("Error fetching card deck:", err)
-            dispatch({
-                type: "DECK_FETCH_FAILED",
-                message: "Couldn't load your cards. Check your connection and try again."
-            })
+            dispatch(failureTarget === "panel"
+                ? {
+                    type: "DECK_FETCH_FAILED",
+                    message: "Couldn't load your cards. Check your connection and try again."
+                }
+                : {
+                    type: "COMMAND_FAILED",
+                    message: "Couldn't refresh your cards. Check your connection and try again."
+                })
         }
     }, [])
 
@@ -115,11 +123,11 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (isLocalEcho) {
                 consumeIgnoredEventId(eventId)
             } else if (currentRoomCode) {
-                void loadDeck(currentRoomCode)
+                void loadDeck(currentRoomCode, "banner")
             }
             dispatchMirroredState()
         }
-        
+
         switch (sseData.event_type) {
             case "session_bootstrap":
                 dispatch({ type: "SSE_SESSION_BOOTSTRAP", ready: sseData.ready })
@@ -191,10 +199,10 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         }
     }, [currentRoomCode])
 
-    const confirmGenre = React.useCallback(async (genre: string) => {
+    const confirmGenre = React.useCallback(async (genre: string): Promise<boolean> => {
         if (!currentRoomCode) {
             console.error("Cannot change genre without currentRoomCode")
-            return
+            return false
         }
         inFlightRef.current.add("genre")
         try {
@@ -202,9 +210,11 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             dispatch({ type: "GENRE_SELECTED", genre })
             dispatch({ type: "GENRE_COMMAND_SUCCEEDED", deck: result.deck })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
+            return true
         } catch (err) {
             console.error("Error changing genre", err)
             dispatch({ type: "COMMAND_FAILED", message: "Couldn't change the genre. Check your connection and try again." })
+            return false
         } finally {
             inFlightRef.current.delete("genre")
         }

@@ -64,7 +64,7 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-main">
                     <div className="swipe-deck">
-                        {state.deckError ? (
+                        {state.deckError && state.cardDeck.length === 0 ? (
                             <div className="deck-error" role="alert">
                                 <p>{state.deckError}</p>
                                 <button className="retry-deck" onClick={retryDeckFetch}>Try again</button>

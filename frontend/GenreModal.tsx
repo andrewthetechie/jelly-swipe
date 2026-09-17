@@ -54,15 +54,21 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 name="genre"
                 value={option}
                 checked={pendingGenre === option}
-                onChange={(e) => setPendingGenre(e.target.value)}
+                onChange={(e) => { setPendingGenre(e.target.value); setError(null) }}
             />
             {option}
         </label>
     ))
 
     const handleConfirm = async () => {
-        await confirmGenre(pendingGenre)
-        handleGenreClick()
+        const succeeded = await confirmGenre(pendingGenre)
+        if (succeeded) {
+            handleGenreClick()
+        } else {
+            // Keep the modal open so the failure is visible where the user
+            // is looking; the banner behind the modal stays as the global record.
+            setError("Couldn't change the genre. Check your connection and try again.")
+        }
     }
 
     return (
@@ -72,9 +78,9 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 <div className="genre-inputs">
                     {genreElements}
                 </div>
-                <FormError message={error} />
                 <button className="modal-button" onClick={handleConfirm}>Confirm</button>
                 <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
+                <FormError message={error} />
             </div>
         </div>
     )

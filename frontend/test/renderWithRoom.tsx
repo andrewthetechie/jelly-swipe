@@ -216,10 +216,10 @@ function RoomSessionTestProvider({
     }
   }
 
-  const confirmGenre = async (genre: string) => {
+  const confirmGenre = async (genre: string): Promise<boolean> => {
     if (!currentRoomCode) {
       console.error("Cannot change genre without currentRoomCode")
-      return
+      return false
     }
     try {
       const result = await roomApi.setGenreChoice(currentRoomCode, genre)
@@ -229,10 +229,13 @@ function RoomSessionTestProvider({
         cardDeck: result.deck,
         swipeHistory: [],
         lastError: null,
+        deckError: null,
       }))
+      return true
     } catch (err) {
       console.error("Error changing genre", err)
       setState((prev) => ({ ...prev, lastError: "Couldn't change the genre. Check your connection and try again." }))
+      return false
     }
   }
 
@@ -250,6 +253,7 @@ function RoomSessionTestProvider({
         swipeHistory: [],
         hideWatched: next,
         lastError: null,
+        deckError: null,
       }))
     } catch (err) {
       console.error("Error toggling watched filter", err)

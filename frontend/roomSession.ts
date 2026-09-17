@@ -83,7 +83,8 @@ export function roomSessionReducer(
                 ...state,
                 cardDeck: action.deck,
                 swipeHistory: [],
-                lastError: null
+                lastError: null,
+                deckError: null
             }
         case "HIDE_WATCHED_COMMAND_SUCCEEDED":
             return {
@@ -91,7 +92,8 @@ export function roomSessionReducer(
                 cardDeck: action.deck,
                 swipeHistory: [],
                 hideWatched: action.hideWatched,
-                lastError: null
+                lastError: null,
+                deckError: null
             }
         case "MATCH_FOUND":
             return { ...state, matchFound: true, matchItem: action.matchItem }
