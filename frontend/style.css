@@ -905,9 +905,8 @@ button.genres:hover {
 }
 
 .deck-empty {
-  position: relative;
+  position: absolute;
   inset: var(--deck-stack-reserve, 0) 0 0 0;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
