@@ -1118,6 +1118,27 @@ button.watch-trailer {
   width: 100%;
 }
 
+button.watch-trailer:disabled {
+  cursor: default;
+}
+
+.trailer iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 15px;
+  display: block;
+}
+
+p.trailer-unavailable {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 300;
+  color: #f0f4f8;
+  opacity: 0.82;
+}
+
 p.card-item-description {
   font-size: var(--text-sm);
   font-weight: 300;

@@ -14,10 +14,22 @@
 // `renderWithRoom` for consistency with the rest of the suite; all drag feedback
 // state (velocity, stamps, rim) is now local to the component, so there is no
 // throwaway `setDragX` prop to pass.
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import CardItemView from "./CardItemView";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
+import { RoomApiError } from "./roomApi";
+import * as roomApi from "./roomApi";
+
+vi.mock("./roomApi", async () => {
+  const actual = await vi.importActual<typeof import("./roomApi")>("./roomApi")
+  return {
+    ...actual,
+    fetchTrailer: vi.fn(),
+  }
+})
+
+const fetchTrailerMock = vi.mocked(roomApi.fetchTrailer)
 
 // Small helper: render a card with the required props filled in, overriding
 // only the card fields a given test cares about.
@@ -152,19 +164,27 @@ describe("CardItemView — Watch Trailer label casing", () => {
   // Guards the AC "no all-caps button labels" — case-sensitive on purpose, so a
   // revert to "WATCH TRAILER" fails here (the /watch trailer/i queries elsewhere
   // are case-insensitive and would not catch it).
-  it("renders a mixed-case label, never an all-caps one", () => {
+  it("renders a sentence-case label, never an all-caps one", () => {
     const { container } = renderCard();
     const label = container
       .querySelector("button.watch-trailer")!
       .textContent!.trim();
-    expect(label).toBe("Watch Trailer");
+    expect(label).toBe("Watch trailer");
   });
 });
 
-// Eventually, the Watch Trailer button should also open the trailer div and display the video
-// For now, this test just asserts that clicking the button doesn't flip the card
+// The Watch Trailer button opens the trailer div and displays the video; the
+// behaviour tests below cover the loading/success/error state machine.
 
 describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
+  beforeEach(() => {
+    fetchTrailerMock.mockResolvedValue({ youtube_key: "abc123" })
+  })
+
+  afterEach(() => {
+    fetchTrailerMock.mockReset()
+  })
+
   it("does not toggle the 'flipped' class when the trailer button is clicked", () => {
     const { container } = renderCard()
     const card = container.querySelector(".card-item-container") as HTMLElement
@@ -182,6 +202,73 @@ describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
 
     // The card should not flipped.
     expect(card).toHaveClass("flipped")
+  })
+})
+
+describe("CardItemView — Watch Trailer state machine", () => {
+  afterEach(() => {
+    fetchTrailerMock.mockReset()
+  })
+
+  it("shows 'Loading trailer…' and disables the button while the request is in flight", async () => {
+    let resolveTrailer!: (value: { youtube_key: string }) => void
+    fetchTrailerMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTrailer = resolve
+      }),
+    )
+
+    renderCard()
+    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
+
+    expect(screen.getByText("Loading trailer…")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /loading trailer/i })).toBeDisabled()
+
+    // Resolve so the pending promise doesn't linger after the test.
+    await act(async () => {
+      resolveTrailer({ youtube_key: "abc123" })
+    })
+  })
+
+  it("renders an embedded YouTube player on success", async () => {
+    fetchTrailerMock.mockResolvedValueOnce({ youtube_key: "abc123" })
+
+    renderCard()
+    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Moana trailer")).toBeInTheDocument()
+    })
+
+    const iframe = screen.getByTitle("Moana trailer") as HTMLIFrameElement
+    expect(iframe.getAttribute("src")).toContain("youtube-nocookie.com/embed/abc123")
+    // The button is swapped out for the player.
+    expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
+  })
+
+  it("renders 'No trailer available' on a 404 RoomApiError", async () => {
+    fetchTrailerMock.mockRejectedValueOnce(new RoomApiError(404, "Not Found", "fetching trailer"))
+
+    renderCard()
+    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("No trailer available")).toBeInTheDocument()
+    })
+    // Never a dead, tappable button.
+    expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
+  })
+
+  it("renders 'No trailer available' on a network rejection", async () => {
+    fetchTrailerMock.mockRejectedValueOnce(new Error("network error"))
+
+    renderCard()
+    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("No trailer available")).toBeInTheDocument()
+    })
+    expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
   })
 })
 

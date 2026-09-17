@@ -7,6 +7,7 @@ import type {
     GenreListResponse,
     MatchItem,
     MutationChangeResult,
+    TrailerResponse,
 } from "./types"
 
 export class RoomApiError extends Error {
@@ -131,6 +132,15 @@ export async function fetchCast(
 ): Promise<CastResponse> {
     const res = await apiFetch(`/cast/${mediaId}`, { ...GET_JSON, signal })
     await ensureOk(res, "fetching cast")
+    return res.json()
+}
+
+export async function fetchTrailer(
+    mediaId: string,
+    signal?: AbortSignal,
+): Promise<TrailerResponse> {
+    const res = await apiFetch(`/get-trailer/${mediaId}`, { ...GET_JSON, signal })
+    await ensureOk(res, "fetching trailer")
     return res.json()
 }
 

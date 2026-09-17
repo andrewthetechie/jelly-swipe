@@ -13,6 +13,7 @@ import {
 import type { PointerSample } from './swipeGesture'
 import type { JSX } from "react"
 import type { CardItem } from './types'
+import { fetchTrailer } from './roomApi'
 
 type Position = {
     x: number,
@@ -83,6 +84,25 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
     const dragActive = React.useRef<boolean>(false)
     const thresholdPx = React.useRef<number>(swipeThresholdFor(0))
     const [signal, setSignal] = React.useState<number>(0)
+
+    // Trailer state machine: idle → loading → (playing | unavailable).
+    const [trailerState, setTrailerState] = React.useState<"idle" | "loading" | "playing" | "unavailable">("idle")
+    const [trailerKey, setTrailerKey] = React.useState<string | null>(null)
+    const trailerAbort = React.useRef<AbortController | null>(null)
+
+    const loadTrailer = () => {
+        if (trailerState !== "idle") return
+        setTrailerState("loading")
+        trailerAbort.current = new AbortController()
+        fetchTrailer(mediaId, trailerAbort.current.signal)
+            .then((data) => {
+                setTrailerKey(data.youtube_key)
+                setTrailerState("playing")
+            })
+            .catch(() => {
+                setTrailerState("unavailable")
+            })
+    }
 
     const likeStrength: number = Math.max(signal, 0)
     const nopeStrength: number = Math.max(-signal, 0)
@@ -232,13 +252,45 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                         {year && <div className="card-item-year">{year}</div>}
                     </div>
                     <div className="trailer">
-                        <button
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
-                            onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()}
-                            className="watch-trailer"
-                        >
-                            Watch Trailer
-                        </button>
+                        {trailerState === "idle" && (
+                            <button
+                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                    e.stopPropagation()
+                                    loadTrailer()
+                                }}
+                                onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()}
+                                className="watch-trailer"
+                            >
+                                Watch trailer
+                            </button>
+                        )}
+                        {trailerState === "loading" && (
+                            <button
+                                disabled
+                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
+                                onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()}
+                                className="watch-trailer"
+                            >
+                                Loading trailer…
+                            </button>
+                        )}
+                        {trailerState === "playing" && trailerKey && (
+                            <div
+                                onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+                                onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => e.stopPropagation()}
+                            >
+                                <iframe
+                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}`}
+                                    title={`${title} trailer`}
+                                    allow="autoplay; encrypted-media; picture-in-picture"
+                                    allowFullScreen
+                                    loading="lazy"
+                                />
+                            </div>
+                        )}
+                        {trailerState === "unavailable" && (
+                            <p className="trailer-unavailable">No trailer available</p>
+                        )}
                     </div>
                     <p className="card-item-description">
                         {summary}
