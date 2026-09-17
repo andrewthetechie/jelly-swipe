@@ -39,6 +39,10 @@ export interface CastResponse {
     cast: CastMember[]
 }
 
+export interface TrailerResponse {
+    youtube_key: string
+}
+
 export type GenreListResponse = string[]
 
 export interface RoomStatusResponse {

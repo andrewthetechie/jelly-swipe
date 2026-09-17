@@ -12,6 +12,7 @@ import {
     setWatchedFilter,
     fetchGenres,
     fetchCast,
+    fetchTrailer,
     fetchMatches,
 } from "./roomApi"
 
@@ -329,6 +330,45 @@ describe("fetchCast", () => {
         vi.spyOn(api, "apiFetch").mockResolvedValue(errorResponse(404, "Not Found"))
 
         await expect(fetchCast("media-123")).rejects.toSatisfy(
+            (e: unknown) => e instanceof RoomApiError && e.status === 404,
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// fetchTrailer
+// ---------------------------------------------------------------------------
+
+describe("fetchTrailer", () => {
+    it("GETs /get-trailer/:mediaId", async () => {
+        const trailerData = { youtube_key: "abc123" }
+        const spy = vi
+            .spyOn(api, "apiFetch")
+            .mockResolvedValue(okResponse(trailerData))
+
+        const result = await fetchTrailer("media-123")
+
+        const [path] = spy.mock.calls[0] as [string, RequestInit]
+        expect(path).toBe("/get-trailer/media-123")
+        expect(result).toEqual(trailerData)
+    })
+
+    it("forwards the AbortSignal", async () => {
+        const spy = vi
+            .spyOn(api, "apiFetch")
+            .mockResolvedValue(okResponse({ youtube_key: "abc123" }))
+
+        const controller = new AbortController()
+        await fetchTrailer("media-123", controller.signal)
+
+        const [, options] = spy.mock.calls[0] as [string, RequestInit]
+        expect(options.signal).toBe(controller.signal)
+    })
+
+    it("rejects with RoomApiError on !res.ok", async () => {
+        vi.spyOn(api, "apiFetch").mockResolvedValue(errorResponse(404, "Not Found"))
+
+        await expect(fetchTrailer("media-123")).rejects.toSatisfy(
             (e: unknown) => e instanceof RoomApiError && e.status === 404,
         )
     })
