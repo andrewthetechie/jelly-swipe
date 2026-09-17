@@ -233,7 +233,10 @@ describe("CardItemView — Watch Trailer state machine", () => {
   it("renders an embedded YouTube player on success", async () => {
     fetchTrailerMock.mockResolvedValueOnce({ youtube_key: "abc123" })
 
-    renderCard()
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    // Flip the card first (jsdom applies no CSS, so the back-face button is clickable).
+    fireEvent.click(card)
     fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
 
     await waitFor(() => {
@@ -244,6 +247,27 @@ describe("CardItemView — Watch Trailer state machine", () => {
     expect(iframe.getAttribute("src")).toBe("https://www.youtube.com/embed/abc123?autoplay=1")
     // The button is swapped out for the player.
     expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
+  })
+
+  it("unmounts the player when the card flips back and remounts it on flip forward", async () => {
+    fetchTrailerMock.mockResolvedValueOnce({ youtube_key: "abc123" })
+
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    fireEvent.click(card)
+    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Moana trailer")).toBeInTheDocument()
+    })
+
+    // Flip back to the front: the iframe must unmount so audio stops.
+    fireEvent.click(card)
+    expect(screen.queryByTitle("Moana trailer")).not.toBeInTheDocument()
+
+    // Flip forward again: the player remounts (autoplay resumes).
+    fireEvent.click(card)
+    expect(screen.getByTitle("Moana trailer")).toBeInTheDocument()
   })
 
   it("renders 'No trailer available' on a 404 RoomApiError", async () => {
@@ -284,7 +308,10 @@ describe("CardItemView — Watch Trailer state machine", () => {
       })
     })
 
-    const { unmount } = renderCard()
+    const { unmount, container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    // Flip the card first (jsdom applies no CSS, so the back-face button is clickable).
+    fireEvent.click(card)
     fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
 
     expect(screen.getByText("Loading trailer…")).toBeInTheDocument()

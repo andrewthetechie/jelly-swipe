@@ -291,7 +291,7 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                                 Loading trailer…
                             </button>
                         )}
-                        {trailerState === "playing" && trailerKey && (
+                        {trailerState === "playing" && trailerKey && showDetails && (
                             <div
                                 onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
                                 onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => e.stopPropagation()}
