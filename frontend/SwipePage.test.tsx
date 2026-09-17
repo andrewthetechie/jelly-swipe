@@ -59,6 +59,9 @@ function renderSwipePageWithError(
   })
 }
 
+const topCardTransformX = (top: HTMLElement): number =>
+  parseFloat(top.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+
 describe("SwipePage - HostWaiting rendering logic", () => {
   it("renders only HostWaiting when roomReady is false", () => {
     renderSwipePage(2, false)
@@ -407,12 +410,6 @@ describe("SwipePage - GenreModal behavior", () => {
 })
 
 describe("SwipePage — Nope/Like buttons (issue #344)", () => {
-  // Captured BEFORE the click: the swiped card unmounts on a successful swipe,
-  // but the detached node keeps the committed exit transform, so we read it
-  // from the reference rather than re-querying the live container.
-  const topCardTransformX = (top: HTMLElement): number =>
-    parseFloat(top.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
-
   it("renders Nope, Undo, and Like under the deck in that order", () => {
     const { container } = renderSwipePage()
     const controls = container.querySelector(".swipe-controls") as HTMLElement
@@ -500,9 +497,6 @@ describe("SwipePage — Nope/Like buttons (issue #344)", () => {
 })
 
 describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
-  const topCardTransformX = (top: HTMLElement): number =>
-    parseFloat(top.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
-
   const topCard = (container: HTMLElement): HTMLElement => {
     const cards = container.querySelectorAll(".card-item-container")
     return cards[cards.length - 1] as HTMLElement

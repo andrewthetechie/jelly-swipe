@@ -24,9 +24,9 @@ export default function SwipePage(): JSX.Element {
     // exact commit path a drag uses (same exit transform, same onSwipe call).
     // Only the top card gets the ref (see the map below).
     const cardRef = React.useRef<CardItemViewHandle | null>(null)
-    const commitSwipe = (direction: "left" | "right") => {
+    const commitSwipe = React.useCallback((direction: "left" | "right") => {
         cardRef.current?.commitSwipe(direction)
-    }
+    }, [])
 
     // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
     // Inert while any modal is open or an interactive element has focus (so
@@ -146,19 +146,19 @@ export default function SwipePage(): JSX.Element {
 
                     <div className="swipe-controls">
                         <button
-                            className="jelly-button small nope-button"
+                            className="jelly-button--compact nope-button"
                             onClick={() => commitSwipe("left")}
                             disabled={state.cardDeck.length === 0}
                         >
-                            <span className="swipe-button-glyph">✕</span>Nope
+                            <span className="swipe-button-glyph" aria-hidden="true">✕</span>Nope
                         </button>
                         <button className="btn-secondary undo-button" onClick={undo}>Undo</button>
                         <button
-                            className="jelly-button small like-button"
+                            className="jelly-button--compact like-button"
                             onClick={() => commitSwipe("right")}
                             disabled={state.cardDeck.length === 0}
                         >
-                            <span className="swipe-button-glyph">✓</span>Like
+                            <span className="swipe-button-glyph" aria-hidden="true">✓</span>Like
                         </button>
                     </div>
                     <p className="card-item-instructions">Tap for details · Arrow keys to swipe</p>
