@@ -276,7 +276,7 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                                     loadTrailer()
                                 }}
                                 onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()}
-                                className="watch-trailer"
+                                className="btn-secondary watch-trailer"
                             >
                                 Watch trailer
                             </button>
@@ -286,7 +286,7 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                                 disabled
                                 onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
                                 onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => e.stopPropagation()}
-                                className="watch-trailer"
+                                className="btn-secondary watch-trailer"
                             >
                                 Loading trailer…
                             </button>

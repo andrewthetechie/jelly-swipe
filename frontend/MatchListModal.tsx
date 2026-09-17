@@ -51,12 +51,12 @@ export default function MatchListModal({ onClose }: MatchListModalProps): JSX.El
                     <div className="match-list-year">{year}</div>
                     {deepLink
                         ? (
-                            <a href={deepLink} target="_blank" rel="noopener noreferrer" className="match-list-button">
+                            <a href={deepLink} target="_blank" rel="noopener noreferrer" className="btn-secondary match-list-button">
                                 Open in Jellyfin 🍿
                             </a>
                         )
                         : (
-                            <button type="button" className="match-list-button" disabled>
+                            <button type="button" className="btn-secondary match-list-button" disabled>
                                 Open in Jellyfin 🍿
                             </button>
                         )}
@@ -73,7 +73,7 @@ export default function MatchListModal({ onClose }: MatchListModalProps): JSX.El
             <div className="match-list-container">
                 {matchElements}
             </div>
-            <button className="modal-button" onClick={onClose}>Keep Swiping</button>
+            <button className="btn-secondary" onClick={onClose}>Keep Swiping</button>
         </Modal>
     )
 }

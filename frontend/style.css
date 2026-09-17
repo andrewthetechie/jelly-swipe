@@ -22,20 +22,77 @@
 
   /* Swipe verdict colours (issue #345). Divergent in hue *and* in lightness so
      LIKE and NOPE stay tellable apart in greyscale, and chosen to sit on the
-     navy rather than fight it. Neither collides with the #35D6FF cyan accent.
+     navy rather than fight it. Neither collides with the cyan accent.
      Shared with the Like/Nope buttons when #344 lands. */
   --color-like: #3DE8A8;
   --color-nope: #FF5C8A;
   --color-error: #FF5C8A;
+
+  /* Palette tokens (issue #347). One deliberate, slightly desaturated cyan
+     accent (down from the default-neon cyan so it reads intentional), one
+     destructive pink that harmonizes with --color-nope, plus the navy surfaces,
+     borders and text colours that repeat across the stylesheet. Hover tints and
+     the jelly-gradient stops live in the cyan family below, so the
+     accent/destructive hexes appear only here. */
+  --color-accent: #28CDE6;
+  --color-destructive: #FF6B9D;
+
+  /* Navy surfaces, deepest to lightest. */
+  --color-navy-deep: #071426;
+  --color-navy-base: #0A1F3D;
+  --color-navy-mid: #0A3D91;
+  --color-card-bg: #0A357C;
+
+  /* Borders and focus rings. */
+  --color-border: #1C4273;
+  --color-border-light: #9BF2FF;
+  --color-ring: #3a67ed;
+  --color-ring-dark: #12246e;
+
+  /* Text. */
+  --color-text: #f0f4f8;
+  --color-text-bright: #fdfdfe;
+  --color-white: #ffffff;
+
+  /* Cyan accent family: hover tints and jelly-gradient stops, all derived
+     from --color-accent. */
+  --color-accent-tint: #7EEBFF;
+  --color-accent-light: #5FE2FF;
+  --color-accent-soft: #4BE0FF;
+  --color-accent-hover: #63E5FF;
+  --color-accent-bright: #98F1FF;
+  --color-accent-bright-active: #6ADFFF;
+  --color-accent-mid: #28CFFF;
+  --color-accent-deep: #1B7BFF;
+  --color-accent-deep-hover: #2B8BFF;
+  --color-accent-deep-active: #156AE0;
+  --color-accent-dark: #082E73;
+  --color-accent-deeper: #1452B8;
+  --color-accent-faint: #c9f8ff;
+  --color-accent-pale: #bfefff;
+  --color-accent-white: #dff8ff;
+
+  /* Corner-radius scale. pill for interactive controls, card for cards and
+     modals, badge for small pills/status chips, round for avatars and other
+     fully-round shapes. */
+  --radius-pill: 999px;
+  --radius-card: 16px;
+  --radius-badge: 8px;
+  --radius-round: 50%;
+
+  /* Z-index scale: stamp feedback sits over the deck, the modal above
+     everything. */
+  --z-stamp: 2;
+  --z-modal: 1000;
 }
 
 body {
   font-family: var(--font-body);
   font-size: var(--text-sm);
   line-height: 1.5;
-  background: #071426;
+  background: var(--color-navy-deep);
   background: linear-gradient(0deg,rgba(7, 20, 38, 1) 0%, rgba(10, 31, 61, 1) 60%);
-  color: #f0f4f8;
+  color: var(--color-text);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -82,25 +139,25 @@ img {
 
     padding: 1.5rem;
 
-    border: 4px solid #12246e;
-    border-radius: 34px;
+    border: 4px solid var(--color-ring-dark);
+    border-radius: var(--radius-pill);
 
-    outline: #3a67ed solid 4px;
+    outline: var(--color-ring) solid 4px;
     cursor: pointer;
     overflow: hidden;
 
-    box-shadow: 0 0 0 7px #fdfdfe;
+    box-shadow: 0 0 0 7px var(--color-text-bright);
 
     background:
       linear-gradient(
         to bottom,
-        #7EEBFF 0%,
-        #35D6FF 24%,
-        #1B7BFF 76%,
-        #0A3D91 100%
+        var(--color-accent-tint) 0%,
+        var(--color-accent) 24%,
+        var(--color-accent-deep) 76%,
+        var(--color-navy-mid) 100%
       );
 
-    color: #fdfdfe;
+    color: var(--color-text-bright);
     font-family: var(--font-display);
     font-size: var(--text-lg);
     font-weight: 800;
@@ -130,7 +187,7 @@ img {
     top: -14%;
     left: -12%;
 
-    border-radius: 50%;
+    border-radius: var(--radius-round);
 
     background:
       radial-gradient(
@@ -161,7 +218,7 @@ img {
     top: 11%;
     left: 18%;
 
-    border-radius: 50%;
+    border-radius: var(--radius-round);
 
     background:
       radial-gradient(
@@ -182,17 +239,16 @@ img {
     filter: brightness(1.06) saturate(1.08);
 
     box-shadow:
-      0 0 0 7px #fdfdfe,
-      0 16px 26px rgba(0, 0, 0, 0.38),
-      0 0 24px rgba(53, 214, 255, 0.34);
+      0 0 0 7px var(--color-text-bright),
+      0 16px 26px rgba(0, 0, 0, 0.38);
 
     background:
       linear-gradient(
         to bottom,
-        #98F1FF 0%,
-        #4BE0FF 24%,
-        #2B8BFF 76%,
-        #1452B8 100%
+        var(--color-accent-bright) 0%,
+        var(--color-accent-soft) 24%,
+        var(--color-accent-deep-hover) 76%,
+        var(--color-accent-deeper) 100%
       );
   }
 
@@ -218,17 +274,17 @@ img {
     filter: brightness(0.95) saturate(0.98);
 
     box-shadow:
-      0 0 0 7px #fdfdfe,
+      0 0 0 7px var(--color-text-bright),
       0 7px 12px rgba(0, 0, 0, 0.28),
       inset 0 5px 10px rgba(0, 0, 0, 0.24);
 
     background:
       linear-gradient(
         to bottom,
-        #6ADFFF 0%,
-        #28CFFF 24%,
-        #156AE0 76%,
-        #082E73 100%
+        var(--color-accent-bright-active) 0%,
+        var(--color-accent-mid) 24%,
+        var(--color-accent-deep-active) 76%,
+        var(--color-accent-dark) 100%
       );
   }
 
@@ -268,7 +324,7 @@ img {
   align-items: center;
   padding-top: 20%;
   gap: 1rem;
-  z-index: 999;
+  z-index: var(--z-modal);
 }
 
 /* The shared Modal component renders a native <dialog class="modal">. Reset the
@@ -303,9 +359,9 @@ dialog.modal::backdrop {
   align-items: center;
   gap: 1rem;
   background: rgba(7, 20, 38, 0.75);
-  border: 2px solid #f0f4f8;
-  border-radius: 20px;
-  box-shadow: 2px 2px 5px 2px #3a67ed;
+  border: 2px solid var(--color-text);
+  border-radius: var(--radius-card);
+  box-shadow: 2px 2px 5px 2px var(--color-ring);
   padding: 1.5rem 0;
 }
 
@@ -322,7 +378,7 @@ img.match-logo {
 
 img.match-poster {
   width: 150px;
-  border-radius: 10px;
+  border-radius: var(--radius-badge);
   margin-top: -.75rem;
 }
 
@@ -341,32 +397,26 @@ img.match-poster {
   font-size: var(--text-xl);
   margin-bottom: .25rem;
   text-align: center;
-  color: #35D6FF;
-  text-shadow:
-    -1px -1px 2px #0A1F3D,
-    1px -1px 2px #0A1F3D,
-    -1px 1px 2px #0A1F3D,
-    1px 1px 2px #0A1F3D;
+  color: var(--color-accent);
 }
 
 .room-code-input {
   width: 70%;
   padding: 0.65rem 1rem;
-  border-radius: 15px;
-  border: 1px solid #9BF2FF;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-light);
   background:
     linear-gradient(
       to bottom,
-      rgba(27, 123, 255, 0.28),
+      color-mix(in srgb, var(--color-accent-deep) 28%, transparent),
       rgba(10, 61, 145, 0.38)
     );
-  color: #fdfdfe;
+  color: var(--color-text-bright);
   font-size: var(--text-md);
   font-weight: 500;
   box-shadow:
     inset 0 2px 4px rgba(255, 255, 255, 0.08),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.18),
-    0 0 10px rgba(53, 214, 255, 0.12);
+    inset 0 -3px 6px rgba(0, 0, 0, 0.18);
   outline: none;
   transition:
     border-color 0.16s ease,
@@ -380,107 +430,216 @@ img.match-poster {
 }
 
 .room-code-input:hover {
-  border-color: #c9f8ff;
+  border-color: var(--color-accent-faint);
   box-shadow:
     inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.2),
-    0 0 14px rgba(53, 214, 255, 0.2);
+    inset 0 -3px 6px rgba(0, 0, 0, 0.2);
 }
 
 .room-code-input:focus {
-  border-color: #fdfdfe;
+  border-color: var(--color-text-bright);
   background:
     linear-gradient(
       to bottom,
-      rgba(53, 214, 255, 0.22),
-      rgba(27, 123, 255, 0.42)
+      color-mix(in srgb, var(--color-accent) 22%, transparent),
+      color-mix(in srgb, var(--color-accent-deep) 42%, transparent)
     );
   box-shadow:
     inset 0 2px 4px rgba(255, 255, 255, 0.12),
     inset 0 -3px 6px rgba(0, 0, 0, 0.22),
-    0 0 0 2px rgba(155, 242, 255, 0.18),
-    0 0 18px rgba(53, 214, 255, 0.28);
+    0 0 0 2px color-mix(in srgb, var(--color-border-light) 18%, transparent);
   transform: translateY(-1px);
 }
 
-.modal-button {
-  background: #35D6FF;
-  color: #071426;
-  padding: 0.25rem 1rem;
-  border-radius: 15px;
-  font-size: var(--text-md);
-  font-weight: 600;
-  border: 1px solid #9BF2FF;
+/* Button roles (issue #347): every control picks exactly one role.
+   - .btn-primary — the compact jelly, the app's signature action: a smaller,
+     quieter member of the .jelly-button family (same gradient logic and ring
+     idea, dialed down — smaller padding, font, radius and ring). Reusable via
+     .jelly-button--compact; issue #344 will apply this treatment to the
+     Like/Nope pair when it lands.
+   - .btn-secondary — a flat, quiet pill with no gloss.
+   - .btn-destructive — the destructive action, coloured from the destructive token.
+   Legacy class names remain as thin aliases grouped into the role selectors
+   where old markup still needs them (button.end-session for HostWaiting);
+   none carries its own background/border/colour. */
+.btn-primary,
+.jelly-button--compact {
+  position: relative;
+  padding: 0.4rem 1.25rem;
+  border: 2px solid var(--color-ring-dark);
+  border-radius: var(--radius-pill);
+  outline: var(--color-ring) solid 3px;
   cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 0 0 4px var(--color-text-bright);
+  background:
+    linear-gradient(
+      to bottom,
+      var(--color-accent-tint) 0%,
+      var(--color-accent) 24%,
+      var(--color-accent-deep) 76%,
+      var(--color-navy-mid) 100%
+    );
+  color: var(--color-text-bright);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.9),
+    0 -1px 0 rgba(0, 0, 0, 0.55),
+    1px 0 0 rgba(0, 0, 0, 0.55),
+    -1px 0 0 rgba(0, 0, 0, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.45),
+    0 0 4px rgba(255, 255, 255, 0.22);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    filter 0.16s ease;
+}
+
+/* The modal-layout width belongs to the modal, not the role. .btn-primary is
+   a reusable role (issue #344 will apply .jelly-button--compact to the
+   Like/Nope pair), and a baked-in 70% width would overflow a flex row. Every
+   current .btn-primary lives inside .modal-inner, so scoping the width there
+   preserves today's layout exactly. */
+.modal-inner .btn-primary {
   width: 70%;
 }
 
-.modal-button-link {
-  text-decoration: none;
-  text-align: center;
-  padding: 0.36rem 1.62rem;
-  width: auto;
-  font-size: var(--text-sm);
+.btn-primary::before,
+.jelly-button--compact::before {
+  content: "";
+  position: absolute;
+  width: 55%;
+  height: 45%;
+  top: -18%;
+  left: -15%;
+  border-radius: var(--radius-round);
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(255,255,255,0.95) 0%,
+      rgba(255,255,255,0.75) 24%,
+      rgba(255,255,255,0.22) 44%,
+      rgba(255,255,255,0) 68%
+    );
+  transform:
+    rotate(-22deg)
+    scaleY(0.42);
+  opacity: 0.9;
+  pointer-events: none;
 }
 
-.modal-button:hover {
+.btn-primary::after,
+.jelly-button--compact::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  top: 14%;
+  left: 16%;
+  border-radius: var(--radius-round);
+  background:
+    radial-gradient(
+      circle at 35% 35%,
+      rgba(255,255,255,0.90),
+      rgba(255,255,255,0.2) 70%,
+      transparent 100%
+    );
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.btn-primary:hover,
+.jelly-button--compact:hover {
+  transform: translateY(-2px) scale(1.01);
+  filter: brightness(1.06) saturate(1.08);
+  box-shadow:
+    0 0 0 4px var(--color-text-bright),
+    0 8px 14px rgba(0, 0, 0, 0.34),
+    0 0 16px color-mix(in srgb, var(--color-accent) 30%, transparent);
   background:
     linear-gradient(
       to bottom,
-      #5FE2FF 0%,
-      #35D6FF 100%
+      var(--color-accent-bright) 0%,
+      var(--color-accent-soft) 24%,
+      var(--color-accent-deep-hover) 76%,
+      var(--color-accent-deeper) 100%
     );
-
-  border-color: #c9f8ff;
-
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.22),
-    0 0 14px rgba(53, 214, 255, 0.28);
-
-  transform: translateY(-2px);
-
-  filter: brightness(1.04);
 }
 
-.modal-button:focus {
-  outline: none;
-  border-color: #fdfdfe;
+.btn-primary:hover::before,
+.jelly-button--compact:hover::before {
+  opacity: 1;
+  transform:
+    rotate(-22deg)
+    scaleY(0.46);
+  filter: brightness(1.08);
+}
+
+.btn-primary:hover::after,
+.jelly-button--compact:hover::after {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.btn-primary:active,
+.jelly-button--compact:active {
+  transform: translateY(1px) scale(0.985);
+  filter: brightness(0.95) saturate(0.98);
   box-shadow:
-    0 0 0 3px rgba(155, 242, 255, 0.18),
-    0 0 18px rgba(53, 214, 255, 0.32),
-    0 4px 12px rgba(0, 0, 0, 0.22);
+    0 0 0 4px var(--color-text-bright),
+    0 4px 8px rgba(0, 0, 0, 0.26),
+    inset 0 4px 8px rgba(0, 0, 0, 0.22);
   background:
     linear-gradient(
       to bottom,
-      #63E5FF 0%,
-      #35D6FF 100%
+      var(--color-accent-bright-active) 0%,
+      var(--color-accent-mid) 24%,
+      var(--color-accent-deep-active) 76%,
+      var(--color-accent-dark) 100%
     );
 }
 
-.modal-button:active {
-  transform: translateY(1px) scale(0.98);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.22),
-    inset 0 2px 4px rgba(0, 0, 0, 0.16);
-  filter: brightness(0.97);
+.btn-primary:active::before,
+.jelly-button--compact:active::before {
+  opacity: 0.9;
+  transform:
+    rotate(-22deg)
+    scaleY(0.34);
 }
 
-.modal-button:disabled,
-.modal-button[aria-disabled="true"] {
+.btn-primary:active::after,
+.jelly-button--compact:active::after {
+  transform: scale(0.92);
+  opacity: 0.82;
+}
+
+.btn-primary:focus-visible,
+.jelly-button--compact:focus-visible {
+  /* Shift the keyboard focus indicator away from the resting ring so focus is
+     visually distinct (WCAG 2.4.7). Token-drawn from the existing :root set. */
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] {
   background: linear-gradient(
     to bottom,
-    rgba(95, 226, 255, 0.35) 0%,
-    rgba(53, 214, 255, 0.28) 100%
+    color-mix(in srgb, var(--color-accent-light) 35%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent) 28%, transparent) 100%
   );
   color: rgba(7, 20, 38, 0.55);
-  border-color: rgba(155, 242, 255, 0.38);
+  border-color: color-mix(in srgb, var(--color-border-light) 38%, transparent);
   box-shadow: none;
   transform: none;
   filter: saturate(0.55) brightness(0.95);
   cursor: not-allowed;
 }
 
-.form-error {
+<.form-error {
   color: var(--color-error);
   font-size: var(--text-sm);
   text-align: center;
@@ -495,7 +654,7 @@ img.match-poster {
   margin-bottom: 1rem;
   background: rgba(7, 20, 38, 0.72);
   border: 1px solid var(--color-error);
-  border-radius: 15px;
+  border-radius: var(--radius-card);
   color: var(--color-error);
   font-size: var(--text-sm);
   text-align: center;
@@ -527,15 +686,37 @@ img.match-poster {
   margin-bottom: 0;
 }
 
-button.retry-deck {
-  background: #071426;
-  color: #f0f4f8;
+.retry-deck {
+  background: var(--color-navy-deep);
+  color: var(--color-text);
   padding: 0.5rem 1.25rem;
-  border-radius: 15px;
+  border-radius: var(--radius-card);
   font-size: var(--text-sm);
   font-weight: 600;
-  border: 1px solid #35D6FF;
+  border: 1px solid var(--color-accent);
   cursor: pointer;
+}
+
+.btn-primary:disabled::before,
+.btn-primary:disabled::after,
+.btn-primary:disabled:hover::before,
+.btn-primary:disabled:active::before {
+  opacity: 0;
+}
+
+.btn-primary:disabled:hover,
+.btn-primary:disabled:focus,
+.btn-primary:disabled:active {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-accent-light) 35%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent) 28%, transparent) 100%
+  );
+  border-color: color-mix(in srgb, var(--color-border-light) 38%, transparent);
+  box-shadow: none;
+  transform: none;
+  filter: saturate(0.55) brightness(0.95);
+  cursor: not-allowed;
 }
 
 .modal-button:disabled:hover,
@@ -543,12 +724,114 @@ button.retry-deck {
 .modal-button:disabled:active {
   background: linear-gradient(
     to bottom,
-    rgba(95, 226, 255, 0.35) 0%,
-    rgba(53, 214, 255, 0.28) 100%
+    color-mix(in srgb, var(--color-accent-light) 35%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent) 28%, transparent) 100%
   );
+  border-color: color-mix(in srgb, var(--color-border-light) 38%, transparent);
   box-shadow: none;
   transform: none;
   filter: saturate(0.55) brightness(0.95);
+  cursor: not-allowed;
+}
+
+.btn-primary-link {
+  text-decoration: none;
+  text-align: center;
+  padding: 0.36rem 1.62rem;
+  font-size: var(--text-sm);
+}
+
+/* The match modal's Open-in-Jellyfin link must escape the modal-scoped width
+   so it sits snug around its label. Same (0,2,0) specificity as
+   `.modal-inner .btn-primary` and declared later, so it wins. */
+.modal-inner .btn-primary-link {
+  width: auto;
+}
+
+.btn-secondary {
+  background: var(--color-navy-deep);
+  color: var(--color-text);
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--color-navy-mid);
+  border-color: var(--color-accent);
+  color: var(--color-text);
+  transform: translateY(-2px);
+}
+
+.btn-secondary:focus {
+  outline: none;
+  border-color: var(--color-text-bright);
+}
+
+.btn-secondary:focus-visible {
+  /* Keyboard focus carries the indicator (WCAG 2.4.7); the pointer-only
+     :focus reset above stays. Token-drawn from the existing :root set. */
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.btn-secondary:active {
+  transform: translateY(1px) scale(0.98);
+  filter: brightness(0.97);
+}
+
+.btn-secondary:disabled {
+  background: var(--color-navy-deep);
+  color: rgba(240, 244, 248, 0.45);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.65;
+}
+
+.btn-destructive,
+button.end-session {
+  background: var(--color-destructive);
+  color: var(--color-navy-base);
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-navy-base);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
+}
+
+.btn-destructive:hover,
+button.end-session:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+}
+
+.btn-destructive:active,
+button.end-session:active {
+  transform: translateY(1px) scale(0.98);
+  filter: brightness(0.95);
+}
+
+.btn-destructive:focus-visible,
+button.end-session:focus-visible {
+  /* Keyboard focus indicator (WCAG 2.4.7), token-drawn from the :root set. */
+  outline: 2px solid var(--color-text-bright);
+  outline-offset: 2px;
 }
 
 .jelly-check {
@@ -556,7 +839,7 @@ button.retry-deck {
     align-items: center;
     gap: 0.85rem;
 
-    color: #fdfdfe;
+    color: var(--color-text-bright);
 
     font-size: var(--text-md);
     font-weight: 600;
@@ -578,21 +861,20 @@ button.retry-deck {
     width: 28px;
     height: 28px;
 
-    border-radius: 10px;
+    border-radius: var(--radius-badge);
 
-    border: 2px solid #9BF2FF;
+    border: 2px solid var(--color-border-light);
 
     background:
         linear-gradient(
             to bottom,
-            rgba(53, 214, 255, 0.18),
+            color-mix(in srgb, var(--color-accent) 18%, transparent),
             rgba(10, 61, 145, 0.4)
         );
 
     box-shadow:
         inset 0 2px 4px rgba(255,255,255,0.08),
-        inset 0 -3px 6px rgba(0,0,0,0.2),
-        0 0 10px rgba(53,214,255,0.14);
+        inset 0 -3px 6px rgba(0,0,0,0.2);
 
     transition:
         background 0.16s ease,
@@ -602,12 +884,11 @@ button.retry-deck {
 }
 
 .jelly-check:hover .checkmark {
-    border-color: #c9f8ff;
+    border-color: var(--color-accent-faint);
 
     box-shadow:
         inset 0 2px 4px rgba(255,255,255,0.1),
-        inset 0 -3px 6px rgba(0,0,0,0.22),
-        0 0 14px rgba(53,214,255,0.24);
+        inset 0 -3px 6px rgba(0,0,0,0.22);
 
     transform: translateY(-1px);
 }
@@ -616,16 +897,16 @@ button.retry-deck {
     background:
         linear-gradient(
             to bottom,
-            #7EEBFF 0%,
-            #35D6FF 35%,
-            #1B7BFF 100%
+            var(--color-accent-tint) 0%,
+            var(--color-accent) 35%,
+            var(--color-accent-deep) 100%
         );
 
-    border-color: #fdfdfe;
+    border-color: var(--color-text-bright);
 
     box-shadow:
-        0 0 0 2px rgba(155,242,255,0.16),
-        0 0 16px rgba(53,214,255,0.3);
+        0 0 0 2px color-mix(in srgb, var(--color-border-light) 16%, transparent),
+        0 0 16px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 .checkmark::after {
@@ -639,7 +920,7 @@ button.retry-deck {
     width: 7px;
     height: 14px;
 
-    border: solid #071426;
+    border: solid var(--color-navy-deep);
     border-width: 0 3px 3px 0;
 
     transform:
@@ -662,7 +943,7 @@ button.retry-deck {
 
     width: 70%;
 
-    color: #fdfdfe;
+    color: var(--color-text-bright);
 
     font-size: var(--text-md);
     font-weight: 600;
@@ -695,21 +976,20 @@ button.retry-deck {
     width: 60px;
     height: 32px;
 
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
 
-    border: 2px solid #9BF2FF;
+    border: 2px solid var(--color-border-light);
 
     background:
         linear-gradient(
             to bottom,
-            rgba(53, 214, 255, 0.14),
+            color-mix(in srgb, var(--color-accent) 14%, transparent),
             rgba(10, 61, 145, 0.4)
         );
 
     box-shadow:
         inset 0 2px 4px rgba(255,255,255,0.08),
-        inset 0 -3px 6px rgba(0,0,0,0.22),
-        0 0 10px rgba(53,214,255,0.12);
+        inset 0 -3px 6px rgba(0,0,0,0.22);
 
     transition:
         background 0.18s ease,
@@ -728,13 +1008,13 @@ button.retry-deck {
     width: 22px;
     height: 22px;
 
-    border-radius: 50%;
+    border-radius: var(--radius-round);
 
     background:
         linear-gradient(
             to bottom,
-            #fdfdfe,
-            #bfefff
+            var(--color-text-bright),
+            var(--color-accent-pale)
         );
 
     box-shadow:
@@ -747,26 +1027,23 @@ button.retry-deck {
 }
 
 .jelly-toggle:hover .slider {
-    border-color: #c9f8ff;
-
-    box-shadow:
-        0 0 16px rgba(53,214,255,0.22);
+    border-color: var(--color-accent-faint);
 }
 
 .jelly-toggle input:checked + .slider {
     background:
         linear-gradient(
             to bottom,
-            #7EEBFF 0%,
-            #35D6FF 35%,
-            #1B7BFF 100%
+            var(--color-accent-tint) 0%,
+            var(--color-accent) 35%,
+            var(--color-accent-deep) 100%
         );
 
-    border-color: #fdfdfe;
+    border-color: var(--color-text-bright);
 
     box-shadow:
-        0 0 0 2px rgba(155,242,255,0.14),
-        0 0 18px rgba(53,214,255,0.3);
+        0 0 0 2px color-mix(in srgb, var(--color-border-light) 14%, transparent),
+        0 0 18px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 .jelly-toggle input:checked + .slider::before {
@@ -775,14 +1052,14 @@ button.retry-deck {
     background:
         linear-gradient(
             to bottom,
-            #ffffff,
-            #dff8ff
+            var(--color-white),
+            var(--color-accent-white)
         );
 }
 
 .solo {
   margin-top: 1.5rem;
-  border-top: 1px solid #f0f4f8aa;
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 67%, transparent);
   padding-top: 1.5rem;
   margin-bottom: 1.5rem;
 }
@@ -817,7 +1094,7 @@ button.retry-deck {
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1.1;
-  color: #35D6FF;
+  color: var(--color-accent);
 }
 
 .waiting-text {
@@ -874,28 +1151,16 @@ button.retry-deck {
 }
 
 div.mode-badge {
-  background: #071426;
-  color: #f0f4f8;
-  border-radius: 15px;
+  background: var(--color-navy-deep);
+  color: var(--color-text);
+  border-radius: var(--radius-pill);
   padding: 0.25rem 1rem;
-  border: 1px solid #1C4273;
+  border: 1px solid var(--color-border);
   font-size: var(--text-sm);
   font-weight: 300;
   text-align: center;
   margin-right: auto;
   display: none;
-}
-
-button.genres,
-button.undo-button {
-  background: #071426;
-  color: #f0f4f8;
-  padding: 0.25rem 1rem;
-  border-radius: 15px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  border: 1px solid #35D6FF;
-  cursor: pointer;
 }
 
 .custom-radio input[type="radio"] {
@@ -907,40 +1172,43 @@ button.undo-button {
 
 .custom-radio {
   display: flex;
-  background: #071426;
-  color: #f0f4f8;
+  background: var(--color-navy-deep);
+  color: var(--color-text);
   padding: 0.5rem 0.75rem;
   align-items: center;
   justify-content: center;
   text-align: center;
-  border-radius: 15px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 600;
-  border: 1px solid #35D6FF;
+  border: 1px solid var(--color-accent);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .custom-radio:hover {
-  background: #0A3D91;
-  border-color: #35D6FF;
-  color: #f0f4f8;
+  background: var(--color-navy-mid);
+  border-color: var(--color-accent);
+  color: var(--color-text);
   transform: translateY(-1px);
-  box-shadow: 0 0 10px rgba(53, 214, 255, 0.2)
 }
 
 .custom-radio.active {
-  background: #35D6FF;
-  border-radius: 15px;
-  border-color: #1C4273;
-  color: #071426;
+  background: var(--color-accent);
+  border-radius: var(--radius-pill);
+  border-color: var(--color-border);
+  color: var(--color-navy-deep);
 }
 
 .custom-radio.active:hover {
-  background: #4BE0FF;
-  border-color: #c9f8ff;
-  color: #071426;
-  box-shadow: 0 0 12px rgba(53, 214, 255, 0.3);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-faint);
+  color: var(--color-navy-deep);
 }
 
 div.genre-inputs {
@@ -949,20 +1217,6 @@ div.genre-inputs {
   gap: 10px;
   margin: 15px 0;
   padding: 10px;
-}
-
-button.hide-watched{
-  background: #35D6FF;
-  border-radius: 15px;
-  border-color: #1C4273;
-  color: #071426;
-}
-
-button.show-watched:hover,
-button.genres:hover {
-  background: #0A3D91;
-  border-color: #35D6FF;
-  color: #f0f4f8;
 }
 
 .swipe-main {
@@ -1012,7 +1266,7 @@ button.genres:hover {
 .swipe-stamp,
 .swipe-rim {
   position: absolute;
-  z-index: 2;
+  z-index: var(--z-stamp);
   pointer-events: none;
   opacity: 0;
   /* One transition declaration for both elements, so there is exactly one place
@@ -1024,7 +1278,7 @@ button.genres:hover {
    div.card-item's 20px radius and the container's box exactly. */
 .swipe-rim {
   inset: 0;
-  border-radius: 20px;
+  border-radius: var(--radius-card);
 }
 
 .swipe-rim-like {
@@ -1060,7 +1314,7 @@ button.genres:hover {
   left: 7%;
   color: var(--color-like);
   border: 4px solid var(--color-like);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transform: rotate(-14deg);
 }
 
@@ -1068,7 +1322,7 @@ button.genres:hover {
   right: 7%;
   color: var(--color-nope);
   border: 4px dashed var(--color-nope);
-  border-radius: 4px;
+  border-radius: var(--radius-badge);
   transform: rotate(14deg);
 }
 
@@ -1091,8 +1345,8 @@ div.card-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #0A357C;
-  border-radius: 20px;
+  background: var(--color-card-bg);
+  border-radius: var(--radius-card);
   box-shadow:
       4px 8px 8px rgba(0, 0, 0, 0.38),
       inset 0 2px 6px rgba(255,255,255,0.08);
@@ -1127,11 +1381,11 @@ div.media-type {
   position: absolute;
   top: 10px;
   left: 10px;
-  background: #071426AA;
-  color: #f0f4f8;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-navy-deep) 67%, transparent);
+  color: var(--color-text);
+  border-radius: var(--radius-badge);
   padding: 0.25rem 1rem;
-  border: 1px solid #1C4273;
+  border: 1px solid var(--color-border);
   font-size: var(--text-sm);
   font-weight: 300;
   text-align: center;
@@ -1139,7 +1393,7 @@ div.media-type {
 
 div.back {
   padding: 1rem 1.5rem;
-  border: 2px solid #35D6FF;
+  border: 2px solid var(--color-accent);
   gap: .5rem;
 }
 
@@ -1147,12 +1401,7 @@ div.back {
   font-family: var(--font-display);
   font-size: var(--text-2xl);
   margin-bottom: 0;
-  color: #35D6FF;
-  text-shadow:
-    -1px -1px 2px #0A1F3D,
-    1px -1px 2px #0A1F3D,
-    -1px 1px 2px #0A1F3D,
-    1px 1px 2px #0A1F3D;
+  color: var(--color-accent);
 }
 
 div.card-item-info {
@@ -1164,11 +1413,11 @@ div.card-item-info {
 div.card-item-score,
 div.card-item-runtime,
 div.card-item-year {
-  background: #071426AA;
-  color: #35D6FF;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-navy-deep) 67%, transparent);
+  color: var(--color-accent);
+  border-radius: var(--radius-badge);
   padding: 0.25rem 1rem;
-  border: 1px solid #1C4273;
+  border: 1px solid var(--color-border);
   font-size: var(--text-sm);
   font-weight: 400;
   text-align: center;
@@ -1179,25 +1428,8 @@ div.trailer {
   width: 100%;
 }
 
-button.watch-trailer,
-button.undo-button,
-button.end-session,
-button.shortlist {
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    filter 0.18s ease;
-}
-
 button.watch-trailer {
-  background: #35D6FF;
-  border: none;
-  color: #071426;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
+  /* secondary role — styling lives on .btn-secondary; only layout stays here */
   width: 100%;
 }
 
@@ -1209,7 +1441,7 @@ button.watch-trailer:disabled {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 0;
-  border-radius: 15px;
+  border-radius: var(--radius-card);
   display: block;
 }
 
@@ -1218,7 +1450,7 @@ p.trailer-unavailable {
   text-align: center;
   font-size: var(--text-sm);
   font-weight: 300;
-  color: #f0f4f8;
+  color: var(--color-text);
   opacity: 0.82;
 }
 
@@ -1254,8 +1486,8 @@ img.actor-image {
   width: 60px;
   height: 60px;
   object-fit: cover;
-  border-radius: 50%;
-  border: 2px solid #35D6FF;
+  border-radius: var(--radius-round);
+  border: 2px solid var(--color-accent);
 }
 
 p.actor-name {
@@ -1267,46 +1499,12 @@ button.undo-button {
   height: auto;
 }
 
-button.undo-button:hover,
-button.end-session:hover,
-button.shortlist:hover,
-button.watch-trailer:hover {
-  background:
-    linear-gradient(
-      to bottom,
-      #5FE2FF 0%,
-      #35D6FF 100%
-    );
-  border-color: #c9f8ff;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.22),
-    0 0 14px rgba(53, 214, 255, 0.28);
-  transform: translateY(-2px);
-  filter: brightness(1.04);
-}
-
-button.undo-button:active,
-button.end-session:active,
-button.shortlist:active,
-button.watch-trailer:active {
-  transform: translateY(1px) scale(0.98);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.22),
-    inset 0 2px 4px rgba(0, 0, 0, 0.16);
-  filter: brightness(0.97);
-}
-
 p.card-item-instructions {
-  text-shadow:
-    -1px -1px 2px #0A1F3D,
-    1px -1px 2px #0A1F3D,
-    -1px 1px 2px #0A1F3D,
-    1px 1px 2px #0A1F3D;
   margin-bottom: 0;
   margin-top: -.5rem;
-  background: #071426CC;
-  color: #f0f4f8;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-navy-deep) 80%, transparent);
+  color: var(--color-text);
+  border-radius: var(--radius-badge);
   padding: 0.25rem 1rem;
 }
 
@@ -1316,29 +1514,12 @@ div.swipe-footer {
   justify-content: space-between;
 }
 
-button.end-session,
-button.shortlist {
-  background: #FF7ACF;
-  color: #0A1F3D;
-  padding: 0.5rem 1.25rem;
-  border-radius: 15px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  border: 1px solid #0A1F3D;
-  cursor: pointer;
-}
-
-button.shortlist {
-  background: #35D6FF;
-  color: #071426;
-}
-
 div.modal-match-list {
   height: 85%;
   width: 85%;
   padding: 5px 5px 15px 5px;
   overflow-y: auto;
-  color: #35D6FF;
+  color: var(--color-accent);
 }
 
 div.match-list-container {
@@ -1353,15 +1534,15 @@ div.match-list-item {
   display: flex;
   padding: .5rem;
   width: auto;
-  border: 1px solid #35D6FF;
+  border: 1px solid var(--color-accent);
   padding: 0.5rem 0.75rem;
-  border-radius: 15px;
+  border-radius: var(--radius-pill);
   align-items: center;
 }
 
 img.match-list-img {
   height: 175px;
-  border-radius: 10px;
+  border-radius: var(--radius-badge);
 }
 
 div.match-list-info {
@@ -1377,109 +1558,32 @@ div.match-list-info {
   font-size: var(--text-md);
   margin-bottom: .5rem;
   margin-right: auto;
-  color: #f0f4f8;
-  text-shadow:
-    -1px -1px 2px #0A1F3D,
-    1px -1px 2px #0A1F3D,
-    -1px 1px 2px #0A1F3D,
-    1px 1px 2px #0A1F3D;
+  color: var(--color-text);
 }
 
 .match-list-score,
 .match-list-runtime,
 .match-list-year {
-  background: #071426AA;
-  color: #35D6FF;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-navy-deep) 67%, transparent);
+  color: var(--color-accent);
+  border-radius: var(--radius-badge);
   margin-right: auto;
   padding: 0.25rem .75rem;
-  border: 1px solid #1C4273;
+  border: 1px solid var(--color-border);
   font-size: var(--text-xs);
   font-weight: 400;
   text-align: center;
 }
 
 .match-list-button {
-  background: #35D6FF;
-  color: #071426;
-  border-radius: 15px;
+  /* secondary role — styling lives on .btn-secondary; only layout stays here */
   font-size: var(--text-sm);
   padding: 0.5rem 1rem;
   margin-top: .25rem;
   margin-right: auto;
-  font-weight: 600;
-  border: 1px solid #9BF2FF;
-  cursor: pointer;
   text-decoration: none;
   text-align: center;
   height: auto;
-}
-
-.match-list-button:hover {
-  background:
-    linear-gradient(
-      to bottom,
-      #5FE2FF 0%,
-      #35D6FF 100%
-    );
-  border-color: #c9f8ff;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.22),
-    0 0 14px rgba(53, 214, 255, 0.28);
-  transform: translateY(-2px);
-  filter: brightness(1.04);
-}
-
-.match-list-button:focus {
-  outline: none;
-  border-color: #fdfdfe;
-  box-shadow:
-    0 0 0 3px rgba(155, 242, 255, 0.18),
-    0 0 18px rgba(53, 214, 255, 0.32),
-    0 4px 12px rgba(0, 0, 0, 0.22);
-  background:
-    linear-gradient(
-      to bottom,
-      #63E5FF 0%,
-      #35D6FF 100%
-    );
-}
-
-.match-list-button:active {
-  transform: translateY(1px) scale(0.98);
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.22),
-    inset 0 2px 4px rgba(0, 0, 0, 0.16);
-  filter: brightness(0.97);
-}
-
-.match-list-button:disabled {
-  background: linear-gradient(
-    to bottom,
-    rgba(95, 226, 255, 0.35) 0%,
-    rgba(53, 214, 255, 0.28) 100%
-  );
-  color: rgba(7, 20, 38, 0.55);
-  border-color: rgba(155, 242, 255, 0.38);
-  box-shadow: none;
-  transform: none;
-  filter: saturate(0.55) brightness(0.95);
-  cursor: not-allowed;
-}
-
-.match-list-button:disabled:hover,
-.match-list-button:disabled:focus,
-.match-list-button:disabled:active {
-  background: linear-gradient(
-    to bottom,
-    rgba(95, 226, 255, 0.35) 0%,
-    rgba(53, 214, 255, 0.28) 100%
-  );
-  border-color: rgba(155, 242, 255, 0.38);
-  box-shadow: none;
-  transform: none;
-  filter: saturate(0.55) brightness(0.95);
-  cursor: not-allowed;
 }
 
 @media (max-width: 400px) {
@@ -1534,6 +1638,13 @@ div.match-list-info {
     width: 40%;
   }
 
+  /* Same (0,2,0) specificity as the modal-scoped base rule and declared later,
+     so this overrides it at desktop. A bare `.btn-primary` selector here would
+     lose to the descendant-scope base rule, so scope it to the modal too. */
+  .modal-inner .btn-primary {
+    width: 40%;
+  }
+
   .slider {
     width: 72px;
     height: 38px;
@@ -1554,12 +1665,10 @@ div.match-list-info {
     display: revert;
   }
 
-  button.genres,
-  button.undo-button,
-  button.end-session,
-  button.shortlist,
-  button.modal-button,
-  a.modal-button-link {
+  .btn-primary,
+  .btn-primary-link,
+  .btn-secondary,
+  .btn-destructive {
     padding: 0.5rem 1.25rem;
   }
 

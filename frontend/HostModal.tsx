@@ -67,10 +67,10 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
                 <span className="slider"></span>
             </label>
 
-            <button className="modal-button" onClick={doCreate} disabled={isSubmitting}>
+            <button className="btn-primary" onClick={doCreate} disabled={isSubmitting}>
                 {isSubmitting ? "Creating Session..." : "Create Session"}
             </button>
-            <button className="modal-button" onClick={onClose}>Cancel</button>
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
             <FormError message={error} />
         </Modal>
     )

@@ -67,7 +67,7 @@ export default function SwipePage(): JSX.Element {
                         <span className="slider"></span>
 
                     </label>
-                    <button className="genres" onClick={openGenreModal}>Genres</button>
+                    <button className="btn-secondary genres" onClick={openGenreModal}>Genres</button>
                 </div>
 
                 <div className="swipe-main">
@@ -91,13 +91,13 @@ export default function SwipePage(): JSX.Element {
                         )}
                     </div>
 
-                    <button className="undo-button" onClick={undo}>Undo</button>
+                    <button className="btn-secondary undo-button" onClick={undo}>Undo</button>
                     <p className="card-item-instructions">Tap poster for full details</p>
                 </div>
 
                 <div className="swipe-footer">
-                    <button className="end-session" onClick={endSession}>End Session</button>
-                    <button className="shortlist" onClick={openMatchListModal}>Shortlist</button>
+                    <button className="btn-destructive end-session" onClick={endSession}>End Session</button>
+                    <button className="btn-secondary shortlist" onClick={openMatchListModal}>Shortlist</button>
                 </div>
 
                 {state.matchFound && <MatchFoundModal onClose={dismissMatch} matchItem={state.matchItem} />}
