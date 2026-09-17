@@ -3,9 +3,10 @@ import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider
 import type { JSX } from "react"
 import { joinRoom, RoomApiError } from './roomApi'
 import FormError from "./FormError"
+import Modal from "./Modal"
 
 interface JoinModalProps {
-    onClose: React.MouseEventHandler<HTMLButtonElement | HTMLDivElement>
+    onClose: () => void
 }
 
 export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
@@ -19,10 +20,11 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
         if (!isValid) return
         if (isSubmitting) return
         setIsSubmitting(true)
-        
+        setError(null)
+
         try {
             await joinRoom(userInputCode)
-            setCurrentRoomCode(userInputCode)            
+            setCurrentRoomCode(userInputCode)
         } catch (err) {
             console.error("Error joining room:", err)
             if (err instanceof RoomApiError && err.status === 404) {
@@ -35,25 +37,23 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
         }
     }
     return (
-        <div className="modal">
-            <div className="modal-inner">
-            <h2>Enter Room Code</h2>
-            <input 
+        <Modal onClose={onClose} labelledBy="join-modal-heading">
+            <h2 id="join-modal-heading">Enter Room Code</h2>
+            <input
                 type="text"
-                inputMode="numeric" 
+                inputMode="numeric"
                 minLength={4}
                 maxLength={4}
-                placeholder="Enter Host Code" 
-                className="room-code-input" 
-                value={userInputCode} 
-                onChange={(e) => { setUserInputCode(e.target.value.replace(/[^0-9]/g, '')); setError(null) }} 
+                placeholder="Enter Host Code"
+                className="room-code-input"
+                value={userInputCode}
+                onChange={(e) => { setUserInputCode(e.target.value.replace(/[^0-9]/g, '')); setError(null) }}
             />
             <button className="modal-button" onClick={doJoin} disabled={isSubmitting || !isValid}>
                 {isSubmitting ? "Joining Session..." : "Join Session"}
             </button>
-            <button className="modal-button" onClick={onClose} data-modal-type="join">Cancel</button>
+            <button className="modal-button" onClick={onClose}>Cancel</button>
             <FormError message={error} />
-            </div>
-        </div>
+        </Modal>
     )
 }

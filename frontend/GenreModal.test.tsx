@@ -21,10 +21,10 @@ beforeEach(() => {
 })
 
 function renderGenreModal() {
-  const handleGenreClick = vi.fn()
+  const onClose = vi.fn()
 
   const utils = renderWithRoom(
-    <GenreModal handleGenreClick={handleGenreClick} />,
+    <GenreModal onClose={onClose} />,
     {
       currentRoomCode: "1234",
       genre: "All",
@@ -33,7 +33,7 @@ function renderGenreModal() {
 
   return {
     ...utils,
-    handleGenreClick,
+    onClose,
   }
 }
 
@@ -75,7 +75,7 @@ describe("GenreModal - data loading and caching", () => {
 describe("GenreModal - radio group behavior", () => {
   it("selected genre is checked", async () => {
     renderWithRoomStateful(
-      <GenreModal handleGenreClick={vi.fn()} />,
+      <GenreModal onClose={vi.fn()} />,
       { genre: "Action" },
     )
 
@@ -87,7 +87,7 @@ describe("GenreModal - radio group behavior", () => {
     const user = userEvent.setup()
 
     renderWithRoomStateful(
-      <GenreModal handleGenreClick={vi.fn()} />,
+      <GenreModal onClose={vi.fn()} />,
       { genre: "Action" },
     )
 
@@ -110,7 +110,7 @@ describe("GenreModal - radio group behavior", () => {
 describe("GenreModal - buttons", () => {
   it("confirm button commits the pending genre and closes the modal", async () => {
     const user = userEvent.setup()
-    const { handleGenreClick } = renderGenreModal()
+    const { onClose } = renderGenreModal()
 
     await screen.findByLabelText("Action")
 
@@ -120,7 +120,7 @@ describe("GenreModal - buttons", () => {
 
     await waitFor(() => expect(setGenreChoiceMock).toHaveBeenCalledTimes(1))
     expect(setGenreChoiceMock).toHaveBeenCalledWith("1234", "Comedy")
-    expect(handleGenreClick).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it("confirm with no selection commits the active genre", async () => {
@@ -137,7 +137,7 @@ describe("GenreModal - buttons", () => {
 
   it("cancel button closes the modal without committing", async () => {
     const user = userEvent.setup()
-    const { handleGenreClick } = renderGenreModal()
+    const { onClose } = renderGenreModal()
 
     await screen.findByLabelText("Action")
 
@@ -145,7 +145,35 @@ describe("GenreModal - buttons", () => {
     await user.click(screen.getByLabelText("Comedy"))
     await user.click(screen.getByRole("button", { name: /cancel/i }))
 
-    expect(handleGenreClick).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(setGenreChoiceMock).not.toHaveBeenCalled()
+  })
+
+  it("Escape closes the modal and discards the pending genre", async () => {
+    const user = userEvent.setup()
+    const { onClose } = renderGenreModal()
+
+    await screen.findByLabelText("Action")
+
+    // Pick a genre, then Escape: the selection must be discarded (no commit).
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.keyboard("{Escape}")
+
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(setGenreChoiceMock).not.toHaveBeenCalled()
+  })
+
+  it("overlay click closes the modal and discards the pending genre", async () => {
+    const user = userEvent.setup()
+    const { onClose } = renderGenreModal()
+
+    await screen.findByLabelText("Action")
+
+    // Pick a genre, then click the overlay: the selection must be discarded.
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.click(screen.getByRole("dialog"))
+
+    expect(onClose).toHaveBeenCalledOnce()
     expect(setGenreChoiceMock).not.toHaveBeenCalled()
   })
 })
@@ -193,7 +221,7 @@ describe("GenreModal - confirm failure", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     setGenreChoiceMock.mockRejectedValueOnce(new Error("genre failed"))
     const user = userEvent.setup()
-    const { handleGenreClick } = renderGenreModal()
+    const { onClose } = renderGenreModal()
 
     await screen.findByLabelText("Action")
     await user.click(screen.getByLabelText("Comedy"))
@@ -202,7 +230,7 @@ describe("GenreModal - confirm failure", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Couldn't change the genre. Check your connection and try again.",
     )
-    expect(handleGenreClick).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
 
     errSpy.mockRestore()
   })
@@ -229,7 +257,7 @@ describe("GenreModal - confirm failure", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     setGenreChoiceMock.mockRejectedValueOnce(new Error("genre failed"))
     const user = userEvent.setup()
-    const { handleGenreClick } = renderGenreModal()
+    const { onClose } = renderGenreModal()
 
     await screen.findByLabelText("Action")
     await user.click(screen.getByLabelText("Comedy"))
@@ -239,7 +267,7 @@ describe("GenreModal - confirm failure", () => {
     await user.click(screen.getByRole("button", { name: /confirm/i }))
 
     await waitFor(() => expect(setGenreChoiceMock).toHaveBeenCalledTimes(2))
-    expect(handleGenreClick).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
 
     errSpy.mockRestore()
   })

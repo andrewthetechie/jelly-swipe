@@ -3,9 +3,10 @@ import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider
 import type { JSX } from "react"
 import { createRoom } from "./roomApi"
 import FormError from "./FormError"
+import Modal from "./Modal"
 
 interface HostModalProps {
-    onClose: React.MouseEventHandler<HTMLButtonElement | HTMLDivElement>
+    onClose: () => void
 }
 
 export default function HostModal({ onClose }: HostModalProps): JSX.Element {
@@ -45,34 +46,32 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     }
 
     return (
-        <div className="modal">
-            <div className="modal-inner">
-                <h2>Session Setup</h2>
-                
-                <label htmlFor="movies" className="jelly-toggle"> 
-                    <span>Movies</span>
-                    <input type="checkbox" id="movies" name="movies" value="movies" checked={movies} onChange={handleChange} />
-                    <span className="slider"></span>
-                </label>
-                
-                <label htmlFor="tvShows" className="jelly-toggle"> 
-                    <span>TV Shows</span>
-                    <input type="checkbox" id="tvShows" name="tvShows" value="tvShows" checked={tvShows} onChange={handleChange} />
-                    <span className="slider"></span>
-                </label>
-                
-                <label htmlFor="solo" className="jelly-toggle solo"> 
-                    <span>Solo</span>
-                    <input type="checkbox" id="solo" name="solo" value="solo" checked={isSoloMode} onChange={handleChange} />
-                    <span className="slider"></span>
-                </label>
+        <Modal onClose={onClose} labelledBy="host-modal-heading">
+            <h2 id="host-modal-heading">Session Setup</h2>
 
-                <button className="modal-button" onClick={doCreate} disabled={isSubmitting}>
-                    {isSubmitting ? "Creating Session..." : "Create Session"}
-                </button>
-                <button className="modal-button" onClick={onClose} data-modal-type="host">Cancel</button>
-                <FormError message={error} />
-            </div>
-        </div>
+            <label htmlFor="movies" className="jelly-toggle">
+                <span>Movies</span>
+                <input type="checkbox" id="movies" name="movies" value="movies" checked={movies} onChange={handleChange} />
+                <span className="slider"></span>
+            </label>
+
+            <label htmlFor="tvShows" className="jelly-toggle">
+                <span>TV Shows</span>
+                <input type="checkbox" id="tvShows" name="tvShows" value="tvShows" checked={tvShows} onChange={handleChange} />
+                <span className="slider"></span>
+            </label>
+
+            <label htmlFor="solo" className="jelly-toggle solo">
+                <span>Solo</span>
+                <input type="checkbox" id="solo" name="solo" value="solo" checked={isSoloMode} onChange={handleChange} />
+                <span className="slider"></span>
+            </label>
+
+            <button className="modal-button" onClick={doCreate} disabled={isSubmitting}>
+                {isSubmitting ? "Creating Session..." : "Create Session"}
+            </button>
+            <button className="modal-button" onClick={onClose}>Cancel</button>
+            <FormError message={error} />
+        </Modal>
     )
 }

@@ -23,6 +23,30 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
 }
+
+// --- jsdom <dialog> modal-API shims -------------------------------------------------
+// jsdom does not implement the HTMLDialogElement modal API: HTMLDialogElement
+// extends plain HTMLElement (no showModal / close, no `cancel` event, no top
+// layer). The Modal component calls showModal() on mount and close() on
+// dismissal, so without these stubs every Modal test would throw
+// "dialog.showModal is not a function". These harness-level shims only toggle
+// the `open` attribute — enough for jsdom tests — and are NOT a browser
+// polyfill shipped in app code.
+interface DialogShim {
+  showModal?: () => void;
+  close?: () => void;
+}
+const dialogProto = window.HTMLDialogElement?.prototype as unknown as DialogShim | undefined;
+if (dialogProto && typeof dialogProto.showModal !== "function") {
+  dialogProto.showModal = function (this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+}
+if (dialogProto && typeof dialogProto.close !== "function") {
+  dialogProto.close = function (this: HTMLDialogElement) {
+    this.removeAttribute("open");
+  };
+}
 import { vi } from "vitest"
 import { createMockEventSource } from "./mockEventSource"
 
