@@ -15,7 +15,7 @@ beforeEach(() => {
   fetchMatchesMock.mockResolvedValue(makeMatchList(2))
 })
 
-describe("MatchListModal - Match List Fetch", () => {
+describe("MatchListModal - Matches Fetch", () => {
   it("successful fetch renders match list", async () => {
     const matchList = makeMatchList(2)
     fetchMatchesMock.mockResolvedValueOnce(matchList)
@@ -39,7 +39,7 @@ describe("MatchListModal - Match List Fetch", () => {
 
     expect(errSpy).toHaveBeenCalled()
     expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
-    expect(screen.getByText("Match List")).toBeInTheDocument()
+    expect(screen.getByText("Matches")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
 
     errSpy.mockRestore()
@@ -109,7 +109,7 @@ describe("MatchListModal - rendering", () => {
       expect(fetchMatchesMock).toHaveBeenCalledOnce()
     })
 
-    expect(screen.getByText("Match List")).toBeInTheDocument()
+    expect(screen.getByText("Matches")).toBeInTheDocument()
     expect(screen.getByText("No Matches Yet!")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /open in jellyfin/i })).not.toBeInTheDocument()
