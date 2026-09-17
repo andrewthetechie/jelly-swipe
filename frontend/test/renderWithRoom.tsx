@@ -182,7 +182,7 @@ function RoomSessionTestProvider({
       }))
     } catch (err) {
       console.error("Error POSTing swipe", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't save that swipe. Check your connection and try again." }))
     }
   }
 
@@ -206,7 +206,7 @@ function RoomSessionTestProvider({
       }))
     } catch (err) {
       console.error("Error undoing swipe", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't undo the last swipe. Check your connection and try again." }))
     }
   }
 
@@ -226,7 +226,7 @@ function RoomSessionTestProvider({
       }))
     } catch (err) {
       console.error("Error changing genre", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't change the genre. Check your connection and try again." }))
     }
   }
 
@@ -247,7 +247,7 @@ function RoomSessionTestProvider({
       }))
     } catch (err) {
       console.error("Error toggling watched filter", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't update the watched filter. Check your connection and try again." }))
     }
   }
 
@@ -274,8 +274,12 @@ function RoomSessionTestProvider({
       setCurrentRoomCode(null)
     } catch (err) {
       console.error("Error quitting room", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't end the session. Check your connection and try again." }))
     }
+  }
+
+  const clearError = () => {
+    setState((prev) => ({ ...prev, lastError: null }))
   }
 
   const value: RoomSessionContextType = {

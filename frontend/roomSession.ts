@@ -46,6 +46,7 @@ export type RoomSessionAction =
     | { type: "SSE_GENRE_CHANGED"; genre?: string }
     | { type: "SSE_HIDE_WATCHED_CHANGED"; hideWatched?: boolean }
     | { type: "COMMAND_FAILED"; message: string }
+    | { type: "CLEAR_ERROR" }
     | { type: "SESSION_ENDED" }
 
 
@@ -103,6 +104,8 @@ export function roomSessionReducer(
             return { ...state, hideWatched: action.hideWatched ?? state.hideWatched }
         case "COMMAND_FAILED":
             return { ...state, lastError: action.message }
+        case "CLEAR_ERROR":
+            return { ...state, lastError: null }
         case "SESSION_ENDED":
             return {
                 ...state,

@@ -17,6 +17,7 @@ export interface RoomSessionContextType {
     toggleHideWatched: () => Promise<void>
     dismissMatch: () => void
     endSession: () => Promise<void>
+    clearError: () => void
 }
 
 const RoomSessionContext = React.createContext<RoomSessionContextType | undefined>(undefined)
@@ -155,7 +156,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             dispatch({ type: "SWIPE_SUCCEEDED", card })
         } catch (err) {
             console.error("Error POSTing swipe", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't save that swipe. Check your connection and try again." })
         }
     }, [currentRoomCode])
 
@@ -174,7 +175,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             dispatch({ type: "UNDO_SUCCEEDED", card: lastSwipe })
         } catch (err) {
             console.error("Error undoing swipe", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't undo the last swipe. Check your connection and try again." })
         }
     }, [currentRoomCode])
 
@@ -191,7 +192,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error changing genre", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't change the genre. Check your connection and try again." })
         } finally {
             inFlightRef.current.delete("genre")
         }
@@ -210,7 +211,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error toggling watched filter", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't update the watched filter. Check your connection and try again." })
         } finally {
             inFlightRef.current.delete("hide_watched")
         }
@@ -227,15 +228,17 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             setCurrentRoomCode(null)
         } catch (err) {
             console.error("Error quitting room", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't end the session. Check your connection and try again." })
         }
     }, [currentRoomCode, setCurrentRoomCode])
 
     const dismissMatch = React.useCallback(() => dispatch({ type: "MATCH_DISMISSED" }), [])
 
+    const clearError = React.useCallback(() => dispatch({ type: "CLEAR_ERROR" }), [])
+
     const value = React.useMemo(() => ({
-        state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession
-    }), [state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession])
+        state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession, clearError
+    }), [state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession, clearError])
 
     return <RoomSessionContext.Provider value={value}>{children}</RoomSessionContext.Provider>
 }
