@@ -13,7 +13,7 @@ import {
 import type { PointerSample } from './swipeGesture'
 import type { JSX } from "react"
 import type { CardItem } from './types'
-import { fetchTrailer } from './roomApi'
+import { fetchTrailer, RoomApiError } from './roomApi'
 
 type Position = {
     x: number,
@@ -90,6 +90,14 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
     const [trailerKey, setTrailerKey] = React.useState<string | null>(null)
     const trailerAbort = React.useRef<AbortController | null>(null)
 
+    // Abort any in-flight trailer fetch when the card unmounts (issue #339),
+    // matching the pattern in useMovieCast.tsx:31.
+    React.useEffect(() => {
+        return () => {
+            trailerAbort.current?.abort()
+        }
+    }, [])
+
     const loadTrailer = () => {
         if (trailerState !== "idle") return
         setTrailerState("loading")
@@ -99,7 +107,16 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                 setTrailerKey(data.youtube_key)
                 setTrailerState("playing")
             })
-            .catch(() => {
+            .catch((err) => {
+                // Unmounting aborts the request; ignore that as a no-op rather
+                // than flipping to "unavailable" on a component that is gone.
+                if ((err as Error).name === "AbortError") return
+                // A 404 is the expected "no trailer" answer, not an error.
+                if (err instanceof RoomApiError && err.status === 404) {
+                    setTrailerState("unavailable")
+                    return
+                }
+                console.error("Error fetching trailer:", err)
                 setTrailerState("unavailable")
             })
     }
