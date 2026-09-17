@@ -217,4 +217,24 @@ describe('viewport-sized deck and dvh units (issue #351)', () => {
       'a div.back rule with overflow-y: auto',
     ).toBe(true);
   });
+
+  it('bounds and scrolls the plain .modal-inner stack', () => {
+    // MatchFoundModal, JoinModal and HostModal use the unbounded box; without a
+    // max-height the modal clips its action buttons below the fold on short
+    // phones. Same contract as .modal-genre / div.modal-match-list / div.back.
+    const innerRule = css.match(/\.modal-inner\s*\{[^}]*\}/);
+    expect(innerRule, '.modal-inner rule').toBeTruthy();
+    expect(innerRule![0]).toMatch(/max-height:\s*calc\(100dvh\s*-\s*\d+rem\)/);
+    expect(innerRule![0]).toContain('overflow-y: auto');
+  });
+
+  it('clamps the .modal padding-top offset', () => {
+    // The old unclamped padding-top: 20% resolves against the viewport width
+    // (~75-78px on phones) and pushes the first content row below the fold.
+    // min(20%, 96px) caps the offset; the min-width: 768px override still
+    // zeroes it on desktop.
+    const modalRule = css.match(/\.modal\s*\{[^}]*\}/);
+    expect(modalRule, '.modal rule').toBeTruthy();
+    expect(modalRule![0]).toMatch(/padding-top:\s*min\(20%,\s*\d+px\)/);
+  });
 });

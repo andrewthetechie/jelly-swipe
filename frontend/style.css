@@ -265,7 +265,7 @@ img {
   flex-direction: column;
   justify-content: start;
   align-items: center;
-  padding-top: 20%;
+  padding-top: min(20%, 96px);
   gap: 1rem;
   z-index: 999;
 }
@@ -282,6 +282,13 @@ img {
   border-radius: 20px;
   box-shadow: 2px 2px 5px 2px #3a67ed;
   padding: 1.5rem 0;
+  /* Bound + scroll the modal stack (issue #351): the plain .modal-inner box
+     must stay reachable on short viewports instead of clipping its action
+     buttons below the fold. Same contract as .modal-genre and
+     div.modal-match-list. The 7rem reserve covers the clamped padding-top
+     offset (min(20%, 96px)) plus the .modal gap. */
+  max-height: calc(100dvh - 7rem);
+  overflow-y: auto;
 }
 
 .modal-genre {
