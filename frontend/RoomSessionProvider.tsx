@@ -17,6 +17,8 @@ export interface RoomSessionContextType {
     toggleHideWatched: () => Promise<void>
     dismissMatch: () => void
     endSession: () => Promise<void>
+    clearError: () => void
+    retryDeckFetch: () => Promise<void>
 }
 
 const RoomSessionContext = React.createContext<RoomSessionContextType | undefined>(undefined)
@@ -71,16 +73,29 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         ignoredEventIdsRef.current.delete(eventId)
     }
 
+    // Shared deck-fetch code path: dispatches DECK_LOADED on success and
+    // DECK_FETCH_FAILED on failure (issue #340).
+    const loadDeck = React.useCallback(async (roomCode: string) => {
+        try {
+            const deck = await roomApi.fetchDeck(roomCode)
+            dispatch({ type: "DECK_LOADED", deck })
+        } catch (err) {
+            console.error("Error fetching card deck:", err)
+            dispatch({
+                type: "DECK_FETCH_FAILED",
+                message: "Couldn't load your cards. Check your connection and try again."
+            })
+        }
+    }, [])
+
     // Deck fetch on room join
     React.useEffect(() => {
         if (!currentRoomCode) {
             dispatch({ type: "DECK_LOADED", deck: [] })
             return
         }
-        roomApi.fetchDeck(currentRoomCode)
-            .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
-            .catch((err) => console.error("Error fetching card deck:", err))
-    }, [currentRoomCode])
+        void loadDeck(currentRoomCode)
+    }, [currentRoomCode, loadDeck])
 
     // SSE event -> reducer
     React.useEffect(() => {
@@ -100,9 +115,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (isLocalEcho) {
                 consumeIgnoredEventId(eventId)
             } else if (currentRoomCode) {
-                roomApi.fetchDeck(currentRoomCode)
-                    .then((deck) => dispatch({ type: "DECK_LOADED", deck }))
-                    .catch((err) => console.error("Error fetching card deck:", err))
+                void loadDeck(currentRoomCode)
             }
             dispatchMirroredState()
         }
@@ -141,7 +154,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
                 return _exhaustive
             }
         }
-    }, [sseData, sseError, currentRoomCode, setCurrentRoomCode])
+    }, [sseData, sseError, currentRoomCode, setCurrentRoomCode, loadDeck])
 
     // commands
 
@@ -155,7 +168,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             dispatch({ type: "SWIPE_SUCCEEDED", card })
         } catch (err) {
             console.error("Error POSTing swipe", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't save that swipe. Check your connection and try again." })
         }
     }, [currentRoomCode])
 
@@ -174,7 +187,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             dispatch({ type: "UNDO_SUCCEEDED", card: lastSwipe })
         } catch (err) {
             console.error("Error undoing swipe", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't undo that swipe. Check your connection and try again." })
         }
     }, [currentRoomCode])
 
@@ -191,7 +204,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error changing genre", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't change the genre. Check your connection and try again." })
         } finally {
             inFlightRef.current.delete("genre")
         }
@@ -210,7 +223,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             if (result.mutationEventId > 0) registerIgnoredEventId(result.mutationEventId)
         } catch (err) {
             console.error("Error toggling watched filter", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't update the watched filter. Check your connection and try again." })
         } finally {
             inFlightRef.current.delete("hide_watched")
         }
@@ -227,15 +240,27 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
             setCurrentRoomCode(null)
         } catch (err) {
             console.error("Error quitting room", err)
-            dispatch({ type: "COMMAND_FAILED", message: String(err) })
+            dispatch({ type: "COMMAND_FAILED", message: "Couldn't end the session. Check your connection and try again." })
         }
     }, [currentRoomCode, setCurrentRoomCode])
 
     const dismissMatch = React.useCallback(() => dispatch({ type: "MATCH_DISMISSED" }), [])
 
+    const clearError = React.useCallback(() => dispatch({ type: "CLEAR_ERROR" }), [])
+
+    const retryDeckFetch = React.useCallback(async () => {
+        if (!currentRoomCode) {
+            console.error("Cannot fetch deck without currentRoomCode")
+            return
+        }
+        await loadDeck(currentRoomCode)
+    }, [currentRoomCode, loadDeck])
+
     const value = React.useMemo(() => ({
-        state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession
-    }), [state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession])
+        state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession,
+        clearError, retryDeckFetch
+    }), [state, swipe, undo, confirmGenre, toggleHideWatched, dismissMatch, endSession,
+        clearError, retryDeckFetch])
 
     return <RoomSessionContext.Provider value={value}>{children}</RoomSessionContext.Provider>
 }

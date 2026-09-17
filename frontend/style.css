@@ -462,6 +462,58 @@ img.match-poster {
   text-align: center;
 }
 
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(7, 20, 38, 0.72);
+  border: 1px solid var(--color-error);
+  border-radius: 15px;
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.error-banner .error-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--color-error);
+  font-size: var(--text-md);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+
+.deck-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  height: 100%;
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.deck-error p {
+  margin-bottom: 0;
+}
+
+button.retry-deck {
+  background: #071426;
+  color: #f0f4f8;
+  padding: 0.5rem 1.25rem;
+  border-radius: 15px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border: 1px solid #35D6FF;
+  cursor: pointer;
+}
+
 .modal-button:disabled:hover,
 .modal-button:disabled:focus,
 .modal-button:disabled:active {
