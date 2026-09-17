@@ -35,7 +35,7 @@ body {
   background: #071426;
   background: linear-gradient(0deg,rgba(7, 20, 38, 1) 0%, rgba(10, 31, 61, 1) 60%);
   color: #f0f4f8;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -259,7 +259,7 @@ img {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   background: rgba(7, 20, 38, 0.95);
   display: flex;
   flex-direction: column;
@@ -895,7 +895,7 @@ button.genres:hover {
   position: relative;
   width: 100%;
   max-width: 400px;
-  height: 650px;
+  height: min(650px, 62dvh);
   /* Room at the top of the deck for the back cards of the stack to peek into
      (issue #343). Cards are inset by this much rather than filling the deck,
      so the stack stays inside the deck's own footprint instead of riding up
@@ -1384,7 +1384,7 @@ div.match-list-info {
   }
 
   .swipe-deck {
-    height: 575px;
+    height: min(575px, 62dvh);
   }
 
   .match-list-title {
@@ -1459,7 +1459,7 @@ div.match-list-info {
     grid-template-columns: 1fr 1fr 1fr;
   }
   .swipe-deck {
-    height: 700px;
+    height: min(700px, 62dvh);
   }
 
   div.match-list-container {

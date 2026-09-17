@@ -50,7 +50,8 @@ interface CardItemViewProps {
 // the stack sits inside the deck's footprint instead of over the header.
 //
 // translateY is a percentage (of the card's own height) rather than pixels so
-// the sliver stays proportional across the deck's three breakpoint heights.
+// the sliver stays proportional at any deck height — the deck sizes itself
+// from the viewport (issue #351) rather than from fixed per-breakpoint pixels.
 const STACK_STEP_Y_PCT = 4.75
 const STACK_STEP_SCALE = 0.05
 const STACK_STEP_BRIGHTNESS = 0.15

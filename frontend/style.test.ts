@@ -132,3 +132,60 @@ describe('swipe verdict feedback styles (issue #345)', () => {
     expect(css).not.toContain('.glow');
   });
 });
+
+describe('viewport-sized deck and dvh units (issue #351)', () => {
+  const css = fs.readFileSync(
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'style.css'),
+    'utf8',
+  );
+
+  const baseRule = css.match(/\.swipe-deck\s*\{[^}]*\}/);
+  const smallScreenBlock = css.match(/@media \(max-width: 400px\) \{[\s\S]*?\n\}/);
+  const desktopBlock = css.match(/@media \(min-width: 768px\) \{[\s\S]*?\n\}/);
+
+  const deckRuleIn = (block: RegExpMatchArray | null) =>
+    block?.[0].match(/\.swipe-deck\s*\{[^}]*\}/)?.[0];
+
+  it('sizes the base deck height from the viewport, not a fixed pixel value', () => {
+    expect(baseRule, '.swipe-deck rule').toBeTruthy();
+    expect(baseRule![0]).toMatch(/height:\s*min\(\s*\d+px\s*,\s*\d+dvh\s*\)/);
+    // The px half of min() is a cap; a bare px height would ignore the viewport.
+    expect(baseRule![0]).not.toMatch(/height:\s*\d+px\s*;/);
+  });
+
+  it('does not pin the deck to a fixed pixel height in either media query', () => {
+    expect(smallScreenBlock, 'max-width: 400px block').toBeTruthy();
+    expect(desktopBlock, 'min-width: 768px block').toBeTruthy();
+    for (const rule of [
+      deckRuleIn(smallScreenBlock),
+      deckRuleIn(desktopBlock),
+    ]) {
+      expect(rule, '.swipe-deck rule inside media query').toBeTruthy();
+      expect(rule!).toMatch(/height:[^;]*dvh/);
+      expect(rule!).not.toMatch(/height:\s*\d+px\s*;/);
+    }
+  });
+
+  it('keeps the desktop deck cap at the pre-change size', () => {
+    // min(<cap>, 62dvh) keeps tall screens at today's ~650px (700px >=768px).
+    expect(baseRule![0]).toContain('min(650px, 62dvh)');
+    expect(deckRuleIn(desktopBlock)).toContain('min(700px, 62dvh)');
+  });
+
+  it('keeps the stack reserve geometry contract on the deck', () => {
+    expect(baseRule![0]).toContain('--deck-stack-reserve: 32px');
+    const containerRule = css.match(/\.card-item-container\s*\{[^}]*\}/);
+    expect(containerRule, '.card-item-container rule').toBeTruthy();
+    expect(containerRule![0]).toContain('inset: var(--deck-stack-reserve, 0)');
+  });
+
+  it('uses 100dvh (not 100vh) for full-viewport body and modal heights', () => {
+    expect(css).not.toContain('100vh');
+    const bodyRule = css.match(/body\s*\{[^}]*\}/);
+    expect(bodyRule, 'body rule').toBeTruthy();
+    expect(bodyRule![0]).toContain('min-height: 100dvh');
+    const modalRule = css.match(/\.modal\s*\{[^}]*\}/);
+    expect(modalRule, '.modal rule').toBeTruthy();
+    expect(modalRule![0]).toContain('height: 100dvh');
+  });
+});
