@@ -26,6 +26,7 @@
      Shared with the Like/Nope buttons when #344 lands. */
   --color-like: #3DE8A8;
   --color-nope: #FF5C8A;
+  --color-error: #FF5C8A;
 }
 
 body {
@@ -453,6 +454,12 @@ img.match-poster {
   transform: none;
   filter: saturate(0.55) brightness(0.95);
   cursor: not-allowed;
+}
+
+.form-error {
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  text-align: center;
 }
 
 .modal-button:disabled:hover,

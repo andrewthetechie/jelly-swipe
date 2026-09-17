@@ -217,3 +217,38 @@ describe("HostModal — create session (3-part network contract)", () => {
     errSpy.mockRestore()
   })
 });
+
+describe("HostModal — inline error messages", () => {
+  it("shows a plain-language message on create failure", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    createRoomMock.mockRejectedValueOnce(new Error("Error creating session: 500 Server Error"));
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /create session/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Couldn't start the session. Check that Jelly-Swipe can reach your Jellyfin server.",
+    );
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null });
+
+    errSpy.mockRestore();
+  });
+
+  it("clears the error when a new submit starts", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    createRoomMock.mockRejectedValueOnce(new Error("network error"));
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /create session/i }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: /create session/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    errSpy.mockRestore();
+  });
+});
