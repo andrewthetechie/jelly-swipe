@@ -210,7 +210,11 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                 pointerEvents: isTopCard ? "auto" : "none",
                 cursor: "grab",
                 userSelect: "none",
-                touchAction: "none",
+                /* touch-action is the intersection along the ancestor chain, so
+                   a blanket "none" here would also disable touch scrolling in
+                   the flipped card's scrollable back face (issue #351). The
+                   front face keeps "none" so the swipe drag owns the gesture. */
+                touchAction: showDetails ? "auto" : "none",
                 transform: `
                     translate(${position.x}px, ${position.y}px)
                     rotate(${position.rotation}deg) ${stackTransform(stackIndex)}

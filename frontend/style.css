@@ -1022,9 +1022,13 @@ div.card-item {
   transform: rotateY(180deg);
 }
 
+/* The front face fills the card (div.card-item is inset: 0 with a definite
+   height), so its padding is a small breathing margin rather than the old
+   fixed 60px — the deck is now min(<cap>, 62dvh) (issue #351), and a large
+   fixed padding ate the content box on short screens. */
 div.front {
   justify-content: center;
-  padding: 60px 0;
+  padding: 20px 0;
 }
 
 div.back  {
@@ -1032,9 +1036,16 @@ div.back  {
   padding: 1.5rem;
 }
 
+/* The poster is bounded by the card's height as well as its width (issue
+   #351): posters are ~2:3, so a width-only cap overflows the now-dynamic deck
+   and gets clipped by the card's overflow: hidden. With height auto and both
+   maxima set, the image scales down preserving its aspect ratio; object-fit
+   guards the paint. */
 img.card-item-poster {
   max-width: 100%;
+  max-height: 100%;
   height: auto;
+  object-fit: contain;
   display: block;
   user-select: none;
   -webkit-user-drag: none;
@@ -1054,10 +1065,15 @@ div.media-type {
   text-align: center;
 }
 
+/* The details face scrolls instead of clipping (issue #351): title, pills,
+   trailer, summary and cast easily exceed a short card, and the card's own
+   overflow: hidden would otherwise cut them off with no way to reach them.
+   Same contract as .modal-genre and div.modal-match-list. */
 div.back {
   padding: 1rem 1.5rem;
   border: 2px solid #35D6FF;
   gap: .5rem;
+  overflow-y: auto;
 }
 
 .card-item-title {
@@ -1379,9 +1395,8 @@ div.match-list-info {
 }
 
 @media (max-width: 400px) {
-  img.card-item-poster {
-    margin-top: 20px;
-  }
+  /* No poster offset here any more (issue #351): the poster is now bounded by
+     the card's height, and a margin-top would push it out of that box again. */
 
   .swipe-deck {
     height: min(575px, 62dvh);

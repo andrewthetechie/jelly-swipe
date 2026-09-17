@@ -188,4 +188,33 @@ describe('viewport-sized deck and dvh units (issue #351)', () => {
     expect(modalRule, '.modal rule').toBeTruthy();
     expect(modalRule![0]).toContain('height: 100dvh');
   });
+
+  it('bounds the poster by the card height, not just its width', () => {
+    // Posters are ~2:3, so a width-only cap overflows the dynamic deck and is
+    // clipped by the card's overflow: hidden. Both maxima plus object-fit keep
+    // the aspect ratio at every deck size.
+    const posterRule = css.match(/img\.card-item-poster\s*\{[^}]*\}/);
+    expect(posterRule, 'img.card-item-poster rule').toBeTruthy();
+    expect(posterRule![0]).toMatch(/max-height:\s*100%/);
+    expect(posterRule![0]).toMatch(/object-fit:\s*contain/);
+  });
+
+  it('does not offset the poster in the max-width: 400px block', () => {
+    // The old margin-top: 20px pushed the poster out of the now
+    // height-bounded card box.
+    const smallScreenBlock = css.match(/@media \(max-width: 400px\) \{[\s\S]*?\n\}/);
+    expect(smallScreenBlock, 'max-width: 400px block').toBeTruthy();
+    expect(smallScreenBlock![0]).not.toContain('card-item-poster');
+  });
+
+  it('makes the details face scrollable instead of clipping its content', () => {
+    // The card clips via overflow: hidden, so the back face itself must scroll
+    // for the cast/summary content to stay reachable on short cards.
+    const backRules = css.match(/div\.back\s*\{[^}]*\}/g) ?? [];
+    expect(backRules.length, 'div.back rules').toBeGreaterThan(0);
+    expect(
+      backRules.some((rule) => rule.includes('overflow-y: auto')),
+      'a div.back rule with overflow-y: auto',
+    ).toBe(true);
+  });
 });
