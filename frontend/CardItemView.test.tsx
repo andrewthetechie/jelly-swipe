@@ -241,7 +241,7 @@ describe("CardItemView — Watch Trailer state machine", () => {
     })
 
     const iframe = screen.getByTitle("Moana trailer") as HTMLIFrameElement
-    expect(iframe.getAttribute("src")).toContain("youtube-nocookie.com/embed/abc123")
+    expect(iframe.getAttribute("src")).toBe("https://www.youtube.com/embed/abc123?autoplay=1")
     // The button is swapped out for the player.
     expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
   })

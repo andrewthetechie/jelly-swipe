@@ -280,7 +280,7 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
                                 onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => e.stopPropagation()}
                             >
                                 <iframe
-                                    src={`https://www.youtube-nocookie.com/embed/${trailerKey}`}
+                                    src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
                                     title={`${title} trailer`}
                                     allow="autoplay; encrypted-media; picture-in-picture"
                                     allowFullScreen
