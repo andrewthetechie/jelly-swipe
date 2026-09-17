@@ -639,7 +639,7 @@ img.match-poster {
   cursor: not-allowed;
 }
 
-<.form-error {
+.form-error {
   color: var(--color-error);
   font-size: var(--text-sm);
   text-align: center;
@@ -719,20 +719,6 @@ img.match-poster {
   cursor: not-allowed;
 }
 
-.modal-button:disabled:hover,
-.modal-button:disabled:focus,
-.modal-button:disabled:active {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--color-accent-light) 35%, transparent) 0%,
-    color-mix(in srgb, var(--color-accent) 28%, transparent) 100%
-  );
-  border-color: color-mix(in srgb, var(--color-border-light) 38%, transparent);
-  box-shadow: none;
-  transform: none;
-  filter: saturate(0.55) brightness(0.95);
-  cursor: not-allowed;
-}
 
 .btn-primary-link {
   text-decoration: none;
@@ -1632,7 +1618,6 @@ div.match-list-info {
     padding-top: 0;
   }
 
-  .modal-button,
   .room-code-input,
   .jelly-toggle {
     width: 40%;
