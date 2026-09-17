@@ -25,16 +25,16 @@ export default function MatchFoundModal({ onClose, matchItem }: MatchFoundModalP
             </div>
             {deepLink
                 ? (
-                    <a href={deepLink} target="_blank" rel="noopener noreferrer" className="modal-button modal-button-link">
+                    <a href={deepLink} target="_blank" rel="noopener noreferrer" className="btn-primary btn-primary-link">
                         Open in Jellyfin 🍿
                     </a>
                 )
                 : (
-                    <button type="button" className="modal-button" disabled>
+                    <button type="button" className="btn-primary" disabled>
                         Open in Jellyfin 🍿
                     </button>
                 )}
-            <button className="modal-button" onClick={onClose}>Keep Swiping</button>
+            <button className="btn-secondary" onClick={onClose}>Keep Swiping</button>
         </Modal>
     )
 }

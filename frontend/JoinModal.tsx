@@ -49,10 +49,10 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
                 value={userInputCode}
                 onChange={(e) => { setUserInputCode(e.target.value.replace(/[^0-9]/g, '')); setError(null) }}
             />
-            <button className="modal-button" onClick={doJoin} disabled={isSubmitting || !isValid}>
+            <button className="btn-primary" onClick={doJoin} disabled={isSubmitting || !isValid}>
                 {isSubmitting ? "Joining Session..." : "Join Session"}
             </button>
-            <button className="modal-button" onClick={onClose}>Cancel</button>
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
             <FormError message={error} />
         </Modal>
     )

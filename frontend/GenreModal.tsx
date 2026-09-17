@@ -78,8 +78,8 @@ export default function GenreModal({ onClose }: GenreModalProps): JSX.Element {
             <div className="genre-inputs">
                 {genreElements}
             </div>
-            <button className="modal-button" onClick={handleConfirm}>Confirm</button>
-            <button className="modal-button" onClick={onClose}>Cancel</button>
+            <button className="btn-primary" onClick={handleConfirm}>Confirm</button>
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
             <FormError message={error} />
         </Modal>
     )
