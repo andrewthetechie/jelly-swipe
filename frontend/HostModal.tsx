@@ -2,6 +2,7 @@ import React from "react"
 import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
 import type { JSX } from "react"
 import { createRoom } from "./roomApi"
+import FormError from './FormError'
 
 interface HostModalProps {
     onClose: React.MouseEventHandler<HTMLButtonElement | HTMLDivElement>
@@ -11,6 +12,7 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     const { movies, tvShows, isSoloMode } = useRoomStateContext()
     const { setMovies, setTvShows, setIsSoloMode, setCurrentRoomCode } = useRoomSetterContext()
     const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
+    const [error, setError] = React.useState<string | null>(null)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, checked } = e.currentTarget
@@ -26,14 +28,17 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     async function doCreate() {
         if (isSubmitting) return
         setIsSubmitting(true)
+        setError(null)
 
         try {
             const { pairing_code } = await createRoom({
                 movies, tvShows, solo: isSoloMode
             })
+            setError(null)
             setCurrentRoomCode(pairing_code)
         } catch (err) {
             console.error("Error creating session:", err)
+            setError("Couldn't start the session. Check that Jelly-Swipe can reach your Jellyfin server.")
         } finally {
             setIsSubmitting(false)
         }
@@ -67,6 +72,7 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
                     {isSubmitting ? "Creating Session..." : "Create Session"}
                 </button>
                 <button className="modal-button" onClick={onClose} data-modal-type="host">Cancel</button>
+                {error && <FormError message={error} />}
             </div>
         </div>
     )

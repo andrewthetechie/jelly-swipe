@@ -216,4 +216,20 @@ describe("HostModal — create session (3-part network contract)", () => {
 
     errSpy.mockRestore()
   })
+
+  it("shows the plain-language copy in role='alert' when createRoom rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const user = userEvent.setup()
+    createRoomMock.mockRejectedValueOnce(new Error("Error creating session: 500 Server Error"))
+    renderWithRoomStateful(<HostModal onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole("button", { name: /create session/i }))
+
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("Couldn't start the session. Check that Jelly-Swipe can reach your Jellyfin server.")
+    expect(alert).toHaveClass("form-error")
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null })
+
+    errSpy.mockRestore()
+  })
 });

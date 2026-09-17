@@ -468,6 +468,13 @@ img.match-poster {
   filter: saturate(0.55) brightness(0.95);
 }
 
+.form-error {
+  color: var(--color-nope);
+  font-size: var(--text-sm);
+  margin-bottom: 0;
+  text-align: center;
+}
+
 .jelly-check {
     display: flex;
     align-items: center;

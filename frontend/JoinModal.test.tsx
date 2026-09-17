@@ -19,12 +19,14 @@ import userEvent from "@testing-library/user-event";
 import JoinModal from "./JoinModal";
 import { renderWithRoom } from "./test/renderWithRoom";
 import * as roomApi from "./roomApi";
+import { RoomApiError } from "./roomApi";
 
 function getRoomState() {
   return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
 }
 
-vi.mock("./roomApi", () => ({
+vi.mock("./roomApi", async (importOriginal) => ({
+  ...(await importOriginal()),
   joinRoom: vi.fn(),
 }));
 
@@ -128,6 +130,63 @@ describe("JoinModal — join (3-part network contract)", () => {
 
     await waitFor(() => expect(joinRoomMock).toHaveBeenCalled());
     expect(getRoomState()).toMatchObject({ currentRoomCode: null });
+
+    errSpy.mockRestore();
+  });
+
+  it("shows the 'isn't active' copy when joinRoom rejects with a 404 RoomApiError", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    joinRoomMock.mockRejectedValueOnce(new RoomApiError(404, "Not Found", "joining room"));
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "1234",
+    });
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("That room code isn't active. Check the code with your partner and try again.");
+    expect(alert).toHaveClass("form-error");
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null });
+
+    errSpy.mockRestore();
+  });
+
+  it("shows the generic copy for a non-404 join failure and never renders raw exception text", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    joinRoomMock.mockRejectedValueOnce(new Error("TypeError: Failed to fetch"));
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "1234",
+    });
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't join the session. Check your connection and try again.");
+    expect(alert).not.toHaveTextContent("TypeError");
+    expect(getRoomState()).toMatchObject({ currentRoomCode: null });
+
+    errSpy.mockRestore();
+  });
+
+  it("clears the error alert when the room-code input is edited", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    joinRoomMock.mockRejectedValueOnce(new RoomApiError(404, "Not Found", "joining room"));
+    renderWithRoom(<JoinModal onClose={vi.fn()} />, {
+      userInputCode: "1234",
+    });
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/isn't active/i);
+
+    fireEvent.change(screen.getByPlaceholderText("Enter Host Code"), {
+      target: { value: "4321" },
+    });
+
+    expect(screen.queryByRole("alert")).toBeNull();
 
     errSpy.mockRestore();
   });
