@@ -13,6 +13,7 @@ export interface RoomSessionState {
     genre: string
     hideWatched: boolean
     lastError: string | null
+    deckError: string | null
 }
 
 export const EMPTY_MATCH_ITEM: MatchItem = {
@@ -28,11 +29,13 @@ export const initialRoomSessionState: RoomSessionState = {
     roomReady: false,
     genre: "All",
     hideWatched: false,
-    lastError: null
+    lastError: null,
+    deckError: null
 }
 
 export type RoomSessionAction =
     | { type: "DECK_LOADED"; deck: CardDeck }
+    | { type: "DECK_FETCH_FAILED"; message: string }
     | { type: "SWIPE_SUCCEEDED"; card: CardItem }
     | { type: "UNDO_SUCCEEDED"; card: CardItem}
     | { type: "GENRE_SELECTED"; genre: string }
@@ -46,6 +49,7 @@ export type RoomSessionAction =
     | { type: "SSE_GENRE_CHANGED"; genre?: string }
     | { type: "SSE_HIDE_WATCHED_CHANGED"; hideWatched?: boolean }
     | { type: "COMMAND_FAILED"; message: string }
+    | { type: "CLEAR_ERROR" }
     | { type: "SESSION_ENDED" }
 
 
@@ -55,7 +59,9 @@ export function roomSessionReducer(
 ): RoomSessionState {
     switch (action.type) {
         case "DECK_LOADED":
-            return { ...state, cardDeck: action.deck, swipeHistory: [] }
+            return { ...state, cardDeck: action.deck, swipeHistory: [], deckError: null }
+        case "DECK_FETCH_FAILED":
+            return { ...state, deckError: action.message }
         case "SWIPE_SUCCEEDED":
             return {
                 ...state,
@@ -77,7 +83,8 @@ export function roomSessionReducer(
                 ...state,
                 cardDeck: action.deck,
                 swipeHistory: [],
-                lastError: null
+                lastError: null,
+                deckError: null
             }
         case "HIDE_WATCHED_COMMAND_SUCCEEDED":
             return {
@@ -85,7 +92,8 @@ export function roomSessionReducer(
                 cardDeck: action.deck,
                 swipeHistory: [],
                 hideWatched: action.hideWatched,
-                lastError: null
+                lastError: null,
+                deckError: null
             }
         case "MATCH_FOUND":
             return { ...state, matchFound: true, matchItem: action.matchItem }
@@ -103,6 +111,8 @@ export function roomSessionReducer(
             return { ...state, hideWatched: action.hideWatched ?? state.hideWatched }
         case "COMMAND_FAILED":
             return { ...state, lastError: action.message }
+        case "CLEAR_ERROR":
+            return { ...state, lastError: null }
         case "SESSION_ENDED":
             return {
                 ...state,
@@ -112,7 +122,8 @@ export function roomSessionReducer(
                 swipeHistory: [],
                 matchFound: false,
                 matchItem: EMPTY_MATCH_ITEM,
-                lastError: null
+                lastError: null,
+                deckError: null
             }
         default: {
             const _exhaustive: never = action

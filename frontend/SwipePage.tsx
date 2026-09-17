@@ -10,7 +10,7 @@ import type { CardItem } from './types'
 import { useRoomSession } from "./RoomSessionProvider"
 
 export default function SwipePage(): JSX.Element {
-    const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession } = useRoomSession()
+    const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession, clearError, retryDeckFetch } = useRoomSession()
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { isSoloMode } = useRoomStateContext()
@@ -28,9 +28,17 @@ export default function SwipePage(): JSX.Element {
         setShowMatchListModal(prev => !prev)
     }
 
+    const errorBanner = state.lastError && (
+        <div className="error-banner" role="alert">
+            <span>{state.lastError}</span>
+            <button className="error-dismiss" aria-label="Dismiss error" onClick={clearError}>×</button>
+        </div>
+    )
+
     if (state.roomReady) {
         return (
             <>
+                {errorBanner}
                 <div className="swipe-header">
                     {isSoloMode && <div className="mode-badge">Solo</div>}
                     <label
@@ -56,16 +64,23 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-main">
                     <div className="swipe-deck">
-                        {visibleCards.map((cardItem: CardItem, index: number) => (
-                            <CardItemView
-                                key={cardItem.mediaId}
-                                cardItem={cardItem}
-                                // rendered order is reversed: the last card is the top.
-                                stackIndex={visibleCards.length - 1 - index}
-                                zIndex={index}
-                                onSwipe={swipe}
-                            />
-                        ))}
+                        {state.deckError && state.cardDeck.length === 0 ? (
+                            <div className="deck-error" role="alert">
+                                <p>{state.deckError}</p>
+                                <button className="retry-deck" onClick={retryDeckFetch}>Try again</button>
+                            </div>
+                        ) : (
+                            visibleCards.map((cardItem: CardItem, index: number) => (
+                                <CardItemView
+                                    key={cardItem.mediaId}
+                                    cardItem={cardItem}
+                                    // rendered order is reversed: the last card is the top.
+                                    stackIndex={visibleCards.length - 1 - index}
+                                    zIndex={index}
+                                    onSwipe={swipe}
+                                />
+                            ))
+                        )}
                     </div>
 
                     <button className="undo-button" onClick={undo}>Undo</button>
@@ -83,7 +98,12 @@ export default function SwipePage(): JSX.Element {
             </>
         )
     } else {
-        return <HostWaiting endSession={endSession} />
+        return (
+            <>
+                {errorBanner}
+                <HostWaiting endSession={endSession} />
+            </>
+        )
     }
 
 }

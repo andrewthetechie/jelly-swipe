@@ -3,6 +3,7 @@ import type { GenreListResponse } from "./types"
 import type { JSX } from "react"
 import { fetchGenres } from "./roomApi"
 import { useRoomSession } from "./RoomSessionProvider"
+import FormError from "./FormError"
 
 interface GenreModalProps {
     handleGenreClick: () => void
@@ -21,6 +22,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
 
     const { state, confirmGenre } = useRoomSession()
     const [pendingGenre, setPendingGenre] = React.useState<string>(state.genre)
+    const [error, setError] = React.useState<string | null>(null)
 
     React.useEffect(() => {
         if (genreList.length > 0) {
@@ -34,6 +36,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 sessionStorage.setItem("genres", JSON.stringify(data))
             } catch (err) {
                 console.error("Error fetching genres:", err)
+                setError("Couldn't load genres. Check your connection and try again.")
             }
         }
         fetchGenreList()
@@ -51,15 +54,21 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 name="genre"
                 value={option}
                 checked={pendingGenre === option}
-                onChange={(e) => setPendingGenre(e.target.value)}
+                onChange={(e) => { setPendingGenre(e.target.value); setError(null) }}
             />
             {option}
         </label>
     ))
 
     const handleConfirm = async () => {
-        await confirmGenre(pendingGenre)
-        handleGenreClick()
+        const succeeded = await confirmGenre(pendingGenre)
+        if (succeeded) {
+            handleGenreClick()
+        } else {
+            // Keep the modal open so the failure is visible where the user
+            // is looking; the banner behind the modal stays as the global record.
+            setError("Couldn't change the genre. Check your connection and try again.")
+        }
     }
 
     return (
@@ -71,6 +80,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 </div>
                 <button className="modal-button" onClick={handleConfirm}>Confirm</button>
                 <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
+                <FormError message={error} />
             </div>
         </div>
     )

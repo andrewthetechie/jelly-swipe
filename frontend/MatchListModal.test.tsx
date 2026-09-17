@@ -27,7 +27,7 @@ describe("MatchListModal - Match List Fetch", () => {
     expect(screen.queryByText("No Matches Yet!")).not.toBeInTheDocument()
   })
 
-  it("failed fetch leaves list empty", async () => {
+  it("failed fetch shows the inline error", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     fetchMatchesMock.mockRejectedValueOnce(new Error("Error retrieving matches"))
 
@@ -40,6 +40,10 @@ describe("MatchListModal - Match List Fetch", () => {
     expect(errSpy).toHaveBeenCalled()
     expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
     expect(screen.getByText("Match List")).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't load your matches. Check your connection and try again.",
+    )
+    expect(screen.queryByText("No Matches Yet!")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
 
     errSpy.mockRestore()
@@ -110,7 +114,7 @@ describe("MatchListModal - rendering", () => {
     })
 
     expect(screen.getByText("Match List")).toBeInTheDocument()
-    expect(screen.getByText("No Matches Yet!")).toBeInTheDocument()
+    expect(await screen.findByText("No Matches Yet!")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /open in jellyfin/i })).not.toBeInTheDocument()
   })

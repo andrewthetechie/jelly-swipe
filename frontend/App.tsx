@@ -5,8 +5,11 @@ import { apiFetch } from "./api"
 import { RoomContextProvider } from "./RoomContextProvider" 
 import { RoomSessionProvider } from "./RoomSessionProvider"
 import { SSEContextProvider } from "./SSEContextProvider"
+import FormError from "./FormError"
 
 export default function App() {
+    const [authError, setAuthError] = React.useState<string | null>(null)
+
     React.useEffect(() => {
         async function authBootstrap() {
             try {
@@ -19,6 +22,7 @@ export default function App() {
                 }
             } catch (err) {
                 console.error("Error authenticating server identity:", err)
+                setAuthError("Couldn't sign in to your Jellyfin server. Check that the server is reachable, then reload the page.")
             }
         }
 
@@ -29,6 +33,7 @@ export default function App() {
         <RoomContextProvider>
             <SSEContextProvider>
                 <RoomSessionProvider>
+                    <FormError message={authError} />
                     <Header />
                     <Main />
                 </RoomSessionProvider>

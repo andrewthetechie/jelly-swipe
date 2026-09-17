@@ -25,6 +25,7 @@ type RoomSessionTestOverrides = {
   genre?: string;
   hideWatched?: boolean;
   lastError?: string | null;
+  deckError?: string | null;
 }
 
 type RoomTestOverrides = RoomStateSeedOverrides & RoomSessionTestOverrides
@@ -149,6 +150,7 @@ function RoomSessionTestProvider({
     genre: overrides.genre ?? "All",
     hideWatched: overrides.hideWatched ?? false,
     lastError: overrides.lastError ?? null,
+    deckError: overrides.deckError ?? null,
   })
 
   useEffect(() => {
@@ -157,10 +159,14 @@ function RoomSessionTestProvider({
     }
     roomApi.fetchDeck(currentRoomCode)
       .then((deck) => {
-        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [] }))
+        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null }))
       })
       .catch((err) => {
         console.error("Error fetching card deck:", err)
+        setState((prev) => ({
+          ...prev,
+          deckError: "Couldn't load your cards. Check your connection and try again.",
+        }))
       })
   }, [currentRoomCode, seededDeck])
 
@@ -182,7 +188,7 @@ function RoomSessionTestProvider({
       }))
     } catch (err) {
       console.error("Error POSTing swipe", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't save that swipe. Check your connection and try again." }))
     }
   }
 
@@ -206,14 +212,14 @@ function RoomSessionTestProvider({
       }))
     } catch (err) {
       console.error("Error undoing swipe", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't undo that swipe. Check your connection and try again." }))
     }
   }
 
-  const confirmGenre = async (genre: string) => {
+  const confirmGenre = async (genre: string): Promise<boolean> => {
     if (!currentRoomCode) {
       console.error("Cannot change genre without currentRoomCode")
-      return
+      return false
     }
     try {
       const result = await roomApi.setGenreChoice(currentRoomCode, genre)
@@ -223,10 +229,13 @@ function RoomSessionTestProvider({
         cardDeck: result.deck,
         swipeHistory: [],
         lastError: null,
+        deckError: null,
       }))
+      return true
     } catch (err) {
       console.error("Error changing genre", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't change the genre. Check your connection and try again." }))
+      return false
     }
   }
 
@@ -244,10 +253,11 @@ function RoomSessionTestProvider({
         swipeHistory: [],
         hideWatched: next,
         lastError: null,
+        deckError: null,
       }))
     } catch (err) {
       console.error("Error toggling watched filter", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't update the watched filter. Check your connection and try again." }))
     }
   }
 
@@ -270,11 +280,33 @@ function RoomSessionTestProvider({
         swipeHistory: [],
         matchFound: false,
         matchItem: EMPTY_MATCH_ITEM,
+        deckError: null,
       }))
       setCurrentRoomCode(null)
     } catch (err) {
       console.error("Error quitting room", err)
-      setState((prev) => ({ ...prev, lastError: String(err) }))
+      setState((prev) => ({ ...prev, lastError: "Couldn't end the session. Check your connection and try again." }))
+    }
+  }
+
+  const clearError = () => {
+    setState((prev) => ({ ...prev, lastError: null }))
+  }
+
+  const retryDeckFetch = async () => {
+    if (!currentRoomCode) {
+      console.error("Cannot fetch deck without currentRoomCode")
+      return
+    }
+    try {
+      const deck = await roomApi.fetchDeck(currentRoomCode)
+      setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null }))
+    } catch (err) {
+      console.error("Error fetching card deck:", err)
+      setState((prev) => ({
+        ...prev,
+        deckError: "Couldn't load your cards. Check your connection and try again.",
+      }))
     }
   }
 
@@ -286,6 +318,8 @@ function RoomSessionTestProvider({
     toggleHideWatched,
     dismissMatch,
     endSession,
+    clearError,
+    retryDeckFetch,
   }
 
   return (

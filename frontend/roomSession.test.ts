@@ -117,6 +117,35 @@ describe("roomSession reducer and utils", () => {
 		expect(next.hideWatched).toBe(true)
 	})
 
+	it("GENRE_COMMAND_SUCCEEDED clears a stale deckError", () => {
+		const start = {
+			...initialRoomSessionState,
+			deckError: "Couldn't load your cards. Check your connection and try again.",
+		}
+
+		const next = roomSessionReducer(start, {
+			type: "GENRE_COMMAND_SUCCEEDED",
+			deck: [],
+		})
+
+		expect(next.deckError).toBeNull()
+	})
+
+	it("HIDE_WATCHED_COMMAND_SUCCEEDED clears a stale deckError", () => {
+		const start = {
+			...initialRoomSessionState,
+			deckError: "Couldn't load your cards. Check your connection and try again.",
+		}
+
+		const next = roomSessionReducer(start, {
+			type: "HIDE_WATCHED_COMMAND_SUCCEEDED",
+			deck: [],
+			hideWatched: true,
+		})
+
+		expect(next.deckError).toBeNull()
+	})
+
 	it("SSE_SESSION_READY sets roomReady true", () => {
 		const next = roomSessionReducer(initialRoomSessionState, {
 			type: "SSE_SESSION_READY",
@@ -132,6 +161,36 @@ describe("roomSession reducer and utils", () => {
 		})
 
 		expect(next.roomReady).toBe(false)
+	})
+
+	it("CLEAR_ERROR clears lastError", () => {
+		const start = { ...initialRoomSessionState, lastError: "boom" }
+		const next = roomSessionReducer(start, { type: "CLEAR_ERROR" })
+
+		expect(next.lastError).toBeNull()
+	})
+
+	it("DECK_FETCH_FAILED sets deckError", () => {
+		const next = roomSessionReducer(initialRoomSessionState, {
+			type: "DECK_FETCH_FAILED",
+			message: "Couldn't load your cards.",
+		})
+
+		expect(next.deckError).toBe("Couldn't load your cards.")
+	})
+
+	it("DECK_LOADED clears deckError", () => {
+		const start = { ...initialRoomSessionState, deckError: "boom" }
+		const next = roomSessionReducer(start, { type: "DECK_LOADED", deck: [] })
+
+		expect(next.deckError).toBeNull()
+	})
+
+	it("SESSION_ENDED clears deckError", () => {
+		const start = { ...initialRoomSessionState, deckError: "boom" }
+		const next = roomSessionReducer(start, { type: "SESSION_ENDED" })
+
+		expect(next.deckError).toBeNull()
 	})
 
 	it("has no reducer action for session_reset (provider handles as no-op)", () => {
@@ -186,7 +245,7 @@ describe("RoomSessionProvider commands", () => {
 
 		expect(hook.result.current.state.cardDeck).toEqual([first, second])
 		expect(hook.result.current.state.swipeHistory).toEqual([])
-		expect(hook.result.current.state.lastError).toContain("swipe failed")
+		expect(hook.result.current.state.lastError).toContain("Couldn't save that swipe")
 		expect(errorSpy).toHaveBeenCalled()
 	})
 
@@ -279,7 +338,7 @@ describe("RoomSessionProvider commands", () => {
 		// deck and swipe history untouched
 		expect(hook.result.current.state.cardDeck).toEqual([first, second])
 		expect(hook.result.current.state.swipeHistory).toEqual([])
-		expect(hook.result.current.state.lastError).toContain("genre failed")
+		expect(hook.result.current.state.lastError).toContain("Couldn't change the genre")
 		expect(errorSpy).toHaveBeenCalled()
 	})
 
@@ -339,6 +398,25 @@ describe("RoomSessionProvider commands", () => {
 		expect(hook.result.current.state.matchFound).toBe(false)
 		expect(hook.result.current.state.matchItem).toEqual(EMPTY_MATCH_ITEM)
 	})
+
+	it("deck fetch failure sets deckError and retryDeckFetch recovers", async () => {
+		const deck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockRejectedValueOnce(new Error("fetch failed"))
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deck)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+
+		await waitFor(() => {
+			expect(hook.result.current.state.deckError).toContain("Couldn't load your cards")
+		})
+
+		await act(async () => { await hook.result.current.retryDeckFetch() })
+
+		expect(hook.result.current.state.deckError).toBeNull()
+		expect(hook.result.current.state.cardDeck).toEqual(deck)
+		expect(errorSpy).toHaveBeenCalled()
+	})
 })
 
 describe("SSE suppression (event id correlation)", () => {
@@ -384,6 +462,28 @@ describe("SSE suppression (event id correlation)", () => {
 		expect(hook.result.current.state.genre).toBe("Comedy")
 	})
 
+	it("surfaces a remote-refetch failure as a banner without blanking the loaded deck", async () => {
+		const genreDeck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(genreDeck)
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeWrapper() })
+		await waitForDeckLoad(hook, 1)
+		vi.mocked(roomApi.fetchDeck).mockClear()
+		vi.mocked(roomApi.fetchDeck).mockRejectedValue(new Error("network down"))
+
+		emitSSE(hook, { event_type: "genre_changed", event_id: 99, genre: "Comedy" })
+
+		await waitFor(() => expect(roomApi.fetchDeck).toHaveBeenCalledWith(ROOM_CODE))
+		await waitFor(() =>
+			expect(hook.result.current.state.lastError).toContain("Couldn't refresh your cards")
+		)
+		expect(hook.result.current.state.deckError).toBeNull()
+		expect(hook.result.current.state.cardDeck).toEqual(genreDeck)
+
+		errorSpy.mockRestore()
+	})
+
 	it("suppresses own echo arriving before the POST resolves, then still honors a later remote change", async () => {
 		const deckA = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
 		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deckA)
@@ -396,7 +496,7 @@ describe("SSE suppression (event id correlation)", () => {
 		await waitForDeckLoad(hook, 1)
 		vi.mocked(roomApi.fetchDeck).mockClear()
 
-		let confirmPromise: Promise<void>
+		let confirmPromise: Promise<boolean>
 		act(() => { confirmPromise = hook.result.current.confirmGenre("Comedy") })
 
 		// Own echo arrives while the POST is still in flight -> suppressed, no refetch.
@@ -427,7 +527,7 @@ describe("SSE suppression (event id correlation)", () => {
 		vi.mocked(roomApi.fetchDeck).mockClear()
 
 		await act(async () => { await hook.result.current.toggleHideWatched() })
-		expect(hook.result.current.state.lastError).toContain("boom")
+		expect(hook.result.current.state.lastError).toContain("Couldn't update the watched filter")
 
 		// A remote hide_watched change must still refetch.
 		emitSSE(hook, { event_type: "hide_watched_changed", event_id: 77, hide_watched: true })

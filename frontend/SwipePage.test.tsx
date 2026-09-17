@@ -9,8 +9,10 @@ function getRoomState() {
   return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
 }
 
-vi.mock("./roomApi", () => ({
+vi.mock("./roomApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./roomApi")>()),
   quitRoom: vi.fn(),
+  fetchDeck: vi.fn(),
 }))
 
 const quitRoomMock = vi.mocked(roomApi.quitRoom)
@@ -29,6 +31,20 @@ function renderSwipePage(
     roomReady: roomReadyState,
     cardDeck: makeDeck(deckSize),
     matchFound: false,
+  })
+}
+
+function renderSwipePageWithError(
+  lastError: string | null = null,
+  overrides: Parameters<typeof renderWithRoom>[1] = {},
+) {
+  return renderWithRoom(<SwipePage />, {
+    currentRoomCode: "1234",
+    roomReady: true,
+    cardDeck: makeDeck(2),
+    matchFound: false,
+    lastError,
+    ...overrides,
   })
 }
 
@@ -213,6 +229,97 @@ describe("SwipePage — end session command", () => {
 
     await waitFor(() => expect(quitRoomMock).toHaveBeenCalled())
     expect(getRoomState()).toMatchObject({ currentRoomCode: "1234" })
+
+    errSpy.mockRestore()
+  })
+})
+
+describe("SwipePage — error banner (issue #340)", () => {
+  it("renders a seeded lastError as a dismissible banner with role=alert", async () => {
+    const user = userEvent.setup()
+    renderSwipePageWithError("Couldn't save that swipe. Check your connection and try again.")
+
+    const banner = screen.getByRole("alert")
+    expect(banner).toHaveTextContent("Couldn't save that swipe. Check your connection and try again.")
+
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }))
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("does not render an error banner when lastError is null", () => {
+    renderSwipePage()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("shows a dismissible end-session error banner on the HostWaiting screen when quit rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const user = userEvent.setup()
+    quitRoomMock.mockRejectedValueOnce(new Error("quit failed"))
+    renderSwipePageWithError(null, { roomReady: false })
+
+    await user.click(screen.getByText("End Session"))
+
+    await waitFor(() => expect(quitRoomMock).toHaveBeenCalled())
+    const banner = screen.getByRole("alert")
+    expect(banner).toHaveTextContent("Couldn't end the session. Check your connection and try again.")
+
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }))
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
+})
+
+describe("SwipePage — deck error retry (issue #340)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    quitRoomMock.mockResolvedValue({ status: "ok" })
+  })
+
+  it("shows the deck-error message and a Try again button instead of a blank deck", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
+    fetchDeckMock.mockRejectedValue(new Error("fetch failed"))
+
+    renderSwipePageWithError(null, {
+      cardDeck: [],
+      deckError: "Couldn't load your cards. Check your connection and try again.",
+    })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your cards. Check your connection and try again.")
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
+    expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
+
+  it("keeps the loaded deck visible when a deck error is set (transient refetch failure)", () => {
+    renderSwipePageWithError(null, {
+      cardDeck: makeDeck(2),
+      deckError: "Couldn't load your cards. Check your connection and try again.",
+    })
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(screen.getByText("Movie 1")).toBeInTheDocument()
+  })
+
+  it("retries the deck fetch and clears deckError on success", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
+    fetchDeckMock.mockRejectedValueOnce(new Error("fetch failed"))
+    fetchDeckMock.mockResolvedValue(makeDeck(2))
+
+    const user = userEvent.setup()
+    renderSwipePageWithError(null, {
+      cardDeck: [],
+      deckError: "Couldn't load your cards. Check your connection and try again.",
+    })
+
+    await user.click(await screen.findByRole("button", { name: "Try again" }))
+
+    await waitFor(() => expect(fetchDeckMock).toHaveBeenCalledWith("1234"))
+    expect(await screen.findByText("Movie 1")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 
     errSpy.mockRestore()
   })

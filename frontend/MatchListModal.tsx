@@ -4,6 +4,7 @@ import type { JSX } from "react"
 import PosterImage from "./PosterImage"
 import type { MatchItem } from "./types"
 import { fetchMatches } from "./roomApi"
+import FormError from "./FormError"
 
 interface MatchListModalProps {
     handleMatchListClick: () => void
@@ -11,14 +12,18 @@ interface MatchListModalProps {
 
 export default function MatchListModal({ handleMatchListClick }: MatchListModalProps): JSX.Element {
     const [matchList, setMatchList] = React.useState<MatchItem[]>([])
+    const [error, setError] = React.useState<string | null>(null)
+    const [loaded, setLoaded] = React.useState<boolean>(false)
 
     React.useEffect(() => {
         async function fetchMatchList() {
             try {
                 const matches = await fetchMatches()
                 setMatchList(matches)
+                setLoaded(true)
             } catch (err) {
                 console.error("Error retrieving matches:", err)
+                setError("Couldn't load your matches. Check your connection and try again.")
             }
         }
         fetchMatchList()
@@ -63,7 +68,8 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
         <div className="modal">
             <div className="modal-inner modal-match-list">
                 <h2>Match List</h2>
-                {matchList.length === 0 && <h3 className="jelly-check">No Matches Yet!</h3>}
+                <FormError message={error} />
+                {loaded && matchList.length === 0 && <h3 className="jelly-check">No Matches Yet!</h3>}
                 <div className="match-list-container">
                     {matchElements}
                 </div>

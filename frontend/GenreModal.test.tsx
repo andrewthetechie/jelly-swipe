@@ -165,6 +165,7 @@ describe("GenreModal - error path", () => {
     expect(screen.queryByLabelText("Action")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Comedy")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Drama")).not.toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load genres. Check your connection and try again.")
 
     errSpy.mockRestore()
   })
@@ -181,7 +182,94 @@ describe("GenreModal - error path", () => {
 
     expect(errSpy).toHaveBeenCalled()
     expect(screen.queryByLabelText("Action")).not.toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load genres. Check your connection and try again.")
 
     errSpy.mockRestore()
+  })
+})
+
+describe("GenreModal - confirm failure", () => {
+  it("keeps the modal open and shows an inline error when the genre change fails", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    setGenreChoiceMock.mockRejectedValueOnce(new Error("genre failed"))
+    const user = userEvent.setup()
+    const { handleGenreClick } = renderGenreModal()
+
+    await screen.findByLabelText("Action")
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't change the genre. Check your connection and try again.",
+    )
+    expect(handleGenreClick).not.toHaveBeenCalled()
+
+    errSpy.mockRestore()
+  })
+
+  it("clears the confirm error when the user changes the selection", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    setGenreChoiceMock.mockRejectedValueOnce(new Error("genre failed"))
+    const user = userEvent.setup()
+    renderGenreModal()
+
+    await screen.findByLabelText("Action")
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
+    await screen.findByRole("alert")
+
+    await user.click(screen.getByLabelText("Drama"))
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
+
+  it("closes the modal on the next successful confirm after a failure", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    setGenreChoiceMock.mockRejectedValueOnce(new Error("genre failed"))
+    const user = userEvent.setup()
+    const { handleGenreClick } = renderGenreModal()
+
+    await screen.findByLabelText("Action")
+    await user.click(screen.getByLabelText("Comedy"))
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
+    await screen.findByRole("alert")
+
+    await user.click(screen.getByRole("button", { name: /confirm/i }))
+
+    await waitFor(() => expect(setGenreChoiceMock).toHaveBeenCalledTimes(2))
+    expect(handleGenreClick).toHaveBeenCalledOnce()
+
+    errSpy.mockRestore()
+  })
+
+  it("renders the error below the Confirm and Cancel buttons", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    fetchGenresMock.mockRejectedValueOnce(new Error("Error fetching genres"))
+
+    renderGenreModal()
+
+    const alert = await screen.findByRole("alert")
+    const confirm = screen.getByRole("button", { name: /confirm/i })
+    const cancel = screen.getByRole("button", { name: /cancel/i })
+
+    expect(confirm.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(cancel.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    errSpy.mockRestore()
+  })
+})
+
+describe("GenreModal - error state", () => {
+  it("cached genres path is unaffected by fetch rejection", () => {
+    sessionStorage.setItem("genres", JSON.stringify(["Action", "Comedy"]))
+
+    renderGenreModal()
+
+    expect(screen.getByLabelText("Action")).toBeInTheDocument()
+    expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
+    expect(fetchGenresMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 })
