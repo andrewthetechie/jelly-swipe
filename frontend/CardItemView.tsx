@@ -35,7 +35,7 @@ interface CardItemViewProps {
     onSwipe?: (
         cardItem: CardItem,
         direction: "left" | "right"
-    ) => void
+    ) => void | Promise<void>
 }
 
 // Stack depth styling (see issue #343). Depth `i` is how many cards this one
@@ -68,7 +68,15 @@ function stackBrightness(i: number): string | undefined {
     return `brightness(${1 - i * STACK_STEP_BRIGHTNESS})`
 }
 
-export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: CardItemViewProps): JSX.Element {
+export type CardItemViewHandle = {
+    commitSwipe: (direction: "left" | "right") => Promise<void>
+    toggleDetails: () => void
+}
+
+function CardItemViewInner(
+    { cardItem, stackIndex, zIndex, onSwipe }: CardItemViewProps,
+    ref: React.ForwardedRef<CardItemViewHandle>,
+): JSX.Element {
     const isTopCard = stackIndex === 0
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
@@ -82,6 +90,9 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
     // needed because `lostpointercapture` fires from our own releasePointerCapture()
     // on a normal release and must not undo a commit (see handleLostPointerCapture).
     const dragActive = React.useRef<boolean>(false)
+    // Set by the single commit path; a second button press, a late pointer event,
+    // or a re-drag on the still-mounted card must not double-fire onSwipe.
+    const committed = React.useRef<boolean>(false)
     const thresholdPx = React.useRef<number>(swipeThresholdFor(0))
     const [signal, setSignal] = React.useState<number>(0)
 
@@ -140,6 +151,50 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
         setPosition(DEFAULT_POSITION)
     }
 
+    // The single exit path for a committed swipe. Both the drag gesture
+    // (handlePointerUp) and the imperative handle (commitSwipe on the ref)
+    // funnel through here so the exit animation and onSwipe call cannot drift
+    // apart. Guards: only the top card can commit, and only when no drag is live
+    // and the card has not already committed.
+    const commitSwipe = async (direction: 1 | -1, velocity: number, dragDistance: number): Promise<void> => {
+        if (stackIndex !== 0) return
+        if (dragActive.current) return
+        if (committed.current) return
+        committed.current = true
+
+        // Hold the stamp lit through the exit — the card has committed.
+        setSignal(direction)
+        setPosition({
+            x: direction * exitDistanceFor(
+                velocity,
+                divRef.current?.offsetWidth ?? 0,
+                window.innerWidth,
+            ),
+            y: 0,
+            // The drag path rotates by dragDistance / 5 of the live travel; an
+            // imperative button/key commit has no drag distance, so use a small
+            // direction-signed constant.
+            rotation: dragDistance !== 0 ? dragDistance / 5 : direction * 12,
+        })
+
+        const result = onSwipe?.(
+            cardItem,
+            direction === 1 ? "right" : "left"
+        )
+        if (result) {
+            try {
+                await result
+            } catch {
+                // The swipe failed to save (e.g. a network error). Snap the card
+                // back to its resting transform and clear the committed guard so
+                // it can be re-swiped — the error banner promises a retry.
+                committed.current = false
+                setSignal(0)
+                setPosition(DEFAULT_POSITION)
+            }
+        }
+    }
+
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         setIsDragging(true)
         dragActive.current = true
@@ -185,23 +240,8 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
         samples.current = []
 
         if (shouldCommitSwipe(distance, velocity, thresholdPx.current)) {
-            const direction: number = distance > 0 ? 1 : -1
-            // Hold the stamp lit through the exit — the card has committed.
-            setSignal(direction)
-            setPosition({
-                x: direction * exitDistanceFor(
-                    velocity,
-                    divRef.current?.offsetWidth ?? 0,
-                    window.innerWidth,
-                ),
-                y: 0,
-                rotation: distance / 5
-            })
-
-            void onSwipe?.(
-                cardItem,
-                direction === 1 ? "right" : "left"
-            )
+            const direction: 1 | -1 = distance > 0 ? 1 : -1
+            commitSwipe(direction, velocity, distance)
         } else {
             resetDrag()
         }
@@ -225,17 +265,31 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
     }
 
 
-    const toggleDetails = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleDetailsClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.currentTarget.tagName === "BUTTON") return
         if (hasDragged.current) return
         setShowDetails(prev => !prev)
     }
 
+    // Imperative flip for the ref handle — same top-card guard as commitSwipe.
+    // Deliberately does NOT reuse handleDetailsClick: its BUTTON/hasDragged
+    // guards are about real click events and don't apply to a programmatic call.
+    const toggleDetails = () => {
+        if (stackIndex !== 0) return
+        setShowDetails(prev => !prev)
+    }
+
+    React.useImperativeHandle(ref, () => ({
+        commitSwipe: (direction: "left" | "right") =>
+            commitSwipe(direction === "right" ? 1 : -1, 0, 0),
+        toggleDetails,
+    }))
+
     return (
         <div
             ref={divRef}
             className={`card-item-container ${showDetails ? "flipped" : ""} ${!isTopCard ? "stack-back" : ""}`}
-            onClick={toggleDetails}
+            onClick={handleDetailsClick}
             onPointerDown={isTopCard ? handlePointerDown : undefined}
             onPointerMove={isTopCard ? handlePointerMove : undefined}
             onPointerUp={isTopCard ? handlePointerUp : undefined}
@@ -345,3 +399,6 @@ export default function CardItemView({ cardItem, stackIndex, zIndex, onSwipe }: 
         </div>
     )
 }
+
+const CardItemView = React.forwardRef<CardItemViewHandle, CardItemViewProps>(CardItemViewInner)
+export default CardItemView

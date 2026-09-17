@@ -1,6 +1,6 @@
 import React from "react"
 import HostWaiting from "./HostWaiting"
-import CardItemView from "./CardItemView"
+import CardItemView, { type CardItemViewHandle } from "./CardItemView"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
@@ -19,6 +19,58 @@ export default function SwipePage(): JSX.Element {
     // dropped entirely (issue #343) — undo still works because undo re-adds the
     // card to `cardDeck` state and it mounts fresh at the top (see roomSession).
     const visibleCards = state.cardDeck.slice(0, 3).reverse()
+
+    // Imperative handle to the top card, so the Nope/Like buttons reuse the
+    // exact commit path a drag uses (same exit transform, same onSwipe call).
+    // Only the top card gets the ref (see the map below).
+    const cardRef = React.useRef<CardItemViewHandle | null>(null)
+    const commitSwipe = (direction: "left" | "right") => {
+        cardRef.current?.commitSwipe(direction)
+    }
+
+    // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
+    // Inert while any modal is open or an interactive element has focus (so
+    // Enter always activates a focused button), and ignores key-repeat so a
+    // held key cannot machine-gun swipes.
+    React.useEffect(() => {
+        if (!state.roomReady) return
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.repeat) return
+            if (state.matchFound || showGenreModal || showMatchListModal) return
+
+            const active = document.activeElement
+            if (active instanceof HTMLElement) {
+                const tag = active.tagName
+                if (
+                    tag === "BUTTON" ||
+                    tag === "INPUT" ||
+                    tag === "TEXTAREA" ||
+                    tag === "SELECT" ||
+                    active.isContentEditable
+                ) {
+                    return
+                }
+            }
+
+            switch (e.key) {
+                case "ArrowLeft":
+                    e.preventDefault()
+                    commitSwipe("left")
+                    break
+                case "ArrowRight":
+                    e.preventDefault()
+                    commitSwipe("right")
+                    break
+                case "ArrowUp":
+                case "Enter":
+                    e.preventDefault()
+                    cardRef.current?.toggleDetails()
+                    break
+            }
+        }
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [state.roomReady, state.matchFound, showGenreModal, showMatchListModal, commitSwipe])
 
     const openGenreModal = () => {
         setShowGenreModal(true)
@@ -81,6 +133,7 @@ export default function SwipePage(): JSX.Element {
                             visibleCards.map((cardItem: CardItem, index: number) => (
                                 <CardItemView
                                     key={cardItem.mediaId}
+                                    ref={visibleCards.length - 1 - index === 0 ? cardRef : undefined}
                                     cardItem={cardItem}
                                     // rendered order is reversed: the last card is the top.
                                     stackIndex={visibleCards.length - 1 - index}
@@ -91,8 +144,24 @@ export default function SwipePage(): JSX.Element {
                         )}
                     </div>
 
-                    <button className="btn-secondary undo-button" onClick={undo}>Undo</button>
-                    <p className="card-item-instructions">Tap poster for full details</p>
+                    <div className="swipe-controls">
+                        <button
+                            className="jelly-button small nope-button"
+                            onClick={() => commitSwipe("left")}
+                            disabled={state.cardDeck.length === 0}
+                        >
+                            <span className="swipe-button-glyph">✕</span>Nope
+                        </button>
+                        <button className="btn-secondary undo-button" onClick={undo}>Undo</button>
+                        <button
+                            className="jelly-button small like-button"
+                            onClick={() => commitSwipe("right")}
+                            disabled={state.cardDeck.length === 0}
+                        >
+                            <span className="swipe-button-glyph">✓</span>Like
+                        </button>
+                    </div>
+                    <p className="card-item-instructions">Tap for details · Arrow keys to swipe</p>
                 </div>
 
                 <div className="swipe-footer">
