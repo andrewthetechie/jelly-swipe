@@ -56,16 +56,24 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-main">
                     <div className="swipe-deck">
-                        {visibleCards.map((cardItem: CardItem, index: number) => (
-                            <CardItemView
-                                key={cardItem.mediaId}
-                                cardItem={cardItem}
-                                // rendered order is reversed: the last card is the top.
-                                stackIndex={visibleCards.length - 1 - index}
-                                zIndex={index}
-                                onSwipe={swipe}
-                            />
-                        ))}
+                        {visibleCards.length === 0 ? (
+                            <div className="deck-empty">
+                                <p className="deck-empty-message">
+                                    That's everything! Check your Matches or try a different genre.
+                                </p>
+                            </div>
+                        ) : (
+                            visibleCards.map((cardItem: CardItem, index: number) => (
+                                <CardItemView
+                                    key={cardItem.mediaId}
+                                    cardItem={cardItem}
+                                    // rendered order is reversed: the last card is the top.
+                                    stackIndex={visibleCards.length - 1 - index}
+                                    zIndex={index}
+                                    onSwipe={swipe}
+                                />
+                            ))
+                        )}
                     </div>
 
                     <button className="undo-button" onClick={undo}>Undo</button>

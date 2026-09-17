@@ -110,7 +110,9 @@ describe("MatchListModal - rendering", () => {
     })
 
     expect(screen.getByText("Matches")).toBeInTheDocument()
-    expect(screen.getByText("No Matches Yet!")).toBeInTheDocument()
+    expect(screen.getByText("Nothing yet. Swipe right on something you'd both watch.")).toBeInTheDocument()
+    expect(document.querySelector(".match-list-empty")).toBeInTheDocument()
+    expect(document.querySelector(".jelly-check")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /open in jellyfin/i })).not.toBeInTheDocument()
   })

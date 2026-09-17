@@ -138,6 +138,29 @@ describe("SwipePage — card-stack depth (issue #343)", () => {
   })
 })
 
+describe("SwipePage — end of deck", () => {
+  it("shows the end-of-deck message with an empty deck", () => {
+    renderSwipePage(0)
+
+    expect(screen.getByText("That's everything! Check your Matches or try a different genre.")).toBeInTheDocument()
+    expect(document.querySelector(".deck-empty")).toBeInTheDocument()
+  })
+
+  it("does not show the end-of-deck message when cards are present", () => {
+    renderSwipePage(2)
+
+    expect(screen.queryByText("That's everything! Check your Matches or try a different genre.")).not.toBeInTheDocument()
+    expect(document.querySelector(".deck-empty")).not.toBeInTheDocument()
+  })
+
+  it("keeps footer controls reachable when the deck is empty", () => {
+    renderSwipePage(0)
+
+    expect(screen.getByRole("button", { name: /end session/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /matches/i })).toBeInTheDocument()
+  })
+})
+
 describe("SwipePage — swipe verdict feedback", () => {
   it("has both stamps at opacity 0 at rest", () => {
     const { container } = renderSwipePage()

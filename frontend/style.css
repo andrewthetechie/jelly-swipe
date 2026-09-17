@@ -904,6 +904,33 @@ button.genres:hover {
   --deck-stack-reserve: 32px;
 }
 
+.deck-empty {
+  position: relative;
+  inset: var(--deck-stack-reserve, 0) 0 0 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  border: 1px dashed #1C4273;
+  border-radius: 15px;
+  background: #071426AA;
+}
+
+.deck-empty-message {
+  margin: 0;
+  color: #9BF2FF;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+  text-shadow:
+    -1px -1px 2px #0A1F3D,
+    1px -1px 2px #0A1F3D,
+    -1px 1px 2px #0A1F3D,
+    1px 1px 2px #0A1F3D;
+}
+
 .card-item-container {
   perspective: 1200px;
   position: absolute;
@@ -1243,6 +1270,21 @@ div.match-list-container {
   margin-top: -.75rem;
   margin-bottom: 1rem;
   gap: 1rem;
+}
+
+.match-list-empty {
+  color: #9BF2FF;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: center;
+  margin: 0 auto 1rem auto;
+  max-width: 24rem;
+  padding: 0 .5rem;
+  text-shadow:
+    -1px -1px 2px #0A1F3D,
+    1px -1px 2px #0A1F3D,
+    -1px 1px 2px #0A1F3D,
+    1px 1px 2px #0A1F3D;
 }
 
 div.match-list-item {
