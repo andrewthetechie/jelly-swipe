@@ -150,7 +150,6 @@ export default function Modal({ onClose, labelledBy, className, children }: Moda
         <dialog
             ref={dialogRef}
             className="modal"
-            role="dialog"
             aria-modal="true"
             aria-labelledby={labelledBy}
         >

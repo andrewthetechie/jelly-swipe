@@ -42,7 +42,6 @@ describe("Modal - accessibility attributes", () => {
     it("renders a dialog named by the heading id", () => {
         renderModal()
         const dialog = screen.getByRole("dialog")
-        expect(dialog).toHaveAttribute("role", "dialog")
         expect(dialog).toHaveAttribute("aria-modal", "true")
         expect(dialog).toHaveAttribute("aria-labelledby", "modal-heading")
         expect(screen.getByText("Test Dialog")).toBeInTheDocument()
@@ -105,6 +104,43 @@ describe("Modal - focus management", () => {
 
         expect(onClose).toHaveBeenCalledTimes(1)
         expect(trigger).toHaveFocus()
+    })
+
+    it("restores focus to a programmatically-focused element on close", async () => {
+        // Simulates programmatic open (e.g. MatchFoundModal via WebSocket): a
+        // specific element already holds focus when the modal mounts, not from a
+        // user click on a dedicated trigger.
+        const user = userEvent.setup()
+        const onClose = vi.fn()
+
+        function ProgrammaticHarness({ open }: { open: boolean }) {
+            return (
+                <div>
+                    <button type="button">Background</button>
+                    {open && (
+                        <Modal onClose={onClose} labelledBy="modal-heading">
+                            <h2 id="modal-heading">Test Dialog</h2>
+                            <button type="button">First</button>
+                        </Modal>
+                    )}
+                </div>
+            )
+        }
+
+        // Focus the background button before the modal mounts.
+        const { getByRole, rerender } = render(<ProgrammaticHarness open={false} />)
+        const bgBtn = getByRole("button", { name: "Background" })
+        bgBtn.focus()
+        expect(bgBtn).toHaveFocus()
+
+        // Modal mounts programmatically — it captures bgBtn as the restore target.
+        rerender(<ProgrammaticHarness open={true} />)
+        expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+        await user.keyboard("{Escape}")
+
+        expect(onClose).toHaveBeenCalledTimes(1)
+        expect(bgBtn).toHaveFocus()
     })
 })
 
