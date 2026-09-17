@@ -165,6 +165,7 @@ describe("GenreModal - error path", () => {
     expect(screen.queryByLabelText("Action")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Comedy")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Drama")).not.toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load genres. Check your connection and try again.")
 
     errSpy.mockRestore()
   })
@@ -181,7 +182,21 @@ describe("GenreModal - error path", () => {
 
     expect(errSpy).toHaveBeenCalled()
     expect(screen.queryByLabelText("Action")).not.toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load genres. Check your connection and try again.")
 
     errSpy.mockRestore()
+  })
+})
+
+describe("GenreModal - error state", () => {
+  it("cached genres path is unaffected by fetch rejection", () => {
+    sessionStorage.setItem("genres", JSON.stringify(["Action", "Comedy"]))
+
+    renderGenreModal()
+
+    expect(screen.getByLabelText("Action")).toBeInTheDocument()
+    expect(screen.getByLabelText("Comedy")).toBeInTheDocument()
+    expect(fetchGenresMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 })

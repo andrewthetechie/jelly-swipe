@@ -3,6 +3,7 @@ import type { GenreListResponse } from "./types"
 import type { JSX } from "react"
 import { fetchGenres } from "./roomApi"
 import { useRoomSession } from "./RoomSessionProvider"
+import FormError from "./FormError"
 
 interface GenreModalProps {
     handleGenreClick: () => void
@@ -21,6 +22,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
 
     const { state, confirmGenre } = useRoomSession()
     const [pendingGenre, setPendingGenre] = React.useState<string>(state.genre)
+    const [error, setError] = React.useState<string | null>(null)
 
     React.useEffect(() => {
         if (genreList.length > 0) {
@@ -34,6 +36,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 sessionStorage.setItem("genres", JSON.stringify(data))
             } catch (err) {
                 console.error("Error fetching genres:", err)
+                setError("Couldn't load genres. Check your connection and try again.")
             }
         }
         fetchGenreList()
@@ -69,6 +72,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
                 <div className="genre-inputs">
                     {genreElements}
                 </div>
+                <FormError message={error} />
                 <button className="modal-button" onClick={handleConfirm}>Confirm</button>
                 <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
             </div>
