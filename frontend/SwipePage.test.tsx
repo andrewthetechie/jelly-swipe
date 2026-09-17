@@ -250,6 +250,24 @@ describe("SwipePage — error banner (issue #340)", () => {
     renderSwipePage()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
+
+  it("shows a dismissible end-session error banner on the HostWaiting screen when quit rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const user = userEvent.setup()
+    quitRoomMock.mockRejectedValueOnce(new Error("quit failed"))
+    renderSwipePageWithError(null, { roomReady: false })
+
+    await user.click(screen.getByText("End Session"))
+
+    await waitFor(() => expect(quitRoomMock).toHaveBeenCalled())
+    const banner = screen.getByRole("alert")
+    expect(banner).toHaveTextContent("Couldn't end the session. Check your connection and try again.")
+
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }))
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
 })
 
 describe("SwipePage — deck error retry (issue #340)", () => {

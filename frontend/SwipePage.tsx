@@ -28,15 +28,17 @@ export default function SwipePage(): JSX.Element {
         setShowMatchListModal(prev => !prev)
     }
 
+    const errorBanner = state.lastError && (
+        <div className="error-banner" role="alert">
+            <span>{state.lastError}</span>
+            <button className="error-dismiss" aria-label="Dismiss error" onClick={clearError}>×</button>
+        </div>
+    )
+
     if (state.roomReady) {
         return (
             <>
-                {state.lastError && (
-                    <div className="error-banner" role="alert">
-                        <span>{state.lastError}</span>
-                        <button className="error-dismiss" aria-label="Dismiss error" onClick={clearError}>×</button>
-                    </div>
-                )}
+                {errorBanner}
                 <div className="swipe-header">
                     {isSoloMode && <div className="mode-badge">Solo</div>}
                     <label
@@ -96,7 +98,12 @@ export default function SwipePage(): JSX.Element {
             </>
         )
     } else {
-        return <HostWaiting endSession={endSession} />
+        return (
+            <>
+                {errorBanner}
+                <HostWaiting endSession={endSession} />
+            </>
+        )
     }
 
 }
