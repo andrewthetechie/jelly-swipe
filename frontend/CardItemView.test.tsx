@@ -148,6 +148,29 @@ describe("CardItem — flip toggle (non-drag click)", () => {
   });
 });
 
+describe("CardItem — conditional touchAction (issue #351)", () => {
+  // The swipe container's inline touch-action switches from "none" (front face,
+  // so the swipe drag owns the gesture) to "auto" once flipped, so the details
+  // face's overflow-y: auto back can scroll on touch devices. A revert to a
+  // blanket "none" must fail here.
+  it("keeps touchAction 'none' on the container while unflipped", () => {
+    const { container } = renderCard();
+    const card = container.querySelector(".card-item-container") as HTMLElement;
+
+    expect(card).not.toHaveClass("flipped");
+    expect(card.style.touchAction).toBe("none");
+  });
+
+  it("switches touchAction to 'auto' once the card is flipped", () => {
+    const { container } = renderCard();
+    const card = container.querySelector(".card-item-container") as HTMLElement;
+
+    fireEvent.click(card);
+    expect(card).toHaveClass("flipped");
+    expect(card.style.touchAction).toBe("auto");
+  });
+});
+
 describe("CardItemView — Watch Trailer label casing", () => {
   // Guards the AC "no all-caps button labels" — case-sensitive on purpose, so a
   // revert to "WATCH TRAILER" fails here (the /watch trailer/i queries elsewhere
