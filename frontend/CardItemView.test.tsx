@@ -14,8 +14,10 @@
 // `renderWithRoom` for consistency with the rest of the suite; all drag feedback
 // state (velocity, stamps, rim) is now local to the component, so there is no
 // throwaway `setDragX` prop to pass.
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
+import React from "react";
 import CardItemView from "./CardItemView";
+import type { CardItemHandle } from "./CardItemView";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
 
@@ -434,6 +436,109 @@ describe("CardItemView — stack depth (issue #343)", () => {
     // Brightness dims with depth.
     expect(parseBrightness(back1.style.filter)).toBeLessThan(1)
     expect(parseBrightness(back2.style.filter)).toBeLessThan(parseBrightness(back1.style.filter))
+  })
+})
+
+// --- Imperative handle (issue #344) -----------------------------------------
+// Unlike a real pointer drag (which jsdom can't drive — see the documented gap
+// below), the forwardRef handle CAN be called directly, so the commit path is
+// testable end-to-end here.
+
+describe("CardItemView — imperative handle (issue #344)", () => {
+  it("handle.swipe('right') commits a right swipe off-screen with the LIKE stamp lit", () => {
+    const onSwipe = vi.fn()
+    const ref = React.createRef<CardItemHandle>()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={ref}
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={0}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" },
+    )
+
+    act(() => { ref.current?.swipe("right") })
+
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(onSwipe).toHaveBeenCalledTimes(1)
+    expect(onSwipe).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId: "1" }),
+      "right",
+    )
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(x).toBeGreaterThan(500)
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("handle.swipe('left') commits a left swipe off-screen with the NOPE stamp lit", () => {
+    const onSwipe = vi.fn()
+    const ref = React.createRef<CardItemHandle>()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={ref}
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={0}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" },
+    )
+
+    act(() => { ref.current?.swipe("left") })
+
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(onSwipe).toHaveBeenCalledTimes(1)
+    expect(onSwipe).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId: "1" }),
+      "left",
+    )
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(x).toBeLessThan(-500)
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("handle.toggleDetails() toggles the 'flipped' class on the card container", () => {
+    const ref = React.createRef<CardItemHandle>()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={ref}
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={0}
+        onSwipe={vi.fn()}
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    expect(card).not.toHaveClass("flipped")
+    act(() => { ref.current?.toggleDetails() })
+    expect(card).toHaveClass("flipped")
+    act(() => { ref.current?.toggleDetails() })
+    expect(card).not.toHaveClass("flipped")
+  })
+
+  it("no-ops swipe for a back card (stackIndex 1)", () => {
+    const onSwipe = vi.fn()
+    const ref = React.createRef<CardItemHandle>()
+    renderWithRoom(
+      <CardItemView
+        ref={ref}
+        cardItem={makeCard()}
+        stackIndex={1}
+        zIndex={1}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" },
+    )
+
+    act(() => { ref.current?.swipe("right") })
+
+    expect(onSwipe).not.toHaveBeenCalled()
   })
 })
 
