@@ -260,6 +260,7 @@ describe("CardItemView — Watch Trailer state machine", () => {
   })
 
   it("renders 'No trailer available' on a network rejection", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     fetchTrailerMock.mockRejectedValueOnce(new Error("network error"))
 
     renderCard()
@@ -269,6 +270,8 @@ describe("CardItemView — Watch Trailer state machine", () => {
       expect(screen.getByText("No trailer available")).toBeInTheDocument()
     })
     expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
   })
 
   it("aborts the in-flight trailer fetch on unmount and ignores AbortError", async () => {
