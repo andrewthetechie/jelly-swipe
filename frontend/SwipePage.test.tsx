@@ -13,13 +13,19 @@ vi.mock("./roomApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./roomApi")>()),
   quitRoom: vi.fn(),
   fetchDeck: vi.fn(),
+  fetchGenres: vi.fn(),
+  fetchMatches: vi.fn(),
 }))
 
 const quitRoomMock = vi.mocked(roomApi.quitRoom)
+const fetchGenresMock = vi.mocked(roomApi.fetchGenres)
+const fetchMatchesMock = vi.mocked(roomApi.fetchMatches)
 
 beforeEach(() => {
   vi.clearAllMocks()
   quitRoomMock.mockResolvedValue({ status: "ok" })
+  fetchGenresMock.mockResolvedValue(["Action", "Comedy", "Drama"])
+  fetchMatchesMock.mockResolvedValue([])
 })
 
 function renderSwipePage(
@@ -344,5 +350,53 @@ describe("SwipePage - GenreModal behavior", () => {
     await user.click(screen.getByRole("button", { name: /genres/i }))
 
     expect(screen.queryByText("Select Genre")).toBeInTheDocument()
+  })
+
+  it("opens GenreModal from the Genres button and closes it on Escape", async () => {
+    const user = userEvent.setup()
+    renderSwipePage()
+
+    expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /genres/i }))
+    expect(screen.getByRole("dialog", { name: /select genre/i })).toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
+  })
+
+  it("opens GenreModal from the Genres button and closes it on overlay click", async () => {
+    const user = userEvent.setup()
+    renderSwipePage()
+
+    await user.click(screen.getByRole("button", { name: /genres/i }))
+    expect(screen.getByRole("dialog", { name: /select genre/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("dialog"))
+    expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
+  })
+
+  it("opens MatchListModal from the Shortlist button and closes it on Escape", async () => {
+    const user = userEvent.setup()
+    renderSwipePage()
+
+    expect(screen.queryByText("Match List")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /shortlist/i }))
+    expect(screen.getByRole("dialog", { name: /match list/i })).toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    expect(screen.queryByText("Match List")).not.toBeInTheDocument()
+  })
+
+  it("opens MatchListModal from the Shortlist button and closes it on overlay click", async () => {
+    const user = userEvent.setup()
+    renderSwipePage()
+
+    await user.click(screen.getByRole("button", { name: /shortlist/i }))
+    expect(screen.getByRole("dialog", { name: /match list/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("dialog"))
+    expect(screen.queryByText("Match List")).not.toBeInTheDocument()
   })
 })

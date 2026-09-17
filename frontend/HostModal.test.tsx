@@ -57,7 +57,28 @@ describe("HostModal — toggles", () => {
     await user.click(cancelButton)
 
     expect(onClose).toHaveBeenCalledTimes(1)
-    expect(cancelButton).toHaveAttribute("data-modal-type", "host")
+  })
+
+  it("calls onClose when Escape is pressed", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    renderWithRoom(<HostModal onClose={onClose} />)
+
+    await user.keyboard("{Escape}")
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("calls onClose when the overlay is clicked", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    renderWithRoom(<HostModal onClose={onClose} />)
+
+    await user.click(screen.getByRole("dialog"))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 });
 
@@ -166,7 +187,7 @@ describe("HostModal — create session (3-part network contract)", () => {
       tvShows: false,
       solo: false,
     })
-  })  
+  })
 
   it("submits updated isSoloMode option after toggling before create", async () => {
     const user = userEvent.setup()

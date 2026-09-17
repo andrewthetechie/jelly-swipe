@@ -271,6 +271,30 @@ img {
   z-index: 999;
 }
 
+/* The shared Modal component renders a native <dialog class="modal">. Reset the
+   user-agent dialog styles (border, padding, margin, white background) so the
+   fixed overlay above stays exactly as the visual design intends. The dialog
+   itself is the overlay, so its ::backdrop is transparent. */
+dialog.modal {
+  border: none;
+  padding: 0;
+  padding-top: 20%;
+  margin: 0;
+  color: inherit;
+  background: rgba(7, 20, 38, 0.95);
+  max-width: none;
+  max-height: none;
+}
+
+dialog.modal::backdrop {
+  background: transparent;
+}
+
+/* Applied by Modal while a dialog is open to lock page scroll. */
+.modal-open {
+  overflow: hidden;
+}
+
 .modal-inner {
   width: 80%;
   display: flex;
@@ -1497,6 +1521,10 @@ div.match-list-info {
 
   .modal {
     justify-content: center;
+    padding-top: 0;
+  }
+
+  dialog.modal {
     padding-top: 0;
   }
 

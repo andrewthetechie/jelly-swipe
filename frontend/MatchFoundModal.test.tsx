@@ -12,7 +12,7 @@ describe("MatchFoundModal - rendering", () => {
         render(
             <MatchFoundModal
                 matchItem={match}
-                onClick={vi.fn()}
+                onClose={vi.fn()}
             />
         )
 
@@ -29,7 +29,7 @@ describe("MatchFoundModal - rendering", () => {
         render(
             <MatchFoundModal
                 matchItem={match}
-                onClick={vi.fn()}
+                onClose={vi.fn()}
             />
         )
 
@@ -47,7 +47,7 @@ describe("MatchFoundModal - rendering", () => {
         render(
             <MatchFoundModal
                 matchItem={match}
-                onClick={vi.fn()}
+                onClose={vi.fn()}
             />
         )
 
@@ -69,7 +69,7 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
         render(
             <MatchFoundModal
                 matchItem={match}
-                onClick={vi.fn()}
+                onClose={vi.fn()}
             />
         )
 
@@ -91,7 +91,7 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
         render(
             <MatchFoundModal
                 matchItem={match}
-                onClick={vi.fn()}
+                onClose={vi.fn()}
             />
         )
 
@@ -108,14 +108,14 @@ describe("MatchFoundModal - watch on Jellyfin functionality", () => {
 })
 
 describe("MatchFoundModal - keep swiping button", () => {
-    it("clicking Keep Swiping button calls onClick", async () => {
-        const onClick = vi.fn()
+    it("clicking Keep Swiping button calls onClose", async () => {
+        const onClose = vi.fn()
         const user = userEvent.setup()
 
         render (
             <MatchFoundModal
                 matchItem={makeMatch()}
-                onClick={onClick}
+                onClose={onClose}
             />
         )
 
@@ -125,6 +125,38 @@ describe("MatchFoundModal - keep swiping button", () => {
             })
         )
 
-        expect(onClick).toHaveBeenCalledOnce()
+        expect(onClose).toHaveBeenCalledOnce()
+    })
+
+    it("Escape dismisses the match via onClose", async () => {
+        const onClose = vi.fn()
+        const user = userEvent.setup()
+
+        render(
+            <MatchFoundModal
+                matchItem={makeMatch()}
+                onClose={onClose}
+            />
+        )
+
+        await user.keyboard("{Escape}")
+
+        expect(onClose).toHaveBeenCalledOnce()
+    })
+
+    it("overlay click dismisses the match via onClose", async () => {
+        const onClose = vi.fn()
+        const user = userEvent.setup()
+
+        render(
+            <MatchFoundModal
+                matchItem={makeMatch()}
+                onClose={onClose}
+            />
+        )
+
+        await user.click(screen.getByRole("dialog"))
+
+        expect(onClose).toHaveBeenCalledOnce()
     })
 })

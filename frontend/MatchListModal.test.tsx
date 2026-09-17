@@ -20,7 +20,7 @@ describe("MatchListModal - Match List Fetch", () => {
     const matchList = makeMatchList(2)
     fetchMatchesMock.mockResolvedValueOnce(matchList)
 
-    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+    render(<MatchListModal onClose={vi.fn()} />)
 
     expect(await screen.findByText("Movie 1")).toBeInTheDocument()
     expect(screen.getByText("Movie 2")).toBeInTheDocument()
@@ -31,7 +31,7 @@ describe("MatchListModal - Match List Fetch", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     fetchMatchesMock.mockRejectedValueOnce(new Error("Error retrieving matches"))
 
-    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+    render(<MatchListModal onClose={vi.fn()} />)
 
     await waitFor(() => {
       expect(fetchMatchesMock).toHaveBeenCalledOnce()
@@ -55,7 +55,7 @@ describe("MatchListModal - rendering", () => {
     const matchList = makeMatchList(1)
     fetchMatchesMock.mockResolvedValueOnce(matchList)
 
-    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+    render(<MatchListModal onClose={vi.fn()} />)
 
     expect(await screen.findByText("Movie 1")).toBeInTheDocument()
     expect(screen.getByText("IMDb 8.25")).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe("MatchListModal - rendering", () => {
   it("renders a disabled button when there is no deepLink", async () => {
     fetchMatchesMock.mockResolvedValueOnce([makeMatch({ deepLink: null })])
 
-    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+    render(<MatchListModal onClose={vi.fn()} />)
 
     expect(await screen.findByText("Movie 1")).toBeInTheDocument()
 
@@ -81,23 +81,47 @@ describe("MatchListModal - rendering", () => {
     expect(document.querySelector('[href="#"]')).not.toBeInTheDocument()
   })
 
-  it("Keep Swiping button calls handleMatchListClick", async () => {
+  it("Keep Swiping button calls onClose", async () => {
     const user = userEvent.setup()
-    const handleMatchListClick = vi.fn()
+    const onClose = vi.fn()
     fetchMatchesMock.mockResolvedValueOnce(makeMatchList(1))
 
-    render(<MatchListModal handleMatchListClick={handleMatchListClick} />)
+    render(<MatchListModal onClose={onClose} />)
 
     await screen.findByAltText("Movie 1")
     await user.click(screen.getByRole("button", { name: /keep swiping/i }))
 
-    expect(handleMatchListClick).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("Escape closes the modal via onClose", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    fetchMatchesMock.mockResolvedValueOnce(makeMatchList(1))
+
+    render(<MatchListModal onClose={onClose} />)
+
+    await user.keyboard("{Escape}")
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("overlay click closes the modal via onClose", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    fetchMatchesMock.mockResolvedValueOnce(makeMatchList(1))
+
+    render(<MatchListModal onClose={onClose} />)
+
+    await user.click(screen.getByRole("dialog"))
+
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it("omits optional rating/runtime when missing from data", async () => {
     fetchMatchesMock.mockResolvedValueOnce([makeMatch({ rating: null, duration: null })])
 
-    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+    render(<MatchListModal onClose={vi.fn()} />)
 
     expect(await screen.findByText("Movie 1")).toBeInTheDocument()
     expect(screen.queryByText("IMDb 8.25")).not.toBeInTheDocument()
@@ -107,7 +131,7 @@ describe("MatchListModal - rendering", () => {
   it("renders correctly with an empty match list", async () => {
     fetchMatchesMock.mockResolvedValueOnce([])
 
-    render(<MatchListModal handleMatchListClick={vi.fn()} />)
+    render(<MatchListModal onClose={vi.fn()} />)
 
     await waitFor(() => {
       expect(fetchMatchesMock).toHaveBeenCalledOnce()

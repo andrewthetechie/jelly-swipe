@@ -4,12 +4,13 @@ import type { JSX } from "react"
 import { fetchGenres } from "./roomApi"
 import { useRoomSession } from "./RoomSessionProvider"
 import FormError from "./FormError"
+import Modal from "./Modal"
 
 interface GenreModalProps {
-    handleGenreClick: () => void
+    onClose: () => void
 }
 
-export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.Element {
+export default function GenreModal({ onClose }: GenreModalProps): JSX.Element {
     const [genreList, setGenreList] = React.useState<GenreListResponse>(() => {
         try {
             const cached = sessionStorage.getItem("genres")
@@ -63,7 +64,7 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
     const handleConfirm = async () => {
         const succeeded = await confirmGenre(pendingGenre)
         if (succeeded) {
-            handleGenreClick()
+            onClose()
         } else {
             // Keep the modal open so the failure is visible where the user
             // is looking; the banner behind the modal stays as the global record.
@@ -72,16 +73,14 @@ export default function GenreModal({ handleGenreClick }: GenreModalProps): JSX.E
     }
 
     return (
-        <div className="modal">
-            <div className="modal-inner modal-genre">
-                <h2>Select Genre</h2>
-                <div className="genre-inputs">
-                    {genreElements}
-                </div>
-                <button className="modal-button" onClick={handleConfirm}>Confirm</button>
-                <button className="modal-button" onClick={handleGenreClick}>Cancel</button>
-                <FormError message={error} />
+        <Modal onClose={onClose} labelledBy="genre-modal-heading" className="modal-genre">
+            <h2 id="genre-modal-heading">Select Genre</h2>
+            <div className="genre-inputs">
+                {genreElements}
             </div>
-        </div>
+            <button className="modal-button" onClick={handleConfirm}>Confirm</button>
+            <button className="modal-button" onClick={onClose}>Cancel</button>
+            <FormError message={error} />
+        </Modal>
     )
 }

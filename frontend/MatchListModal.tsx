@@ -5,12 +5,13 @@ import PosterImage from "./PosterImage"
 import type { MatchItem } from "./types"
 import { fetchMatches } from "./roomApi"
 import FormError from "./FormError"
+import Modal from "./Modal"
 
 interface MatchListModalProps {
-    handleMatchListClick: () => void
+    onClose: () => void
 }
 
-export default function MatchListModal({ handleMatchListClick }: MatchListModalProps): JSX.Element {
+export default function MatchListModal({ onClose }: MatchListModalProps): JSX.Element {
     const [matchList, setMatchList] = React.useState<MatchItem[]>([])
     const [error, setError] = React.useState<string | null>(null)
     const [loaded, setLoaded] = React.useState<boolean>(false)
@@ -30,14 +31,14 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
     }, [])
 
     const matchElements = matchList.map((match) => {
-        const { 
-            title, 
-            posterUrl, 
-            mediaId, 
-            deepLink, 
-            rating, 
-            duration, 
-            year 
+        const {
+            title,
+            posterUrl,
+            mediaId,
+            deepLink,
+            rating,
+            duration,
+            year
         } = match
 
         return (
@@ -65,16 +66,14 @@ export default function MatchListModal({ handleMatchListClick }: MatchListModalP
     })
 
     return (
-        <div className="modal">
-            <div className="modal-inner modal-match-list">
-                <h2>Match List</h2>
-                <FormError message={error} />
-                {loaded && matchList.length === 0 && <h3 className="jelly-check">No Matches Yet!</h3>}
-                <div className="match-list-container">
-                    {matchElements}
-                </div>
-                <button className="modal-button" onClick={handleMatchListClick}>Keep Swiping</button>
+        <Modal onClose={onClose} labelledBy="match-list-modal-heading" className="modal-match-list">
+            <h2 id="match-list-modal-heading">Match List</h2>
+            <FormError message={error} />
+            {loaded && matchList.length === 0 && <h3 className="jelly-check">No Matches Yet!</h3>}
+            <div className="match-list-container">
+                {matchElements}
             </div>
-        </div>
+            <button className="modal-button" onClick={onClose}>Keep Swiping</button>
+        </Modal>
     )
 }

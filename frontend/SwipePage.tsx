@@ -20,12 +20,20 @@ export default function SwipePage(): JSX.Element {
     // card to `cardDeck` state and it mounts fresh at the top (see roomSession).
     const visibleCards = state.cardDeck.slice(0, 3).reverse()
 
-    const handleGenreClick = () => {
-        setShowGenreModal(prev => !prev)
+    const openGenreModal = () => {
+        setShowGenreModal(true)
     }
 
-    const handleMatchListClick = () => {
-        setShowMatchListModal(prev => !prev)
+    const closeGenreModal = () => {
+        setShowGenreModal(false)
+    }
+
+    const openMatchListModal = () => {
+        setShowMatchListModal(true)
+    }
+
+    const closeMatchListModal = () => {
+        setShowMatchListModal(false)
     }
 
     const errorBanner = state.lastError && (
@@ -59,7 +67,7 @@ export default function SwipePage(): JSX.Element {
                         <span className="slider"></span>
 
                     </label>
-                    <button className="genres" onClick={handleGenreClick}>Genres</button>
+                    <button className="genres" onClick={openGenreModal}>Genres</button>
                 </div>
 
                 <div className="swipe-main">
@@ -89,12 +97,12 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-footer">
                     <button className="end-session" onClick={endSession}>End Session</button>
-                    <button className="shortlist" onClick={handleMatchListClick}>Shortlist</button>
+                    <button className="shortlist" onClick={openMatchListModal}>Shortlist</button>
                 </div>
 
-                {state.matchFound && <MatchFoundModal onClick={dismissMatch} matchItem={state.matchItem} />}
-                {showGenreModal && <GenreModal handleGenreClick={handleGenreClick} />}
-                {showMatchListModal && <MatchListModal handleMatchListClick={handleMatchListClick} />}
+                {state.matchFound && <MatchFoundModal onClose={dismissMatch} matchItem={state.matchItem} />}
+                {showGenreModal && <GenreModal onClose={closeGenreModal} />}
+                {showMatchListModal && <MatchListModal onClose={closeMatchListModal} />}
             </>
         )
     } else {

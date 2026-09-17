@@ -69,4 +69,86 @@ describe("Intro — modal open/close + state reset", () => {
     expect(getRoomState()).toMatchObject({ userInputCode: "" });
     expect(screen.queryByText("Enter Room Code")).not.toBeInTheDocument();
   });
+
+  it("resets host options and closes when the host modal is dismissed with Escape", async () => {
+    const user = userEvent.setup();
+    renderWithRoomStateful(<Intro />);
+
+    await user.click(screen.getByRole("button", { name: /host/i }));
+    await user.click(screen.getByRole("checkbox", { name: /movies/i }));
+    await user.click(screen.getByRole("checkbox", { name: /tv shows/i }));
+    await user.click(screen.getByRole("checkbox", { name: /solo/i }));
+    await user.keyboard("{Escape}");
+
+    expect(getRoomState()).toMatchObject({
+      movies: true,
+      tvShows: false,
+      isSoloMode: false,
+    });
+    expect(screen.queryByText("Session Setup")).not.toBeInTheDocument();
+  });
+
+  it("resets host options and closes when the host modal overlay is clicked", async () => {
+    const user = userEvent.setup();
+    renderWithRoomStateful(<Intro />);
+
+    await user.click(screen.getByRole("button", { name: /host/i }));
+    await user.click(screen.getByRole("checkbox", { name: /movies/i }));
+    await user.click(screen.getByRole("checkbox", { name: /tv shows/i }));
+    await user.click(screen.getByRole("checkbox", { name: /solo/i }));
+    await user.click(screen.getByRole("dialog"));
+
+    expect(getRoomState()).toMatchObject({
+      movies: true,
+      tvShows: false,
+      isSoloMode: false,
+    });
+    expect(screen.queryByText("Session Setup")).not.toBeInTheDocument();
+  });
+
+  it("clears the entered code and closes when the join modal is dismissed with Escape", async () => {
+    const user = userEvent.setup();
+    renderWithRoomStateful(<Intro />);
+
+    await user.click(screen.getByRole("button", { name: /join/i }));
+    await user.type(screen.getByPlaceholderText("Enter Host Code"), "1234");
+    await user.keyboard("{Escape}");
+
+    expect(getRoomState()).toMatchObject({ userInputCode: "" });
+    expect(screen.queryByText("Enter Room Code")).not.toBeInTheDocument();
+  });
+
+  it("clears the entered code and closes when the join modal overlay is clicked", async () => {
+    const user = userEvent.setup();
+    renderWithRoomStateful(<Intro />);
+
+    await user.click(screen.getByRole("button", { name: /join/i }));
+    await user.type(screen.getByPlaceholderText("Enter Host Code"), "1234");
+    await user.click(screen.getByRole("dialog"));
+
+    expect(getRoomState()).toMatchObject({ userInputCode: "" });
+    expect(screen.queryByText("Enter Room Code")).not.toBeInTheDocument();
+  });
+
+  it("returns focus to the Host button after the host modal closes", async () => {
+    const user = userEvent.setup();
+    renderWithRoomStateful(<Intro />);
+
+    const hostButton = screen.getByRole("button", { name: /host/i });
+    await user.click(hostButton);
+    await user.keyboard("{Escape}");
+
+    expect(hostButton).toHaveFocus();
+  });
+
+  it("returns focus to the Join button after the join modal closes", async () => {
+    const user = userEvent.setup();
+    renderWithRoomStateful(<Intro />);
+
+    const joinButton = screen.getByRole("button", { name: /join/i });
+    await user.click(joinButton);
+    await user.keyboard("{Escape}");
+
+    expect(joinButton).toHaveFocus();
+  });
 });
