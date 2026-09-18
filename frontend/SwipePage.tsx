@@ -129,6 +129,12 @@ export default function SwipePage(): JSX.Element {
                                 <p>{state.deckError}</p>
                                 <button className="retry-deck" onClick={retryDeckFetch}>Try again</button>
                             </div>
+                        ) : state.deckLoaded && state.cardDeck.length === 0 ? (
+                            <div className="deck-end">
+                                <p>That's everything for these filters.</p>
+                                <button className="btn-secondary" onClick={openMatchListModal}>Open Matches</button>
+                                <button className="btn-secondary" onClick={openGenreModal}>Change Genre</button>
+                            </div>
                         ) : (
                             visibleCards.map((cardItem: CardItem, index: number) => (
                                 <CardItemView
@@ -166,7 +172,7 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-footer">
                     <button className="btn-destructive end-session" onClick={endSession}>End Session</button>
-                    <button className="btn-secondary shortlist" onClick={openMatchListModal}>Shortlist</button>
+                    <button className="btn-secondary matches" onClick={openMatchListModal}>Matches</button>
                 </div>
 
                 {state.matchFound && <MatchFoundModal onClose={dismissMatch} matchItem={state.matchItem} />}

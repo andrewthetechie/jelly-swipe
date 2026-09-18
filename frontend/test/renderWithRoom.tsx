@@ -26,6 +26,7 @@ type RoomSessionTestOverrides = {
   hideWatched?: boolean;
   lastError?: string | null;
   deckError?: string | null;
+  deckLoaded?: boolean;
 }
 
 type RoomTestOverrides = RoomStateSeedOverrides & RoomSessionTestOverrides
@@ -151,15 +152,18 @@ function RoomSessionTestProvider({
     hideWatched: overrides.hideWatched ?? false,
     lastError: overrides.lastError ?? null,
     deckError: overrides.deckError ?? null,
+    deckLoaded: overrides.deckLoaded ?? false,
   })
 
   useEffect(() => {
-    if (!overrides.roomReady || !currentRoomCode || seededDeck.length > 0) {
+    // A test that seeds deckError represents a failed initial load (the
+    // deck-error retry panel), so the join auto-fetch must not clobber it.
+    if (!overrides.roomReady || !currentRoomCode || seededDeck.length > 0 || overrides.deckError) {
       return
     }
     roomApi.fetchDeck(currentRoomCode)
       .then((deck) => {
-        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null }))
+        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null, deckLoaded: true }))
       })
       .catch((err) => {
         console.error("Error fetching card deck:", err)
@@ -169,6 +173,21 @@ function RoomSessionTestProvider({
         }))
       })
   }, [currentRoomCode, seededDeck])
+
+  // Mirror the production provider: when no room is active, reset the deck
+  // state (clearing cardDeck, swipeHistory, and deckError, and setting
+  // deckLoaded false) so a stale end-of-deck state cannot flash on a fresh join.
+  useEffect(() => {
+    if (!currentRoomCode) {
+      setState((prev) => ({
+        ...prev,
+        cardDeck: [],
+        swipeHistory: [],
+        deckError: null,
+        deckLoaded: false,
+      }))
+    }
+  }, [currentRoomCode])
 
   const swipe = async (
     card: { mediaId: string },
@@ -233,6 +252,7 @@ function RoomSessionTestProvider({
         swipeHistory: [],
         lastError: null,
         deckError: null,
+        deckLoaded: true,
       }))
       return true
     } catch (err) {
@@ -257,6 +277,7 @@ function RoomSessionTestProvider({
         hideWatched: next,
         lastError: null,
         deckError: null,
+        deckLoaded: true,
       }))
     } catch (err) {
       console.error("Error toggling watched filter", err)
@@ -284,6 +305,7 @@ function RoomSessionTestProvider({
         matchFound: false,
         matchItem: EMPTY_MATCH_ITEM,
         deckError: null,
+        deckLoaded: false,
       }))
       setCurrentRoomCode(null)
     } catch (err) {
@@ -303,7 +325,7 @@ function RoomSessionTestProvider({
     }
     try {
       const deck = await roomApi.fetchDeck(currentRoomCode)
-      setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null }))
+      setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null, deckLoaded: true }))
     } catch (err) {
       console.error("Error fetching card deck:", err)
       setState((prev) => ({

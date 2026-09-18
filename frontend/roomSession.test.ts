@@ -52,6 +52,34 @@ function makeWrapper(roomCode = ROOM_CODE) {
 	}
 }
 
+// Test-local harness: renders inside the wrapper and captures the room-code
+// setter so a test can drive the production null-room transition (the DECK_RESET
+// dispatch) without widening the RoomCodeInitializer prop type or changing
+// production code.
+let setRoomCodeTo: (code: string | null) => void = () => {}
+
+function RoomCodeNuller() {
+	const { setCurrentRoomCode } = useRoomSetterContext()
+
+	React.useEffect(() => {
+		setRoomCodeTo = setCurrentRoomCode
+	}, [setCurrentRoomCode])
+
+	return null
+}
+
+function makeNullerWrapper(roomCode = ROOM_CODE) {
+	return function Wrapper({ children }: { children: React.ReactNode }) {
+		return React.createElement(
+			RoomContextProvider,
+			null,
+			React.createElement(RoomCodeInitializer, { roomCode }),
+			React.createElement(RoomCodeNuller, null),
+			React.createElement(RoomSessionProvider, null, children),
+		)
+	}
+}
+
 async function waitForDeckLoad(
 	hook: { result: { current: ReturnType<typeof useRoomSession> } },
 	expectedDeckSize: number,
@@ -184,6 +212,58 @@ describe("roomSession reducer and utils", () => {
 		const next = roomSessionReducer(start, { type: "DECK_LOADED", deck: [] })
 
 		expect(next.deckError).toBeNull()
+	})
+
+	it("DECK_RESET applied to a loaded state clears deck, history, and deckError and resets deckLoaded to false", () => {
+		const start = {
+			...initialRoomSessionState,
+			cardDeck: [makeCard({ mediaId: "m-1", title: "Movie m-1" })],
+			swipeHistory: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+			deckError: "boom",
+			deckLoaded: true,
+		}
+
+		const next = roomSessionReducer(start, { type: "DECK_RESET" })
+
+		expect(next.cardDeck).toEqual([])
+		expect(next.swipeHistory).toEqual([])
+		expect(next.deckError).toBeNull()
+		expect(next.deckLoaded).toBe(false)
+	})
+
+	it("DECK_LOADED sets deckLoaded true from a state where it is false", () => {
+		const start = { ...initialRoomSessionState, deckLoaded: false }
+		const next = roomSessionReducer(start, { type: "DECK_LOADED", deck: [] })
+
+		expect(next.deckLoaded).toBe(true)
+	})
+
+	it("GENRE_COMMAND_SUCCEEDED sets deckLoaded true from a state where it is false", () => {
+		const start = { ...initialRoomSessionState, deckLoaded: false }
+		const next = roomSessionReducer(start, {
+			type: "GENRE_COMMAND_SUCCEEDED",
+			deck: [],
+		})
+
+		expect(next.deckLoaded).toBe(true)
+	})
+
+	it("HIDE_WATCHED_COMMAND_SUCCEEDED sets deckLoaded true from a state where it is false", () => {
+		const start = { ...initialRoomSessionState, deckLoaded: false }
+		const next = roomSessionReducer(start, {
+			type: "HIDE_WATCHED_COMMAND_SUCCEEDED",
+			deck: [],
+			hideWatched: true,
+		})
+
+		expect(next.deckLoaded).toBe(true)
+	})
+
+	it("SESSION_ENDED sets deckLoaded false from a loaded state", () => {
+		const start = { ...initialRoomSessionState, deckLoaded: true }
+		const next = roomSessionReducer(start, { type: "SESSION_ENDED" })
+
+		expect(next.deckLoaded).toBe(false)
 	})
 
 	it("SESSION_ENDED clears deckError", () => {
@@ -416,6 +496,29 @@ describe("RoomSessionProvider commands", () => {
 		expect(hook.result.current.state.deckError).toBeNull()
 		expect(hook.result.current.state.cardDeck).toEqual(deck)
 		expect(errorSpy).toHaveBeenCalled()
+	})
+
+	it("clears the deck and resets deckLoaded when the room code transitions to null", async () => {
+		const deck = [makeCard({ mediaId: "m-1", title: "Movie m-1" })]
+		vi.mocked(roomApi.fetchDeck).mockResolvedValue(deck)
+
+		const hook = renderHook(() => useRoomSession(), { wrapper: makeNullerWrapper() })
+		await waitForDeckLoad(hook, 1)
+
+		expect(hook.result.current.state.deckLoaded).toBe(true)
+		expect(hook.result.current.state.cardDeck).toEqual(deck)
+
+		// Drive the production no-room reset path: clearing the code must
+		// dispatch DECK_RESET (not the test double's mirrored effect).
+		act(() => { setRoomCodeTo(null) })
+
+		await waitFor(() => {
+			expect(hook.result.current.state.cardDeck).toEqual([])
+			expect(hook.result.current.state.deckLoaded).toBe(false)
+		})
+
+		// No deck refetch happens once the code is null.
+		expect(roomApi.fetchDeck).toHaveBeenCalledTimes(1)
 	})
 })
 

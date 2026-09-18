@@ -1,9 +1,11 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import SwipePage from "./SwipePage"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
+import { useRoomSetterContext } from "./RoomContextProvider"
 import { makeDeck, dragTo, cancelDrag } from "./test/fixtures"
 import * as roomApi from "./roomApi"
+import type { CardDeck } from "./types"
 
 function getRoomState() {
   return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
@@ -320,7 +322,10 @@ describe("SwipePage — deck error retry (issue #340)", () => {
   it("retries the deck fetch and clears deckError on success", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
-    fetchDeckMock.mockRejectedValueOnce(new Error("fetch failed"))
+    // The seeded deckError models the initial failed load, so the join
+    // auto-fetch is skipped (see renderWithRoom) and the retry below is the
+    // first real fetch call — it must resolve, not reject, for the deck to
+    // appear and the error to clear.
     fetchDeckMock.mockResolvedValue(makeDeck(2))
 
     const user = userEvent.setup()
@@ -336,6 +341,77 @@ describe("SwipePage — deck error retry (issue #340)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 
     errSpy.mockRestore()
+  })
+})
+
+function RoomJoinHarness() {
+  const { setCurrentRoomCode } = useRoomSetterContext()
+  return (
+    <>
+      <SwipePage />
+      <button type="button" onClick={() => setCurrentRoomCode("1234")}>join room</button>
+    </>
+  )
+}
+
+describe("SwipePage — end of deck", () => {
+  it("shows an explanatory end-of-deck state once a completed load yields an empty deck", async () => {
+    renderSwipePage(0)
+
+    expect(await screen.findByText("That's everything for these filters.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /open matches/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /change genre/i })).toBeInTheDocument()
+  })
+
+  it("does not show the end-of-deck message while the initial deck fetch is in flight", () => {
+    // A never-resolving fetch keeps deckLoaded false (load incomplete).
+    fetchDeckMock.mockImplementation(() => new Promise<never>(() => {}))
+
+    renderSwipePageWithError(null, {
+      cardDeck: [],
+      deckLoaded: false,
+    })
+
+    expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
+  })
+
+  it("does not flash the end-of-deck panel across a null-room → room-join transition with a pending deck fetch", async () => {
+    // Start outside a room with a stale post-leave state (deckLoaded true, empty
+    // deck). The no-room reset must clear it, and the panel must stay hidden
+    // while the join's deck fetch is pending — only a completed empty load shows it.
+    let resolveDeck!: (deck: CardDeck) => void
+    fetchDeckMock.mockImplementation(() => new Promise((resolve) => { resolveDeck = resolve }))
+
+    const user = userEvent.setup()
+    renderWithRoom(<RoomJoinHarness />, {
+      roomReady: true,
+      cardDeck: [],
+      deckLoaded: true,
+      matchFound: false,
+    })
+
+    // No room active yet: the no-room reset keeps deckLoaded false.
+    expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
+
+    // Join a room while the deck fetch is still pending — the panel must not appear.
+    await user.click(screen.getByRole("button", { name: /join room/i }))
+    expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
+
+    // A completed load that yields an empty deck finally shows the panel.
+    await act(async () => { resolveDeck([]) })
+    expect(await screen.findByText("That's everything for these filters.")).toBeInTheDocument()
+  })
+
+  it("keeps the deck-error retry panel taking precedence over the end-of-deck message", async () => {
+    renderSwipePageWithError(null, {
+      cardDeck: [],
+      deckError: "Couldn't load your cards. Check your connection and try again.",
+      deckLoaded: true,
+    })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your cards. Check your connection and try again.")
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
+    expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
   })
 })
 
@@ -384,28 +460,28 @@ describe("SwipePage - GenreModal behavior", () => {
     expect(screen.queryByText("Select Genre")).not.toBeInTheDocument()
   })
 
-  it("opens MatchListModal from the Shortlist button and closes it on Escape", async () => {
+  it("opens MatchListModal from the Matches button and closes it on Escape", async () => {
     const user = userEvent.setup()
     renderSwipePage()
 
-    expect(screen.queryByText("Match List")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /matches/i })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /shortlist/i }))
-    expect(screen.getByRole("dialog", { name: /match list/i })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /matches/i }))
+    expect(screen.getByRole("dialog", { name: /matches/i })).toBeInTheDocument()
 
     await user.keyboard("{Escape}")
-    expect(screen.queryByText("Match List")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /matches/i })).not.toBeInTheDocument()
   })
 
-  it("opens MatchListModal from the Shortlist button and closes it on overlay click", async () => {
+  it("opens MatchListModal from the Matches button and closes it on overlay click", async () => {
     const user = userEvent.setup()
     renderSwipePage()
 
-    await user.click(screen.getByRole("button", { name: /shortlist/i }))
-    expect(screen.getByRole("dialog", { name: /match list/i })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /matches/i }))
+    expect(screen.getByRole("dialog", { name: /matches/i })).toBeInTheDocument()
 
     await user.click(screen.getByRole("dialog"))
-    expect(screen.queryByText("Match List")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /matches/i })).not.toBeInTheDocument()
   })
 })
 
@@ -574,7 +650,7 @@ describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
     const user = userEvent.setup()
     const { container } = renderSwipePage(2)
 
-    await user.click(screen.getByRole("button", { name: /shortlist/i }))
+    await user.click(screen.getByRole("button", { name: /matches/i }))
     ;(document.activeElement as HTMLElement)?.blur()
 
     fireEvent.keyDown(window, { key: "ArrowLeft" })
