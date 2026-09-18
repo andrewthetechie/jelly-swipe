@@ -156,7 +156,9 @@ function RoomSessionTestProvider({
   })
 
   useEffect(() => {
-    if (!overrides.roomReady || !currentRoomCode || seededDeck.length > 0) {
+    // A test that seeds deckError represents a failed initial load (the
+    // deck-error retry panel), so the join auto-fetch must not clobber it.
+    if (!overrides.roomReady || !currentRoomCode || seededDeck.length > 0 || overrides.deckError) {
       return
     }
     roomApi.fetchDeck(currentRoomCode)
