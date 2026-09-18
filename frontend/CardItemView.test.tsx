@@ -14,12 +14,15 @@
 // `renderWithRoom` for consistency with the rest of the suite; all drag feedback
 // state (velocity, stamps, rim) is now local to the component, so there is no
 // throwaway `setDragX` prop to pass.
+import { createRef } from "react";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import CardItemView from "./CardItemView";
+import type { CardItemViewHandle } from "./CardItemView";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
 import { RoomApiError } from "./roomApi";
 import * as roomApi from "./roomApi";
+import type { CardItem } from "./types";
 
 vi.mock("./roomApi", async () => {
   const actual = await vi.importActual<typeof import("./roomApi")>("./roomApi")
@@ -412,6 +415,170 @@ describe("CardItemView - swipe behavior", () => {
     swipeUnderThreshold(topCard)
 
     expect(onSwipe).not.toHaveBeenCalled()
+  })
+})
+
+describe("CardItemView — imperative handle", () => {
+  // Render the top card through a ref so tests can drive the imperative handle.
+  function renderCardWithHandle(
+    cardOverrides = {},
+    onSwipeOverride?: (cardItem: CardItem, direction: "left" | "right") => void | Promise<void>,
+  ) {
+    const handleRef = createRef<CardItemViewHandle>()
+    const onSwipe = onSwipeOverride ?? vi.fn()
+    const result = renderWithRoom(
+      <CardItemView
+        ref={handleRef}
+        cardItem={makeCard(cardOverrides)}
+        stackIndex={0}
+        zIndex={0}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" },
+    )
+    return { handleRef, onSwipe, ...result }
+  }
+
+  it("commitSwipe('right') fires onSwipe, lights LIKE, and flies the card off", () => {
+    const { container, onSwipe, handleRef } = renderCardWithHandle()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+    })
+
+    expect(onSwipe).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId: "1" }),
+      "right"
+    )
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(Math.abs(x)).toBeGreaterThan(500)
+  })
+
+  it("commitSwipe('left') fires onSwipe, lights NOPE, and flies the card off", () => {
+    const { container, onSwipe, handleRef } = renderCardWithHandle()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    act(() => {
+      handleRef.current?.commitSwipe("left")
+    })
+
+    expect(onSwipe).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId: "1" }),
+      "left"
+    )
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(Math.abs(x)).toBeGreaterThan(500)
+  })
+
+  it("toggleDetails() flips the card like a tap", () => {
+    const { container, handleRef } = renderCardWithHandle()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    expect(card).not.toHaveClass("flipped")
+    act(() => {
+      handleRef.current?.toggleDetails()
+    })
+    expect(card).toHaveClass("flipped")
+    act(() => {
+      handleRef.current?.toggleDetails()
+    })
+    expect(card).not.toHaveClass("flipped")
+  })
+
+  it("does not double-fire onSwipe after the card has committed", () => {
+    const { onSwipe, handleRef } = renderCardWithHandle()
+
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+      handleRef.current?.commitSwipe("right")
+    })
+
+    expect(onSwipe).toHaveBeenCalledTimes(1)
+  })
+
+  it("snaps the card back to rest and re-arms the swipe when onSwipe rejects", async () => {
+    const onSwipe = vi.fn().mockRejectedValue(new Error("swipe failed"))
+    const { container, handleRef } = renderCardWithHandle({}, onSwipe)
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // Commit: the card flies off-screen and the LIKE stamp stays lit.
+    await act(async () => {
+      await handleRef.current?.commitSwipe("right")
+    })
+
+    // The rejected swipe resets position and signal back to rest.
+    expect(card.style.transform).toContain("translate(0px, 0px)")
+    expect(card.style.transform).toContain("rotate(0deg)")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+
+    // The committed guard was cleared, so the same card can be swiped again.
+    await act(async () => {
+      await handleRef.current?.commitSwipe("right")
+    })
+    expect(onSwipe).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not commit for a non-top card", () => {
+    const handleRef = createRef<CardItemViewHandle>()
+    const onSwipe = vi.fn()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={handleRef}
+        cardItem={makeCard()}
+        stackIndex={1}
+        zIndex={1}
+        onSwipe={onSwipe}
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+    })
+
+    expect(onSwipe).not.toHaveBeenCalled()
+    expect(card.style.transform).toContain("translate(0px, 0px)")
+  })
+
+  it("does not commit while a drag is live", () => {
+    const { container, onSwipe, handleRef } = renderCardWithHandle()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    dragTo(card, 250)
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+    })
+
+    expect(onSwipe).not.toHaveBeenCalled()
+  })
+
+  it("does not flip details for a non-top card", () => {
+    const handleRef = createRef<CardItemViewHandle>()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={handleRef}
+        cardItem={makeCard()}
+        stackIndex={1}
+        zIndex={1}
+        onSwipe={vi.fn()}
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    act(() => {
+      handleRef.current?.toggleDetails()
+    })
+
+    expect(card).not.toHaveClass("flipped")
   })
 })
 

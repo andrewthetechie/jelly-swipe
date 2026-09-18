@@ -240,7 +240,7 @@ describe("RoomSessionProvider commands", () => {
 		await waitForDeckLoad(hook, 2)
 
 		await act(async () => {
-			await hook.result.current.swipe(first, "left")
+			await hook.result.current.swipe(first, "left").catch(() => {})
 		})
 
 		expect(hook.result.current.state.cardDeck).toEqual([first, second])

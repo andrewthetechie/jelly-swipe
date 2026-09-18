@@ -169,7 +169,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
     const swipe = React.useCallback(async (card: CardItem, direction: "left" | "right") => {
         if (!currentRoomCode) {
             console.error("Cannot send swipe without currentRoomCode")
-            return
+            throw new Error("Cannot send swipe without currentRoomCode")
         }
         try {
             await roomApi.postSwipe(currentRoomCode, card.mediaId, direction)
@@ -177,6 +177,10 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
         } catch (err) {
             console.error("Error POSTing swipe", err)
             dispatch({ type: "COMMAND_FAILED", message: "Couldn't save that swipe. Check your connection and try again." })
+            // Re-throw so the caller (the card's commit path) can snap the card
+            // back and leave it retryable instead of silently swallowing the
+            // failure while the card is already off-screen.
+            throw err
         }
     }, [currentRoomCode])
 

@@ -176,7 +176,7 @@ function RoomSessionTestProvider({
   ) => {
     if (!currentRoomCode) {
       console.error("Cannot send swipe without currentRoomCode")
-      return
+      throw new Error("Cannot send swipe without currentRoomCode")
     }
     try {
       await roomApi.postSwipe(currentRoomCode, card.mediaId, direction)
@@ -189,6 +189,9 @@ function RoomSessionTestProvider({
     } catch (err) {
       console.error("Error POSTing swipe", err)
       setState((prev) => ({ ...prev, lastError: "Couldn't save that swipe. Check your connection and try again." }))
+      // Mirror the real provider: re-throw so the card's commit path can snap
+      // the card back and leave it retryable.
+      throw err
     }
   }
 

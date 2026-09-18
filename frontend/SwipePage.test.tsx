@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import SwipePage from "./SwipePage"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
@@ -12,18 +12,23 @@ function getRoomState() {
 vi.mock("./roomApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./roomApi")>()),
   quitRoom: vi.fn(),
+  postSwipe: vi.fn(),
   fetchDeck: vi.fn(),
   fetchGenres: vi.fn(),
   fetchMatches: vi.fn(),
 }))
 
 const quitRoomMock = vi.mocked(roomApi.quitRoom)
+const postSwipeMock = vi.mocked(roomApi.postSwipe)
+const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
 const fetchGenresMock = vi.mocked(roomApi.fetchGenres)
 const fetchMatchesMock = vi.mocked(roomApi.fetchMatches)
 
 beforeEach(() => {
   vi.clearAllMocks()
   quitRoomMock.mockResolvedValue({ status: "ok" })
+  postSwipeMock.mockResolvedValue(undefined)
+  fetchDeckMock.mockResolvedValue([])
   fetchGenresMock.mockResolvedValue(["Action", "Comedy", "Drama"])
   fetchMatchesMock.mockResolvedValue([])
 })
@@ -53,6 +58,9 @@ function renderSwipePageWithError(
     ...overrides,
   })
 }
+
+const topCardTransformX = (top: HTMLElement): number =>
+  parseFloat(top.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
 
 describe("SwipePage - HostWaiting rendering logic", () => {
   it("renders only HostWaiting when roomReady is false", () => {
@@ -398,5 +406,239 @@ describe("SwipePage - GenreModal behavior", () => {
 
     await user.click(screen.getByRole("dialog"))
     expect(screen.queryByText("Match List")).not.toBeInTheDocument()
+  })
+})
+
+describe("SwipePage — Nope/Like buttons (issue #344)", () => {
+  it("renders Nope, Undo, and Like under the deck in that order", () => {
+    const { container } = renderSwipePage()
+    const controls = container.querySelector(".swipe-controls") as HTMLElement
+    const labels = Array.from(controls.querySelectorAll("button")).map(
+      (b) => b.textContent?.trim(),
+    )
+    expect(labels).toEqual(["✕Nope", "Undo", "✓Like"])
+  })
+
+  it("commits a right swipe on the top card when Like is clicked", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+
+    // Routed through the same swipe path a gesture uses (top card, right).
+    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
+
+    // Same exit transform as a drag commit: the top card flies off-screen.
+    expect(Math.abs(topCardTransformX(topCard))).toBeGreaterThan(500)
+  })
+
+  it("commits a left swipe on the top card when Nope is clicked", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+
+    await user.click(screen.getByRole("button", { name: /nope/i }))
+
+    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "left")
+
+    expect(Math.abs(topCardTransformX(topCard))).toBeGreaterThan(500)
+  })
+
+  it("disables both buttons and posts nothing when the deck is empty", async () => {
+    const user = userEvent.setup()
+    renderSwipePage(0)
+
+    const likeButton = screen.getByRole("button", { name: /like/i })
+    const nopeButton = screen.getByRole("button", { name: /nope/i })
+
+    expect(likeButton).toBeDisabled()
+    expect(nopeButton).toBeDisabled()
+
+    await user.click(likeButton)
+    await user.click(nopeButton)
+
+    expect(postSwipeMock).not.toHaveBeenCalled()
+  })
+
+  it("shows a dismissible error banner, keeps the card retryable when a swipe POST rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const user = userEvent.setup()
+    postSwipeMock.mockRejectedValue(new Error("swipe failed"))
+    const { container } = renderSwipePage(2)
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+
+    await waitFor(() => expect(postSwipeMock).toHaveBeenCalled())
+    const banner = screen.getByRole("alert")
+    expect(banner).toHaveTextContent("Couldn't save that swipe. Check your connection and try again.")
+
+    // The swiped card is NOT removed on failure.
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(2)
+    expect(screen.getByText("Movie 1")).toBeInTheDocument()
+
+    // The top card snaps back to its resting transform so it can be re-swiped.
+    await waitFor(() => expect(topCard.style.transform).toContain("translate(0px, 0px)"))
+
+    // A second Like click retries the same swipe.
+    await user.click(screen.getByRole("button", { name: /like/i }))
+    await waitFor(() => expect(postSwipeMock).toHaveBeenCalledTimes(2))
+    expect(postSwipeMock).toHaveBeenLastCalledWith("1234", "1", "right")
+
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }))
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+
+    errSpy.mockRestore()
+  })
+})
+
+describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
+  const topCard = (container: HTMLElement): HTMLElement => {
+    const cards = container.querySelectorAll(".card-item-container")
+    return cards[cards.length - 1] as HTMLElement
+  }
+
+  it("commits a right swipe on the top card with ArrowRight", () => {
+    const { container } = renderSwipePage(2)
+    const card = topCard(container)
+
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+
+    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
+    expect(Math.abs(topCardTransformX(card))).toBeGreaterThan(500)
+  })
+
+  it("commits a left swipe on the top card with ArrowLeft", () => {
+    const { container } = renderSwipePage(2)
+    const card = topCard(container)
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+
+    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "left")
+    expect(Math.abs(topCardTransformX(card))).toBeGreaterThan(500)
+  })
+
+  it("flips the top card details with ArrowUp", () => {
+    const { container } = renderSwipePage(2)
+
+    fireEvent.keyDown(window, { key: "ArrowUp" })
+
+    expect(topCard(container)).toHaveClass("flipped")
+    expect(postSwipeMock).not.toHaveBeenCalled()
+  })
+
+  it("flips the top card details with Enter", () => {
+    const { container } = renderSwipePage(2)
+
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(topCard(container)).toHaveClass("flipped")
+    expect(postSwipeMock).not.toHaveBeenCalled()
+  })
+
+  it("does nothing when focus is on an interactive element", () => {
+    const { container } = renderSwipePage(2)
+    const checkbox = screen.getByRole("checkbox", { name: /hide watched/i })
+    checkbox.focus()
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    fireEvent.keyDown(window, { key: "ArrowUp" })
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(postSwipeMock).not.toHaveBeenCalled()
+    expect(topCard(container)).not.toHaveClass("flipped")
+  })
+
+  it("does nothing while the GenreModal is open", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /genres/i }))
+    ;(document.activeElement as HTMLElement)?.blur()
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    fireEvent.keyDown(window, { key: "ArrowUp" })
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(postSwipeMock).not.toHaveBeenCalled()
+    expect(topCard(container)).not.toHaveClass("flipped")
+  })
+
+  it("does nothing while the MatchListModal is open", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /shortlist/i }))
+    ;(document.activeElement as HTMLElement)?.blur()
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    fireEvent.keyDown(window, { key: "ArrowUp" })
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(postSwipeMock).not.toHaveBeenCalled()
+    expect(topCard(container)).not.toHaveClass("flipped")
+  })
+
+  it("does nothing while the MatchFound modal is open", () => {
+    const { container } = renderSwipePageWithError(null, { matchFound: true })
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    fireEvent.keyDown(window, { key: "ArrowUp" })
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(postSwipeMock).not.toHaveBeenCalled()
+    expect(topCard(container)).not.toHaveClass("flipped")
+  })
+
+  it("ignores key-repeat events", () => {
+    const { container } = renderSwipePage(2)
+
+    fireEvent.keyDown(window, { key: "ArrowLeft", repeat: true })
+    fireEvent.keyDown(window, { key: "ArrowRight", repeat: true })
+    fireEvent.keyDown(window, { key: "ArrowUp", repeat: true })
+    fireEvent.keyDown(window, { key: "Enter", repeat: true })
+
+    expect(postSwipeMock).not.toHaveBeenCalled()
+    expect(topCard(container)).not.toHaveClass("flipped")
+  })
+
+  it("mentions the arrow keys in the card-item-instructions hint", () => {
+    renderSwipePage()
+    expect(screen.getByText("Tap for details · Arrow keys to swipe")).toBeInTheDocument()
+  })
+
+  it("shows a dismissible error banner and keeps the card retryable when a keyboard swipe rejects", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    postSwipeMock.mockRejectedValueOnce(new Error("swipe failed"))
+    const { container } = renderSwipePage(2)
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+
+    await waitFor(() => expect(postSwipeMock).toHaveBeenCalled())
+    const banner = screen.getByRole("alert")
+    expect(banner).toHaveTextContent("Couldn't save that swipe. Check your connection and try again.")
+
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(2)
+    expect(screen.getByText("Movie 1")).toBeInTheDocument()
+
+    // The top card snaps back to its resting transform so it can be re-swiped.
+    await waitFor(() => expect(topCard.style.transform).toContain("translate(0px, 0px)"))
+
+    // A second ArrowRight retries the same swipe.
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    await waitFor(() => expect(postSwipeMock).toHaveBeenCalledTimes(2))
+    expect(postSwipeMock).toHaveBeenLastCalledWith("1234", "1", "right")
+
+    errSpy.mockRestore()
   })
 })
