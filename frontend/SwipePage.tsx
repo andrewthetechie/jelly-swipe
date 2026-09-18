@@ -172,7 +172,7 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-footer">
                     <button className="btn-destructive end-session" onClick={endSession}>End Session</button>
-                    <button className="btn-secondary shortlist" onClick={openMatchListModal}>Matches</button>
+                    <button className="btn-secondary matches" onClick={openMatchListModal}>Matches</button>
                 </div>
 
                 {state.matchFound && <MatchFoundModal onClose={dismissMatch} matchItem={state.matchItem} />}

@@ -291,7 +291,7 @@ describe('button roles (issue #347)', () => {
     expect(swipe).toMatch(/btn-destructive end-session/);
     expect(swipe).toMatch(/btn-secondary genres/);
     expect(swipe).toMatch(/btn-secondary undo-button/);
-    expect(swipe).toMatch(/btn-secondary shortlist/);
+    expect(swipe).toMatch(/btn-secondary matches/);
   });
 
   it('defines a visible :focus-visible indicator for each button role (WCAG 2.4.7)', () => {
