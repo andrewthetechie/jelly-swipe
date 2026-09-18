@@ -322,7 +322,10 @@ describe("SwipePage — deck error retry (issue #340)", () => {
   it("retries the deck fetch and clears deckError on success", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
-    fetchDeckMock.mockRejectedValueOnce(new Error("fetch failed"))
+    // The seeded deckError models the initial failed load, so the join
+    // auto-fetch is skipped (see renderWithRoom) and the retry below is the
+    // first real fetch call — it must resolve, not reject, for the deck to
+    // appear and the error to clear.
     fetchDeckMock.mockResolvedValue(makeDeck(2))
 
     const user = userEvent.setup()
