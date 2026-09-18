@@ -26,6 +26,7 @@ type RoomSessionTestOverrides = {
   hideWatched?: boolean;
   lastError?: string | null;
   deckError?: string | null;
+  deckLoaded?: boolean;
 }
 
 type RoomTestOverrides = RoomStateSeedOverrides & RoomSessionTestOverrides
@@ -151,6 +152,7 @@ function RoomSessionTestProvider({
     hideWatched: overrides.hideWatched ?? false,
     lastError: overrides.lastError ?? null,
     deckError: overrides.deckError ?? null,
+    deckLoaded: overrides.deckLoaded ?? false,
   })
 
   useEffect(() => {
@@ -159,7 +161,7 @@ function RoomSessionTestProvider({
     }
     roomApi.fetchDeck(currentRoomCode)
       .then((deck) => {
-        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null }))
+        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null, deckLoaded: true }))
       })
       .catch((err) => {
         console.error("Error fetching card deck:", err)
@@ -233,6 +235,7 @@ function RoomSessionTestProvider({
         swipeHistory: [],
         lastError: null,
         deckError: null,
+        deckLoaded: true,
       }))
       return true
     } catch (err) {
@@ -257,6 +260,7 @@ function RoomSessionTestProvider({
         hideWatched: next,
         lastError: null,
         deckError: null,
+        deckLoaded: true,
       }))
     } catch (err) {
       console.error("Error toggling watched filter", err)
@@ -303,7 +307,7 @@ function RoomSessionTestProvider({
     }
     try {
       const deck = await roomApi.fetchDeck(currentRoomCode)
-      setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null }))
+      setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null, deckLoaded: true }))
     } catch (err) {
       console.error("Error fetching card deck:", err)
       setState((prev) => ({

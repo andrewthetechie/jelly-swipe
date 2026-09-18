@@ -67,9 +67,9 @@ export default function MatchListModal({ onClose }: MatchListModalProps): JSX.El
 
     return (
         <Modal onClose={onClose} labelledBy="match-list-modal-heading" className="modal-match-list">
-            <h2 id="match-list-modal-heading">Match List</h2>
+            <h2 id="match-list-modal-heading">Matches</h2>
             <FormError message={error} />
-            {loaded && matchList.length === 0 && <h3 className="jelly-check">No Matches Yet!</h3>}
+            {loaded && matchList.length === 0 && <h3 className="match-list-empty">Nothing yet. Swipe right on something you'd both watch.</h3>}
             <div className="match-list-container">
                 {matchElements}
             </div>

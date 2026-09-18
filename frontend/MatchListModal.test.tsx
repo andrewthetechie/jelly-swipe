@@ -15,7 +15,7 @@ beforeEach(() => {
   fetchMatchesMock.mockResolvedValue(makeMatchList(2))
 })
 
-describe("MatchListModal - Match List Fetch", () => {
+describe("MatchListModal - Matches Fetch", () => {
   it("successful fetch renders match list", async () => {
     const matchList = makeMatchList(2)
     fetchMatchesMock.mockResolvedValueOnce(matchList)
@@ -24,7 +24,7 @@ describe("MatchListModal - Match List Fetch", () => {
 
     expect(await screen.findByText("Movie 1")).toBeInTheDocument()
     expect(screen.getByText("Movie 2")).toBeInTheDocument()
-    expect(screen.queryByText("No Matches Yet!")).not.toBeInTheDocument()
+    expect(screen.queryByText("Nothing yet. Swipe right on something you'd both watch.")).not.toBeInTheDocument()
   })
 
   it("failed fetch shows the inline error", async () => {
@@ -39,11 +39,11 @@ describe("MatchListModal - Match List Fetch", () => {
 
     expect(errSpy).toHaveBeenCalled()
     expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
-    expect(screen.getByText("Match List")).toBeInTheDocument()
+    expect(screen.getByText("Matches")).toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Couldn't load your matches. Check your connection and try again.",
     )
-    expect(screen.queryByText("No Matches Yet!")).not.toBeInTheDocument()
+    expect(screen.queryByText("Nothing yet. Swipe right on something you'd both watch.")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
 
     errSpy.mockRestore()
@@ -137,9 +137,23 @@ describe("MatchListModal - rendering", () => {
       expect(fetchMatchesMock).toHaveBeenCalledOnce()
     })
 
-    expect(screen.getByText("Match List")).toBeInTheDocument()
-    expect(await screen.findByText("No Matches Yet!")).toBeInTheDocument()
+    expect(screen.getByText("Matches")).toBeInTheDocument()
+    expect(await screen.findByText("Nothing yet. Swipe right on something you'd both watch.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /keep swiping/i })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /open in jellyfin/i })).not.toBeInTheDocument()
+  })
+
+  it("uses the dedicated empty-state class, not the checkbox label class", async () => {
+    fetchMatchesMock.mockResolvedValueOnce([])
+
+    render(<MatchListModal onClose={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(fetchMatchesMock).toHaveBeenCalledOnce()
+    })
+
+    const empty = await screen.findByText("Nothing yet. Swipe right on something you'd both watch.")
+    expect(empty).toHaveClass("match-list-empty")
+    expect(empty).not.toHaveClass("jelly-check")
   })
 })
