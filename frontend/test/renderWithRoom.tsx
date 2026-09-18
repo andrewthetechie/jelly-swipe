@@ -172,6 +172,21 @@ function RoomSessionTestProvider({
       })
   }, [currentRoomCode, seededDeck])
 
+  // Mirror the production provider: when no room is active, reset the deck
+  // state (clearing cardDeck, swipeHistory, and deckError, and setting
+  // deckLoaded false) so a stale end-of-deck state cannot flash on a fresh join.
+  useEffect(() => {
+    if (!currentRoomCode) {
+      setState((prev) => ({
+        ...prev,
+        cardDeck: [],
+        swipeHistory: [],
+        deckError: null,
+        deckLoaded: false,
+      }))
+    }
+  }, [currentRoomCode])
+
   const swipe = async (
     card: { mediaId: string },
     direction: "left" | "right",
@@ -288,6 +303,7 @@ function RoomSessionTestProvider({
         matchFound: false,
         matchItem: EMPTY_MATCH_ITEM,
         deckError: null,
+        deckLoaded: false,
       }))
       setCurrentRoomCode(null)
     } catch (err) {

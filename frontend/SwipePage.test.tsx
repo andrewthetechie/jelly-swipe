@@ -1,9 +1,11 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import SwipePage from "./SwipePage"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
+import { useRoomSetterContext } from "./RoomContextProvider"
 import { makeDeck, dragTo, cancelDrag } from "./test/fixtures"
 import * as roomApi from "./roomApi"
+import type { CardDeck } from "./types"
 
 function getRoomState() {
   return JSON.parse(screen.getByTestId("room-state").textContent ?? "{}");
@@ -339,6 +341,16 @@ describe("SwipePage — deck error retry (issue #340)", () => {
   })
 })
 
+function RoomJoinHarness() {
+  const { setCurrentRoomCode } = useRoomSetterContext()
+  return (
+    <>
+      <SwipePage />
+      <button type="button" onClick={() => setCurrentRoomCode("1234")}>join room</button>
+    </>
+  )
+}
+
 describe("SwipePage — end of deck", () => {
   it("shows an explanatory end-of-deck state once a completed load yields an empty deck", async () => {
     renderSwipePage(0)
@@ -358,6 +370,33 @@ describe("SwipePage — end of deck", () => {
     })
 
     expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
+  })
+
+  it("does not flash the end-of-deck panel across a null-room → room-join transition with a pending deck fetch", async () => {
+    // Start outside a room with a stale post-leave state (deckLoaded true, empty
+    // deck). The no-room reset must clear it, and the panel must stay hidden
+    // while the join's deck fetch is pending — only a completed empty load shows it.
+    let resolveDeck!: (deck: CardDeck) => void
+    fetchDeckMock.mockImplementation(() => new Promise((resolve) => { resolveDeck = resolve }))
+
+    const user = userEvent.setup()
+    renderWithRoom(<RoomJoinHarness />, {
+      roomReady: true,
+      cardDeck: [],
+      deckLoaded: true,
+      matchFound: false,
+    })
+
+    // No room active yet: the no-room reset keeps deckLoaded false.
+    expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
+
+    // Join a room while the deck fetch is still pending — the panel must not appear.
+    await user.click(screen.getByRole("button", { name: /join room/i }))
+    expect(screen.queryByText("That's everything for these filters.")).not.toBeInTheDocument()
+
+    // A completed load that yields an empty deck finally shows the panel.
+    await act(async () => { resolveDeck([]) })
+    expect(await screen.findByText("That's everything for these filters.")).toBeInTheDocument()
   })
 
   it("keeps the deck-error retry panel taking precedence over the end-of-deck message", async () => {

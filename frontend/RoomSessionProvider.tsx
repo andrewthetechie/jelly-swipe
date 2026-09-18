@@ -99,7 +99,7 @@ export function RoomSessionProvider({ children }: { children: React.ReactNode })
     // Deck fetch on room join
     React.useEffect(() => {
         if (!currentRoomCode) {
-            dispatch({ type: "DECK_LOADED", deck: [] })
+            dispatch({ type: "DECK_RESET" })
             return
         }
         void loadDeck(currentRoomCode)

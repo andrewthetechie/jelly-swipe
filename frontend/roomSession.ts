@@ -37,6 +37,7 @@ export const initialRoomSessionState: RoomSessionState = {
 
 export type RoomSessionAction =
     | { type: "DECK_LOADED"; deck: CardDeck }
+    | { type: "DECK_RESET" }
     | { type: "DECK_FETCH_FAILED"; message: string }
     | { type: "SWIPE_SUCCEEDED"; card: CardItem }
     | { type: "UNDO_SUCCEEDED"; card: CardItem}
@@ -62,6 +63,14 @@ export function roomSessionReducer(
     switch (action.type) {
         case "DECK_LOADED":
             return { ...state, cardDeck: action.deck, swipeHistory: [], deckError: null, deckLoaded: true }
+        case "DECK_RESET":
+            return {
+                ...state,
+                cardDeck: [],
+                swipeHistory: [],
+                deckError: null,
+                deckLoaded: false
+            }
         case "DECK_FETCH_FAILED":
             return { ...state, deckError: action.message }
         case "SWIPE_SUCCEEDED":
