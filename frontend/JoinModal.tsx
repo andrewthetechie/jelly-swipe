@@ -39,12 +39,14 @@ export default function JoinModal({ onClose }: JoinModalProps): JSX.Element {
     return (
         <Modal onClose={onClose} labelledBy="join-modal-heading">
             <h2 id="join-modal-heading">Enter Room Code</h2>
+            <label htmlFor="roomCode">Room Code</label>
             <input
+                id="roomCode"
                 type="text"
                 inputMode="numeric"
                 minLength={4}
                 maxLength={4}
-                placeholder="Enter Host Code"
+                placeholder="0000"
                 className="room-code-input"
                 value={userInputCode}
                 onChange={(e) => { setUserInputCode(e.target.value.replace(/[^0-9]/g, '')); setError(null) }}
