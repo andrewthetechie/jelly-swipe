@@ -393,3 +393,44 @@ describe('dynamic viewport sizing (issue #351)', () => {
     expect(css).not.toContain('100vh');
   });
 });
+
+describe('fluid swipe deck sizing (issue #351)', () => {
+  const css = readSource('style.css');
+
+  it('gives .swipe-deck a fluid dvh-based height, not a fixed pixel height', () => {
+    // The deck must be sized from available vertical space (issue #351): a
+    // fixed pixel height keyed to viewport *width* consumes a whole short
+    // phone. The base rule now uses min(650px, 62dvh) so it shrinks with the
+    // viewport and the ≤400px / ≥768px overrides were dropped.
+    const deckRule = css.match(/\.swipe-deck\s*\{[^}]*\}/);
+    expect(deckRule, '.swipe-deck rule').toBeTruthy();
+    expect(deckRule![0]).toContain('height: min(650px, 62dvh)');
+    // A bare px height would defeat fluid sizing (px inside the min() cap is
+    // fine, but there must be no `height: <n>px` deck rule left anywhere).
+    const pxHeights = css.match(/\.swipe-deck[^{]*\{[^}]*height:\s*\d+px\s*;/g) ?? [];
+    expect(pxHeights).toHaveLength(0);
+  });
+
+  it('keeps the whole swipe screen inside 100dvh at 375x667 and 390x844', () => {
+    // Box arithmetic: deck height = min(650px, 62dvh). At 375x667,
+    // 0.62 * 667 ≈ 413px of deck, leaving ~254px for the header (~48px),
+    // controls row, instruction line, footer and .swipe-main gaps — everything
+    // fits without page scroll. At 390x844 the same formula holds with more
+    // headroom (0.62 * 844 ≈ 523px deck). The dvh cap is what bounds it.
+    expect(css).toMatch(/height:\s*min\(650px,\s*62dvh\)/);
+  });
+
+  it('keeps the poster at a 2:3 aspect ratio with containment', () => {
+    const posterRule = css.match(/img\.card-item-poster\s*\{[^}]*\}/);
+    expect(posterRule, 'img.card-item-poster rule').toBeTruthy();
+    expect(posterRule![0]).toContain('aspect-ratio: 2 / 3');
+    // Containment so a shorter card never overflows the front face.
+    expect(posterRule![0]).toContain('object-fit: contain');
+    expect(posterRule![0]).toContain('max-height: 100%');
+  });
+
+  it('preserves the deck stack reserve custom property', () => {
+    const deckRule = css.match(/\.swipe-deck\s*\{[^}]*\}/)![0];
+    expect(deckRule).toContain('--deck-stack-reserve: 32px');
+  });
+});

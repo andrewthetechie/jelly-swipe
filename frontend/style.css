@@ -1234,7 +1234,11 @@ div.genre-inputs {
   position: relative;
   width: 100%;
   max-width: 400px;
-  height: 650px;
+  /* Size the deck from available vertical space (issue #351): cap the px
+     baseline so tall/desktop screens keep the historic ~650px deck, but shrink
+     with the viewport height (dvh) on shorter phones so the whole swipe screen
+     fits without scrolling. */
+  height: min(650px, 62dvh);
   /* Room at the top of the deck for the back cards of the stack to peek into
      (issue #343). Cards are inset by this much rather than filling the deck,
      so the stack stays inside the deck's own footprint instead of riding up
@@ -1372,8 +1376,14 @@ div.back  {
 }
 
 img.card-item-poster {
+  /* Poster keeps its 2:3 shape at every deck size (issue #351); the aspect
+     ratio wins over the natural dimensions, and max-height plus object-fit
+     contain it inside a shorter card so it never overflows the front face. */
+  aspect-ratio: 2 / 3;
   max-width: 100%;
+  max-height: 100%;
   height: auto;
+  object-fit: contain;
   display: block;
   user-select: none;
   -webkit-user-drag: none;
@@ -1609,10 +1619,6 @@ div.match-list-info {
     margin-top: 20px;
   }
 
-  .swipe-deck {
-    height: 575px;
-  }
-
   .match-list-title {
     font-size: var(--text-sm);
   }
@@ -1691,9 +1697,6 @@ div.match-list-info {
 
   div.genre-inputs {
     grid-template-columns: 1fr 1fr 1fr;
-  }
-  .swipe-deck {
-    height: 700px;
   }
 
   div.match-list-container {
