@@ -46,13 +46,29 @@ describe("JoinModal — input sanitization", () => {
     // `value.replace(/[^0-9]/g, '')` regex is tested on a genuine multi-char
     // string rather than the single characters a controlled-input `type()`
     // would produce.
-    fireEvent.change(screen.getByPlaceholderText("Enter Host Code"), {
+    fireEvent.change(screen.getByLabelText("Room Code"), {
       target: { value: "1a2b3" },
     });
 
     // Letters dropped, digits kept in order.
-    expect(screen.getByPlaceholderText("Enter Host Code")).toHaveValue("123");
+    expect(screen.getByLabelText("Room Code")).toHaveValue("123");
     expect(getRoomState()).toMatchObject({ userInputCode: "123" });
+  });
+});
+
+describe("JoinModal — accessible label", () => {
+  it("associates a visible \"Room Code\" label with the input", () => {
+    renderWithRoom(<JoinModal onClose={vi.fn()} />);
+
+    // The input is reachable by its accessible name, proving the label
+    // association a screen reader relies on.
+    expect(
+      screen.getByRole("textbox", { name: "Room Code" }),
+    ).toBeInTheDocument();
+
+    // No legacy "Host Code" label or placeholder remains in the modal.
+    expect(screen.queryByText("Host Code")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Enter Host Code")).not.toBeInTheDocument();
   });
 });
 
@@ -210,7 +226,7 @@ describe("JoinModal — inline error messages", () => {
     await user.click(screen.getByRole("button", { name: /join session/i }));
     await screen.findByRole("alert");
 
-    fireEvent.change(screen.getByPlaceholderText("Enter Host Code"), {
+    fireEvent.change(screen.getByLabelText("Room Code"), {
       target: { value: "5678" },
     });
 
