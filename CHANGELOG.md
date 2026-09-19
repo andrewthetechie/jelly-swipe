@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.7.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.6.0...v0.7.0) (2026-09-19)
+
+
+### Features
+
+* Add Like/Nope buttons and keyboard swiping ([#344](https://github.com/andrewthetechie/jelly-swipe/issues/344)) ([#384](https://github.com/andrewthetechie/jelly-swipe/issues/384)) ([e7cb7ba](https://github.com/andrewthetechie/jelly-swipe/commit/e7cb7bab1adcb62acbeb826107823ba4ffdb1dfb))
+* **deck:** add Deck domain module at the repository seam ([#294](https://github.com/andrewthetechie/jelly-swipe/issues/294)) ([#315](https://github.com/andrewthetechie/jelly-swipe/issues/315)) ([28887dc](https://github.com/andrewthetechie/jelly-swipe/commit/28887dcf26e5dfd3db98ddd31f99b92636a6542f))
+* eliminate local SSE echo race via mutation event id correlation (issue [#273](https://github.com/andrewthetechie/jelly-swipe/issues/273)) ([#330](https://github.com/andrewthetechie/jelly-swipe/issues/330)) ([cf0f53c](https://github.com/andrewthetechie/jelly-swipe/commit/cf0f53c5404c820e910a4807d4d0951962e52853))
+* Extend the jelly design language past the intro screen and ([#347](https://github.com/andrewthetechie/jelly-swipe/issues/347)) ([#381](https://github.com/andrewthetechie/jelly-swipe/issues/381)) ([0d2e4d0](https://github.com/andrewthetechie/jelly-swipe/commit/0d2e4d0a629433b27dd67c7e6e45464cdd25244c))
+* **frontend:** flick-to-commit swipe physics and on-card verdict stamps ([#363](https://github.com/andrewthetechie/jelly-swipe/issues/363)) ([d10fa71](https://github.com/andrewthetechie/jelly-swipe/commit/d10fa713605ad215ba14f1e4fac64a3ceb2942e2))
+* **frontend:** modernizaztion Vite + React TS app, test foundation, and FastAPI dist serving ([#253](https://github.com/andrewthetechie/jelly-swipe/issues/253)) ([4707eef](https://github.com/andrewthetechie/jelly-swipe/commit/4707eefce348625702913c2dd96db4d36960d949))
+* **frontend:** show deck stack with offset back cards ([#361](https://github.com/andrewthetechie/jelly-swipe/issues/361)) ([ec466e9](https://github.com/andrewthetechie/jelly-swipe/commit/ec466e9ac5b10a863a3de7716b04de7b6aff7538))
+
+
+### Bug Fixes
+
+* All failures are silent — lastError is set but never ([#340](https://github.com/andrewthetechie/jelly-swipe/issues/340)) ([#383](https://github.com/andrewthetechie/jelly-swipe/issues/383)) ([b5f17e8](https://github.com/andrewthetechie/jelly-swipe/commit/b5f17e8e3289974e329ac1dd1642baa73ad10a4d))
+* drop session_id from swipes unique constraint and add null-session test ([6fd7aa8](https://github.com/andrewthetechie/jelly-swipe/commit/6fd7aa800123efcfb781d1dc1952b4e7e91136ea))
+* fix config usage instead of os.getenv ([#276](https://github.com/andrewthetechie/jelly-swipe/issues/276)) ([bcc7d79](https://github.com/andrewthetechie/jelly-swipe/commit/bcc7d791de04e4b7fcd2c5bb82c3f53a6c278ba2))
+* **frontend:** button "Open in Jellyfin" opens a blank new tab when the match has no deepLink ([#375](https://github.com/andrewthetechie/jelly-swipe/issues/375)) ([#376](https://github.com/andrewthetechie/jelly-swipe/issues/376)) ([1c2a95c](https://github.com/andrewthetechie/jelly-swipe/commit/1c2a95c1edc2fd5fd65bc39bb9be54546f6f707f))
+* **frontend:** checkboxes no longer uncontrolled ([#290](https://github.com/andrewthetechie/jelly-swipe/issues/290)) ([68b266e](https://github.com/andrewthetechie/jelly-swipe/commit/68b266ebb8681b8908535f2f547afe25e330a2eb))
+* **frontend:** CSP img-src no longer lacks data ([#305](https://github.com/andrewthetechie/jelly-swipe/issues/305)) ([eebc38f](https://github.com/andrewthetechie/jelly-swipe/commit/eebc38f45e7b1cf0de297f1f59c3e732c0dec297))
+* **frontend:** genre names centered in buttons ([#306](https://github.com/andrewthetechie/jelly-swipe/issues/306)) ([ee0406f](https://github.com/andrewthetechie/jelly-swipe/commit/ee0406faa6b7c55f1e30a8244c31e5bdd8c219d8))
+* **frontend:** host/join buttons allow double-submit ([#291](https://github.com/andrewthetechie/jelly-swipe/issues/291)) ([ecc7fde](https://github.com/andrewthetechie/jelly-swipe/commit/ecc7fdecf5e16c0e585bc6c918694a53ed29a99a))
+* **frontend:** missing alt attributes ([#289](https://github.com/andrewthetechie/jelly-swipe/issues/289)) ([735fbec](https://github.com/andrewthetechie/jelly-swipe/commit/735fbec54b9692f04a1182f10c519caa4be9d024))
+* **frontend:** no longer ships ~4.3 MB of images on first load- [#281](https://github.com/andrewthetechie/jelly-swipe/issues/281) ([192fd61](https://github.com/andrewthetechie/jelly-swipe/commit/192fd61d3e7525a3339985d0429353c91ce2903e))
+* **frontend:** remove debug console.log calls ([#288](https://github.com/andrewthetechie/jelly-swipe/issues/288)) ([be60113](https://github.com/andrewthetechie/jelly-swipe/commit/be60113fe5bf9b765fd53ee0acc2da2a73f55267))
+* **frontend:** use import type and cleanup unused imports ([#293](https://github.com/andrewthetechie/jelly-swipe/issues/293)) ([cf1e57d](https://github.com/andrewthetechie/jelly-swipe/commit/cf1e57d08fcb51c2c00a424a4746120eba09d34f))
+* **frontend:** vite.config.js no longer duplicates proxy map ([#292](https://github.com/andrewthetechie/jelly-swipe/issues/292)) ([a8de5c6](https://github.com/andrewthetechie/jelly-swipe/commit/a8de5c67ad543af604f253cc35037998602f34f8))
+* genre picker "Cancel" applies the selection ([#341](https://github.com/andrewthetechie/jelly-swipe/issues/341)) ([#374](https://github.com/andrewthetechie/jelly-swipe/issues/374)) ([799c62d](https://github.com/andrewthetechie/jelly-swipe/commit/799c62d2f6b284457c1cd43cfaa859e9c38664bd))
+* **mobile:** layout not fully functional on smaller mobile devices ([#277](https://github.com/andrewthetechie/jelly-swipe/issues/277)) ([f6837b1](https://github.com/andrewthetechie/jelly-swipe/commit/f6837b12140201f4423fe16511ab627eb04e5e17))
+* Modals are not dialogs: no Escape, no focus management, no ([#352](https://github.com/andrewthetechie/jelly-swipe/issues/352)) ([#382](https://github.com/andrewthetechie/jelly-swipe/issues/382)) ([53bdfff](https://github.com/andrewthetechie/jelly-swipe/commit/53bdfff8896044e73538dd3741254b42180a63c8))
+* One feature, three names: Shortlist / Match List / Match ([#349](https://github.com/andrewthetechie/jelly-swipe/issues/349)) ([#385](https://github.com/andrewthetechie/jelly-swipe/issues/385)) ([842df8a](https://github.com/andrewthetechie/jelly-swipe/commit/842df8a38ed939bc92000c51aa15eb67347cc2c1))
+* remove commented TODO and unused code ([#279](https://github.com/andrewthetechie/jelly-swipe/issues/279)) ([d4c1cf5](https://github.com/andrewthetechie/jelly-swipe/commit/d4c1cf5fe829a130bfb0a23efb140e9f21b9c577))
+* restore session_id in swipes unique constraint ([6fd7aa8](https://github.com/andrewthetechie/jelly-swipe/commit/6fd7aa800123efcfb781d1dc1952b4e7e91136ea))
+* revert alembic baseline reformat and exclude from ruff ([2d3b333](https://github.com/andrewthetechie/jelly-swipe/commit/2d3b3331054c1e9d6cd32a2c26d0e3a1e75484f1))
+* revert baseline migration reformat and exclude from ruff format ([0c0fe92](https://github.com/andrewthetechie/jelly-swipe/commit/0c0fe927e8494eb4c8b7ba28648f743d17a625fd))
+* Room code input has no label, and its placeholder ([#356](https://github.com/andrewthetechie/jelly-swipe/issues/356)) ([#386](https://github.com/andrewthetechie/jelly-swipe/issues/386)) ([6956b20](https://github.com/andrewthetechie/jelly-swipe/commit/6956b20a7a124d509fd13e76000e7e1ebf763c8d))
+* **schema:** align MatchItem.rating with CardItem.rating as float ([#307](https://github.com/andrewthetechie/jelly-swipe/issues/307)) ([40a29a3](https://github.com/andrewthetechie/jelly-swipe/commit/40a29a3f106224ca580d96d71aa4c858b1393312)), closes [#199](https://github.com/andrewthetechie/jelly-swipe/issues/199)
+* **static:** contain file serving path within frontend_dist ([#333](https://github.com/andrewthetechie/jelly-swipe/issues/333)) ([d682e22](https://github.com/andrewthetechie/jelly-swipe/commit/d682e22af82dd6d3fc75949020a4d7a8081cd06a))
+* Watch Trailer button does nothing ([#339](https://github.com/andrewthetechie/jelly-swipe/issues/339)) ([#380](https://github.com/andrewthetechie/jelly-swipe/issues/380)) ([d34162b](https://github.com/andrewthetechie/jelly-swipe/commit/d34162b5680a15b56e0db20d2115e98eaff2e31d))
+
+
+### Reverts
+
+* restore alembic baseline migration to original formatting ([2d3b333](https://github.com/andrewthetechie/jelly-swipe/commit/2d3b3331054c1e9d6cd32a2c26d0e3a1e75484f1))
+
+
+### Documentation
+
+* update .all-contributorsrc [skip ci] ([#271](https://github.com/andrewthetechie/jelly-swipe/issues/271)) ([c91f48e](https://github.com/andrewthetechie/jelly-swipe/commit/c91f48e326a949f01605851a409a53818ac18794))
+* update CONTEXT ([a3b90f8](https://github.com/andrewthetechie/jelly-swipe/commit/a3b90f8c69c6890da008496498b8332531609503))
+
 ## [0.6.0](https://github.com/andrewthetechie/jelly-swipe/compare/v0.5.1...v0.6.0) (2026-05-22)
 
 
