@@ -372,7 +372,10 @@ describe("CardItemView - swipe behavior", () => {
       expect.objectContaining({
         mediaId: "1",
       }),
-      "right"
+      "right",
+      // The commit transform is threaded to the caller (drag rotation is
+      // dragDistance / 5 = 250 / 5).
+      expect.objectContaining({ rotation: 50 })
     )
   })
 
@@ -395,7 +398,10 @@ describe("CardItemView - swipe behavior", () => {
       expect.objectContaining({
         mediaId: "1",
       }),
-      "left"
+      "left",
+      // The commit transform is threaded to the caller (drag rotation is
+      // dragDistance / 5 = -250 / 5).
+      expect.objectContaining({ rotation: -50 })
     )
   })
 
@@ -449,7 +455,10 @@ describe("CardItemView — imperative handle", () => {
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({ mediaId: "1" }),
-      "right"
+      "right",
+      // Button/keyboard commits have no drag distance, so rotation is the
+      // direction-signed constant (12).
+      expect.objectContaining({ rotation: 12 })
     )
     expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
     expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
@@ -468,7 +477,10 @@ describe("CardItemView — imperative handle", () => {
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({ mediaId: "1" }),
-      "left"
+      "left",
+      // Button/keyboard commits have no drag distance, so rotation is the
+      // direction-signed constant (-12).
+      expect.objectContaining({ rotation: -12 })
     )
     expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
     expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
@@ -834,6 +846,33 @@ describe("CardItemView — exit render mode (issue #360)", () => {
     const { container } = renderExit("right")
     const card = container.querySelector(".card-item-container") as HTMLElement
     expect(card.style.transition).toBe("transform 0.15s ease")
+  })
+
+  it("holds a threaded exit transform that is already at the fly-off target instead of re-animating", async () => {
+    const { container } = renderWithRoom(
+      <CardItemView
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={10}
+        exitDirection="right"
+        exitFrom={{ x: 832, y: 0, rotation: 50 }}
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // First paint sits at the threaded transform (continuing the committed
+    // card's exit), and the mount effect does not drag it backward toward the
+    // velocity-0 target or reset the drag-derived rotation.
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(x).toBe(832)
+    expect(card.style.transform).toContain("rotate(50deg)")
+
+    await waitFor(() => {
+      const xAfter = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+      expect(xAfter).toBe(832)
+      expect(card.style.transform).toContain("rotate(50deg)")
+    })
   })
 
   it("does not wire the imperative handle in exit mode", () => {

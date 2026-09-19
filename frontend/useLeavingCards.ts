@@ -1,5 +1,6 @@
 import React from "react"
 import type { CardItem } from "./types"
+import type { Position } from "./CardItemView"
 
 /**
  * A committed card kept mounted in SwipePage's "leaving slot" so its fly-off
@@ -8,6 +9,9 @@ import type { CardItem } from "./types"
 export interface LeavingCard {
     card: CardItem
     direction: "left" | "right"
+    /** The committed card's transform at commit time; the leaving card starts
+     * its exit here instead of at rest so it never jumps back to centre. */
+    from?: Position
     /** Unique per commit (mediaId + monotonically increasing seq), so React
      * remounts each leaving card fresh at rest and undo + re-swipe of the same
      * card never collides. */
@@ -18,7 +22,7 @@ interface UseLeavingCardsReturn {
     /** The leaving entries currently animating out, in commit order. */
     leavingCards: LeavingCard[]
     /** Record a committed card's leaving entry and schedule its removal. */
-    commit: (card: CardItem, direction: "left" | "right") => void
+    commit: (card: CardItem, direction: "left" | "right", from?: Position) => void
 }
 
 /**
@@ -60,10 +64,10 @@ export const useLeavingCards = (deck: CardItem[]): UseLeavingCardsReturn => {
         setLeavingCards((prev) => prev.filter((entry) => entry.key !== key))
     }, [])
 
-    const commit = React.useCallback((card: CardItem, direction: "left" | "right") => {
+    const commit = React.useCallback((card: CardItem, direction: "left" | "right", from?: Position) => {
         seqRef.current += 1
         const key = `leaving-${card.mediaId}-${seqRef.current}`
-        const entry: LeavingCard = { card, direction, key }
+        const entry: LeavingCard = { card, direction, from, key }
         setLeavingCards((prev) => [...prev, entry])
         const timer = setTimeout(() => removeEntry(key), leavingHoldMs())
         timersRef.current.set(key, timer)

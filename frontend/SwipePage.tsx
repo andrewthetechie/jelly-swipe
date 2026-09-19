@@ -1,6 +1,6 @@
 import React from "react"
 import HostWaiting from "./HostWaiting"
-import CardItemView, { type CardItemViewHandle } from "./CardItemView"
+import CardItemView, { type CardItemViewHandle, type Position } from "./CardItemView"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
@@ -36,13 +36,15 @@ export default function SwipePage(): JSX.Element {
 
     // Wrap the provider's `swipe` so a successful commit also records a
     // leaving entry. Only after `await swipe(...)` succeeds (so SWIPE_SUCCEEDED
-    // and the leaving entry land in one React batch) is the entry recorded. On
-    // POST rejection, `swipe` re-throws and this wrapper adds nothing and
-    // re-throws, so CardItemView.commitSwipe's catch still snaps the card back
-    // and leaves it retryable.
-    const onSwipe = React.useCallback(async (card: CardItem, direction: "left" | "right") => {
+    // and the leaving entry land in one React batch) is the entry recorded,
+    // carrying the committed card's transform so the leaving card continues
+    // the exit instead of restarting at rest. On POST rejection, `swipe`
+    // re-throws and this wrapper adds nothing and re-throws, so
+    // CardItemView.commitSwipe's catch still snaps the card back and leaves it
+    // retryable.
+    const onSwipe = React.useCallback(async (card: CardItem, direction: "left" | "right", from: Position) => {
         await swipe(card, direction)
-        commit(card, direction)
+        commit(card, direction, from)
     }, [swipe, commit])
 
     // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
@@ -172,6 +174,7 @@ export default function SwipePage(): JSX.Element {
                                 stackIndex={0}
                                 zIndex={LEAVING_CARD_Z_INDEX}
                                 exitDirection={entry.direction}
+                                exitFrom={entry.from}
                             />
                         ))}
                     </div>

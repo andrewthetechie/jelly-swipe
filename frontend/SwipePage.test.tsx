@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import SwipePage from "./SwipePage"
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom"
 import { useRoomSetterContext } from "./RoomContextProvider"
-import { makeDeck, dragTo, cancelDrag } from "./test/fixtures"
+import { makeDeck, dragTo, cancelDrag, swipeRight, swipeLeft } from "./test/fixtures"
 import * as roomApi from "./roomApi"
 import type { CardDeck } from "./types"
 
@@ -815,5 +815,68 @@ describe("SwipePage — leaving card (issue #360)", () => {
 
     expect(postSwipeMock).toHaveBeenNthCalledWith(1, "1234", "1", "right")
     expect(postSwipeMock).toHaveBeenNthCalledWith(2, "1234", "2", "right")
+  })
+
+  it("continues a drag-past-threshold commit from the dragged transform (no teleport to centre)", async () => {
+    const { container } = renderSwipePage(2)
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+
+    await swipeRight(topCard)
+
+    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
+
+    // The leaving card continues from the committed card's drag-derived
+    // transform: rotation is dragDistance / 5 (250 / 5 = 50), not the
+    // button/keyboard path's ±12, and x is already at the fly-off distance —
+    // it never restarts from translate x = 0. jsdom jumps styles to each set
+    // value (see the comment on the rejected-swipe test above), so the rendered
+    // transform is deterministic.
+    const leaving = flyOffCard(container)
+    expect(leaving.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
+    expect(topCardTransformX(leaving)).toBeGreaterThan(500)
+    expect(leaving.style.transform).toContain("rotate(50deg)")
+  })
+
+  it("continues a drag-past-threshold left commit from the dragged transform", async () => {
+    const { container } = renderSwipePage(2)
+    const cards = container.querySelectorAll(".card-item-container")
+    const topCard = cards[cards.length - 1] as HTMLElement
+
+    await swipeLeft(topCard)
+
+    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "left")
+
+    const leaving = flyOffCard(container)
+    expect(leaving.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
+    expect(topCardTransformX(leaving)).toBeLessThan(-500)
+    expect(leaving.style.transform).toContain("rotate(-50deg)")
+  })
+
+  it("never renders the leaving card at translate x = 0 when a slow POST resolves", async () => {
+    const user = userEvent.setup()
+    let resolveSwipe!: () => void
+    postSwipeMock.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveSwipe = resolve }),
+    )
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+    expect(postSwipeMock).toHaveBeenCalled()
+
+    // POST still pending: the deck has not sliced and no leaving entry exists.
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(2)
+
+    await act(async () => {
+      resolveSwipe()
+    })
+
+    // The leaving card mounts already carrying the committed card's fly-off
+    // transform — never at translate x = 0 — so the exit continues instead of
+    // restarting from rest under latency.
+    const leaving = flyOffCard(container)
+    expect(leaving.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
+    expect(topCardTransformX(leaving)).not.toBe(0)
+    expect(Math.abs(topCardTransformX(leaving))).toBeGreaterThan(500)
   })
 })

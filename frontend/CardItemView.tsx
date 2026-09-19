@@ -15,7 +15,7 @@ import type { JSX } from "react"
 import type { CardItem } from './types'
 import { fetchTrailer, RoomApiError } from './roomApi'
 
-type Position = {
+export type Position = {
     x: number,
     y: number,
     rotation: number
@@ -34,7 +34,10 @@ interface CardItemViewProps {
     zIndex: number
     onSwipe?: (
         cardItem: CardItem,
-        direction: "left" | "right"
+        direction: "left" | "right",
+        /** The commit transform this card is flying off with, so the leaving
+         * card can continue from it instead of restarting at rest. */
+        from: Position
     ) => void | Promise<void>
     /**
      * "Leaving card" render mode (issue #360): the card has already been
@@ -43,7 +46,15 @@ interface CardItemViewProps {
      * imperative handle) with the matching verdict stamp lit, and animates from
      * rest to the same fly-off transform the commit path computes.
      */
-    exitDirection?: "left" | "right"
+    exitDirection?: "left" | "right",
+    /**
+     * The committed card's transform at commit time, threaded through
+     * SwipePage + useLeavingCards so the leaving copy continues the original
+     * card's exit instead of restarting at rest (no teleport to centre). Only
+     * meaningful alongside `exitDirection`; when absent the exit starts from
+     * `DEFAULT_POSITION` as before.
+     */
+    exitFrom?: Position
 }
 
 // Stack depth styling (see issue #343). Depth `i` is how many cards this one
@@ -82,7 +93,7 @@ export type CardItemViewHandle = {
 }
 
 function CardItemViewInner(
-    { cardItem, stackIndex, zIndex, onSwipe, exitDirection }: CardItemViewProps,
+    { cardItem, stackIndex, zIndex, onSwipe, exitDirection, exitFrom }: CardItemViewProps,
     ref: React.ForwardedRef<CardItemViewHandle>,
 ): JSX.Element {
     const isTopCard = stackIndex === 0
@@ -90,7 +101,7 @@ function CardItemViewInner(
     // -1 = left), or undefined when this is a normal deck card.
     const isExit = exitDirection != null
     const exitDir: 1 | -1 = exitDirection === "right" ? 1 : -1
-    const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
+    const [position, setPosition] = React.useState<Position>(exitFrom ?? DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
     const [isDragging, setIsDragging] = React.useState<boolean>(false)
@@ -128,19 +139,27 @@ function CardItemViewInner(
     // transform the button/keyboard commit path computes for velocity 0,
     // dragDistance 0 (see the imperative handle below) — rotation 12 per
     // direction. The inline transition on the container animates the change.
+    //
+    // A threaded commit transform (`exitFrom`) is always at or beyond that
+    // velocity-0 target (commit distance grows with velocity), so in that case
+    // this effect is a no-op: the leaving card holds the committed transform
+    // instead of dragging it backward toward centre.
     React.useEffect(() => {
         if (!isExit) return
+        const targetX = exitDir * exitDistanceFor(
+            0,
+            divRef.current?.offsetWidth ?? 0,
+            window.innerWidth,
+        )
+        if (exitFrom && exitDir * exitFrom.x >= Math.abs(targetX)) return
         setPosition({
-            x: exitDir * exitDistanceFor(
-                0,
-                divRef.current?.offsetWidth ?? 0,
-                window.innerWidth,
-            ),
+            x: targetX,
             y: 0,
             rotation: exitDir * 12,
         })
-        // `exitDir` is derived from the stable `exitDirection` prop, so this
-        // runs once on mount for a uniquely-keyed leaving card.
+        // `exitDir` is derived from the stable `exitDirection` prop and
+        // `exitFrom` is fixed for a uniquely-keyed leaving card, so this runs
+        // once on mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
@@ -200,7 +219,7 @@ function CardItemViewInner(
 
         // Hold the stamp lit through the exit — the card has committed.
         setSignal(direction)
-        setPosition({
+        const commitPosition: Position = {
             x: direction * exitDistanceFor(
                 velocity,
                 divRef.current?.offsetWidth ?? 0,
@@ -211,11 +230,13 @@ function CardItemViewInner(
             // imperative button/key commit has no drag distance, so use a small
             // direction-signed constant.
             rotation: dragDistance !== 0 ? dragDistance / 5 : direction * 12,
-        })
+        }
+        setPosition(commitPosition)
 
         const result = onSwipe?.(
             cardItem,
-            direction === 1 ? "right" : "left"
+            direction === 1 ? "right" : "left",
+            commitPosition
         )
         if (result) {
             try {

@@ -53,6 +53,20 @@ describe("useLeavingCards", () => {
     expect(result.current.leavingCards[0].key).toMatch(/^leaving-1-\d+$/)
   })
 
+  it("stores the committed transform on the entry when one is threaded", () => {
+    const { result } = renderHook(() => useLeavingCards(postSliceDeck))
+
+    act(() =>
+      result.current.commit(makeCard({ mediaId: "1" }), "right", {
+        x: 832,
+        y: 0,
+        rotation: 50,
+      }),
+    )
+
+    expect(result.current.leavingCards[0].from).toEqual({ x: 832, y: 0, rotation: 50 })
+  })
+
   it("self-removes the entry after the hold duration", () => {
     const { result } = renderHook(() => useLeavingCards(postSliceDeck))
 
