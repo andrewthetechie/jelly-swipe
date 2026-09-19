@@ -17,7 +17,7 @@
 import { createRef } from "react";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import CardItemView from "./CardItemView";
-import type { CardItemViewHandle } from "./CardItemView";
+import type { CardItemViewHandle, Position } from "./CardItemView";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
 import { RoomApiError } from "./roomApi";
@@ -766,13 +766,14 @@ describe("CardItemView — stack depth (issue #343)", () => {
 })
 
 describe("CardItemView — exit render mode (issue #360)", () => {
-  function renderExit(direction: "left" | "right") {
+  function renderExit(direction: "left" | "right", exitFrom?: Position) {
     return renderWithRoom(
       <CardItemView
         cardItem={makeCard()}
         stackIndex={0}
         zIndex={10}
         exitDirection={direction}
+        exitFrom={exitFrom}
       />,
       { currentRoomCode: "1234" },
     )
@@ -821,8 +822,12 @@ describe("CardItemView — exit render mode (issue #360)", () => {
     expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
   })
 
-  it("animates from rest to the fly-off transform after mount", async () => {
-    const { container } = renderExit("right")
+  it("animates from the threaded mid-flight exit transform to the fly-off target after mount", async () => {
+    // The real exit path (issue #360): a fast swipe POST resolves mid-transition,
+    // so the leaving card mounts at the committed card's live mid-flight
+    // transform (x=400 — past centre but short of the 832px target) rather than
+    // at rest. The mount effect must animate it forward to the fly-off target.
+    const { container } = renderExit("right", { x: 400, y: 0, rotation: 30 })
     const card = container.querySelector(".card-item-container") as HTMLElement
 
     // The mount effect drives the card to the same fly-off transform the commit
@@ -831,7 +836,9 @@ describe("CardItemView — exit render mode (issue #360)", () => {
       const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
       expect(Math.abs(x)).toBeGreaterThan(500)
     })
-    // Rotation matches the commit path's direction-signed constant (12).
+    // Rotation matches the commit path's direction-signed constant (12), NOT the
+    // threaded mid-transition rotation (30) — proof the effect ran from `exitFrom`
+    // instead of being suppressed as a no-op.
     expect(card.style.transform).toContain("rotate(12deg)")
   })
 

@@ -27,6 +27,33 @@ const DEFAULT_POSITION: Position = {
     rotation: 0
 }
 
+/**
+ * Parse a computed transform string back into a Position for the leaving-card
+ * capture (issue #360). Real browsers report `matrix(a, b, c, d, e, f)` with
+ * x = e, y = f and rotation = atan2(b, a) in degrees; jsdom echoes the inline
+ * `translate(px, px) rotate(deg)` form verbatim because it does not run CSS
+ * transforms. Both describe the same physical state, so the capture reads either.
+ */
+function parseComputedTransform(transform: string): Position {
+    const matrix = transform.match(/matrix\(([^)]+)\)/)
+    if (matrix) {
+        const [a, b, , , e, f] = matrix[1].split(",").map((v) => parseFloat(v))
+        return {
+            x: e,
+            y: f,
+            rotation: Math.atan2(b, a) * 180 / Math.PI,
+        }
+    }
+    const tx = transform.match(/translate\((-?[\d.]+)px/)
+    const ty = transform.match(/,\s*(-?[\d.]+)px\)/)
+    const rot = transform.match(/rotate\((-?[\d.]+)deg\)/)
+    return {
+        x: tx ? parseFloat(tx[1]) : 0,
+        y: ty ? parseFloat(ty[1]) : 0,
+        rotation: rot ? parseFloat(rot[1]) : 0,
+    }
+}
+
 interface CardItemViewProps {
     cardItem: CardItem,
     /** 0 = the top card; 1, 2 = cards offset behind it (see SwipePage slicing). */
@@ -90,6 +117,11 @@ function stackBrightness(i: number): string | undefined {
 export type CardItemViewHandle = {
     commitSwipe: (direction: "left" | "right") => Promise<void>
     toggleDetails: () => void
+    /** Capture the committed top card's *live* transform (mid-transition), so
+     * SwipePage can seed the leaving card where the card actually is when the
+     * swipe POST resolves instead of at the commit transition's final target
+     * (issue #360). Returns undefined when the card has no mounted element. */
+    captureExitTransform: () => Position | undefined
 }
 
 function CardItemViewInner(
@@ -134,16 +166,19 @@ function CardItemViewInner(
         }
     }, [])
 
-    // Leaving-card exit (issue #360): first paint sits at the resting
-    // transform, then this mount effect animates it to the same fly-off
-    // transform the button/keyboard commit path computes for velocity 0,
-    // dragDistance 0 (see the imperative handle below) — rotation 12 per
-    // direction. The inline transition on the container animates the change.
+    // Leaving-card exit (issue #360): first paint sits at the threaded
+    // `exitFrom` (the committed card's live transform at POST resolution), then
+    // this mount effect animates it to the fly-off target the button/keyboard
+    // commit path computes for velocity 0, dragDistance 0 (see the imperative
+    // handle below) — rotation 12 per direction. The inline transition on the
+    // container animates the change.
     //
-    // A threaded commit transform (`exitFrom`) is always at or beyond that
-    // velocity-0 target (commit distance grows with velocity), so in that case
-    // this effect is a no-op: the leaving card holds the committed transform
-    // instead of dragging it backward toward centre.
+    // The guard only suppresses *backward* movement toward centre: when
+    // `exitFrom` is already at or beyond the fly-off target (slow POST, or a
+    // velocity-boosted drag commit), the card holds the committed transform
+    // instead of dragging it backward. When `exitFrom` is short of the target
+    // (a fast POST resolving mid-transition), the guard does not return and the
+    // card animates forward from where it actually is — no visible jump.
     React.useEffect(() => {
         if (!isExit) return
         const targetX = exitDir * exitDistanceFor(
@@ -341,6 +376,11 @@ function CardItemViewInner(
         commitSwipe: (direction: "left" | "right") =>
             commitSwipe(direction === "right" ? 1 : -1, 0, 0),
         toggleDetails,
+        captureExitTransform: () => {
+            const el = divRef.current
+            if (!el) return undefined
+            return parseComputedTransform(window.getComputedStyle(el).transform)
+        },
     }))
 
     // Leaving cards derive their own inline transition duration from the same

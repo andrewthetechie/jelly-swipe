@@ -514,10 +514,9 @@ describe("SwipePage — Nope/Like buttons (issue #344)", () => {
     // Routed through the same swipe path a gesture uses (top card, right).
     expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
 
-    // The committed card is kept mounted as a leaving card and animates to the
-    // same fly-off transform a drag commit computes (assert via waitFor, since
-    // it mounts at rest and only reaches the fly-off transform after its mount
-    // effect).
+    // The committed card is kept mounted as a leaving card, seeded from its
+    // committed transform, and the exit mount effect drives it to the same
+    // fly-off transform a drag commit computes (assert via waitFor).
     await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
   })
 
@@ -871,12 +870,63 @@ describe("SwipePage — leaving card (issue #360)", () => {
       resolveSwipe()
     })
 
-    // The leaving card mounts already carrying the committed card's fly-off
-    // transform — never at translate x = 0 — so the exit continues instead of
-    // restarting from rest under latency.
+    // The leaving card mounts already carrying the committed card's transform —
+    // never at translate x = 0 — so the exit continues instead of restarting
+    // from rest under latency.
     const leaving = flyOffCard(container)
     expect(leaving.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
     expect(topCardTransformX(leaving)).not.toBe(0)
     expect(Math.abs(topCardTransformX(leaving))).toBeGreaterThan(500)
+  })
+
+  it("seeds the leaving card from the committed card's live mid-flight transform when a deferred POST resolves mid-transition", async () => {
+    const user = userEvent.setup()
+    let resolveSwipe!: () => void
+    postSwipeMock.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveSwipe = resolve }),
+    )
+
+    // jsdom applies CSS transforms instantly, so the capture seam would read the
+    // committed card at its final commit transform instead of a mid-transition
+    // value. Stub `getComputedStyle` so the capture returns a deterministic
+    // MID-TRANSITION transform for the committed card: x=400 (past centre, well
+    // short of the 832px fly-off target) and rotation 30deg.
+    const originalGetComputedStyle = window.getComputedStyle
+    const getComputedStyleSpy = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation((el: Element) => {
+        const style = originalGetComputedStyle(el)
+        if (el.classList.contains("card-item-container")) {
+          // matrix(a, b, c, d, e, f): x=e=400, rotation=atan2(b,a)=30deg.
+          return { ...style, transform: "matrix(0.8660254, 0.5, -0.5, 0.8660254, 400, 0)" } as CSSStyleDeclaration
+        }
+        return style
+      })
+
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+    expect(postSwipeMock).toHaveBeenCalled()
+
+    // POST still pending: the deck has not sliced and no leaving entry exists.
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(2)
+
+    await act(async () => {
+      resolveSwipe()
+    })
+
+    // The leaving card mounts at the captured mid-flight position (x=400, not
+    // x=0 and not the 832px commit target) and the exit mount effect animates it
+    // forward to the fly-off target. jsdom runs the mount effect immediately, so
+    // the rendered transform is the fly-off target — the mid-flight seeding is
+    // proven by the effect having run at all: rotation is the effect's 12, not
+    // the held commit-target rotation (30) the guard suppresses for a from that
+    // is already at/past the target.
+    const leaving = flyOffCard(container)
+    expect(leaving.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
+    expect(topCardTransformX(leaving)).toBe(832)
+    expect(leaving.style.transform).toContain("rotate(12deg)")
+
+    getComputedStyleSpy.mockRestore()
   })
 })

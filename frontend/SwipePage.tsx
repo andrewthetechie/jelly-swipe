@@ -42,9 +42,18 @@ export default function SwipePage(): JSX.Element {
     // re-throws and this wrapper adds nothing and re-throws, so
     // CardItemView.commitSwipe's catch still snaps the card back and leaves it
     // retryable.
+    //
+    // When the POST resolves before the 0.4s commit transition finishes (the
+    // common fast-LAN case), the committed card is still mounted and mid-flight.
+    // Seed the leaving entry from its *live* transform (`captureExitTransform`,
+    // read through the still-mounted top card's handle) rather than the commit
+    // transition's final target, so the exit continues in one motion instead of
+    // teleporting to the target the moment the swipe saves (issue #360). Falls
+    // back to the threaded commit transform if the handle is unavailable.
     const onSwipe = React.useCallback(async (card: CardItem, direction: "left" | "right", from: Position) => {
         await swipe(card, direction)
-        commit(card, direction, from)
+        const liveFrom = cardRef.current?.captureExitTransform() ?? from
+        commit(card, direction, liveFrom)
     }, [swipe, commit])
 
     // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
