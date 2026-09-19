@@ -4,54 +4,24 @@ import PosterImage from './PosterImage'
 import { formatRating } from './format'
 import {
     computeVelocity,
-    exitDistanceFor,
+    flyOffTarget,
+    parseComputedTransform,
     shouldCommitSwipe,
     stampSignal,
     swipeThresholdFor,
     trackSample,
+    EXIT_TRANSITION_MS,
+    REDUCED_MOTION_EXIT_TRANSITION_MS,
 } from './swipeGesture'
-import type { PointerSample } from './swipeGesture'
+import type { PointerSample, Position } from './swipeGesture'
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import { fetchTrailer, RoomApiError } from './roomApi'
-
-export type Position = {
-    x: number,
-    y: number,
-    rotation: number
-}
 
 const DEFAULT_POSITION: Position = {
     x: 0,
     y: 0,
     rotation: 0
-}
-
-/**
- * Parse a computed transform string back into a Position for the leaving-card
- * capture (issue #360). Real browsers report `matrix(a, b, c, d, e, f)` with
- * x = e, y = f and rotation = atan2(b, a) in degrees; jsdom echoes the inline
- * `translate(px, px) rotate(deg)` form verbatim because it does not run CSS
- * transforms. Both describe the same physical state, so the capture reads either.
- */
-function parseComputedTransform(transform: string): Position {
-    const matrix = transform.match(/matrix\(([^)]+)\)/)
-    if (matrix) {
-        const [a, b, , , e, f] = matrix[1].split(",").map((v) => parseFloat(v))
-        return {
-            x: e,
-            y: f,
-            rotation: Math.atan2(b, a) * 180 / Math.PI,
-        }
-    }
-    const tx = transform.match(/translate\((-?[\d.]+)px/)
-    const ty = transform.match(/,\s*(-?[\d.]+)px\)/)
-    const rot = transform.match(/rotate\((-?[\d.]+)deg\)/)
-    return {
-        x: tx ? parseFloat(tx[1]) : 0,
-        y: ty ? parseFloat(ty[1]) : 0,
-        rotation: rot ? parseFloat(rot[1]) : 0,
-    }
 }
 
 interface CardItemViewProps {
@@ -169,8 +139,8 @@ function CardItemViewInner(
     // Leaving-card exit (issue #360): first paint sits at the threaded
     // `exitFrom` (the committed card's live transform at POST resolution), then
     // this mount effect animates it to the fly-off target the button/keyboard
-    // commit path computes for velocity 0, dragDistance 0 (see the imperative
-    // handle below) — rotation 12 per direction. The inline transition on the
+    // commit path computes for velocity 0, dragDistance 0 (`flyOffTarget` —
+    // rotation COMMIT_ROTATION_DEG per direction). The inline transition on the
     // container animates the change.
     //
     // The guard only suppresses *backward* movement toward centre: when
@@ -181,17 +151,15 @@ function CardItemViewInner(
     // card animates forward from where it actually is — no visible jump.
     React.useEffect(() => {
         if (!isExit) return
-        const targetX = exitDir * exitDistanceFor(
+        const target: Position = flyOffTarget(
+            exitDir,
+            0,
             0,
             divRef.current?.offsetWidth ?? 0,
             window.innerWidth,
         )
-        if (exitFrom && exitDir * exitFrom.x >= Math.abs(targetX)) return
-        setPosition({
-            x: targetX,
-            y: 0,
-            rotation: exitDir * 12,
-        })
+        if (exitFrom && exitDir * exitFrom.x >= Math.abs(target.x)) return
+        setPosition(target)
         // `exitDir` is derived from the stable `exitDirection` prop and
         // `exitFrom` is fixed for a uniquely-keyed leaving card, so this runs
         // once on mount.
@@ -254,18 +222,15 @@ function CardItemViewInner(
 
         // Hold the stamp lit through the exit — the card has committed.
         setSignal(direction)
-        const commitPosition: Position = {
-            x: direction * exitDistanceFor(
-                velocity,
-                divRef.current?.offsetWidth ?? 0,
-                window.innerWidth,
-            ),
-            y: 0,
-            // The drag path rotates by dragDistance / 5 of the live travel; an
-            // imperative button/key commit has no drag distance, so use a small
-            // direction-signed constant.
-            rotation: dragDistance !== 0 ? dragDistance / 5 : direction * 12,
-        }
+        // The same fly-off target the leaving card's exit continues toward
+        // (issue #360) — one shared definition, not a per-call-site copy.
+        const commitPosition: Position = flyOffTarget(
+            direction,
+            velocity,
+            dragDistance,
+            divRef.current?.offsetWidth ?? 0,
+            window.innerWidth,
+        )
         setPosition(commitPosition)
 
         const result = onSwipe?.(
@@ -383,13 +348,14 @@ function CardItemViewInner(
         },
     }))
 
-    // Leaving cards derive their own inline transition duration from the same
-    // reduced-motion read the leaving-card hook uses (issue #360), so the exit
-    // animation and the unmount hold can never drift apart.
-    const exitTransition = isExit
-        ? (window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "transform 0.15s ease"
-            : "transform 0.4s ease")
+    // Leaving cards derive their inline transition duration from the same
+    // shared exit-duration constants the leaving-card hook's unmount hold uses
+    // (issue #360), so the exit animation and the unmount hold can never drift
+    // apart.
+    const exitTransition: string | undefined = isExit
+        ? `transform ${(window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? REDUCED_MOTION_EXIT_TRANSITION_MS
+            : EXIT_TRANSITION_MS) / 1000}s ease`
         : undefined
 
     return (

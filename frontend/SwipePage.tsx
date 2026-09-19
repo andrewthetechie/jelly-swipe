@@ -1,6 +1,7 @@
 import React from "react"
 import HostWaiting from "./HostWaiting"
-import CardItemView, { type CardItemViewHandle, type Position } from "./CardItemView"
+import CardItemView, { type CardItemViewHandle } from "./CardItemView"
+import type { Position } from "./swipeGesture"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"

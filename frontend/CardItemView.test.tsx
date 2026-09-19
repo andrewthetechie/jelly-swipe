@@ -17,9 +17,11 @@
 import { createRef } from "react";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import CardItemView from "./CardItemView";
-import type { CardItemViewHandle, Position } from "./CardItemView";
+import type { CardItemViewHandle } from "./CardItemView";
+import type { Position } from "./swipeGesture";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
+import { stubMatchMedia } from "./test/stubMatchMedia";
 import { RoomApiError } from "./roomApi";
 import * as roomApi from "./roomApi";
 import type { CardItem } from "./types";
@@ -426,9 +428,12 @@ describe("CardItemView - swipe behavior", () => {
 
 describe("CardItemView — imperative handle", () => {
   // Render the top card through a ref so tests can drive the imperative handle.
+  // `onSwipeOverride` is typed with the component's actual three-argument
+  // onSwipe signature (card, direction, commit transform) so it cannot drift
+  // from the prop the tests assert against.
   function renderCardWithHandle(
     cardOverrides = {},
-    onSwipeOverride?: (cardItem: CardItem, direction: "left" | "right") => void | Promise<void>,
+    onSwipeOverride?: (cardItem: CardItem, direction: "left" | "right", from: Position) => void | Promise<void>,
   ) {
     const handleRef = createRef<CardItemViewHandle>()
     const onSwipe = onSwipeOverride ?? vi.fn()
@@ -777,20 +782,6 @@ describe("CardItemView — exit render mode (issue #360)", () => {
       />,
       { currentRoomCode: "1234" },
     )
-  }
-
-  function stubMatchMedia(matches: boolean) {
-    const mql = {
-      matches,
-      media: "(prefers-reduced-motion: reduce)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-      onchange: null,
-    }
-    vi.stubGlobal("matchMedia", vi.fn(() => mql))
   }
 
   afterEach(() => {

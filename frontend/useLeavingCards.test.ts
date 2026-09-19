@@ -10,22 +10,7 @@
 import { act, renderHook } from "@testing-library/react"
 import { useLeavingCards } from "./useLeavingCards"
 import { makeCard, makeDeck } from "./test/fixtures"
-
-/** Stub `window.matchMedia` to a fixed `matches` value (the setup.ts stub
- * defaults to `matches: false`; tests flip it for reduced motion). */
-function stubMatchMedia(matches: boolean) {
-  const mql = {
-    matches,
-    media: "(prefers-reduced-motion: reduce)",
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-    onchange: null,
-  }
-  vi.stubGlobal("matchMedia", vi.fn(() => mql))
-}
+import { stubMatchMedia } from "./test/stubMatchMedia"
 
 // A deck whose head is NOT the card being committed, modelling the post-slice
 // deck (head "2", committed cards are "1"/"2"/…).

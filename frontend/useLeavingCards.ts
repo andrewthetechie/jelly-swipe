@@ -1,6 +1,10 @@
 import React from "react"
 import type { CardItem } from "./types"
-import type { Position } from "./CardItemView"
+import {
+    EXIT_TRANSITION_MS,
+    REDUCED_MOTION_EXIT_TRANSITION_MS,
+    type Position,
+} from "./swipeGesture"
 
 /**
  * A committed card kept mounted in SwipePage's "leaving slot" so its fly-off
@@ -27,12 +31,14 @@ interface UseLeavingCardsReturn {
 
 /**
  * The reduced-motion hold duration for a leaving card, read once via
- * `window.matchMedia` — the same determination CardItemView uses to derive the
- * exit transition duration, so the animation and the unmount hold stay in lock
- * step (400ms normally, 150ms under `prefers-reduced-motion: reduce`).
+ * `window.matchMedia` — derived from the same shared exit-duration constants
+ * CardItemView builds its inline exit transition from, so the animation and the
+ * unmount hold stay in lock step (issue #360).
  */
 function leavingHoldMs(): number {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 150 : 400
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? REDUCED_MOTION_EXIT_TRANSITION_MS
+        : EXIT_TRANSITION_MS
 }
 
 /**
