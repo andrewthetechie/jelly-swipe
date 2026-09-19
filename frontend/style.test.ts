@@ -363,3 +363,33 @@ describe('materiality discipline (issue #347)', () => {
     }
   });
 });
+
+describe('dynamic viewport sizing (issue #351)', () => {
+  const css = readSource('style.css');
+
+  it('sizes the body min-height in dvh', () => {
+    const bodyRule = css.match(/body\s*\{[^}]*\}/);
+    expect(bodyRule, 'body rule').toBeTruthy();
+    expect(bodyRule![0]).toContain('min-height: 100dvh');
+  });
+
+  it('sizes the modal height in dvh', () => {
+    const modalRule = css.match(/\.modal\s*\{[^}]*\}/);
+    expect(modalRule, '.modal rule').toBeTruthy();
+    expect(modalRule![0]).toContain('height: 100dvh');
+  });
+
+  it('leaves no 100vh outside a 100dvh fallback pair', () => {
+    // Every 100vh must be gone, or be the first half of a same-rule
+    // `100vh` then `100dvh` progressive-enhancement pair (last valid
+    // declaration wins in supporting browsers).
+    const bodyRule = css.match(/body\s*\{[^}]*\}/)![0];
+    const modalRule = css.match(/\.modal\s*\{[^}]*\}/)![0];
+    for (const rule of [bodyRule, modalRule]) {
+      const hasPair = rule.includes('100vh') && rule.includes('100dvh');
+      expect(hasPair, 'rule must not keep bare 100vh').toBe(false);
+      expect(rule).not.toContain('100vh');
+    }
+    expect(css).not.toContain('100vh');
+  });
+});

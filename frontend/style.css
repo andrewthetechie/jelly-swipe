@@ -93,7 +93,7 @@ body {
   background: var(--color-navy-deep);
   background: linear-gradient(0deg,rgba(7, 20, 38, 1) 0%, rgba(10, 31, 61, 1) 60%);
   color: var(--color-text);
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -316,7 +316,7 @@ img {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   background: rgba(7, 20, 38, 0.95);
   display: flex;
   flex-direction: column;
