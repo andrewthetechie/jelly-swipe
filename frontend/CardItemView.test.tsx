@@ -753,6 +753,115 @@ describe("CardItemView — stack depth (issue #343)", () => {
   })
 })
 
+describe("CardItemView — exit render mode (issue #360)", () => {
+  function renderExit(direction: "left" | "right") {
+    return renderWithRoom(
+      <CardItemView
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={10}
+        exitDirection={direction}
+      />,
+      { currentRoomCode: "1234" },
+    )
+  }
+
+  function stubMatchMedia(matches: boolean) {
+    const mql = {
+      matches,
+      media: "(prefers-reduced-motion: reduce)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      onchange: null,
+    }
+    vi.stubGlobal("matchMedia", vi.fn(() => mql))
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("is non-interactive: pointerEvents none, no handlers, no details flip", () => {
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    expect(card.style.pointerEvents).toBe("none")
+    expect(card.onclick).toBeNull()
+    expect(card.onpointerdown).toBeNull()
+
+    // A click must not flip the details.
+    fireEvent.click(card)
+    expect(card).not.toHaveClass("flipped")
+  })
+
+  it("lights the LIKE stamp at full opacity for a right exit", () => {
+    const { container } = renderExit("right")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("lights the NOPE stamp at full opacity for a left exit", () => {
+    const { container } = renderExit("left")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("animates from rest to the fly-off transform after mount", async () => {
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // The mount effect drives the card to the same fly-off transform the commit
+    // path computes (velocity 0, dragDistance 0) — well past the viewport.
+    await waitFor(() => {
+      const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+      expect(Math.abs(x)).toBeGreaterThan(500)
+    })
+    // Rotation matches the commit path's direction-signed constant (12).
+    expect(card.style.transform).toContain("rotate(12deg)")
+  })
+
+  it("derives a 0.4s inline transition by default", () => {
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.transition).toBe("transform 0.4s ease")
+  })
+
+  it("derives a 0.15s inline transition under prefers-reduced-motion", () => {
+    stubMatchMedia(true)
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.transition).toBe("transform 0.15s ease")
+  })
+
+  it("does not wire the imperative handle in exit mode", () => {
+    const handleRef = createRef<CardItemViewHandle>()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={handleRef}
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={10}
+        exitDirection="right"
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // Neither commit nor toggle does anything on an exit-mode card.
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+      handleRef.current?.toggleDetails()
+    })
+    expect(card).not.toHaveClass("flipped")
+    // The card still holds its fly-off transform.
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(Math.abs(x)).toBeGreaterThan(500)
+  })
+})
+
 // --- Documented gaps: do NOT rewrite the source to make these testable -------
 
 describe("CardItem — pointer drag (documented, hard to test)", () => {

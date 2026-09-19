@@ -15,6 +15,7 @@ vi.mock("./roomApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./roomApi")>()),
   quitRoom: vi.fn(),
   postSwipe: vi.fn(),
+  undoSwipe: vi.fn(),
   fetchDeck: vi.fn(),
   fetchGenres: vi.fn(),
   fetchMatches: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("./roomApi", async (importOriginal) => ({
 
 const quitRoomMock = vi.mocked(roomApi.quitRoom)
 const postSwipeMock = vi.mocked(roomApi.postSwipe)
+const undoSwipeMock = vi.mocked(roomApi.undoSwipe)
 const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
 const fetchGenresMock = vi.mocked(roomApi.fetchGenres)
 const fetchMatchesMock = vi.mocked(roomApi.fetchMatches)
@@ -30,6 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   quitRoomMock.mockResolvedValue({ status: "ok" })
   postSwipeMock.mockResolvedValue(undefined)
+  undoSwipeMock.mockResolvedValue(undefined)
   fetchDeckMock.mockResolvedValue([])
   fetchGenresMock.mockResolvedValue(["Action", "Comedy", "Drama"])
   fetchMatchesMock.mockResolvedValue([])
@@ -63,6 +66,13 @@ function renderSwipePageWithError(
 
 const topCardTransformX = (top: HTMLElement): number =>
   parseFloat(top.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+
+// The leaving card is the committed card still mounted in its fly-off slot; it
+// is the one card in the deck whose transform has moved well off-screen.
+const flyOffCard = (container: HTMLElement): HTMLElement => {
+  const cards = Array.from(container.querySelectorAll(".card-item-container")) as HTMLElement[]
+  return cards.find((c) => Math.abs(topCardTransformX(c)) > 500)!
+}
 
 describe("SwipePage - HostWaiting rendering logic", () => {
   it("renders only HostWaiting when roomReady is false", () => {
@@ -498,29 +508,28 @@ describe("SwipePage — Nope/Like buttons (issue #344)", () => {
   it("commits a right swipe on the top card when Like is clicked", async () => {
     const user = userEvent.setup()
     const { container } = renderSwipePage(2)
-    const cards = container.querySelectorAll(".card-item-container")
-    const topCard = cards[cards.length - 1] as HTMLElement
 
     await user.click(screen.getByRole("button", { name: /like/i }))
 
     // Routed through the same swipe path a gesture uses (top card, right).
     expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
 
-    // Same exit transform as a drag commit: the top card flies off-screen.
-    expect(Math.abs(topCardTransformX(topCard))).toBeGreaterThan(500)
+    // The committed card is kept mounted as a leaving card and animates to the
+    // same fly-off transform a drag commit computes (assert via waitFor, since
+    // it mounts at rest and only reaches the fly-off transform after its mount
+    // effect).
+    await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
   })
 
   it("commits a left swipe on the top card when Nope is clicked", async () => {
     const user = userEvent.setup()
     const { container } = renderSwipePage(2)
-    const cards = container.querySelectorAll(".card-item-container")
-    const topCard = cards[cards.length - 1] as HTMLElement
 
     await user.click(screen.getByRole("button", { name: /nope/i }))
 
     expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "left")
 
-    expect(Math.abs(topCardTransformX(topCard))).toBeGreaterThan(500)
+    await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
   })
 
   it("disables both buttons and posts nothing when the deck is empty", async () => {
@@ -578,24 +587,22 @@ describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
     return cards[cards.length - 1] as HTMLElement
   }
 
-  it("commits a right swipe on the top card with ArrowRight", () => {
+  it("commits a right swipe on the top card with ArrowRight", async () => {
     const { container } = renderSwipePage(2)
-    const card = topCard(container)
 
     fireEvent.keyDown(window, { key: "ArrowRight" })
 
     expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
-    expect(Math.abs(topCardTransformX(card))).toBeGreaterThan(500)
+    await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
   })
 
-  it("commits a left swipe on the top card with ArrowLeft", () => {
+  it("commits a left swipe on the top card with ArrowLeft", async () => {
     const { container } = renderSwipePage(2)
-    const card = topCard(container)
 
     fireEvent.keyDown(window, { key: "ArrowLeft" })
 
     expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "left")
-    expect(Math.abs(topCardTransformX(card))).toBeGreaterThan(500)
+    await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
   })
 
   it("flips the top card details with ArrowUp", () => {
@@ -716,5 +723,97 @@ describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
     expect(postSwipeMock).toHaveBeenLastCalledWith("1234", "1", "right")
 
     errSpy.mockRestore()
+  })
+})
+
+describe("SwipePage — leaving card (issue #360)", () => {
+  it("keeps the committed card mounted as a non-interactive leaving card flying off-screen", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+
+    // The committed card (Movie 1) is still mounted, flying off-screen.
+    await waitFor(() => {
+      const leaving = flyOffCard(container)
+      expect(leaving.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
+      expect(Math.abs(topCardTransformX(leaving))).toBeGreaterThan(500)
+    })
+
+    // The leaving card is non-interactive so it can't swallow pointers.
+    expect(flyOffCard(container).style.pointerEvents).toBe("none")
+
+    // The new top card (Movie 2) is already mounted and interactive.
+    const top = container.querySelector(".card-item-container") as HTMLElement
+    expect(top.style.pointerEvents).toBe("auto")
+    expect(top.querySelector(".card-item-title")?.textContent).toBe("Movie 2")
+  })
+
+  it("removes the leaving card after the exit transition duration", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+    await waitFor(() => expect(flyOffCard(container)).toBeTruthy())
+
+    // After the 400ms hold, the leaving card unmounts — only the new top card
+    // (Movie 2) remains in the deck.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    })
+    await waitFor(() => {
+      const cards = Array.from(container.querySelectorAll(".card-item-container"))
+      expect(cards).toHaveLength(1)
+      expect(cards[0].querySelector(".card-item-title")?.textContent).toBe("Movie 2")
+    })
+  })
+
+  it("undo restores a mid-exit card to the deck head and drops its leaving entry", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(2)
+
+    await user.click(screen.getByRole("button", { name: /like/i }))
+    await waitFor(() => expect(flyOffCard(container)).toBeTruthy())
+
+    // Undo while the committed card is still exiting.
+    await user.click(screen.getByRole("button", { name: /undo/i }))
+
+    await waitFor(() => expect(undoSwipeMock).toHaveBeenCalledWith("1234", "1"))
+
+    // Movie 1 is restored to the deck head (top card, interactive) — Movie 2
+    // is the back card.
+    const top = Array.from(container.querySelectorAll(".card-item-container"))
+      .find((c) => (c as HTMLElement).style.pointerEvents === "auto") as HTMLElement
+    expect(top.querySelector(".card-item-title")?.textContent).toBe("Movie 1")
+
+    // …and its leaving entry is gone — no ghost duplicate still flying.
+    expect(container.querySelectorAll(".card-item-container")).toHaveLength(2)
+    const flying = Array.from(container.querySelectorAll(".card-item-container"))
+      .filter((c) => Math.abs(topCardTransformX(c as HTMLElement)) > 500)
+    expect(flying).toHaveLength(0)
+  })
+
+  it("rapid consecutive swipes each get their own leaving card and keep the top card interactive", async () => {
+    const user = userEvent.setup()
+    const { container } = renderSwipePage(3)
+
+    // Two quick swipes: Movie 1 then Movie 2, both leave while Movie 3 is top.
+    await user.click(screen.getByRole("button", { name: /like/i }))
+    await user.click(screen.getByRole("button", { name: /like/i }))
+
+    // Two distinct leaving cards fly off at once (uniquely keyed).
+    await waitFor(() => {
+      const leaving = Array.from(container.querySelectorAll(".card-item-container"))
+        .filter((c) => Math.abs(topCardTransformX(c as HTMLElement)) > 500)
+      expect(leaving).toHaveLength(2)
+    })
+
+    // The new top card (Movie 3) stays interactive.
+    const top = container.querySelector(".card-item-container") as HTMLElement
+    expect(top.style.pointerEvents).toBe("auto")
+    expect(top.querySelector(".card-item-title")?.textContent).toBe("Movie 3")
+
+    expect(postSwipeMock).toHaveBeenNthCalledWith(1, "1234", "1", "right")
+    expect(postSwipeMock).toHaveBeenNthCalledWith(2, "1234", "2", "right")
   })
 })

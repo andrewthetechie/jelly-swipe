@@ -36,6 +36,14 @@ interface CardItemViewProps {
         cardItem: CardItem,
         direction: "left" | "right"
     ) => void | Promise<void>
+    /**
+     * "Leaving card" render mode (issue #360): the card has already been
+     * committed and is only kept mounted so its fly-off exit can be seen. It
+     * renders non-interactive (no pointer handlers, no details-flip, no
+     * imperative handle) with the matching verdict stamp lit, and animates from
+     * rest to the same fly-off transform the commit path computes.
+     */
+    exitDirection?: "left" | "right"
 }
 
 // Stack depth styling (see issue #343). Depth `i` is how many cards this one
@@ -74,10 +82,14 @@ export type CardItemViewHandle = {
 }
 
 function CardItemViewInner(
-    { cardItem, stackIndex, zIndex, onSwipe }: CardItemViewProps,
+    { cardItem, stackIndex, zIndex, onSwipe, exitDirection }: CardItemViewProps,
     ref: React.ForwardedRef<CardItemViewHandle>,
 ): JSX.Element {
     const isTopCard = stackIndex === 0
+    // Leaving-card render mode (issue #360): signed exit direction (1 = right,
+    // -1 = left), or undefined when this is a normal deck card.
+    const isExit = exitDirection != null
+    const exitDir: 1 | -1 = exitDirection === "right" ? 1 : -1
     const [position, setPosition] = React.useState<Position>(DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
@@ -94,7 +106,9 @@ function CardItemViewInner(
     // or a re-drag on the still-mounted card must not double-fire onSwipe.
     const committed = React.useRef<boolean>(false)
     const thresholdPx = React.useRef<number>(swipeThresholdFor(0))
-    const [signal, setSignal] = React.useState<number>(0)
+    // A leaving card holds its verdict stamp lit at full opacity for its exit
+    // direction the whole time it is mounted.
+    const [signal, setSignal] = React.useState<number>(isExit ? exitDir : 0)
 
     // Trailer state machine: idle → loading → (playing | unavailable).
     const [trailerState, setTrailerState] = React.useState<"idle" | "loading" | "playing" | "unavailable">("idle")
@@ -107,6 +121,27 @@ function CardItemViewInner(
         return () => {
             trailerAbort.current?.abort()
         }
+    }, [])
+
+    // Leaving-card exit (issue #360): first paint sits at the resting
+    // transform, then this mount effect animates it to the same fly-off
+    // transform the button/keyboard commit path computes for velocity 0,
+    // dragDistance 0 (see the imperative handle below) — rotation 12 per
+    // direction. The inline transition on the container animates the change.
+    React.useEffect(() => {
+        if (!isExit) return
+        setPosition({
+            x: exitDir * exitDistanceFor(
+                0,
+                divRef.current?.offsetWidth ?? 0,
+                window.innerWidth,
+            ),
+            y: 0,
+            rotation: exitDir * 12,
+        })
+        // `exitDir` is derived from the stable `exitDirection` prop, so this
+        // runs once on mount for a uniquely-keyed leaving card.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const loadTrailer = () => {
@@ -157,6 +192,7 @@ function CardItemViewInner(
     // apart. Guards: only the top card can commit, and only when no drag is live
     // and the card has not already committed.
     const commitSwipe = async (direction: 1 | -1, velocity: number, dragDistance: number): Promise<void> => {
+        if (isExit) return
         if (stackIndex !== 0) return
         if (dragActive.current) return
         if (committed.current) return
@@ -275,6 +311,7 @@ function CardItemViewInner(
     // Deliberately does NOT reuse handleDetailsClick: its BUTTON/hasDragged
     // guards are about real click events and don't apply to a programmatic call.
     const toggleDetails = () => {
+        if (isExit) return
         if (stackIndex !== 0) return
         setShowDetails(prev => !prev)
     }
@@ -285,28 +322,37 @@ function CardItemViewInner(
         toggleDetails,
     }))
 
+    // Leaving cards derive their own inline transition duration from the same
+    // reduced-motion read the leaving-card hook uses (issue #360), so the exit
+    // animation and the unmount hold can never drift apart.
+    const exitTransition = isExit
+        ? (window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "transform 0.15s ease"
+            : "transform 0.4s ease")
+        : undefined
+
     return (
         <div
             ref={divRef}
             className={`card-item-container ${showDetails ? "flipped" : ""} ${!isTopCard ? "stack-back" : ""}`}
-            onClick={handleDetailsClick}
-            onPointerDown={isTopCard ? handlePointerDown : undefined}
-            onPointerMove={isTopCard ? handlePointerMove : undefined}
-            onPointerUp={isTopCard ? handlePointerUp : undefined}
-            onPointerCancel={isTopCard ? handlePointerCancel : undefined}
-            onLostPointerCapture={isTopCard ? handleLostPointerCapture : undefined}
+            onClick={isExit ? undefined : handleDetailsClick}
+            onPointerDown={!isExit && isTopCard ? handlePointerDown : undefined}
+            onPointerMove={!isExit && isTopCard ? handlePointerMove : undefined}
+            onPointerUp={!isExit && isTopCard ? handlePointerUp : undefined}
+            onPointerCancel={!isExit && isTopCard ? handlePointerCancel : undefined}
+            onLostPointerCapture={!isExit && isTopCard ? handleLostPointerCapture : undefined}
             style={{
                 zIndex,
-                pointerEvents: isTopCard ? "auto" : "none",
-                cursor: "grab",
+                pointerEvents: isExit ? "none" : (isTopCard ? "auto" : "none"),
+                cursor: isExit ? "auto" : "grab",
                 userSelect: "none",
-                touchAction: "none",
+                touchAction: isExit ? undefined : "none",
                 transform: `
                     translate(${position.x}px, ${position.y}px)
                     rotate(${position.rotation}deg) ${stackTransform(stackIndex)}
                 `,
                 filter: stackBrightness(stackIndex),
-                transition: isDragging ? "none" : "transform 0.4s ease, filter 0.4s ease"
+                transition: isExit ? exitTransition : (isDragging ? "none" : "transform 0.4s ease, filter 0.4s ease")
             }}
         >
           <div className="card-item-inner">
