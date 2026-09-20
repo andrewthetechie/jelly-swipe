@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import sadLogo from "./assets/sad.png"
 import type { ImgHTMLAttributes, JSX } from "react"
 
@@ -40,6 +40,23 @@ export default function PosterImage({
         setLoadState("loading")
     }
 
+    const imgRef = useRef<HTMLImageElement | null>(null)
+
+    // An already-cached/decoded poster must paint at full opacity immediately:
+    // the browser sets complete=true with a non-zero naturalWidth before the
+    // next paint, so this synchronous pre-paint check skips the fade-in that
+    // would otherwise blank a remounted leaving-card/undo poster to the navy
+    // placeholder (issue #350 regression). Runs on mount and whenever
+    // posterUrl changes; images that genuinely load after mount still take the
+    // onLoad path below.
+    useLayoutEffect(() => {
+        const img = imgRef.current
+        if (!img || !img.complete) return
+        if (img.naturalWidth > 0) {
+            setLoadState("loaded")
+        }
+    }, [posterUrl])
+
     const posterFailed = loadState === "failed"
     const noPoster = !posterUrl || posterFailed
     const src = noPoster ? sadLogo : posterUrl
@@ -70,7 +87,7 @@ export default function PosterImage({
     if (priority) {
         imgProps.fetchpriority = "high"
     }
-    const img = <img {...imgProps} />
+    const img = <img ref={imgRef} {...imgProps} />
 
     if (!frame) {
         return (

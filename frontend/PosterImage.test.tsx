@@ -42,6 +42,22 @@ describe("PosterImage", () => {
         expect(frame).toHaveClass("poster-frame-loaded")
     })
 
+    it("paints an already-complete cached poster at full opacity on mount/posterUrl change", () => {
+        const { rerender, container } = render(<PosterImage posterUrl="https://example.com/cached.jpg" alt="Moana" frame />)
+        const img = screen.getByAltText("Moana")
+        // Stub the browser's cached-image signals on the rendered img: a poster
+        // that is already complete/decoded (leaving-card/undo remount path)
+        // must skip the fade-in and paint at opacity 1.
+        Object.defineProperty(img, "complete", { value: true, configurable: true })
+        Object.defineProperty(img, "naturalWidth", { value: 300, configurable: true })
+        // A remount (leaving-card/undo) or posterUrl change re-runs the
+        // synchronous completeness check before paint, so the frame must be
+        // loaded at first paint instead of blanking to the navy placeholder.
+        rerender(<PosterImage posterUrl="https://example.com/cached.jpg?fresh=1" alt="Moana" frame />)
+        const frame = container.querySelector(".poster-frame") as HTMLElement
+        expect(frame).toHaveClass("poster-frame-loaded")
+    })
+
     it("sets decoding=async on every img and fetchpriority=high only when priority", () => {
         const { rerender } = render(<PosterImage posterUrl="https://example.com/poster.jpg" alt="Moana" />)
         const img = screen.getByAltText("Moana")
