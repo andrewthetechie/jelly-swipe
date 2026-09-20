@@ -326,7 +326,7 @@ describe('shared keyboard-focus treatment (issue #353)', () => {
     expect(focusDecls).not.toMatch(/#[0-9a-fA-F]{6}\b/);
   });
 
-  it('draws one shared :focus-visible ring from the focus token for every family', () => {
+  it('draws one shared :focus-visible ring from the focus token for every plain family', () => {
     const sharedBlock = css.match(/\.jelly-button:focus-visible[^{]*\{[^}]*\}/)?.[0];
     expect(sharedBlock, 'shared :focus-visible rule').toBeTruthy();
     expect(sharedBlock!).toContain('var(--focus-ring)');
@@ -345,11 +345,27 @@ describe('shared keyboard-focus treatment (issue #353)', () => {
       '.retry-deck:focus-visible',
       '.jelly-toggle input:focus-visible + .slider',
       '.jelly-check input:focus-visible + .checkmark',
-      '.custom-radio:has(input:focus-visible)',
     ];
     for (const selector of families) {
       expect(sharedBlock, `shared rule covers ${selector}`).toContain(selector);
     }
+  });
+
+  it('isolates the genre radio family in its own :has() rule drawing the same tokens', () => {
+    const radioBlock = css.match(/\.custom-radio:has\(input:focus-visible\)\s*\{[^}]*\}/)?.[0];
+    expect(radioBlock, '.custom-radio:has(input:focus-visible) rule').toBeTruthy();
+    expect(radioBlock!).toContain('var(--focus-ring)');
+    expect(radioBlock!).toContain('var(--focus-ring-offset)');
+    expect(radioBlock!).toContain('var(--focus-glow)');
+  });
+
+  it('keeps :has() out of the shared :focus-visible selector list', () => {
+    // A single unsupported selector invalidates the whole comma-separated rule,
+    // so the shared list must never grow a :has() member again — that coupling
+    // would silently drop every control's focus ring on engines without :has().
+    const sharedBlock = css.match(/\.jelly-button:focus-visible[^{]*\{[^}]*\}/)?.[0] ?? '';
+    const selectorList = sharedBlock.slice(0, sharedBlock.indexOf('{'));
+    expect(selectorList).not.toContain(':has(');
   });
 
   it('never suppresses the keyboard focus ring with outline: none', () => {

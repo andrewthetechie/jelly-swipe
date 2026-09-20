@@ -829,10 +829,19 @@ button.end-session:active {
 /* Shared keyboard-focus treatment (issue #353): every interactive control
    draws its :focus-visible ring from the --focus-* tokens defined in :root,
    so there is exactly one place the treatment can drift. The custom
-   toggles/checkboxes and genre radios are styled through their visually-hidden
-   input's sibling or :has(), since the real input carries no visible box. The
-   outline shifts the bright ring outside the resting ring (e.g. .jelly-button's
-   7px white shadow) so keyboard focus stays visually distinct. */
+   toggles/checkboxes are styled through their visually-hidden input's sibling,
+   since the real input carries no visible box. The outline shifts the bright
+   ring outside the resting ring (e.g. .jelly-button's 7px white shadow) so
+   keyboard focus stays visually distinct.
+
+   The genre radio family (.custom-radio:has(input:focus-visible)) is
+   deliberately NOT part of this comma-separated selector list: a single
+   unsupported selector invalidates the whole rule, and :has() is the newest
+   feature here — unsupported on Firefox ESR 115 and older, Samsung Internet
+   < 20, and older Android WebView / smart-TV browsers. Keeping it in the
+   shared list would silently drop every control's focus ring on those engines.
+   It is isolated in its own rule directly below so an engine lacking :has()
+   loses only the radio family, never the rest. */
 .jelly-button:focus-visible,
 .btn-primary:focus-visible,
 .btn-primary-link:focus-visible,
@@ -843,7 +852,12 @@ button.end-session:focus-visible,
 .error-dismiss:focus-visible,
 .retry-deck:focus-visible,
 .jelly-toggle input:focus-visible + .slider,
-.jelly-check input:focus-visible + .checkmark,
+.jelly-check input:focus-visible + .checkmark {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: var(--focus-glow);
+}
+
 .custom-radio:has(input:focus-visible) {
   outline: 2px solid var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
