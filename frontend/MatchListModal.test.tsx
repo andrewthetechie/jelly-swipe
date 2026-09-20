@@ -40,7 +40,7 @@ describe("MatchListModal - Matches Fetch", () => {
     expect(errSpy).toHaveBeenCalled()
     expect(screen.queryByText("Movie 1")).not.toBeInTheDocument()
     expect(screen.getByText("Matches")).toBeInTheDocument()
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Couldn't load your matches. Check your connection and try again.",
     )
     expect(screen.queryByText("Nothing yet. Swipe right on something you'd both watch.")).not.toBeInTheDocument()
