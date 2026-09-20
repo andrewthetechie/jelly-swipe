@@ -1407,6 +1407,46 @@ img.card-item-poster {
   -webkit-user-drag: none;
 }
 
+/* Poster frame (issue #350): the card poster reserves a stable 2:3 box so the
+   deck never shifts when the image arrives. The navy placeholder shows while
+   loading and the poster fades in over it on load. */
+div.poster-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 2 / 3;
+  background: var(--color-navy-deep);
+  border-radius: var(--radius-badge);
+  overflow: hidden;
+}
+
+div.poster-frame img.card-item-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+div.poster-frame.poster-frame-loaded img.card-item-poster {
+  opacity: 1;
+}
+
+/* The null/failed-poster fallback label sits centred inside the reserved box
+   (issue #350). Only the swipe card sets showNoPosterLabel, and only inside
+   the frame, so it can rely on the frame's relative positioning. */
+div.poster-frame .no-poster {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
 div.media-type {
   position: absolute;
   top: 10px;
@@ -1788,7 +1828,8 @@ div.match-list-info {
   .jelly-check .checkmark::after,
   .slider,
   .slider::before,
-  .custom-radio {
+  .custom-radio,
+  .poster-frame img.card-item-poster {
     transition-duration: 0.15s;
   }
 
