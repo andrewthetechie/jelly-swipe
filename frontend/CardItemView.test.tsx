@@ -899,6 +899,40 @@ describe("CardItemView — exit render mode (issue #360)", () => {
   })
 })
 
+describe("CardItemView — resting & drag inline transition (issue #353)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("derives a 0.4s resting transition by default (snap-back/promote)", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.transition).toBe("transform 0.4s ease, filter 0.4s ease")
+  })
+
+  it("derives a 0.15s resting transition under prefers-reduced-motion", () => {
+    stubMatchMedia(true)
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.transition).toBe("transform 0.15s ease, filter 0.15s ease")
+  })
+
+  it("keeps the transition at none while dragging under default motion", () => {
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, 250)
+    expect(card.style.transition).toBe("none")
+  })
+
+  it("keeps the transition at none while dragging under reduced motion", () => {
+    stubMatchMedia(true)
+    const { container } = renderCard()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    dragTo(card, 250)
+    expect(card.style.transition).toBe("none")
+  })
+})
+
 // --- Documented gaps: do NOT rewrite the source to make these testable -------
 
 describe("CardItem — pointer drag (documented, hard to test)", () => {

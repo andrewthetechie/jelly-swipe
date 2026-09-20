@@ -351,11 +351,15 @@ function CardItemViewInner(
     // Leaving cards derive their inline transition duration from the same
     // shared exit-duration constants the leaving-card hook's unmount hold uses
     // (issue #360), so the exit animation and the unmount hold can never drift
-    // apart.
+    // apart. The resting (snap-back/promote) arm reads the same matchMedia so
+    // its 0.4s transition shortens to ~0.15s under prefers-reduced-motion
+    // (issue #353); an active drag keeps `transition: none` in both modes.
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const restDuration = (reducedMotion
+        ? REDUCED_MOTION_EXIT_TRANSITION_MS
+        : EXIT_TRANSITION_MS) / 1000
     const exitTransition: string | undefined = isExit
-        ? `transform ${(window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? REDUCED_MOTION_EXIT_TRANSITION_MS
-            : EXIT_TRANSITION_MS) / 1000}s ease`
+        ? `transform ${restDuration}s ease`
         : undefined
 
     return (
@@ -379,7 +383,7 @@ function CardItemViewInner(
                     rotate(${position.rotation}deg) ${stackTransform(stackIndex)}
                 `,
                 filter: stackBrightness(stackIndex),
-                transition: isExit ? exitTransition : (isDragging ? "none" : "transform 0.4s ease, filter 0.4s ease")
+                transition: isExit ? exitTransition : (isDragging ? "none" : `transform ${restDuration}s ease, filter ${restDuration}s ease`)
             }}
         >
           <div className="card-item-inner">

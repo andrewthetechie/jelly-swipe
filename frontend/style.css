@@ -84,6 +84,18 @@
      everything. */
   --z-stamp: 2;
   --z-modal: 1000;
+
+  /* Shared keyboard-focus treatment (issue #353): one :focus-visible ring for
+     every interactive control, drawn from these tokens so it can only drift in
+     one place. Two-tone — a bright outline that reads against the navy paired
+     with a cyan glow from the accent family — so it never relies on the cyan
+     alone. Composed purely from existing --color-* tokens (no raw palette
+     literal). */
+  --focus-ring: var(--color-text-bright);
+  --focus-ring-offset: 3px;
+  --focus-glow:
+    0 0 0 2px var(--color-border-light),
+    0 0 14px color-mix(in srgb, var(--color-accent-light) 55%, transparent);
 }
 
 body {
@@ -616,14 +628,6 @@ img.match-poster {
   opacity: 0.82;
 }
 
-.btn-primary:focus-visible,
-.jelly-button--compact:focus-visible {
-  /* Shift the keyboard focus indicator away from the resting ring so focus is
-     visually distinct (WCAG 2.4.7). Token-drawn from the existing :root set. */
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
-}
-
 .btn-primary:disabled,
 .btn-primary[aria-disabled="true"] {
   background: linear-gradient(
@@ -779,13 +783,6 @@ img.match-poster {
   border-color: var(--color-text-bright);
 }
 
-.btn-secondary:focus-visible {
-  /* Keyboard focus carries the indicator (WCAG 2.4.7); the pointer-only
-     :focus reset above stays. Token-drawn from the existing :root set. */
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .btn-secondary:active {
   transform: translateY(1px) scale(0.98);
   filter: brightness(0.97);
@@ -829,11 +826,42 @@ button.end-session:active {
   filter: brightness(0.95);
 }
 
+/* Shared keyboard-focus treatment (issue #353): every interactive control
+   draws its :focus-visible ring from the --focus-* tokens defined in :root,
+   so there is exactly one place the treatment can drift. The custom
+   toggles/checkboxes are styled through their visually-hidden input's sibling,
+   since the real input carries no visible box. The outline shifts the bright
+   ring outside the resting ring (e.g. .jelly-button's 7px white shadow) so
+   keyboard focus stays visually distinct.
+
+   The genre radio family (.custom-radio:has(input:focus-visible)) is
+   deliberately NOT part of this comma-separated selector list: a single
+   unsupported selector invalidates the whole rule, and :has() is the newest
+   feature here — unsupported on Firefox ESR 115 and older, Samsung Internet
+   < 20, and older Android WebView / smart-TV browsers. Keeping it in the
+   shared list would silently drop every control's focus ring on those engines.
+   It is isolated in its own rule directly below so an engine lacking :has()
+   loses only the radio family, never the rest. */
+.jelly-button:focus-visible,
+.btn-primary:focus-visible,
+.btn-primary-link:focus-visible,
+.jelly-button--compact:focus-visible,
+.btn-secondary:focus-visible,
 .btn-destructive:focus-visible,
-button.end-session:focus-visible {
-  /* Keyboard focus indicator (WCAG 2.4.7), token-drawn from the :root set. */
-  outline: 2px solid var(--color-text-bright);
-  outline-offset: 2px;
+button.end-session:focus-visible,
+.error-dismiss:focus-visible,
+.retry-deck:focus-visible,
+.jelly-toggle input:focus-visible + .slider,
+.jelly-check input:focus-visible + .checkmark {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: var(--focus-glow);
+}
+
+.custom-radio:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: var(--focus-glow);
 }
 
 .jelly-check {
@@ -1714,6 +1742,59 @@ div.match-list-info {
    it but shorten it rather than removing it. Scoped to the card container so
    direct-manipulation drag feedback is untouched. */
 @media (prefers-reduced-motion: reduce) {
+  /* The waiting loop runs indefinitely on a screen the user may sit on for
+     minutes, so it must stop entirely under reduce (issue #353). */
+  .waiting-text {
+    animation: none;
+  }
+
+  /* The card detail flip becomes a crossfade instead of a 3D rotateY (issue
+     #353). Neutralize the preserve-3d / backface machinery and swap the faces
+     via opacity. The inactive face is also hidden (visibility alongside
+     opacity 0) so its trailer button/iframe are neither seen nor clickable
+     when not flipped, while the active face stays fully usable. */
+  .card-item-inner {
+    transform-style: flat;
+    transition: none;
+  }
+  .card-item-container.flipped .card-item-inner {
+    transform: none;
+  }
+  div.card-item {
+    backface-visibility: visible;
+    -webkit-backface-visibility: visible;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+  div.back {
+    transform: none;
+  }
+  .card-item-container:not(.flipped) div.card-item.back,
+  .card-item-container.flipped div.card-item.front {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /* Decorative hover/state transitions stay (they communicate state) but are
+     shortened via targeted selectors only. NOT the blanket `*, *::before,
+     *::after` pattern, which would clobber the swipe-stamp/rim 60ms verdict
+     feedback and the inline drag rules (issue #353). */
+  .jelly-button,
+  .btn-primary,
+  .jelly-button--compact,
+  .btn-secondary,
+  .btn-destructive,
+  .room-code-input,
+  .checkmark,
+  .jelly-check .checkmark::after,
+  .slider,
+  .slider::before,
+  .custom-radio {
+    transition-duration: 0.15s;
+  }
+
+  /* The old container-level duration is now redundant because CardItemView
+     reads matchMedia directly for the resting transition, but it stays as a
+     harmless fallback (issue #353). */
   .card-item-container {
     transition-duration: 0.15s;
   }
