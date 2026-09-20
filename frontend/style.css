@@ -1673,7 +1673,7 @@ div.match-list-info {
 }
 
 @media (max-width: 400px) {
-  img.card-item-poster {
+  div.poster-frame {
     margin-top: 20px;
   }
 
@@ -1829,7 +1829,7 @@ div.match-list-info {
   .slider,
   .slider::before,
   .custom-radio,
-  .poster-frame img.card-item-poster {
+  div.poster-frame img.card-item-poster {
     transition-duration: 0.15s;
   }
 
