@@ -374,6 +374,7 @@ describe('materiality discipline (issue #347)', () => {
     expect(css).not.toMatch(/transition:\s*all\b/);
   });
 
+
   it('confines cyan outer glows to the three allowlisted rules', () => {
     // The token-derived outer-glow spelling (0 0 Npx color-mix(var(--color-accent)))
     // may appear only in the compact-jelly primary hover and the two checked-state
@@ -409,5 +410,50 @@ describe('materiality discipline (issue #347)', () => {
     for (const decl of decls) {
       expect(decl).toMatch(/z-index:\s*var\(--z-/);
     }
+  });
+});
+
+describe('reduced-motion support (issue #353)', () => {
+  const css = readSource('style.css');
+  // The only @media (prefers-reduced-motion: reduce) block ends the file, so
+  // everything from the query to EOF is the block.
+  const reduceBlock = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+
+  it('stops the looping waiting animation entirely', () => {
+    const waitingRule = reduceBlock.match(/\.waiting-text\s*\{[^}]*\}/);
+    expect(waitingRule, '.waiting-text rule inside the media block').toBeTruthy();
+    expect(waitingRule![0]).toContain('animation: none');
+  });
+
+  it('turns the card detail flip into a crossfade (no rotateY, faces swapped by opacity)', () => {
+    // No 3D flip machinery under reduce: the flipped inner and the back face
+    // must not carry a rotateY transform.
+    expect(reduceBlock).toMatch(/\.card-item-container\.flipped \.card-item-inner\s*\{[^}]*transform:\s*none/);
+    expect(reduceBlock).toMatch(/div\.back\s*\{[^}]*transform:\s*none/);
+    // Backface visibility is restored so the later-in-DOM back face no longer
+    // relies on backface-culling to hide itself.
+    expect(reduceBlock).toMatch(/div\.card-item\s*\{[^}]*backface-visibility:\s*visible/);
+    // The inactive face is invisible and non-interactive (visibility hidden
+    // alongside opacity 0) in both flip states.
+    expect(reduceBlock).toMatch(/\.card-item-container:not\(\.flipped\) div\.card-item\.back[^{]*\{[^}]*visibility:\s*hidden/);
+    expect(reduceBlock).toMatch(/\.card-item-container\.flipped div\.card-item\.front[^{]*\{[^}]*visibility:\s*hidden/);
+  });
+
+  it('shortens decorative hover/state transitions, not removes them', () => {
+    // Targeted selectors, never the blanket `*` pattern (which would clobber
+    // the swipe-stamp/rim feedback and the inline drag rules). Comments are
+    // stripped first so the literal pattern in a comment can't trip the guard.
+    const rulesOnly = reduceBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(rulesOnly).not.toMatch(/\*,\s*\*::before[^{]*\{[^}]*transition-duration/);
+    // A representative sample of the interactive families gets a shortened
+    // duration inside the block.
+    expect(reduceBlock).toMatch(/\.jelly-button[^{]*\{[^}]*transition-duration:\s*0\.15s/);
+    expect(reduceBlock).toMatch(/\.btn-secondary[^{]*\{[^}]*transition-duration:\s*0\.15s/);
+    expect(reduceBlock).toMatch(/\.custom-radio[^{]*\{[^}]*transition-duration:\s*0\.15s/);
+  });
+
+  it('leaves the swipe-stamp/rim 60ms feedback untouched by the block', () => {
+    expect(reduceBlock).not.toContain('.swipe-stamp');
+    expect(reduceBlock).not.toContain('.swipe-rim');
   });
 });

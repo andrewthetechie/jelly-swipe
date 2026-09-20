@@ -1728,6 +1728,59 @@ div.match-list-info {
    it but shorten it rather than removing it. Scoped to the card container so
    direct-manipulation drag feedback is untouched. */
 @media (prefers-reduced-motion: reduce) {
+  /* The waiting loop runs indefinitely on a screen the user may sit on for
+     minutes, so it must stop entirely under reduce (issue #353). */
+  .waiting-text {
+    animation: none;
+  }
+
+  /* The card detail flip becomes a crossfade instead of a 3D rotateY (issue
+     #353). Neutralize the preserve-3d / backface machinery and swap the faces
+     via opacity. The inactive face is also hidden (visibility alongside
+     opacity 0) so its trailer button/iframe are neither seen nor clickable
+     when not flipped, while the active face stays fully usable. */
+  .card-item-inner {
+    transform-style: flat;
+    transition: none;
+  }
+  .card-item-container.flipped .card-item-inner {
+    transform: none;
+  }
+  div.card-item {
+    backface-visibility: visible;
+    -webkit-backface-visibility: visible;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+  div.back {
+    transform: none;
+  }
+  .card-item-container:not(.flipped) div.card-item.back,
+  .card-item-container.flipped div.card-item.front {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /* Decorative hover/state transitions stay (they communicate state) but are
+     shortened via targeted selectors only. NOT the blanket `*, *::before,
+     *::after` pattern, which would clobber the swipe-stamp/rim 60ms verdict
+     feedback and the inline drag rules (issue #353). */
+  .jelly-button,
+  .btn-primary,
+  .jelly-button--compact,
+  .btn-secondary,
+  .btn-destructive,
+  .room-code-input,
+  .checkmark,
+  .jelly-check .checkmark::after,
+  .slider,
+  .slider::before,
+  .custom-radio {
+    transition-duration: 0.15s;
+  }
+
+  /* The old container-level duration is now redundant because CardItemView
+     reads matchMedia directly for the resting transition, but it stays as a
+     harmless fallback (issue #353). */
   .card-item-container {
     transition-duration: 0.15s;
   }
