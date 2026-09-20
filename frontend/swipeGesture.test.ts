@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest"
 import {
     computeVelocity,
     exitDistanceFor,
+    flyOffTarget,
+    parseComputedTransform,
     shouldCommitSwipe,
     stampSignal,
     swipeThresholdFor,
     trackSample,
+    COMMIT_ROTATION_DEG,
+    EXIT_TRANSITION_MS,
     MIN_FLICK_DISTANCE_PX,
+    REDUCED_MOTION_EXIT_TRANSITION_MS,
     STAMP_DEAD_ZONE_PX,
     SWIPE_THRESHOLD_RATIO,
     MIN_SWIPE_THRESHOLD_PX,
@@ -175,6 +180,69 @@ describe("exitDistanceFor", () => {
     it("uses fallback width when viewport reports 0", () => {
         // viewport 0 → fall back to 320, card 320 → clearance 480 + boost
         expect(exitDistanceFor(0, 320, 0)).toBe(480)
+    })
+})
+
+describe("flyOffTarget", () => {
+    it("is the velocity-0/drag-0 target the button/keyboard commit and the leaving card's exit share (jsdom: 832, ±12°)", () => {
+        expect(flyOffTarget(1, 0, 0, 320, 1024)).toEqual({
+            x: 832,
+            y: 0,
+            rotation: COMMIT_ROTATION_DEG,
+        })
+        expect(flyOffTarget(-1, 0, 0, 320, 1024)).toEqual({
+            x: -832,
+            y: 0,
+            rotation: -COMMIT_ROTATION_DEG,
+        })
+    })
+
+    it("boosts the distance with release velocity but keeps the shared rotation", () => {
+        const boosted = flyOffTarget(1, 1, 0, 320, 1024)
+        expect(boosted.x).toBe(exitDistanceFor(1, 320, 1024))
+        expect(boosted.x).toBeGreaterThan(832)
+        expect(boosted.rotation).toBe(COMMIT_ROTATION_DEG)
+    })
+
+    it("rotates by dragDistance / 5 on a drag commit", () => {
+        expect(flyOffTarget(1, 0, 250, 320, 1024)).toEqual({ x: 832, y: 0, rotation: 50 })
+        expect(flyOffTarget(-1, 0, -250, 320, 1024)).toEqual({ x: -832, y: 0, rotation: -50 })
+    })
+})
+
+describe("parseComputedTransform", () => {
+    it("reads the browser matrix form: x = e, y = f, rotation = atan2(b, a)", () => {
+        // A 30° rotation translated to x=400, y=12: cos30 ≈ 0.8660254, sin30 = 0.5.
+        const p = parseComputedTransform("matrix(0.8660254, 0.5, -0.5, 0.8660254, 400, 12)")
+        expect(p.x).toBe(400)
+        expect(p.y).toBe(12)
+        expect(p.rotation).toBeCloseTo(30)
+    })
+
+    it("reads the jsdom inline form verbatim", () => {
+        expect(parseComputedTransform("translate(400px, 12px) rotate(30deg)"))
+            .toEqual({ x: 400, y: 12, rotation: 30 })
+    })
+
+    it("keeps the sign of a leftward exit", () => {
+        expect(parseComputedTransform("translate(-832px, 0px) rotate(-50deg)"))
+            .toEqual({ x: -832, y: 0, rotation: -50 })
+    })
+
+    it("falls back to rest for an unparseable transform", () => {
+        expect(parseComputedTransform("none")).toEqual({ x: 0, y: 0, rotation: 0 })
+        expect(parseComputedTransform("")).toEqual({ x: 0, y: 0, rotation: 0 })
+    })
+})
+
+describe("exit transition durations (issue #360)", () => {
+    it("keeps the animation/hold pair in one place: 400ms default, 150ms reduced-motion", () => {
+        // CardItemView's inline exit transition ("transform 0.4s ease" /
+        // "transform 0.15s ease") and useLeavingCards' unmount hold both derive
+        // from this pair — a drift here would desynchronize the two.
+        expect(EXIT_TRANSITION_MS).toBe(400)
+        expect(REDUCED_MOTION_EXIT_TRANSITION_MS).toBe(150)
+        expect(REDUCED_MOTION_EXIT_TRANSITION_MS).toBeLessThan(EXIT_TRANSITION_MS)
     })
 })
 

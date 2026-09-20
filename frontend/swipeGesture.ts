@@ -1,4 +1,5 @@
-// swipeGesture.ts — pure gesture maths for the card drag (issues #342, #345).
+// swipeGesture.ts — pure gesture maths for the card drag (issues #342, #345)
+// and the shared commit fly-off target (issue #360).
 //
 // Deliberately free of React and the DOM. jsdom implements neither PointerEvent
 // nor the Pointer Capture API, so a real drag can only ever be stubbed in the
@@ -11,6 +12,13 @@ export type PointerSample = {
     x: number
     /** Event timestamp in milliseconds (React's `event.timeStamp`). */
     time: number
+}
+
+/** A card's placement: translate plus rotation (CardItemView's position state). */
+export type Position = {
+    x: number,
+    y: number,
+    rotation: number
 }
 
 /** Only samples from the last this-many ms feed the velocity estimate. */
@@ -46,6 +54,23 @@ export const EXIT_VELOCITY_BOOST_PX = 250
 
 /** Hard cap so a violent flick can't produce an absurd transform. */
 export const MAX_EXIT_DISTANCE_PX = 2000
+
+/**
+ * Rotation (degrees) applied to a commit with no drag travel — the imperative
+ * button/keyboard commit and the leaving card's continued exit — so every exit
+ * path shares one direction-signed constant (issue #360).
+ */
+export const COMMIT_ROTATION_DEG = 12
+
+/**
+ * How long a committed card's fly-off exit transition runs, and therefore how
+ * long SwipePage keeps its leaving card mounted (issue #360). Both the inline
+ * exit transition in CardItemView and the unmount hold in useLeavingCards are
+ * derived from this pair, so the animation and the hold cannot drift apart.
+ * 400ms normally, 150ms under `prefers-reduced-motion: reduce`.
+ */
+export const EXIT_TRANSITION_MS = 400
+export const REDUCED_MOTION_EXIT_TRANSITION_MS = 150
 
 /** Append a sample, dropping any that have aged out of the velocity window. */
 export function trackSample(
@@ -115,6 +140,58 @@ export function exitDistanceFor(
         clearance + Math.abs(velocity) * EXIT_VELOCITY_BOOST_PX,
         MAX_EXIT_DISTANCE_PX,
     )
+}
+
+/**
+ * The transform a committed card flies off with (issue #360) — the single
+ * definition shared by the commit path (CardItemView.commitSwipe) and the
+ * leaving card's exit mount effect, so the leaving card continues the same
+ * fly-off instead of a hand-copied formula drifting from it. `velocity` and
+ * `dragDistance` are the commit's release velocity and signed travel; the
+ * velocity-0/drag-0 call is the target a leaving card continues toward.
+ */
+export function flyOffTarget(
+    direction: 1 | -1,
+    velocity: number,
+    dragDistance: number,
+    cardWidth: number,
+    viewportWidth: number,
+): Position {
+    return {
+        x: direction * exitDistanceFor(velocity, cardWidth, viewportWidth),
+        y: 0,
+        // The drag path rotates by dragDistance / 5 of the live travel; an
+        // imperative button/key commit has no drag distance, so use a small
+        // direction-signed constant.
+        rotation: dragDistance !== 0 ? dragDistance / 5 : direction * COMMIT_ROTATION_DEG,
+    }
+}
+
+/**
+ * Parse a computed transform string back into a Position for the leaving-card
+ * capture (issue #360). Real browsers report `matrix(a, b, c, d, e, f)` with
+ * x = e, y = f and rotation = atan2(b, a) in degrees; jsdom echoes the inline
+ * `translate(px, px) rotate(deg)` form verbatim because it does not run CSS
+ * transforms. Both describe the same physical state, so the capture reads either.
+ */
+export function parseComputedTransform(transform: string): Position {
+    const matrix = transform.match(/matrix\(([^)]+)\)/)
+    if (matrix) {
+        const [a, b, , , e, f] = matrix[1].split(",").map((v) => parseFloat(v))
+        return {
+            x: e,
+            y: f,
+            rotation: Math.atan2(b, a) * 180 / Math.PI,
+        }
+    }
+    const tx = transform.match(/translate\((-?[\d.]+)px/)
+    const ty = transform.match(/,\s*(-?[\d.]+)px\)/)
+    const rot = transform.match(/rotate\((-?[\d.]+)deg\)/)
+    return {
+        x: tx ? parseFloat(tx[1]) : 0,
+        y: ty ? parseFloat(ty[1]) : 0,
+        rotation: rot ? parseFloat(rot[1]) : 0,
+    }
 }
 
 /**
