@@ -10,6 +10,7 @@ import type { JSX } from "react"
 import type { CardItem } from './types'
 import { useRoomSession } from "./RoomSessionProvider"
 import { useLeavingCards } from "./useLeavingCards"
+import { usePosterPrefetch } from "./usePosterPrefetch"
 
 // Leaving cards render above every stack card (stack cards get zIndex = index,
 // i.e. ≤ 2), so a committed card visibly flies off over the promoted stack.
@@ -21,6 +22,11 @@ export default function SwipePage(): JSX.Element {
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { isSoloMode } = useRoomStateContext()
     const { leavingCards, commit } = useLeavingCards(state.cardDeck)
+
+    // Prefetch the next 3 cards beyond the rendered 3-card window (issue #350)
+    // so their posters are in cache by the time they reach the top. `slice`
+    // naturally yields fewer entries on a short deck; no guard needed.
+    usePosterPrefetch(state.cardDeck.slice(3, 6).map((c) => c.posterUrl))
 
     // Render at most 3 cards (the top card + ≤2 back cards). Deeper cards are
     // dropped entirely (issue #343) — undo still works because undo re-adds the

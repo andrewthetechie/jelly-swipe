@@ -389,7 +389,7 @@ function CardItemViewInner(
           <div className="card-item-inner">
                 <div className="card-item front">
                     <div className="media-type">{mediaText}{seasonsText}</div>
-                    <PosterImage posterUrl={posterUrl} alt={title} className="card-item-poster" draggable={false} showNoPosterLabel />
+                    <PosterImage posterUrl={posterUrl} alt={title} className="card-item-poster" draggable={false} showNoPosterLabel frame priority={isTopCard} />
                 </div>
 
                 <div className="card-item back">
