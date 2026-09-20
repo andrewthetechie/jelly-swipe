@@ -84,6 +84,18 @@
      everything. */
   --z-stamp: 2;
   --z-modal: 1000;
+
+  /* Shared keyboard-focus treatment (issue #353): one :focus-visible ring for
+     every interactive control, drawn from these tokens so it can only drift in
+     one place. Two-tone — a bright outline that reads against the navy paired
+     with a cyan glow from the accent family — so it never relies on the cyan
+     alone. Composed purely from existing --color-* tokens (no raw palette
+     literal). */
+  --focus-ring: var(--color-text-bright);
+  --focus-ring-offset: 3px;
+  --focus-glow:
+    0 0 0 2px var(--color-border-light),
+    0 0 14px color-mix(in srgb, var(--color-accent-light) 55%, transparent);
 }
 
 body {
@@ -616,14 +628,6 @@ img.match-poster {
   opacity: 0.82;
 }
 
-.btn-primary:focus-visible,
-.jelly-button--compact:focus-visible {
-  /* Shift the keyboard focus indicator away from the resting ring so focus is
-     visually distinct (WCAG 2.4.7). Token-drawn from the existing :root set. */
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
-}
-
 .btn-primary:disabled,
 .btn-primary[aria-disabled="true"] {
   background: linear-gradient(
@@ -779,13 +783,6 @@ img.match-poster {
   border-color: var(--color-text-bright);
 }
 
-.btn-secondary:focus-visible {
-  /* Keyboard focus carries the indicator (WCAG 2.4.7); the pointer-only
-     :focus reset above stays. Token-drawn from the existing :root set. */
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .btn-secondary:active {
   transform: translateY(1px) scale(0.98);
   filter: brightness(0.97);
@@ -829,11 +826,28 @@ button.end-session:active {
   filter: brightness(0.95);
 }
 
+/* Shared keyboard-focus treatment (issue #353): every interactive control
+   draws its :focus-visible ring from the --focus-* tokens defined in :root,
+   so there is exactly one place the treatment can drift. The custom
+   toggles/checkboxes and genre radios are styled through their visually-hidden
+   input's sibling or :has(), since the real input carries no visible box. The
+   outline shifts the bright ring outside the resting ring (e.g. .jelly-button's
+   7px white shadow) so keyboard focus stays visually distinct. */
+.jelly-button:focus-visible,
+.btn-primary:focus-visible,
+.btn-primary-link:focus-visible,
+.jelly-button--compact:focus-visible,
+.btn-secondary:focus-visible,
 .btn-destructive:focus-visible,
-button.end-session:focus-visible {
-  /* Keyboard focus indicator (WCAG 2.4.7), token-drawn from the :root set. */
-  outline: 2px solid var(--color-text-bright);
-  outline-offset: 2px;
+button.end-session:focus-visible,
+.error-dismiss:focus-visible,
+.retry-deck:focus-visible,
+.jelly-toggle input:focus-visible + .slider,
+.jelly-check input:focus-visible + .checkmark,
+.custom-radio:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: var(--focus-glow);
 }
 
 .jelly-check {

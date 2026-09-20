@@ -302,11 +302,59 @@ describe('button roles (issue #347)', () => {
     expect(secondaryRule, '.btn-secondary:focus-visible').toBeTruthy();
     expect(destructiveRule, '.btn-destructive:focus-visible').toBeTruthy();
     // Each indicator must be token-drawn (no raw palette literal) and must not
-    // be a blanket suppression of the platform focus ring.
+    // be a blanket suppression of the platform focus ring. The roles now draw
+    // from the shared --focus-* tokens (issue #353) instead of individual
+    // --color-* literals, so accept either token family.
     for (const rule of [primaryRule!, secondaryRule!, destructiveRule!]) {
-      expect(rule).toMatch(/var\(--color-/);
+      expect(rule).toMatch(/var\(--(?:focus|color)-/);
       expect(rule).not.toContain('outline: none');
     }
+  });
+});
+
+describe('shared keyboard-focus treatment (issue #353)', () => {
+  const css = readSource('style.css');
+
+  it('defines the focus tokens on :root composed from existing color tokens', () => {
+    const rootBlock = css.match(/:root\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(rootBlock, ':root block').toBeTruthy();
+    expect(rootBlock).toContain('--focus-ring: var(--color-');
+    expect(rootBlock).toContain('--focus-ring-offset:');
+    expect(rootBlock).toContain('--focus-glow:');
+    // The focus tokens must be composed from tokens, never a raw palette hex.
+    const focusDecls = rootBlock.match(/--focus-[^;]+;/g)?.join('\n') ?? '';
+    expect(focusDecls).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+  });
+
+  it('draws one shared :focus-visible ring from the focus token for every family', () => {
+    const sharedBlock = css.match(/\.jelly-button:focus-visible[^{]*\{[^}]*\}/)?.[0];
+    expect(sharedBlock, 'shared :focus-visible rule').toBeTruthy();
+    expect(sharedBlock!).toContain('var(--focus-ring)');
+    expect(sharedBlock!).toContain('var(--focus-ring-offset)');
+    expect(sharedBlock!).toContain('var(--focus-glow)');
+
+    const families = [
+      '.jelly-button:focus-visible',
+      '.btn-primary:focus-visible',
+      '.btn-primary-link:focus-visible',
+      '.jelly-button--compact:focus-visible',
+      '.btn-secondary:focus-visible',
+      '.btn-destructive:focus-visible',
+      'button.end-session:focus-visible',
+      '.error-dismiss:focus-visible',
+      '.retry-deck:focus-visible',
+      '.jelly-toggle input:focus-visible + .slider',
+      '.jelly-check input:focus-visible + .checkmark',
+      '.custom-radio:has(input:focus-visible)',
+    ];
+    for (const selector of families) {
+      expect(sharedBlock, `shared rule covers ${selector}`).toContain(selector);
+    }
+  });
+
+  it('never suppresses the keyboard focus ring with outline: none', () => {
+    const sharedBlock = css.match(/\.jelly-button:focus-visible[^{]*\{[^}]*\}/)?.[0] ?? '';
+    expect(sharedBlock).not.toContain('outline: none');
   });
 });
 
