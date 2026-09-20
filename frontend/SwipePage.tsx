@@ -1,6 +1,7 @@
 import React from "react"
 import HostWaiting from "./HostWaiting"
 import CardItemView, { type CardItemViewHandle } from "./CardItemView"
+import type { Position } from "./swipeGesture"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
@@ -8,12 +9,18 @@ import { useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import { useRoomSession } from "./RoomSessionProvider"
+import { useLeavingCards } from "./useLeavingCards"
+
+// Leaving cards render above every stack card (stack cards get zIndex = index,
+// i.e. ≤ 2), so a committed card visibly flies off over the promoted stack.
+const LEAVING_CARD_Z_INDEX = 10
 
 export default function SwipePage(): JSX.Element {
     const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession, clearError, retryDeckFetch } = useRoomSession()
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { isSoloMode } = useRoomStateContext()
+    const { leavingCards, commit } = useLeavingCards(state.cardDeck)
 
     // Render at most 3 cards (the top card + ≤2 back cards). Deeper cards are
     // dropped entirely (issue #343) — undo still works because undo re-adds the
@@ -27,6 +34,28 @@ export default function SwipePage(): JSX.Element {
     const commitSwipe = React.useCallback((direction: "left" | "right") => {
         cardRef.current?.commitSwipe(direction)
     }, [])
+
+    // Wrap the provider's `swipe` so a successful commit also records a
+    // leaving entry. Only after `await swipe(...)` succeeds (so SWIPE_SUCCEEDED
+    // and the leaving entry land in one React batch) is the entry recorded,
+    // carrying the committed card's transform so the leaving card continues
+    // the exit instead of restarting at rest. On POST rejection, `swipe`
+    // re-throws and this wrapper adds nothing and re-throws, so
+    // CardItemView.commitSwipe's catch still snaps the card back and leaves it
+    // retryable.
+    //
+    // When the POST resolves before the 0.4s commit transition finishes (the
+    // common fast-LAN case), the committed card is still mounted and mid-flight.
+    // Seed the leaving entry from its *live* transform (`captureExitTransform`,
+    // read through the still-mounted top card's handle) rather than the commit
+    // transition's final target, so the exit continues in one motion instead of
+    // teleporting to the target the moment the swipe saves (issue #360). Falls
+    // back to the threaded commit transform if the handle is unavailable.
+    const onSwipe = React.useCallback(async (card: CardItem, direction: "left" | "right", from: Position) => {
+        await swipe(card, direction)
+        const liveFrom = cardRef.current?.captureExitTransform() ?? from
+        commit(card, direction, liveFrom)
+    }, [swipe, commit])
 
     // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
     // Inert while any modal is open or an interactive element has focus (so
@@ -144,10 +173,20 @@ export default function SwipePage(): JSX.Element {
                                     // rendered order is reversed: the last card is the top.
                                     stackIndex={visibleCards.length - 1 - index}
                                     zIndex={index}
-                                    onSwipe={swipe}
+                                    onSwipe={onSwipe}
                                 />
                             ))
                         )}
+                        {leavingCards.map((entry) => (
+                            <CardItemView
+                                key={entry.key}
+                                cardItem={entry.card}
+                                stackIndex={0}
+                                zIndex={LEAVING_CARD_Z_INDEX}
+                                exitDirection={entry.direction}
+                                exitFrom={entry.from}
+                            />
+                        ))}
                     </div>
 
                     <div className="swipe-controls">

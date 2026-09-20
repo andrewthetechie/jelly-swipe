@@ -18,8 +18,10 @@ import { createRef } from "react";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import CardItemView from "./CardItemView";
 import type { CardItemViewHandle } from "./CardItemView";
+import type { Position } from "./swipeGesture";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, swipeRight, swipeLeft, swipeUnderThreshold, dragTo, cancelDrag } from "./test/fixtures";
+import { stubMatchMedia } from "./test/stubMatchMedia";
 import { RoomApiError } from "./roomApi";
 import * as roomApi from "./roomApi";
 import type { CardItem } from "./types";
@@ -372,7 +374,10 @@ describe("CardItemView - swipe behavior", () => {
       expect.objectContaining({
         mediaId: "1",
       }),
-      "right"
+      "right",
+      // The commit transform is threaded to the caller (drag rotation is
+      // dragDistance / 5 = 250 / 5).
+      expect.objectContaining({ rotation: 50 })
     )
   })
 
@@ -395,7 +400,10 @@ describe("CardItemView - swipe behavior", () => {
       expect.objectContaining({
         mediaId: "1",
       }),
-      "left"
+      "left",
+      // The commit transform is threaded to the caller (drag rotation is
+      // dragDistance / 5 = -250 / 5).
+      expect.objectContaining({ rotation: -50 })
     )
   })
 
@@ -420,9 +428,12 @@ describe("CardItemView - swipe behavior", () => {
 
 describe("CardItemView — imperative handle", () => {
   // Render the top card through a ref so tests can drive the imperative handle.
+  // `onSwipeOverride` is typed with the component's actual three-argument
+  // onSwipe signature (card, direction, commit transform) so it cannot drift
+  // from the prop the tests assert against.
   function renderCardWithHandle(
     cardOverrides = {},
-    onSwipeOverride?: (cardItem: CardItem, direction: "left" | "right") => void | Promise<void>,
+    onSwipeOverride?: (cardItem: CardItem, direction: "left" | "right", from: Position) => void | Promise<void>,
   ) {
     const handleRef = createRef<CardItemViewHandle>()
     const onSwipe = onSwipeOverride ?? vi.fn()
@@ -449,7 +460,10 @@ describe("CardItemView — imperative handle", () => {
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({ mediaId: "1" }),
-      "right"
+      "right",
+      // Button/keyboard commits have no drag distance, so rotation is the
+      // direction-signed constant (12).
+      expect.objectContaining({ rotation: 12 })
     )
     expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
     expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
@@ -468,7 +482,10 @@ describe("CardItemView — imperative handle", () => {
 
     expect(onSwipe).toHaveBeenCalledWith(
       expect.objectContaining({ mediaId: "1" }),
-      "left"
+      "left",
+      // Button/keyboard commits have no drag distance, so rotation is the
+      // direction-signed constant (-12).
+      expect.objectContaining({ rotation: -12 })
     )
     expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
     expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
@@ -750,6 +767,135 @@ describe("CardItemView — stack depth (issue #343)", () => {
     // Brightness dims with depth.
     expect(parseBrightness(back1.style.filter)).toBeLessThan(1)
     expect(parseBrightness(back2.style.filter)).toBeLessThan(parseBrightness(back1.style.filter))
+  })
+})
+
+describe("CardItemView — exit render mode (issue #360)", () => {
+  function renderExit(direction: "left" | "right", exitFrom?: Position) {
+    return renderWithRoom(
+      <CardItemView
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={10}
+        exitDirection={direction}
+        exitFrom={exitFrom}
+      />,
+      { currentRoomCode: "1234" },
+    )
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("is non-interactive: pointerEvents none, no handlers, no details flip", () => {
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    expect(card.style.pointerEvents).toBe("none")
+    expect(card.onclick).toBeNull()
+    expect(card.onpointerdown).toBeNull()
+
+    // A click must not flip the details.
+    fireEvent.click(card)
+    expect(card).not.toHaveClass("flipped")
+  })
+
+  it("lights the LIKE stamp at full opacity for a right exit", () => {
+    const { container } = renderExit("right")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("lights the NOPE stamp at full opacity for a left exit", () => {
+    const { container } = renderExit("left")
+    expect((container.querySelector(".swipe-stamp-nope") as HTMLElement).style.opacity).toBe("1")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+  })
+
+  it("animates from the threaded mid-flight exit transform to the fly-off target after mount", async () => {
+    // The real exit path (issue #360): a fast swipe POST resolves mid-transition,
+    // so the leaving card mounts at the committed card's live mid-flight
+    // transform (x=400 — past centre but short of the 832px target) rather than
+    // at rest. The mount effect must animate it forward to the fly-off target.
+    const { container } = renderExit("right", { x: 400, y: 0, rotation: 30 })
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // The mount effect drives the card to the same fly-off transform the commit
+    // path computes (velocity 0, dragDistance 0) — well past the viewport.
+    await waitFor(() => {
+      const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+      expect(Math.abs(x)).toBeGreaterThan(500)
+    })
+    // Rotation matches the commit path's direction-signed constant (12), NOT the
+    // threaded mid-transition rotation (30) — proof the effect ran from `exitFrom`
+    // instead of being suppressed as a no-op.
+    expect(card.style.transform).toContain("rotate(12deg)")
+  })
+
+  it("derives a 0.4s inline transition by default", () => {
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.transition).toBe("transform 0.4s ease")
+  })
+
+  it("derives a 0.15s inline transition under prefers-reduced-motion", () => {
+    stubMatchMedia(true)
+    const { container } = renderExit("right")
+    const card = container.querySelector(".card-item-container") as HTMLElement
+    expect(card.style.transition).toBe("transform 0.15s ease")
+  })
+
+  it("holds a threaded exit transform that is already at the fly-off target instead of re-animating", async () => {
+    const { container } = renderWithRoom(
+      <CardItemView
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={10}
+        exitDirection="right"
+        exitFrom={{ x: 832, y: 0, rotation: 50 }}
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // First paint sits at the threaded transform (continuing the committed
+    // card's exit), and the mount effect does not drag it backward toward the
+    // velocity-0 target or reset the drag-derived rotation.
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(x).toBe(832)
+    expect(card.style.transform).toContain("rotate(50deg)")
+
+    await waitFor(() => {
+      const xAfter = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+      expect(xAfter).toBe(832)
+      expect(card.style.transform).toContain("rotate(50deg)")
+    })
+  })
+
+  it("does not wire the imperative handle in exit mode", () => {
+    const handleRef = createRef<CardItemViewHandle>()
+    const { container } = renderWithRoom(
+      <CardItemView
+        ref={handleRef}
+        cardItem={makeCard()}
+        stackIndex={0}
+        zIndex={10}
+        exitDirection="right"
+      />,
+      { currentRoomCode: "1234" },
+    )
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // Neither commit nor toggle does anything on an exit-mode card.
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+      handleRef.current?.toggleDetails()
+    })
+    expect(card).not.toHaveClass("flipped")
+    // The card still holds its fly-off transform.
+    const x = parseFloat(card.style.transform.match(/translate\((-?[\d.]+)px/)?.[1] ?? "0")
+    expect(Math.abs(x)).toBeGreaterThan(500)
   })
 })
 

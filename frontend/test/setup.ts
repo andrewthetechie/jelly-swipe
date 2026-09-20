@@ -47,6 +47,30 @@ if (dialogProto && typeof dialogProto.close !== "function") {
     this.removeAttribute("open");
   };
 }
+// --- jsdom matchMedia stub ---------------------------------------------------
+// jsdom (as configured here) does not implement `window.matchMedia`. The
+// leaving-card exit animation (issue #360) reads it to derive its inline
+// transition duration, and the leaving-card hook reads it for the unmount hold.
+// This harness-level stub defaults to `matches: false` (the non-reduced-motion
+// case); reduced-motion tests override it per-test via `vi.stubGlobal`.
+if (typeof window.matchMedia !== "function") {
+  const createMediaQueryList = () => ({
+    matches: false,
+    media: "(prefers-reduced-motion: reduce)",
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+    onchange: null,
+  })
+  Object.defineProperty(window, "matchMedia", {
+    value: () => createMediaQueryList(),
+    writable: true,
+    configurable: true,
+  })
+}
+
 import { vi } from "vitest"
 import { createMockEventSource } from "./mockEventSource"
 
