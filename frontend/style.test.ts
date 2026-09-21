@@ -519,9 +519,12 @@ describe('swipe deck sizes from the viewport (issue #351)', () => {
 
   it('reserves top clearance for the media-type chip on the front face', () => {
     // The absolutely-positioned div.media-type chip sits at top:10px and is
-    // ~34px tall, so the poster frame must reserve a top band (52px) and be
-    // offset below it (margin-top 20px on the centred frame) instead of
-    // painting the poster under the chip (review follow-up on #351).
+    // ~34px tall (16px text at line-height 1.5 + 8px padding + 2px border),
+    // so its bottom edge is ~44px. The calc and margin keep the frame below
+    // it: the -20px term cancels margin-top, so the centred frame's margin box
+    // is 52px shorter than the card and justify-content: center splits that
+    // evenly — frame top = 26px free space + 20px margin = ~46px, with a
+    // ~26px gap at the card's bottom (review follow-up on #351).
     const frameRule = css.match(/div\.poster-frame\s*\{[^}]*\}/)?.[0];
     expect(frameRule, 'div.poster-frame rule').toBeTruthy();
     expect(frameRule!).toContain('height: calc(100% - 20px - 52px)');
