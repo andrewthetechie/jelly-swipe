@@ -527,4 +527,13 @@ describe('swipe deck sizes from the viewport (issue #351)', () => {
     expect(frameRule!).toContain('height: calc(100% - 20px - 52px)');
     expect(frameRule!).toContain('margin-top: 20px');
   });
+
+  it('lets the details back face scroll so cast and trailer stay reachable', () => {
+    // The details face is taller than a short viewport-derived deck (issue
+    // #351 review follow-up), so it must declare an internal scroll mechanism
+    // instead of letting the card's overflow: hidden clip the lower content.
+    const backRule = css.match(/div\.back\s*\{[^}]*\}/)?.[0];
+    expect(backRule, 'div.back rule').toBeTruthy();
+    expect(backRule!).toContain('overflow-y: auto');
+  });
 });

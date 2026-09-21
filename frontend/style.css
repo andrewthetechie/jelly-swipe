@@ -1404,6 +1404,13 @@ div.front {
 div.back  {
   transform: rotateY(180deg);
   padding: 1.5rem;
+  /* The details face holds the title, info row, description, cast and a
+     full-width trailer button/iframe, so it is taller than a short
+     viewport-derived deck (issue #351). Scroll it internally so the lower
+     content (cast, trailer) stays reachable instead of being clipped by the
+     card's overflow: hidden. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 img.card-item-poster {
