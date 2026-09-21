@@ -519,12 +519,12 @@ describe('swipe deck sizes from the viewport (issue #351)', () => {
 
   it('reserves top clearance for the media-type chip on the front face', () => {
     // The absolutely-positioned div.media-type chip sits at top:10px and is
-    // ~26px tall, so the poster frame must reserve a top band (40px) and be
+    // ~34px tall, so the poster frame must reserve a top band (52px) and be
     // offset below it (margin-top 20px on the centred frame) instead of
     // painting the poster under the chip (review follow-up on #351).
     const frameRule = css.match(/div\.poster-frame\s*\{[^}]*\}/)?.[0];
     expect(frameRule, 'div.poster-frame rule').toBeTruthy();
-    expect(frameRule!).toContain('height: calc(100% - 20px - 40px)');
+    expect(frameRule!).toContain('height: calc(100% - 20px - 52px)');
     expect(frameRule!).toContain('margin-top: 20px');
   });
 });

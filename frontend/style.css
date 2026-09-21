@@ -1422,12 +1422,12 @@ div.poster-frame {
   /* Height-constrained (issue #351): the frame is sized from the card's
      available height and shrinks in width while holding aspect-ratio 2 / 3, so
      a short deck never crops or clips the poster. The 20px bottom reserve and
-     the 40px top band (review follow-up on #351) keep the frame clear of the
+     the 52px top band (review follow-up on #351) keep the frame clear of the
      card's bottom edge and below the absolutely-positioned media-type chip,
-     which sits at top:10px and is ~26px tall. The 20px margin-top offsets the
+     which sits at top:10px and is ~34px tall. The 20px margin-top offsets the
      centred frame under that chip band (the poster img is object-fit: contain
      and follows). */
-  height: calc(100% - 20px - 40px);
+  height: calc(100% - 20px - 52px);
   max-width: 100%;
   aspect-ratio: 2 / 3;
   margin-top: 20px;
