@@ -18,7 +18,7 @@ dependencies = [
     "requests>=2.34.2",
     "sqlalchemy>=2.0.54",
     "sse-starlette>=3.4.11",
-    "uvicorn[standard]>=0.52.4",
+    "uvicorn[standard]>=0.53.0",
 ]
 
 [tool.hatch.build.targets.wheel.shared-data]
