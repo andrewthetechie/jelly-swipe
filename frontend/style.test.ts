@@ -473,3 +473,25 @@ describe('reduced-motion support (issue #353)', () => {
     expect(reduceBlock).not.toContain('.swipe-rim');
   });
 });
+
+describe('dynamic viewport units (issue #351)', () => {
+  const css = readSource('style.css');
+
+  it('sizes the shared modal overlay to the visible viewport height', () => {
+    const modalRule = css.match(/\.modal\s*\{[^}]*\}/)?.[0];
+    expect(modalRule, '.modal rule').toBeTruthy();
+    expect(modalRule!).toContain('height: 100dvh');
+    // Width is unaffected by browser chrome and must stay viewport-width based.
+    expect(modalRule!).toContain('width: 100vw');
+  });
+
+  it('sets the body min-height to the visible viewport height', () => {
+    const bodyRule = css.match(/body\s*\{[^}]*\}/)?.[0];
+    expect(bodyRule, 'body rule').toBeTruthy();
+    expect(bodyRule!).toContain('min-height: 100dvh');
+  });
+
+  it('leaves no 100vh declaration anywhere in the file', () => {
+    expect(css).not.toMatch(/100vh/);
+  });
+});
