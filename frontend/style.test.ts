@@ -473,3 +473,70 @@ describe('reduced-motion support (issue #353)', () => {
     expect(reduceBlock).not.toContain('.swipe-rim');
   });
 });
+
+describe('dynamic viewport units (issue #351)', () => {
+  const css = readSource('style.css');
+
+  it('sizes the shared modal overlay to the visible viewport height', () => {
+    const modalRule = css.match(/\.modal\s*\{[^}]*\}/)?.[0];
+    expect(modalRule, '.modal rule').toBeTruthy();
+    expect(modalRule!).toContain('height: 100dvh');
+    // Width is unaffected by browser chrome and must stay viewport-width based.
+    expect(modalRule!).toContain('width: 100vw');
+  });
+
+  it('sets the body min-height to the visible viewport height', () => {
+    const bodyRule = css.match(/body\s*\{[^}]*\}/)?.[0];
+    expect(bodyRule, 'body rule').toBeTruthy();
+    expect(bodyRule!).toContain('min-height: 100dvh');
+  });
+
+  it('leaves no 100vh declaration anywhere in the file', () => {
+    expect(css).not.toMatch(/100vh/);
+  });
+});
+
+describe('swipe deck sizes from the viewport (issue #351)', () => {
+  const css = readSource('style.css');
+
+  it('derives the deck height from the available viewport space', () => {
+    const deckRule = css.match(/\.swipe-deck\s*\{[^}]*\}/)?.[0];
+    expect(deckRule, '.swipe-deck rule').toBeTruthy();
+    expect(deckRule!).toMatch(/height:\s*min\(650px,\s*62dvh\)/);
+  });
+
+  it('leaves no bare fixed pixel height on the swipe deck anywhere', () => {
+    // The deck must be sized from viewport space, not a fixed pixel height
+    // keyed to viewport width (issue #351, coordinating with #278).
+    expect(css).not.toMatch(/\.swipe-deck[^{]*\{[^}]*height:\s*\d+px/);
+  });
+
+  it('keeps the poster frame at a 2:3 aspect ratio', () => {
+    const frameRule = css.match(/div\.poster-frame\s*\{[^}]*\}/)?.[0];
+    expect(frameRule, 'div.poster-frame rule').toBeTruthy();
+    expect(frameRule!).toContain('aspect-ratio: 2 / 3');
+  });
+
+  it('reserves top clearance for the media-type chip on the front face', () => {
+    // The absolutely-positioned div.media-type chip sits at top:10px and is
+    // ~34px tall (16px text at line-height 1.5 + 8px padding + 2px border),
+    // so its bottom edge is ~44px. The calc and margin keep the frame below
+    // it: the -20px term cancels margin-top, so the centred frame's margin box
+    // is 52px shorter than the card and justify-content: center splits that
+    // evenly — frame top = 26px free space + 20px margin = ~46px, with a
+    // ~26px gap at the card's bottom (review follow-up on #351).
+    const frameRule = css.match(/div\.poster-frame\s*\{[^}]*\}/)?.[0];
+    expect(frameRule, 'div.poster-frame rule').toBeTruthy();
+    expect(frameRule!).toContain('height: calc(100% - 20px - 52px)');
+    expect(frameRule!).toContain('margin-top: 20px');
+  });
+
+  it('lets the details back face scroll so cast and trailer stay reachable', () => {
+    // The details face is taller than a short viewport-derived deck (issue
+    // #351 review follow-up), so it must declare an internal scroll mechanism
+    // instead of letting the card's overflow: hidden clip the lower content.
+    const backRule = css.match(/div\.back\s*\{[^}]*\}/)?.[0];
+    expect(backRule, 'div.back rule').toBeTruthy();
+    expect(backRule!).toContain('overflow-y: auto');
+  });
+});

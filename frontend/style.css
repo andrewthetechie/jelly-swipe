@@ -105,7 +105,7 @@ body {
   background: var(--color-navy-deep);
   background: linear-gradient(0deg,rgba(7, 20, 38, 1) 0%, rgba(10, 31, 61, 1) 60%);
   color: var(--color-text);
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -328,7 +328,7 @@ img {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   background: rgba(7, 20, 38, 0.95);
   display: flex;
   flex-direction: column;
@@ -1262,7 +1262,10 @@ div.genre-inputs {
   position: relative;
   width: 100%;
   max-width: 400px;
-  height: 650px;
+  /* Size the deck from the available viewport height (issue #351): the deck is
+     capped by a fixed pixel height but shrinks to a share of the visible viewport
+     on short phones so the whole swipe screen fits without scrolling. */
+  height: min(650px, 62dvh);
   /* Room at the top of the deck for the back cards of the stack to peek into
      (issue #343). Cards are inset by this much rather than filling the deck,
      so the stack stays inside the deck's own footprint instead of riding up
@@ -1391,12 +1394,23 @@ div.card-item {
 
 div.front {
   justify-content: center;
-  padding: 60px 0;
+  /* The poster frame below is sized from the card's available height (issue
+     #351), so the fixed 60px top/bottom padding no longer reserves space a
+     short deck can't afford — it would push the frame past the card's bottom
+     edge on a 667px-tall phone. */
+  padding: 0;
 }
 
 div.back  {
   transform: rotateY(180deg);
   padding: 1.5rem;
+  /* The details face holds the title, info row, description, cast and a
+     full-width trailer button/iframe, so it is taller than a short
+     viewport-derived deck (issue #351). Scroll it internally so the lower
+     content (cast, trailer) stays reachable instead of being clipped by the
+     card's overflow: hidden. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 img.card-item-poster {
@@ -1412,9 +1426,21 @@ img.card-item-poster {
    loading and the poster fades in over it on load. */
 div.poster-frame {
   position: relative;
-  width: 100%;
+  /* Height-constrained (issue #351): the frame is sized from the card's
+     available height and shrinks in width while holding aspect-ratio 2 / 3, so
+     a short deck never crops or clips the poster. Sizing arithmetic (review
+     follow-up on #351): the -20px term cancels the 20px margin-top below, so
+     the frame's margin box is 52px shorter than the card, and div.front's
+     justify-content: center splits that 52px evenly — 26px of free space above
+     the margin box plus the 20px margin puts the frame's top edge ~46px down,
+     clearing the absolutely-positioned media-type chip (top:10px, ~34px tall
+     incl. padding and border, so its bottom edge is ~44px) and leaving a
+     ~26px gap at the card's bottom. The poster img is object-fit: contain and
+     follows the frame. */
+  height: calc(100% - 20px - 52px);
   max-width: 100%;
   aspect-ratio: 2 / 3;
+  margin-top: 20px;
   background: var(--color-navy-deep);
   border-radius: var(--radius-badge);
   overflow: hidden;
@@ -1673,14 +1699,6 @@ div.match-list-info {
 }
 
 @media (max-width: 400px) {
-  div.poster-frame {
-    margin-top: 20px;
-  }
-
-  .swipe-deck {
-    height: 575px;
-  }
-
   .match-list-title {
     font-size: var(--text-sm);
   }
@@ -1759,9 +1777,6 @@ div.match-list-info {
 
   div.genre-inputs {
     grid-template-columns: 1fr 1fr 1fr;
-  }
-  .swipe-deck {
-    height: 700px;
   }
 
   div.match-list-container {
