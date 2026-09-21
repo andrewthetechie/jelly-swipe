@@ -495,3 +495,25 @@ describe('dynamic viewport units (issue #351)', () => {
     expect(css).not.toMatch(/100vh/);
   });
 });
+
+describe('swipe deck sizes from the viewport (issue #351)', () => {
+  const css = readSource('style.css');
+
+  it('derives the deck height from the available viewport space', () => {
+    const deckRule = css.match(/\.swipe-deck\s*\{[^}]*\}/)?.[0];
+    expect(deckRule, '.swipe-deck rule').toBeTruthy();
+    expect(deckRule!).toMatch(/height:\s*min\(650px,\s*62dvh\)/);
+  });
+
+  it('leaves no bare fixed pixel height on the swipe deck anywhere', () => {
+    // The deck must be sized from viewport space, not a fixed pixel height
+    // keyed to viewport width (issue #351, coordinating with #278).
+    expect(css).not.toMatch(/\.swipe-deck[^{]*\{[^}]*height:\s*\d+px/);
+  });
+
+  it('keeps the poster frame at a 2:3 aspect ratio', () => {
+    const frameRule = css.match(/div\.poster-frame\s*\{[^}]*\}/)?.[0];
+    expect(frameRule, 'div.poster-frame rule').toBeTruthy();
+    expect(frameRule!).toContain('aspect-ratio: 2 / 3');
+  });
+});

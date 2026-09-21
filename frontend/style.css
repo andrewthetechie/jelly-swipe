@@ -1262,7 +1262,10 @@ div.genre-inputs {
   position: relative;
   width: 100%;
   max-width: 400px;
-  height: 650px;
+  /* Size the deck from the available viewport height (issue #351): the deck is
+     capped by a fixed pixel height but shrinks to a share of the visible viewport
+     on short phones so the whole swipe screen fits without scrolling. */
+  height: min(650px, 62dvh);
   /* Room at the top of the deck for the back cards of the stack to peek into
      (issue #343). Cards are inset by this much rather than filling the deck,
      so the stack stays inside the deck's own footprint instead of riding up
@@ -1391,7 +1394,11 @@ div.card-item {
 
 div.front {
   justify-content: center;
-  padding: 60px 0;
+  /* The poster frame below is sized from the card's available height (issue
+     #351), so the fixed 60px top/bottom padding no longer reserves space a
+     short deck can't afford — it would push the frame past the card's bottom
+     edge on a 667px-tall phone. */
+  padding: 0;
 }
 
 div.back  {
@@ -1412,7 +1419,12 @@ img.card-item-poster {
    loading and the poster fades in over it on load. */
 div.poster-frame {
   position: relative;
-  width: 100%;
+  /* Height-constrained (issue #351): the frame is sized from the card's
+     available height and shrinks in width while holding aspect-ratio 2 / 3, so
+     a short deck never crops or clips the poster. The 20px reserve keeps it
+     clear of the card's bottom edge when the narrow-phone media block adds its
+     margin-top (the poster img is object-fit: contain and follows). */
+  height: calc(100% - 20px);
   max-width: 100%;
   aspect-ratio: 2 / 3;
   background: var(--color-navy-deep);
@@ -1677,10 +1689,6 @@ div.match-list-info {
     margin-top: 20px;
   }
 
-  .swipe-deck {
-    height: 575px;
-  }
-
   .match-list-title {
     font-size: var(--text-sm);
   }
@@ -1759,9 +1767,6 @@ div.match-list-info {
 
   div.genre-inputs {
     grid-template-columns: 1fr 1fr 1fr;
-  }
-  .swipe-deck {
-    height: 700px;
   }
 
   div.match-list-container {
