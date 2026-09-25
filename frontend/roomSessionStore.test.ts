@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { EMPTY_MATCH_ITEM } from "./roomSession"
 import { RoomSessionStore, type RoomSessionApi } from "./roomSessionStore"
 import { makeCard } from "./test/fixtures"
 import type { MutationChangeResult } from "./types"
@@ -169,22 +170,42 @@ describe("RoomSessionStore commands", () => {
         expect(store.getState().hideWatched).toBe(false)
     })
 
-    it("endSession dispatches SESSION_ENDED and calls onExitRoom", async () => {
+    it("endSession dispatches the SESSION_ENDED full reset and calls onExitRoom", async () => {
         const api = makeApi({
             fetchDeck: vi.fn().mockResolvedValue([makeCard({ mediaId: "m-1", title: "Movie m-1" })]),
+            setWatchedFilter: vi.fn().mockResolvedValue({
+                deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+                mutationEventId: 6,
+                mutationType: "hide_watched_changed",
+            }),
             quitRoom: vi.fn().mockResolvedValue({ status: "ok" }),
         })
         const onExitRoom = vi.fn()
         const store = makeStore(api, onExitRoom)
         await joinRoom(store, api)
 
+        // Put the store into a non-default state: hidden watched filter and a live match.
+        await store.toggleHideWatched()
+        expect(store.getState().hideWatched).toBe(true)
+        store.applySseEvent({
+            event_type: "match_found",
+            event_id: 1,
+            title: "Movie m-1",
+            media_id: "m-1",
+            media_type: "movie",
+        })
+        expect(store.getState().matchFound).toBe(true)
+
         await store.endSession()
 
         expect(api.quitRoom).toHaveBeenCalledWith(ROOM_CODE)
         expect(onExitRoom).toHaveBeenCalled()
         expect(store.getState().roomReady).toBe(false)
+        expect(store.getState().hideWatched).toBe(false)
         expect(store.getState().cardDeck).toEqual([])
         expect(store.getState().swipeHistory).toEqual([])
+        expect(store.getState().matchFound).toBe(false)
+        expect(store.getState().matchItem).toEqual(EMPTY_MATCH_ITEM)
     })
 
     it("endSession failure sets lastError without calling onExitRoom", async () => {
@@ -373,6 +394,30 @@ describe("RoomSessionStore SSE suppression", () => {
         store.applySseEvent({ event_type: "hide_watched_changed", event_id: 77, hide_watched: true })
         await vi.waitFor(() => expect(fetchDeckMock).toHaveBeenCalledWith(ROOM_CODE))
         errorSpy.mockRestore()
+    })
+
+    it("suppresses own hide_watched echo and still updates mirrored hideWatched state", async () => {
+        const api = makeApi({
+            fetchDeck: vi.fn().mockResolvedValue([makeCard({ mediaId: "m-1", title: "Movie m-1" })]),
+            setWatchedFilter: vi.fn().mockResolvedValue({
+                deck: [makeCard({ mediaId: "m-2", title: "Movie m-2" })],
+                mutationEventId: 42,
+                mutationType: "hide_watched_changed",
+            }),
+        })
+        const store = makeStore(api)
+        await joinRoom(store, api)
+        const fetchDeckMock = vi.mocked(api.fetchDeck)
+        fetchDeckMock.mockClear()
+
+        await store.toggleHideWatched()
+        // event_id 42 is now registered as ignored
+
+        // Own SSE echo arrives -> must suppress refetch but still update mirrored state.
+        store.applySseEvent({ event_type: "hide_watched_changed", event_id: 42, hide_watched: true })
+
+        expect(fetchDeckMock).not.toHaveBeenCalled()
+        expect(store.getState().hideWatched).toBe(true)
     })
 
     it("keeps ignoredEventIds across session_reset while clearing in-flight", async () => {
