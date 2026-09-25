@@ -5,6 +5,8 @@ import type { CardItem, CardDeck, MutationChangeResult, SSEEvent } from "./types
 
 const MAX_REGISTERED_EVENT_IDS = 50
 
+export const GENRE_COMMAND_FAILED_MESSAGE = "Couldn't change the genre. Check your connection and try again."
+
 type MutationType = "genre" | "hide_watched"
 
 export interface RoomSessionApi {
@@ -223,7 +225,7 @@ export class RoomSessionStore {
             return true
         } catch (err) {
             console.error("Error changing genre", err)
-            this.dispatch({ type: "COMMAND_FAILED", message: "Couldn't change the genre. Check your connection and try again." })
+            this.dispatch({ type: "COMMAND_FAILED", message: GENRE_COMMAND_FAILED_MESSAGE })
             return false
         } finally {
             this.inFlight.delete("genre")
