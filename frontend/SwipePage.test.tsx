@@ -33,7 +33,10 @@ beforeEach(() => {
   quitRoomMock.mockResolvedValue({ status: "ok" })
   postSwipeMock.mockResolvedValue(undefined)
   undoSwipeMock.mockResolvedValue(undefined)
-  fetchDeckMock.mockResolvedValue([])
+  // Reset (not resolve) fetchDeck: the real provider always fetches on join,
+  // and the fake api serves the seeded deck when this mock returns undefined,
+  // so the seeded deck survives the join fetch unless a test configures one.
+  fetchDeckMock.mockReset()
   fetchGenresMock.mockResolvedValue(["Action", "Comedy", "Drama"])
   fetchMatchesMock.mockResolvedValue([])
 })
@@ -332,10 +335,11 @@ describe("SwipePage — deck error retry (issue #340)", () => {
   it("retries the deck fetch and clears deckError on success", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const fetchDeckMock = vi.mocked(roomApi.fetchDeck)
-    // The seeded deckError models the initial failed load, so the join
-    // auto-fetch is skipped (see renderWithRoom) and the retry below is the
-    // first real fetch call — it must resolve, not reject, for the deck to
-    // appear and the error to clear.
+    // The real provider always fetches on join, so the seeded deckError models
+    // a failed initial load: the join fetch must reject once to surface the
+    // error panel, then resolve on the retry so the deck appears and the error
+    // clears.
+    fetchDeckMock.mockRejectedValueOnce(new Error("initial fetch failed"))
     fetchDeckMock.mockResolvedValue(makeDeck(2))
 
     const user = userEvent.setup()

@@ -1,10 +1,12 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { RoomContextProvider, useRoomSetterContext, useRoomStateContext } from "../RoomContextProvider";
+import { SSEContext } from "../SSEContextProvider";
 import * as roomApi from "../roomApi";
-import * as roomSessionModule from "../RoomSessionProvider";
-import type { RoomSessionContextType } from "../RoomSessionProvider";
+import { RoomSessionProvider } from "../RoomSessionProvider";
+import type { RoomSessionApi } from "../roomSessionStore";
+import type { RoomSessionState } from "../roomSession";
 import type { CardDeck, MatchItem } from "../types";
 import { EMPTY_MATCH_ITEM } from "../roomSession";
 
@@ -35,8 +37,6 @@ export type RenderWithRoomResult = ReturnType<typeof render>
 
 export type RenderWithRoomStatefulResult = ReturnType<typeof render>
 
-const RoomSessionTestContext = React.createContext<RoomSessionContextType | undefined>(undefined)
-
 function extractDeckFromUi(ui: ReactElement): CardDeck {
   const topLevelDeck = (ui as { props?: { cardDeck?: CardDeck } }).props?.cardDeck
   if (Array.isArray(topLevelDeck)) {
@@ -50,16 +50,6 @@ function extractDeckFromUi(ui: ReactElement): CardDeck {
     }
   }
   return []
-}
-
-function installRoomSessionHookMock(): void {
-  vi.spyOn(roomSessionModule, "useRoomSession").mockImplementation(() => {
-    const value = React.useContext(RoomSessionTestContext)
-    if (!value) {
-      throw new Error("useRoomSession must be used within a RoomSessionProvider")
-    }
-    return value
-  })
 }
 
 function RoomStateSeeder({
@@ -131,18 +121,94 @@ function RoomStateProbe() {
   return <pre data-testid="room-state" hidden>{JSON.stringify(state)}</pre>
 }
 
-function RoomSessionTestProvider({
-  children,
-  overrides,
-  seededDeck,
-}: {
-  children: React.ReactNode;
-  overrides: RoomTestOverrides;
-  seededDeck: CardDeck;
-}) {
-  const { currentRoomCode } = useRoomStateContext()
-  const { setCurrentRoomCode } = useRoomSetterContext()
-  const [state, setState] = useState({
+/**
+ * Build the fake api injected into the real RoomSessionProvider.
+ *
+ * The provider's store is wired to this object instead of the roomApi module so
+ * the ten component suites never hit the network, while still honouring
+ * suite-level `vi.mock("./roomApi")` mocks:
+ *
+ *   - For each session function, if the imported roomApi function is a mock,
+ *     delegate to it so the suite stays in control (e.g. SwipePage asserts on
+ *     its fetchDeck/postSwipe mocks).
+ *   - Otherwise use a safe no-network default (the seeded deck for fetchDeck,
+ *     resolved values for the commands). The one exception is quitRoom, which
+ *     is forwarded to the real function when present so suites that intercept
+ *     fetch via mockFetch (HostWaiting) keep observing the network contract.
+ *
+ * A seeded `deckError` models a failed *initial* load, so the default fetchDeck
+ * rejects once (matching the real provider's always-fetch-on-join policy) when
+ * no suite mock overrides it.
+ */
+function buildFakeApi(seededDeck: CardDeck, seededDeckError: string | null): RoomSessionApi {
+  let initialLoadFailed = false
+
+  const imported = (key: keyof RoomSessionApi): unknown =>
+    (roomApi as unknown as Record<keyof RoomSessionApi, unknown>)[key]
+
+  const delegateIfMock = <K extends keyof RoomSessionApi>(key: K): RoomSessionApi[K] | undefined => {
+    const fn = imported(key)
+    if (typeof fn === "function" && vi.isMockFunction(fn)) {
+      return fn as unknown as RoomSessionApi[K]
+    }
+    return undefined
+  }
+
+  return {
+    fetchDeck: async (roomCode) => {
+      const mock = delegateIfMock("fetchDeck")
+      if (mock) {
+        const deck = await mock(roomCode)
+        // A bare vi.fn() with no resolved value yields undefined — treat that as
+        // "suite didn't configure the deck" and fall through to the seeded deck.
+        if (deck !== undefined) {
+          return deck
+        }
+      }
+      if (seededDeckError && !initialLoadFailed) {
+        initialLoadFailed = true
+        throw new Error("Couldn't load your cards. Check your connection and try again.")
+      }
+      return seededDeck
+    },
+    postSwipe: async (roomCode, mediaId, direction) => {
+      const mock = delegateIfMock("postSwipe")
+      if (mock) return mock(roomCode, mediaId, direction)
+      return
+    },
+    undoSwipe: async (roomCode, mediaId) => {
+      const mock = delegateIfMock("undoSwipe")
+      if (mock) return mock(roomCode, mediaId)
+      return
+    },
+    setGenreChoice: async (roomCode, genre) => {
+      const mock = delegateIfMock("setGenreChoice")
+      if (mock) return mock(roomCode, genre)
+      return { deck: seededDeck, mutationEventId: 0, mutationType: "genre_changed" as const }
+    },
+    setWatchedFilter: async (roomCode, hideWatched) => {
+      const mock = delegateIfMock("setWatchedFilter")
+      if (mock) return mock(roomCode, hideWatched)
+      return { deck: seededDeck, mutationEventId: 0, mutationType: "hide_watched_changed" as const }
+    },
+    quitRoom: async (roomCode) => {
+      const mock = delegateIfMock("quitRoom")
+      if (mock) return mock(roomCode)
+      const real = imported("quitRoom")
+      if (typeof real === "function") return real(roomCode)
+      return { status: "ok" }
+    },
+  }
+}
+
+export function renderWithRoom(
+  ui: ReactElement,
+  overrides: RoomTestOverrides = {},
+): RenderWithRoomResult {
+  const seededDeck = overrides.cardDeck ?? extractDeckFromUi(ui)
+  const fakeApi = buildFakeApi(seededDeck, overrides.deckError ?? null)
+
+  const initialState: RoomSessionState = {
     cardDeck: seededDeck,
     swipeHistory: overrides.swipeHistory ?? ([] as CardDeck),
     matchFound: overrides.matchFound ?? false,
@@ -153,213 +219,12 @@ function RoomSessionTestProvider({
     lastError: overrides.lastError ?? null,
     deckError: overrides.deckError ?? null,
     deckLoaded: overrides.deckLoaded ?? false,
-  })
-
-  useEffect(() => {
-    // A test that seeds deckError represents a failed initial load (the
-    // deck-error retry panel), so the join auto-fetch must not clobber it.
-    if (!overrides.roomReady || !currentRoomCode || seededDeck.length > 0 || overrides.deckError) {
-      return
-    }
-    roomApi.fetchDeck(currentRoomCode)
-      .then((deck) => {
-        setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null, deckLoaded: true }))
-      })
-      .catch((err) => {
-        console.error("Error fetching card deck:", err)
-        setState((prev) => ({
-          ...prev,
-          deckError: "Couldn't load your cards. Check your connection and try again.",
-        }))
-      })
-  }, [currentRoomCode, seededDeck])
-
-  // Mirror the production provider: when no room is active, reset the deck
-  // state (clearing cardDeck, swipeHistory, and deckError, and setting
-  // deckLoaded false) so a stale end-of-deck state cannot flash on a fresh join.
-  useEffect(() => {
-    if (!currentRoomCode) {
-      setState((prev) => ({
-        ...prev,
-        cardDeck: [],
-        swipeHistory: [],
-        deckError: null,
-        deckLoaded: false,
-      }))
-    }
-  }, [currentRoomCode])
-
-  const swipe = async (
-    card: { mediaId: string },
-    direction: "left" | "right",
-  ) => {
-    if (!currentRoomCode) {
-      console.error("Cannot send swipe without currentRoomCode")
-      throw new Error("Cannot send swipe without currentRoomCode")
-    }
-    try {
-      await roomApi.postSwipe(currentRoomCode, card.mediaId, direction)
-      setState((prev) => ({
-        ...prev,
-        cardDeck: prev.cardDeck.slice(1),
-        swipeHistory: [...prev.swipeHistory, card as CardDeck[number]],
-        lastError: null,
-      }))
-    } catch (err) {
-      console.error("Error POSTing swipe", err)
-      setState((prev) => ({ ...prev, lastError: "Couldn't save that swipe. Check your connection and try again." }))
-      // Mirror the real provider: re-throw so the card's commit path can snap
-      // the card back and leave it retryable.
-      throw err
-    }
   }
 
-  const undo = async () => {
-    const lastSwipe = state.swipeHistory.at(-1)
-    if (!lastSwipe) {
-      console.error("Cannot undo without swipe history")
-      return
-    }
-    if (!currentRoomCode) {
-      console.error("Cannot send swipe without currentRoomCode")
-      return
-    }
-    try {
-      await roomApi.undoSwipe(currentRoomCode, lastSwipe.mediaId)
-      setState((prev) => ({
-        ...prev,
-        cardDeck: [lastSwipe, ...prev.cardDeck],
-        swipeHistory: prev.swipeHistory.slice(0, -1),
-        lastError: null,
-      }))
-    } catch (err) {
-      console.error("Error undoing swipe", err)
-      setState((prev) => ({ ...prev, lastError: "Couldn't undo that swipe. Check your connection and try again." }))
-    }
-  }
-
-  const confirmGenre = async (genre: string): Promise<boolean> => {
-    if (!currentRoomCode) {
-      console.error("Cannot change genre without currentRoomCode")
-      return false
-    }
-    try {
-      const result = await roomApi.setGenreChoice(currentRoomCode, genre)
-      setState((prev) => ({
-        ...prev,
-        genre,
-        cardDeck: result.deck,
-        swipeHistory: [],
-        lastError: null,
-        deckError: null,
-        deckLoaded: true,
-      }))
-      return true
-    } catch (err) {
-      console.error("Error changing genre", err)
-      setState((prev) => ({ ...prev, lastError: "Couldn't change the genre. Check your connection and try again." }))
-      return false
-    }
-  }
-
-  const toggleHideWatched = async () => {
-    if (!currentRoomCode) {
-      console.error("Cannot toggle watched filter without currentRoomCode")
-      return
-    }
-    const next = !state.hideWatched
-    try {
-      const result = await roomApi.setWatchedFilter(currentRoomCode, next)
-      setState((prev) => ({
-        ...prev,
-        cardDeck: result.deck,
-        swipeHistory: [],
-        hideWatched: next,
-        lastError: null,
-        deckError: null,
-        deckLoaded: true,
-      }))
-    } catch (err) {
-      console.error("Error toggling watched filter", err)
-      setState((prev) => ({ ...prev, lastError: "Couldn't update the watched filter. Check your connection and try again." }))
-    }
-  }
-
-  const dismissMatch = () => {
-    setState((prev) => ({ ...prev, matchFound: false }))
-  }
-
-  const endSession = async () => {
-    if (!currentRoomCode) {
-      console.error("Cannot end session without currentRoomCode")
-      return
-    }
-    try {
-      await roomApi.quitRoom(currentRoomCode)
-      setState((prev) => ({
-        ...prev,
-        roomReady: false,
-        hideWatched: false,
-        cardDeck: [],
-        swipeHistory: [],
-        matchFound: false,
-        matchItem: EMPTY_MATCH_ITEM,
-        deckError: null,
-        deckLoaded: false,
-      }))
-      setCurrentRoomCode(null)
-    } catch (err) {
-      console.error("Error quitting room", err)
-      setState((prev) => ({ ...prev, lastError: "Couldn't end the session. Check your connection and try again." }))
-    }
-  }
-
-  const clearError = () => {
-    setState((prev) => ({ ...prev, lastError: null }))
-  }
-
-  const retryDeckFetch = async () => {
-    if (!currentRoomCode) {
-      console.error("Cannot fetch deck without currentRoomCode")
-      return
-    }
-    try {
-      const deck = await roomApi.fetchDeck(currentRoomCode)
-      setState((prev) => ({ ...prev, cardDeck: deck, swipeHistory: [], deckError: null, deckLoaded: true }))
-    } catch (err) {
-      console.error("Error fetching card deck:", err)
-      setState((prev) => ({
-        ...prev,
-        deckError: "Couldn't load your cards. Check your connection and try again.",
-      }))
-    }
-  }
-
-  const value: RoomSessionContextType = {
-    state,
-    swipe,
-    undo,
-    confirmGenre,
-    toggleHideWatched,
-    dismissMatch,
-    endSession,
-    clearError,
-    retryDeckFetch,
-  }
-
-  return (
-    <RoomSessionTestContext.Provider value={value}>
-      {children}
-    </RoomSessionTestContext.Provider>
-  )
-}
-
-export function renderWithRoom(
-  ui: ReactElement,
-  overrides: RoomTestOverrides = {},
-): RenderWithRoomResult {
-  const seededDeck = overrides.cardDeck ?? extractDeckFromUi(ui)
-  installRoomSessionHookMock()
+  // A neutral, no-network SSE context value so the real RoomSessionProvider's
+  // useSSEContext() is satisfied. Suites that care about SSE supply their own
+  // SSEContextProvider inside the tree (e.g. SSEContextProvider.test.tsx).
+  const sseValue = { sseData: null, sseError: null, isConnected: false }
 
   return render(
     <RoomContextProvider>
@@ -370,10 +235,12 @@ export function renderWithRoom(
         isSoloMode={overrides.isSoloMode}
         userInputCode={overrides.userInputCode}
       >
-        <RoomSessionTestProvider overrides={overrides} seededDeck={seededDeck}>
-          <RoomStateProbe />
-          {ui}
-        </RoomSessionTestProvider>
+        <SSEContext.Provider value={sseValue}>
+          <RoomSessionProvider api={fakeApi} initialState={initialState}>
+            <RoomStateProbe />
+            {ui}
+          </RoomSessionProvider>
+        </SSEContext.Provider>
       </RoomStateSeeder>
     </RoomContextProvider>
   )

@@ -43,14 +43,18 @@ PRs the same way the Python suite does.
     `toBeInTheDocument`) and installs no-op `setPointerCapture` stubs jsdom
     lacks. Wired in via `setupFiles`; you never import it directly.
   - `test/renderWithRoom.tsx` — exports two room helpers built on the real
-    `<RoomContextProvider>` and the public hooks:
+    `<RoomContextProvider>`, the real `<RoomSessionProvider>`, and the public
+    hooks:
     - `renderWithRoom` — seeds room state for tests that only need the shared
       provider and normal React Testing Library queries.
     - `renderWithRoomStateful` — use when you need realistic state transitions
       after user interaction.
-      Pass a flat overrides object with room state and session state; the helper
-      applies the initial room values through the public hooks, then renders the
-      UI inside the real provider.
+      Pass a flat overrides object with room state and session state. Room
+      values are applied through the public hooks; session values (cardDeck,
+      roomReady, genre, etc.) become the real `RoomSessionProvider`'s initial
+      store state. The helper injects a fake, no-network api into that provider,
+      so the seeded deck is served by the join fetch and suite-level
+      `vi.mock("./roomApi")` mocks stay in control.
   - `test/mockFetch.ts` — swaps `globalThis.fetch` for a spy resolving to a fake
     `{ ok, json }` response (or rejecting, with `{ reject: true }`). Use it for
     any component that makes a network call. It returns the spy so you can assert
