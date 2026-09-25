@@ -18,9 +18,15 @@ type RoomStateSeedOverrides = {
   userInputCode?: string;
 }
 
+// The real RoomSessionProvider resets the session store on mount: joining a
+// room dispatches DECK_LOADED (which clears swipeHistory) and leaving/resetting
+// dispatches DECK_RESET (which clears cardDeck, swipeHistory, deckError and
+// deckLoaded). So `swipeHistory` can never survive the provider's room-code
+// lifecycle — it is intentionally not a valid seed and is omitted here. The
+// remaining seeds survive only when a `currentRoomCode` is passed: `cardDeck`
+// is served by the join fetch and `deckError` models a failed initial load.
 type RoomSessionTestOverrides = {
   cardDeck?: CardDeck;
-  swipeHistory?: CardDeck;
   matchFound?: boolean;
   matchItem?: MatchItem;
   roomReady?: boolean;
@@ -210,7 +216,7 @@ export function renderWithRoom(
 
   const initialState: RoomSessionState = {
     cardDeck: seededDeck,
-    swipeHistory: overrides.swipeHistory ?? ([] as CardDeck),
+    swipeHistory: [] as CardDeck,
     matchFound: overrides.matchFound ?? false,
     matchItem: overrides.matchItem ?? EMPTY_MATCH_ITEM,
     roomReady: overrides.roomReady ?? false,
