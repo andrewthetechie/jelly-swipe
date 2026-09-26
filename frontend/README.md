@@ -43,14 +43,27 @@ PRs the same way the Python suite does.
     `toBeInTheDocument`) and installs no-op `setPointerCapture` stubs jsdom
     lacks. Wired in via `setupFiles`; you never import it directly.
   - `test/renderWithRoom.tsx` — exports two room helpers built on the real
-    `<RoomContextProvider>` and the public hooks:
+    `<RoomContextProvider>`, the real `<RoomSessionProvider>`, and the public
+    hooks:
     - `renderWithRoom` — seeds room state for tests that only need the shared
       provider and normal React Testing Library queries.
     - `renderWithRoomStateful` — use when you need realistic state transitions
       after user interaction.
-      Pass a flat overrides object with room state and session state; the helper
-      applies the initial room values through the public hooks, then renders the
-      UI inside the real provider.
+      Pass a flat overrides object with room state and session state. Room
+      values are applied through the public hooks; session values (cardDeck,
+      roomReady, genre, etc.) become the real `RoomSessionProvider`'s initial
+      store state. Which session seeds survive depends on the provider's own
+      room-code lifecycle: `cardDeck` and `deckError` survive only when a
+      `currentRoomCode` is passed (the seeded deck is served by the join fetch,
+      and a seeded `deckError` models a failed initial load), `deckLoaded` is
+      always determined by the provider's load state, and `swipeHistory` is
+      always reset on join/reset — it is not a valid seed. The helper injects a
+      fake, no-network api into that provider, so suite-level
+      `vi.mock("./roomApi")` mocks stay in control. The one exception is
+      `quitRoom`, which forwards to the real `roomApi` when it is not a
+      `vi.mock`, so any suite that reaches end-session must either
+      `vi.mock("./roomApi")` or install `test/mockFetch` to avoid a real
+      network request from jsdom.
   - `test/mockFetch.ts` — swaps `globalThis.fetch` for a spy resolving to a fake
     `{ ok, json }` response (or rejecting, with `{ reject: true }`). Use it for
     any component that makes a network call. It returns the spy so you can assert

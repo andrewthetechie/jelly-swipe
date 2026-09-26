@@ -133,10 +133,10 @@ describe("useMovieCast", () => {
       act(() => rerender({ mediaId: "media2" }))
       
       await waitFor(() => {
-        expect(result.current.error).toBeNull()
+        expect(result.current.cast).toHaveLength(1)
       })
 
-      expect(result.current.cast).toHaveLength(1)
+      expect(result.current.error).toBeNull()
     })
   })
 })

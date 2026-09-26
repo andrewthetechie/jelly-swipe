@@ -12,7 +12,7 @@ export interface SSEContextType {
     isConnected: boolean
 }
 
-const SSEContext = React.createContext<SSEContextType | undefined>(undefined)
+export const SSEContext = React.createContext<SSEContextType | undefined>(undefined)
 
 interface SSEProviderProps {
     children: React.ReactNode

@@ -3,6 +3,7 @@ import type { GenreListResponse } from "./types"
 import type { JSX } from "react"
 import { fetchGenres } from "./roomApi"
 import { useRoomSession } from "./RoomSessionProvider"
+import { GENRE_COMMAND_FAILED_MESSAGE } from "./roomSessionStore"
 import FormError from "./FormError"
 import Modal from "./Modal"
 
@@ -68,7 +69,7 @@ export default function GenreModal({ onClose }: GenreModalProps): JSX.Element {
         } else {
             // Keep the modal open so the failure is visible where the user
             // is looking; the banner behind the modal stays as the global record.
-            setError("Couldn't change the genre. Check your connection and try again.")
+            setError(GENRE_COMMAND_FAILED_MESSAGE)
         }
     }
 
