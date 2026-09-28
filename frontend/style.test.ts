@@ -279,8 +279,9 @@ describe('button roles (issue #347)', () => {
     expect(genre).toMatch(/btn-primary[^>]*>\s*Confirm/);
     // The match modal carries the primary on Open in Jellyfin twice: once as
     // the deep-link (btn-primary-link) and once as the disabled fallback.
+    // The fallback class is passed as JellyfinDeepLink's className prop.
     expect(match).toMatch(/btn-primary btn-primary-link[^>]*>/);
-    expect(match).toMatch(/className="btn-primary" disabled/);
+    expect(match).toMatch(/className="btn-primary" linkClassName="btn-primary btn-primary-link"/);
 
     // Cancel, Keep Swiping and the session toolbar controls stay secondary;
     // end-session takes the destructive role.
