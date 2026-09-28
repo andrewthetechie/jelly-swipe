@@ -307,7 +307,7 @@ def _make_test_config(db_path):
 
 
 def _override_provider_roles(fast_app, fake_provider):
-    """Point all four provider-role dependencies at a fake."""
+    """Point the three provider-role dependencies (get_library, get_vault, get_watchlist) at a fake."""
     from jellyswipe.dependencies import (
         get_library,
         get_vault,
