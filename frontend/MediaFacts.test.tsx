@@ -26,8 +26,12 @@ describe("MediaFacts", () => {
     })
 
     it("omits the year pill when year is null", () => {
-        render(<MediaFacts rating={8} duration="52 min" year={null} {...defaultClassNames} />)
+        const { container } = render(<MediaFacts rating={8} duration="52 min" year={null} {...defaultClassNames} />)
         expect(screen.queryByText("2026")).not.toBeInTheDocument()
+        // Pin the guard itself, not just the absent text: an unconditional
+        // pill would render an empty .card-item-year div here.
+        expect(container.querySelector(".card-item-year")).not.toBeInTheDocument()
+        expect(container.querySelector(".card-item-score")).toBeInTheDocument()
     })
 
     it("omits the duration pill when duration is empty", () => {

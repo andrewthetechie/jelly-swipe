@@ -54,7 +54,7 @@ describe("MatchFoundModal - rendering", () => {
     it("omits the year pill when year is null", () => {
         const match = makeMatch({ year: null })
 
-        render(
+        const { container } = render(
             <MatchFoundModal
                 matchItem={match}
                 onClose={vi.fn()}
@@ -62,6 +62,9 @@ describe("MatchFoundModal - rendering", () => {
         )
 
         expect(screen.queryByText("2016")).not.toBeInTheDocument()
+        // Pin the guard itself, not just the absent text: an unconditional
+        // pill would render an empty .card-item-year div here.
+        expect(container.querySelector(".card-item-year")).not.toBeInTheDocument()
     })
 
     it("renders the correct poster", () => {

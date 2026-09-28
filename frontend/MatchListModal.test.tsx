@@ -80,10 +80,13 @@ describe("MatchListModal - rendering", () => {
   it("omits the year pill when year is null", async () => {
     fetchMatchesMock.mockResolvedValueOnce([makeMatch({ year: null })])
 
-    render(<MatchListModal onClose={vi.fn()} />)
+    const { container } = render(<MatchListModal onClose={vi.fn()} />)
 
     expect(await screen.findByText("Movie 1")).toBeInTheDocument()
     expect(screen.queryByText("2016")).not.toBeInTheDocument()
+    // Pin the guard itself, not just the absent text: an unconditional
+    // pill would render an empty .match-list-year div here.
+    expect(container.querySelector(".match-list-year")).not.toBeInTheDocument()
   })
 
   it("renders a disabled button when there is no deepLink", async () => {
