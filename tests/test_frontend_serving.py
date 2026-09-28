@@ -64,9 +64,8 @@ def make_frontend_app(tmp_path, monkeypatch):
     Returns a callable taking a dist path (str) or None. Each call yields a
     TestClient whose app resolved dist presence exactly once in create_app().
     """
-    import jellyswipe.dependencies as deps
     from jellyswipe import create_app
-    from jellyswipe.dependencies import get_provider
+    from jellyswipe.dependencies import get_library
     from jellyswipe.rate_limiter import rate_limiter as _rl
     from tests.conftest import (
         FakeProvider,
@@ -85,14 +84,12 @@ def make_frontend_app(tmp_path, monkeypatch):
         config = _make_test_config(db_path)
         app = create_app(config=config)
         fake_provider = FakeProvider()
-        deps._provider_singleton = fake_provider
-        app.dependency_overrides[get_provider] = lambda: fake_provider
+        app.dependency_overrides[get_library] = lambda: fake_provider
         _rl.reset()
         return app
 
     yield _factory
     _dispose_test_runtime()
-    deps._provider_singleton = None
 
 
 def _client(app):
@@ -147,9 +144,8 @@ def test_index_and_assets_consistent_across_create_app(tmp_path, monkeypatch):
     dist.mkdir()
     _make_dist(dist)
 
-    import jellyswipe.dependencies as deps
     from jellyswipe import create_app
-    from jellyswipe.dependencies import get_provider
+    from jellyswipe.dependencies import get_library
     from jellyswipe.rate_limiter import rate_limiter as _rl
     from tests.conftest import (
         FakeProvider,
@@ -168,7 +164,7 @@ def test_index_and_assets_consistent_across_create_app(tmp_path, monkeypatch):
         )
         config = _make_test_config(db_path)
         app_present = create_app(config=config)
-        app_present.dependency_overrides[get_provider] = lambda: FakeProvider()
+        app_present.dependency_overrides[get_library] = lambda: FakeProvider()
         _rl.reset()
 
         # dist absent
@@ -177,7 +173,7 @@ def test_index_and_assets_consistent_across_create_app(tmp_path, monkeypatch):
             lambda app_root: None,
         )
         app_absent = create_app(config=config)
-        app_absent.dependency_overrides[get_provider] = lambda: FakeProvider()
+        app_absent.dependency_overrides[get_library] = lambda: FakeProvider()
         _rl.reset()
 
         with TestClient(app_present) as c:
@@ -187,8 +183,6 @@ def test_index_and_assets_consistent_across_create_app(tmp_path, monkeypatch):
         with TestClient(app_absent) as c:
             assert c.get("/").status_code == 404
             assert c.get("/assets/app.js").status_code == 404
-
-        deps._provider_singleton = None
     finally:
         _dispose_test_runtime()
 

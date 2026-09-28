@@ -356,7 +356,7 @@ def app(db_path, monkeypatch, fake_provider):
         jf_token="valid-token", user_id="verified-user"
     )
 
-    # Override provider roles — replaces monkeypatch of _provider_singleton (D-05)
+    # Override provider roles (D-05)
     _override_provider_roles(fast_app, fake_provider)
 
     from jellyswipe.rate_limiter import rate_limiter as _rl
