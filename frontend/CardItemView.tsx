@@ -1,7 +1,7 @@
 import React from 'react'
 import ActorElements from './ActorElements'
 import PosterImage from './PosterImage'
-import { formatRating } from './format'
+import MediaFacts from './MediaFacts'
 import {
     computeVelocity,
     flyOffTarget,
@@ -396,9 +396,7 @@ function CardItemViewInner(
                 <div className="card-item back">
                     <h2 className="card-item-title">{title}</h2>
                     <div className="card-item-info">
-                        {rating != null && <div className="card-item-score">IMDb {formatRating(rating)}</div>}
-                        {duration && <div className="card-item-runtime">{duration}</div>}
-                        {year && <div className="card-item-year">{year}</div>}
+                        <MediaFacts rating={rating} duration={duration} year={year} scoreClassName="card-item-score" runtimeClassName="card-item-runtime" yearClassName="card-item-year" />
                     </div>
                     <div className="trailer">
                         {trailerState === "idle" && (

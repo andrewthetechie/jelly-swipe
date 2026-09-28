@@ -68,6 +68,27 @@ describe("MatchListModal - rendering", () => {
     )
   })
 
+  it("renders 'IMDb 0.00' for a zero rating", async () => {
+    fetchMatchesMock.mockResolvedValueOnce([makeMatch({ rating: 0 })])
+
+    render(<MatchListModal onClose={vi.fn()} />)
+
+    expect(await screen.findByText("Movie 1")).toBeInTheDocument()
+    expect(screen.getByText("IMDb 0.00")).toBeInTheDocument()
+  })
+
+  it("omits the year pill when year is null", async () => {
+    fetchMatchesMock.mockResolvedValueOnce([makeMatch({ year: null })])
+
+    const { container } = render(<MatchListModal onClose={vi.fn()} />)
+
+    expect(await screen.findByText("Movie 1")).toBeInTheDocument()
+    expect(screen.queryByText("2016")).not.toBeInTheDocument()
+    // Pin the guard itself, not just the absent text: an unconditional
+    // pill would render an empty .match-list-year div here.
+    expect(container.querySelector(".match-list-year")).not.toBeInTheDocument()
+  })
+
   it("renders a disabled button when there is no deepLink", async () => {
     fetchMatchesMock.mockResolvedValueOnce([makeMatch({ deepLink: null })])
 

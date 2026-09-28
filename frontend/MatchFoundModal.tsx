@@ -1,6 +1,7 @@
 import logo from "./assets/logo.png"
 import PosterImage from "./PosterImage"
-import { formatRating } from './format'
+import MediaFacts from "./MediaFacts"
+import JellyfinDeepLink from "./JellyfinDeepLink"
 import type { JSX } from "react"
 import type { MatchItem } from "./types"
 import Modal from "./Modal"
@@ -19,21 +20,9 @@ export default function MatchFoundModal({ onClose, matchItem }: MatchFoundModalP
             <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-poster" />
             <h3 className="match-title">{title}</h3>
             <div className="card-item-info match-info">
-                {rating && <div className="card-item-score">IMDb {formatRating(rating)}</div>}
-                {duration && <div className="card-item-runtime">{duration}</div>}
-                <div className="card-item-year">{year}</div>
+                <MediaFacts rating={rating} duration={duration} year={year} scoreClassName="card-item-score" runtimeClassName="card-item-runtime" yearClassName="card-item-year" />
             </div>
-            {deepLink
-                ? (
-                    <a href={deepLink} target="_blank" rel="noopener noreferrer" className="btn-primary btn-primary-link">
-                        Open in Jellyfin 🍿
-                    </a>
-                )
-                : (
-                    <button type="button" className="btn-primary" disabled>
-                        Open in Jellyfin 🍿
-                    </button>
-                )}
+            <JellyfinDeepLink deepLink={deepLink} className="btn-primary" linkClassName="btn-primary btn-primary-link" />
             <button className="btn-secondary" onClick={onClose}>Keep Swiping</button>
         </Modal>
     )
