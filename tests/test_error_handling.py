@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from jellyswipe.dependencies import get_provider, get_watchlist
+from jellyswipe.dependencies import get_library, get_watchlist
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ class TestRequestIdPropagation:
     def test_error_response_body_contains_request_id(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test internal error")
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/get-trailer/test-movie-id")
             data = resp.json()
@@ -99,7 +99,7 @@ class TestRequestIdPropagation:
             assert "request_id" in data, "Error response missing request_id field"
             assert re.match(r"^req_\d+_[0-9a-f]{8}$", data["request_id"])
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
 
 class TestErrorSanitization:
@@ -110,7 +110,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception(
             "SECRET_INTERNAL_DB_CONNECTION_STRING"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/get-trailer/test-movie-id")
             data = resp.json()
@@ -118,12 +118,12 @@ class TestErrorSanitization:
             assert "SECRET_INTERNAL_DB_CONNECTION_STRING" not in str(data)
             assert data.get("error") == "Internal server error"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_cast_500_no_exception_details(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("SECRET_API_KEY_LEAKED")
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/cast/test-movie-id")
             data = resp.json()
@@ -131,7 +131,7 @@ class TestErrorSanitization:
             assert "SECRET_API_KEY_LEAKED" not in str(data)
             assert data.get("error") == "Internal server error"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_watchlist_500_no_exception_details(self, app_real_auth):
         from jellyswipe.dependencies import AuthUser, require_auth
@@ -165,7 +165,7 @@ class TestErrorSanitization:
         mock_prov.resolve_item_for_tmdb.side_effect = Exception(
             "SECRET_SERVER_ERROR_DETAIL"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/get-trailer/test-movie-id")
             data = resp.json()
@@ -173,7 +173,7 @@ class TestErrorSanitization:
             assert "SECRET_SERVER_ERROR_DETAIL" not in str(data)
             assert data.get("error") == "Internal server error"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_ast_scan_no_str_e_in_returns(self):
         import pathlib
@@ -222,7 +222,7 @@ class TestErrorResponseFormat:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "Item lookup failed for id"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/get-trailer/test-movie-id")
             data = resp.json()
@@ -230,14 +230,14 @@ class TestErrorResponseFormat:
             assert data.get("error") == "Movie metadata not found"
             assert "request_id" in data
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_5xx_includes_generic_message_and_request_id(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "unexpected internal error"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/get-trailer/test-movie-id")
             data = resp.json()
@@ -245,14 +245,14 @@ class TestErrorResponseFormat:
             assert data.get("error") == "Internal server error"
             assert "request_id" in data
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_cast_404_includes_cast_field(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "Item lookup failed for id"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/cast/test-movie-id")
             data = resp.json()
@@ -261,12 +261,12 @@ class TestErrorResponseFormat:
             assert data["cast"] == []
             assert "request_id" in data
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_cast_500_includes_cast_field(self, client):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("something broke")
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/cast/test-movie-id")
             data = resp.json()
@@ -275,7 +275,7 @@ class TestErrorResponseFormat:
             assert data["cast"] == []
             assert "request_id" in data
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_401_includes_request_id(self, client):
         resp = client.post("/watchlist/add", json={"media_id": "test-id"})
@@ -293,7 +293,7 @@ class TestErrorLogging:
     def test_exception_triggers_error_log_with_request_id(self, client, caplog):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = Exception("test logging error")
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
                 resp = client.get("/get-trailer/test-movie-id")
@@ -308,12 +308,12 @@ class TestErrorLogging:
             )
             assert has_request_id, "Error log should include request_id"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_exception_log_includes_exception_type(self, client, caplog):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError("test runtime error")
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
                 resp = client.get("/get-trailer/test-movie-id")
@@ -326,14 +326,14 @@ class TestErrorLogging:
             )
             assert has_exc_type, "Error log should include exception_type"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_exception_log_includes_exception_message(self, client, caplog):
         mock_prov = MagicMock()
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "specific error detail for logging"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             with caplog.at_level(logging.ERROR, logger="jellyswipe.routers.media"):
                 resp = client.get("/get-trailer/test-movie-id")
@@ -347,7 +347,7 @@ class TestErrorLogging:
             )
             assert has_exc_msg, "Error log should include exception_message"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
 
 class TestAdditionalRoutes:
@@ -395,7 +395,7 @@ class TestAdditionalRoutes:
         mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
             "some other runtime error"
         )
-        client.app.dependency_overrides[get_provider] = lambda: mock_prov
+        client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/cast/test-movie-id")
             data = resp.json()
@@ -404,4 +404,4 @@ class TestAdditionalRoutes:
             assert "request_id" in data
             assert "cast" in data
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
