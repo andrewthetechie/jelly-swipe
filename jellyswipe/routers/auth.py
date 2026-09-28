@@ -12,7 +12,7 @@ from jellyswipe.dependencies import (
     DBUoW,
     clear_room_session,
     clear_session,
-    get_provider,
+    get_library,
     get_session_actor,
     get_vault,
     read_auth_session_id,
@@ -118,7 +118,7 @@ async def get_me(
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
     actor: SessionActor = Depends(get_session_actor),
-    provider=Depends(get_provider),
+    provider=Depends(get_library),
 ):
     """Return the current authenticated user and server information.
 
@@ -144,7 +144,7 @@ async def get_me(
     },
     summary="Get Jellyfin server information",
 )
-async def jellyfin_server_info(request: Request, provider=Depends(get_provider)):
+async def jellyfin_server_info(request: Request, provider=Depends(get_library)):
     """Return Jellyfin server identifiers and web URLs.
 
     This is a public endpoint that does not require authentication.

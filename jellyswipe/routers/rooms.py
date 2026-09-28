@@ -23,7 +23,7 @@ from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
     clear_room_session,
-    get_provider,
+    get_library,
     get_session_actor,
     require_auth,
     set_room_session,
@@ -94,7 +94,7 @@ async def create_room(
     request: Request,
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
-    provider=Depends(get_provider),
+    provider=Depends(get_library),
     body: CreateRoomRequest | None = None,
 ):
     """Create a new room with setup choices.
@@ -365,7 +365,7 @@ async def set_genre(
     request: Request,
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
-    provider=Depends(get_provider),
+    provider=Depends(get_library),
 ):
     """Change the active genre filter and reload the deck.
 
@@ -404,7 +404,7 @@ async def set_watched_filter_route(
     request: Request,
     uow: DBUoW,
     user: AuthUser = Depends(require_auth),
-    provider=Depends(get_provider),
+    provider=Depends(get_library),
 ):
     """Enable or disable the hide-watched filter and reload the deck.
 

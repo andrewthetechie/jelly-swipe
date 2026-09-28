@@ -12,7 +12,7 @@ from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
     check_rate_limit,
-    get_provider,
+    get_library,
     get_watchlist,
     require_auth,
 )
@@ -56,7 +56,7 @@ async def get_trailer(
     request: Request,
     uow: DBUoW,
     config: AppConfig = Depends(get_config),
-    provider=Depends(get_provider),
+    provider=Depends(get_library),
     _: None = Depends(check_rate_limit),
 ):
     """Get the YouTube trailer key for a movie.
@@ -99,7 +99,7 @@ async def get_cast(
     request: Request,
     uow: DBUoW,
     config: AppConfig = Depends(get_config),
-    provider=Depends(get_provider),
+    provider=Depends(get_library),
     _: None = Depends(check_rate_limit),
 ):
     """Get cast information for a movie.
@@ -132,7 +132,7 @@ async def get_cast(
     response_model=GenreListResponse,
     summary="List available genres",
 )
-async def get_genres(request: Request, provider=Depends(get_provider)):
+async def get_genres(request: Request, provider=Depends(get_library)):
     """List all genres available in the connected Jellyfin library.
 
     Queries Jellyfin directly on each call. Returns an empty array if
