@@ -1,5 +1,6 @@
 import React from "react"
 import MediaFacts from "./MediaFacts"
+import JellyfinDeepLink from "./JellyfinDeepLink"
 import type { JSX } from "react"
 import PosterImage from "./PosterImage"
 import type { MatchItem } from "./types"
@@ -47,17 +48,7 @@ export default function MatchListModal({ onClose }: MatchListModalProps): JSX.El
                 <div className="match-list-info">
                     <h3 className="match-list-title">{title}</h3>
                     <MediaFacts rating={rating} duration={duration} year={year} scoreClassName="match-list-score" runtimeClassName="match-list-runtime" yearClassName="match-list-year" />
-                    {deepLink
-                        ? (
-                            <a href={deepLink} target="_blank" rel="noopener noreferrer" className="btn-secondary match-list-button">
-                                Open in Jellyfin 🍿
-                            </a>
-                        )
-                        : (
-                            <button type="button" className="btn-secondary match-list-button" disabled>
-                                Open in Jellyfin 🍿
-                            </button>
-                        )}
+                    <JellyfinDeepLink deepLink={deepLink} className="btn-secondary match-list-button" linkClassName="btn-secondary match-list-button" />
                 </div>
             </div>
         )
