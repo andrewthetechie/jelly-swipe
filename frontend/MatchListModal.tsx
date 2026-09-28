@@ -1,5 +1,5 @@
 import React from "react"
-import { formatRating } from './format'
+import MediaFacts from "./MediaFacts"
 import type { JSX } from "react"
 import PosterImage from "./PosterImage"
 import type { MatchItem } from "./types"
@@ -46,9 +46,7 @@ export default function MatchListModal({ onClose }: MatchListModalProps): JSX.El
                 <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-list-img" />
                 <div className="match-list-info">
                     <h3 className="match-list-title">{title}</h3>
-                    {rating && <div className="match-list-score">IMDb {formatRating(rating)}</div>}
-                    {duration && <div className="match-list-runtime">{duration}</div>}
-                    <div className="match-list-year">{year}</div>
+                    <MediaFacts rating={rating} duration={duration} year={year} scoreClassName="match-list-score" runtimeClassName="match-list-runtime" yearClassName="match-list-year" />
                     {deepLink
                         ? (
                             <a href={deepLink} target="_blank" rel="noopener noreferrer" className="btn-secondary match-list-button">

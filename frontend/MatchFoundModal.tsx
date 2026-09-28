@@ -1,6 +1,6 @@
 import logo from "./assets/logo.png"
 import PosterImage from "./PosterImage"
-import { formatRating } from './format'
+import MediaFacts from "./MediaFacts"
 import type { JSX } from "react"
 import type { MatchItem } from "./types"
 import Modal from "./Modal"
@@ -19,9 +19,7 @@ export default function MatchFoundModal({ onClose, matchItem }: MatchFoundModalP
             <PosterImage posterUrl={posterUrl} alt={title ?? ""} className="match-poster" />
             <h3 className="match-title">{title}</h3>
             <div className="card-item-info match-info">
-                {rating && <div className="card-item-score">IMDb {formatRating(rating)}</div>}
-                {duration && <div className="card-item-runtime">{duration}</div>}
-                <div className="card-item-year">{year}</div>
+                <MediaFacts rating={rating} duration={duration} year={year} scoreClassName="card-item-score" runtimeClassName="card-item-runtime" yearClassName="card-item-year" />
             </div>
             {deepLink
                 ? (

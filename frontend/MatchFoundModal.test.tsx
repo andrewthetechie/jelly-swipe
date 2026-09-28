@@ -38,6 +38,32 @@ describe("MatchFoundModal - rendering", () => {
         expect(screen.getByText("52 min")).toBeInTheDocument()
     })
 
+    it("renders 'IMDb 0.00' for a zero rating", () => {
+        const match = makeMatch({ rating: 0 })
+
+        render(
+            <MatchFoundModal
+                matchItem={match}
+                onClose={vi.fn()}
+            />
+        )
+
+        expect(screen.getByText("IMDb 0.00")).toBeInTheDocument()
+    })
+
+    it("omits the year pill when year is null", () => {
+        const match = makeMatch({ year: null })
+
+        render(
+            <MatchFoundModal
+                matchItem={match}
+                onClose={vi.fn()}
+            />
+        )
+
+        expect(screen.queryByText("2016")).not.toBeInTheDocument()
+    })
+
     it("renders the correct poster", () => {
         const match = makeMatch({
             title: "Moana",
