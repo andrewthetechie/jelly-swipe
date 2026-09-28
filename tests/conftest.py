@@ -191,8 +191,8 @@ class FakeProvider:
     """General-purpose provider mock for route testing.
 
     Implements all three split-by-role surfaces used by routes (library / vault /
-    watchlist) so a single fake can back ``get_provider``, ``get_library``,
-    ``get_vault``, and ``get_watchlist``. Individual tests can override specific
+    watchlist) so a single fake can back ``get_library``, ``get_vault``, and
+    ``get_watchlist``. Individual tests can override specific
     methods or replace the entire mock via monkeypatch for specific behavior (D-06).
     """
 
@@ -310,12 +310,11 @@ def _override_provider_roles(fast_app, fake_provider):
     """Point all four provider-role dependencies at a fake."""
     from jellyswipe.dependencies import (
         get_library,
-        get_provider,
         get_vault,
         get_watchlist,
     )
 
-    for dep in (get_provider, get_library, get_vault, get_watchlist):
+    for dep in (get_library, get_vault, get_watchlist):
         fast_app.dependency_overrides[dep] = lambda: fake_provider
 
 
@@ -338,7 +337,7 @@ def app(db_path, monkeypatch, fake_provider):
     - Temp SQLite database (via tmp_path)
     - TESTING mode enabled
     - SECRET_KEY matching SESSION_SECRET env var (so set_session_cookie cookies are accepted)
-    - dependency_overrides for require_auth (D-01) and get_provider (D-05)
+    - dependency_overrides for require_auth (D-01) and get_library (D-05)
     - Clean rate limiter state
 
     Teardown clears dependency_overrides to prevent state leakage (D-01 success criterion 3).

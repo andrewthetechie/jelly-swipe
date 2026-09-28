@@ -69,7 +69,7 @@ and for user-scoped list actions must include a Jellyfin user token via:
 
 1. **Happy path:** With valid `JELLYFIN_URL` and `JELLYFIN_API_KEY`, start the app and hit provider endpoints (`/genres`, `/movies`, `/jellyfin/server-info`). Confirm logs show **no** API keys or access tokens.
 2. **API key rotation:** Revoke the API key, restart, confirm failure, create a new API key, restart, and confirm authenticated **`/Items`** succeeds again.
-3. **After recovery:** Restart the process (or rely on the next provider use after `reset()`) and hit `/genres` or create/join a room so `get_provider()` re-authenticates — you should be back to a working deck without pasting any tokens into logs or tickets.
+3. **After recovery:** Restart the process (or rely on the next provider use after `reset()`) and hit `/genres` or create/join a room so `get_library()` re-authenticates — you should be back to a working deck without pasting any tokens into logs or tickets.
 
 ### Minimal `.env` example
 

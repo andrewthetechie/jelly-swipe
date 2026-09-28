@@ -112,7 +112,7 @@ sequenceDiagram
 Notable startup behavior:
 
 - Alembic migrations run once before the app starts; the schema is always up-to-date when the server is ready.
-- The provider is **not** authenticated at boot; the first request that calls `get_provider()` triggers `ensure_authenticated()` which talks to Jellyfin.
+- The provider is **not** authenticated at boot; the first request that calls `get_library()` triggers `ensure_authenticated()` which talks to Jellyfin.
 
 ---
 

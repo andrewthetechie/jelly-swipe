@@ -26,7 +26,7 @@ from jellyswipe.dependencies import (
     clear_room_session,
     clear_session,
     get_db_uow,
-    get_provider,
+    get_library,
     get_session_actor,
     mark_session_cookie_cleared,
     read_auth_session_id,
@@ -378,16 +378,16 @@ class TestCheckRateLimit:
 
 
 # ---------------------------------------------------------------------------
-# TestGetProvider
+# TestGetLibrary
 # ---------------------------------------------------------------------------
 
 
-class TestGetProvider:
-    """Tests for get_provider() dependency."""
+class TestGetLibrary:
+    """Tests for get_library() dependency."""
 
     @pytest.mark.anyio
     async def test_returns_jellyfin_library_provider_singleton(self):
-        """get_provider returns the JellyfinLibrary (deck provider) singleton."""
+        """get_library returns the JellyfinLibrary (deck provider) singleton."""
         mock_provider = MagicMock()
         deps._provider_singleton = mock_provider
         deps._singletons_built = True
@@ -399,7 +399,7 @@ class TestGetProvider:
             jellyfin_device_id = "test-device"
 
         try:
-            provider = await get_provider(config=MockConfig())
+            provider = await get_library(config=MockConfig())
             assert provider == mock_provider
         finally:
             deps._provider_singleton = None
@@ -407,7 +407,7 @@ class TestGetProvider:
 
     @pytest.mark.anyio
     async def test_returns_same_instance_on_multiple_calls(self):
-        """Calling get_provider() multiple times returns the same instance."""
+        """Calling get_library() multiple times returns the same instance."""
         deps._provider_singleton = None
         deps._singletons_built = False
 
@@ -423,8 +423,8 @@ class TestGetProvider:
                 jellyfin_device_id = "test-device"
 
             try:
-                provider1 = await get_provider(config=MockConfig())
-                provider2 = await get_provider(config=MockConfig())
+                provider1 = await get_library(config=MockConfig())
+                provider2 = await get_library(config=MockConfig())
             finally:
                 deps._provider_singleton = None
                 deps._singletons_built = False
