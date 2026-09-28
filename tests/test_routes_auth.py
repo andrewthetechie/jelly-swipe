@@ -9,8 +9,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import jellyswipe.dependencies as deps
-
 SPOOF_HEADERS = ("X-Provider-User-Id", "X-Jellyfin-User-Id", "X-Emby-UserId")
 
 
@@ -27,12 +25,11 @@ def test_jellyfin_use_server_identity_success(client_real_auth):
 
 
 def test_jellyfin_use_server_identity_runtime_error_returns_401(
-    client_real_auth, monkeypatch
+    client_real_auth, monkeypatch, fake_provider
 ):
     """RuntimeError from provider returns 401 and error message."""
-    fake = deps._provider_singleton
     monkeypatch.setattr(
-        fake,
+        fake_provider,
         "delegate_token",
         AsyncMock(side_effect=RuntimeError("unavailable")),
     )
