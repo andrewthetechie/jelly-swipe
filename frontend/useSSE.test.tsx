@@ -156,3 +156,128 @@ describe("useSSE - connection lifecycle and error handling", () => {
     expect(mockEventSource.close).toHaveBeenCalled()
   })
 })
+
+describe("useSSE - cursor forwarding and reconnect behavior", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const setup = () => {
+    const mockEventSource = createMockEventSource()
+    const EventSourceMock = vi.fn(function () { return mockEventSource as unknown as EventSource })
+    Object.assign(EventSourceMock, { CONNECTING: 0, OPEN: 1, CLOSED: 2 })
+    vi.stubGlobal("EventSource", EventSourceMock as unknown as typeof EventSource)
+    return { mockEventSource, EventSourceMock }
+  }
+
+  const streamUrlOf = (EventSourceMock: ReturnType<typeof vi.fn>, callIndex: number) => {
+    const arg = EventSourceMock.mock.calls[callIndex][0]
+    return new URL(String(arg))
+  }
+
+  it("fresh bootstrap sends no after_event_id", () => {
+    const { EventSourceMock } = setup()
+
+    renderHook(() => useSSE("/test-sse"))
+
+    expect(EventSourceMock).toHaveBeenCalledTimes(1)
+    expect(streamUrlOf(EventSourceMock, 0).searchParams.get("after_event_id")).toBeNull()
+  })
+
+  it("forwards a lastEventId cursor and reconnects with after_event_id after 3000 ms", () => {
+    vi.useFakeTimers()
+    const { mockEventSource, EventSourceMock } = setup()
+
+    const { result } = renderHook(() => useSSE("/test-sse"))
+
+    act(() => {
+      mockEventSource.onopen?.call(
+        mockEventSource as unknown as EventSource,
+        new Event("open"),
+      )
+    })
+
+    act(() => {
+      mockEventSource.simulateMessage({ data: JSON.stringify({ message: "hello" }), lastEventId: "42" })
+    })
+
+    act(() => {
+      mockEventSource.simulateError(new Event("error"))
+    })
+    expect(result.current.isConnected).toBe(false)
+    expect(result.current.error).toBe("Connection lost. Attempting to reconnect...")
+
+    // No reconnect before 3000 ms elapses.
+    act(() => {
+      vi.advanceTimersByTime(2999)
+    })
+    expect(EventSourceMock).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+    expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBe("42")
+  })
+
+  it("session_reset is not exposed via lastMessage, closes the stream, and reconnects after 1000 ms without after_event_id", () => {
+    vi.useFakeTimers()
+    const { mockEventSource, EventSourceMock } = setup()
+
+    const { result } = renderHook(() => useSSE("/test-sse"))
+
+    act(() => {
+      mockEventSource.onopen?.call(
+        mockEventSource as unknown as EventSource,
+        new Event("open"),
+      )
+    })
+
+    act(() => {
+      mockEventSource.simulateMessage({ data: JSON.stringify({ message: "hello" }), lastEventId: "42" })
+    })
+
+    act(() => {
+      mockEventSource.simulateMessage({ data: JSON.stringify({ event_type: "session_reset" }) })
+    })
+    // The session_reset payload itself is not exposed via lastMessage.
+    expect(result.current.lastMessage).toEqual({ message: "hello" })
+    expect(mockEventSource.close).toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+    expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBeNull()
+  })
+
+  it("does not move the cursor backwards", () => {
+    vi.useFakeTimers()
+    const { mockEventSource, EventSourceMock } = setup()
+
+    renderHook(() => useSSE("/test-sse"))
+
+    act(() => {
+      mockEventSource.onopen?.call(
+        mockEventSource as unknown as EventSource,
+        new Event("open"),
+      )
+    })
+
+    act(() => {
+      mockEventSource.simulateMessage({ data: JSON.stringify({ message: "hello" }), lastEventId: "50" })
+    })
+    act(() => {
+      mockEventSource.simulateMessage({ data: JSON.stringify({ message: "hello" }), lastEventId: "10" })
+    })
+
+    act(() => {
+      mockEventSource.simulateError(new Event("error"))
+    })
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+    expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBe("50")
+  })
+})
