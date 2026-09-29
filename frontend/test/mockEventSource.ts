@@ -11,7 +11,7 @@ export type MockEventSource = {
   addEventListener: (...args: unknown[]) => void
   removeEventListener: (...args: unknown[]) => void
   dispatchEvent: (event: Event) => boolean
-  simulateMessage: (event: { data: string }) => void
+  simulateMessage: (event: { data: string; lastEventId?: string }) => void
   simulateError: (event: Event) => void
 }
 
@@ -34,11 +34,14 @@ export function createMockEventSource(): MockEventSource {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(() => true),
-    simulateMessage(this: MockEventSource, event: { data: string }) {
+    simulateMessage(this: MockEventSource, event: { data: string; lastEventId?: string }) {
       if (this.onmessage) {
         this.onmessage.call(
           this as unknown as EventSource,
-          new MessageEvent("message", { data: event.data }),
+          new MessageEvent("message", {
+            data: event.data,
+            ...(event.lastEventId !== undefined ? { lastEventId: event.lastEventId } : {}),
+          }),
         )
       }
     },
