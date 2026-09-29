@@ -12,8 +12,6 @@ import ast
 import os
 from unittest.mock import MagicMock, patch
 
-import jellyswipe.dependencies as deps
-
 
 class TestNoApiKeyInUrls:
     """AST-based scan confirming no api_key= in TMDB URL constructions."""
@@ -52,14 +50,7 @@ class TestNoApiKeyInUrls:
 class TestBearerTokenHeaders:
     """Mock-based tests confirming Authorization: Bearer header is sent."""
 
-    def test_tmdb_bearer_token_in_trailer_headers(self, client, monkeypatch):
-        mock_provider = MagicMock()
-        mock_item = MagicMock()
-        mock_item.title = "Test Movie"
-        mock_item.year = 2024
-        mock_provider.resolve_item_for_tmdb.return_value = mock_item
-        monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
-
+    def test_tmdb_bearer_token_in_trailer_headers(self, client):
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": [{"id": 123}]}
         mock_response.status_code = 200
@@ -88,14 +79,7 @@ class TestBearerTokenHeaders:
                     f"Authorization header should start with 'Bearer ': {headers['Authorization']}"
                 )
 
-    def test_tmdb_bearer_token_in_cast_headers(self, client, monkeypatch):
-        mock_provider = MagicMock()
-        mock_item = MagicMock()
-        mock_item.title = "Test Movie"
-        mock_item.year = 2024
-        mock_provider.resolve_item_for_tmdb.return_value = mock_item
-        monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
-
+    def test_tmdb_bearer_token_in_cast_headers(self, client):
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": [{"id": 456}]}
         mock_response.status_code = 200

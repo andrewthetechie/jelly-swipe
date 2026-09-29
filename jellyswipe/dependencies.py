@@ -4,7 +4,7 @@ Exports AuthUser dataclass and Depends()-compatible callables for:
 - Authentication (require_auth)
 - Database access (get_db_uow, DBUoW)
 - Rate limiting (check_rate_limit)
-- Jellyfin provider singleton (get_provider)
+- Jellyfin library-role singleton (get_library)
 """
 
 import logging
@@ -33,8 +33,7 @@ _logger = logging.getLogger(__name__)
 # objects share one async HTTP client and are constructed lazily on first
 # dependency resolution, then reset (client closed) on application shutdown.
 # ``_provider_singleton`` is retained under its historical name — it now holds
-# the JellyfinLibrary (DeckProvider adapter) role, so existing test fixtures
-# that seed ``deps._provider_singleton`` keep working unchanged.
+# the JellyfinLibrary (DeckProvider adapter) role.
 _client_lock = threading.Lock()
 _singletons_built: bool = False
 _client_singleton: Optional["JellyfinClient"] = None
@@ -278,15 +277,6 @@ async def get_watchlist(config: AppConfig = Depends(get_config)):
     return _watchlist_singleton
 
 
-async def get_provider(config: AppConfig = Depends(get_config)):
-    """Backward-compatible alias returning the JellyfinLibrary (deck provider) singleton.
-
-    Deprecated: use get_library() directly. This alias exists only for test
-    fixtures that seed deps._provider_singleton and cannot yet be updated.
-    """
-    return await get_library(config)
-
-
 async def reset_provider_singleton() -> None:
     """Close the Jellyfin client and reset role singletons on application shutdown."""
     global \
@@ -316,7 +306,6 @@ __all__ = [
     "clear_session",
     "get_db_uow",
     "get_library",
-    "get_provider",
     "get_session_actor",
     "get_vault",
     "get_watchlist",

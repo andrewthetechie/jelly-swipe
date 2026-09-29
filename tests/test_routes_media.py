@@ -164,26 +164,22 @@ class TestTrailerRoute:
         """Jellyfin item resolution failure returns 404."""
         _set_session(client)
 
-        import jellyswipe.dependencies as deps
-        from jellyswipe.dependencies import get_provider
+        from jellyswipe.dependencies import get_library
         from tests.conftest import FakeProvider
-
-        original = deps._provider_singleton
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
                 raise RuntimeError("item lookup failed")
 
         failing = FailingProvider()
-        deps._provider_singleton = failing
-        app.dependency_overrides[get_provider] = lambda: failing
+        app.dependency_overrides[get_library] = lambda: failing
 
         try:
             resp = client.get("/get-trailer/nonexistent")
             assert resp.status_code == 404
             assert "Movie metadata not found" in resp.json()["error"]
         finally:
-            deps._provider_singleton = original
+            app.dependency_overrides.pop(get_library, None)
 
     def test_trailer_route_defers_commit_to_boundary(self, client, app):
         """Trailer route returns data; it no longer commits (boundary owns commit)."""
@@ -304,19 +300,15 @@ class TestCastRoute:
         """Jellyfin item resolution failure returns 404 with empty cast."""
         _set_session(client)
 
-        import jellyswipe.dependencies as deps
-        from jellyswipe.dependencies import get_provider
+        from jellyswipe.dependencies import get_library
         from tests.conftest import FakeProvider
-
-        original = deps._provider_singleton
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
                 raise RuntimeError("item lookup failed")
 
         failing = FailingProvider()
-        deps._provider_singleton = failing
-        app.dependency_overrides[get_provider] = lambda: failing
+        app.dependency_overrides[get_library] = lambda: failing
 
         try:
             resp = client.get("/cast/nonexistent")
@@ -325,7 +317,7 @@ class TestCastRoute:
             assert "Movie metadata not found" in data["error"]
             assert data["cast"] == []
         finally:
-            deps._provider_singleton = original
+            app.dependency_overrides.pop(get_library, None)
 
 
 class TestWatchlistRoute:

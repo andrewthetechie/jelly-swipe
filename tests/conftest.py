@@ -191,8 +191,8 @@ class FakeProvider:
     """General-purpose provider mock for route testing.
 
     Implements all three split-by-role surfaces used by routes (library / vault /
-    watchlist) so a single fake can back ``get_provider``, ``get_library``,
-    ``get_vault``, and ``get_watchlist``. Individual tests can override specific
+    watchlist) so a single fake can back ``get_library``, ``get_vault``, and
+    ``get_watchlist``. Individual tests can override specific
     methods or replace the entire mock via monkeypatch for specific behavior (D-06).
     """
 
@@ -307,32 +307,41 @@ def _make_test_config(db_path):
 
 
 def _override_provider_roles(fast_app, fake_provider):
-    """Point all four provider-role dependencies at a fake."""
+    """Point the three provider-role dependencies (get_library, get_vault, get_watchlist) at a fake."""
     from jellyswipe.dependencies import (
         get_library,
-        get_provider,
         get_vault,
         get_watchlist,
     )
 
-    for dep in (get_provider, get_library, get_vault, get_watchlist):
+    for dep in (get_library, get_vault, get_watchlist):
         fast_app.dependency_overrides[dep] = lambda: fake_provider
 
 
 @pytest.fixture
-def app(db_path, monkeypatch):
+def fake_provider():
+    """A shared FakeProvider instance used by the app fixtures.
+
+    Fixture caching gives the same instance along the ``client -> app ->
+    fake_provider`` chain, so ``monkeypatch.setattr(fake_provider, ...)`` still
+    patches the object the routes receive.
+    """
+    return FakeProvider()
+
+
+@pytest.fixture
+def app(db_path, monkeypatch, fake_provider):
     """Create a fresh FastAPI app instance for route testing.
 
     Each test gets its own isolated app with:
     - Temp SQLite database (via tmp_path)
     - TESTING mode enabled
     - SECRET_KEY matching SESSION_SECRET env var (so set_session_cookie cookies are accepted)
-    - dependency_overrides for require_auth (D-01) and get_provider (D-05)
+    - dependency_overrides for require_auth (D-01) and get_library (D-05)
     - Clean rate limiter state
 
     Teardown clears dependency_overrides to prevent state leakage (D-01 success criterion 3).
     """
-    import jellyswipe.dependencies as deps
     from jellyswipe import create_app
     from jellyswipe.dependencies import AuthUser, require_auth
 
@@ -340,19 +349,13 @@ def app(db_path, monkeypatch):
     test_config = _make_test_config(db_path)
     fast_app = create_app(config=test_config)
 
-    # Set provider singleton on dependencies module (all four role surfaces)
-    fake_provider = FakeProvider()
-    deps._provider_singleton = fake_provider
-    deps._vault_singleton = fake_provider
-    deps._watchlist_singleton = fake_provider
-
     # Override auth — no DB vault needed (D-01)
     # Default identity matches FakeProvider's user_id/token (D-03)
     fast_app.dependency_overrides[require_auth] = lambda: AuthUser(
         jf_token="valid-token", user_id="verified-user"
     )
 
-    # Override provider roles — replaces monkeypatch of _provider_singleton (D-05)
+    # Override provider roles (D-05)
     _override_provider_roles(fast_app, fake_provider)
 
     from jellyswipe.rate_limiter import rate_limiter as _rl
@@ -365,10 +368,6 @@ def app(db_path, monkeypatch):
     # temp database cannot inherit the previous engine/sessionmaker binding.
     _dispose_test_runtime()
     fast_app.dependency_overrides.clear()  # CRITICAL: prevents override state leakage
-    # Clear provider singletons on teardown
-    deps._provider_singleton = None
-    deps._vault_singleton = None
-    deps._watchlist_singleton = None
 
 
 @pytest.fixture
@@ -384,7 +383,7 @@ def client(app):
 
 
 @pytest.fixture
-def app_real_auth(db_path, monkeypatch):
+def app_real_auth(db_path, monkeypatch, fake_provider):
     """FastAPI app with real require_auth — for auth integration tests only.
 
     Does NOT set dependency_overrides[require_auth]. Auth goes through
@@ -393,16 +392,9 @@ def app_real_auth(db_path, monkeypatch):
 
     Uses db_path fixture to align database with db_connection (Plan 03 fix).
     """
-    import jellyswipe.dependencies as deps
     from jellyswipe import create_app
 
     _bootstrap_temp_db_runtime(db_path)
-
-    # Set provider singleton BEFORE creating app (all four role surfaces)
-    fake_provider = FakeProvider()
-    deps._provider_singleton = fake_provider
-    deps._vault_singleton = fake_provider
-    deps._watchlist_singleton = fake_provider
 
     test_config = _make_test_config(db_path)
     fast_app = create_app(config=test_config)
@@ -414,14 +406,10 @@ def app_real_auth(db_path, monkeypatch):
     _rl.reset()
 
     yield fast_app
-    # Dispose the cached runtime before clearing overrides/singletons so a
-    # later fixture can rebind cleanly to another temp SQLite database.
+    # Dispose the cached runtime before clearing overrides so a later fixture
+    # can rebind cleanly to another temp SQLite database.
     _dispose_test_runtime()
     fast_app.dependency_overrides.clear()
-    # Clear provider singletons on teardown
-    deps._provider_singleton = None
-    deps._vault_singleton = None
-    deps._watchlist_singleton = None
     # Reset rate limiter to prevent cross-test pollution (matches app fixture teardown)
     from jellyswipe.rate_limiter import rate_limiter as _rl
 

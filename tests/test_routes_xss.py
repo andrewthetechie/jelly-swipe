@@ -11,7 +11,7 @@ import os
 import sqlite3
 from unittest.mock import MagicMock
 
-from jellyswipe.dependencies import get_provider
+from jellyswipe.dependencies import get_library
 from tests.conftest import set_session_cookie, sqlite_test_transaction
 
 # Movie deck matching FakeProvider's library-role deck so swipe XSS tests can
@@ -95,7 +95,7 @@ class TestLayer1ServerSideValidation:
         mock_item.year = 1999
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        client.app.dependency_overrides[get_library] = lambda: mock_provider
         try:
             response = client.post(
                 "/room/TEST123/swipe",
@@ -126,7 +126,7 @@ class TestLayer1ServerSideValidation:
                 assert match["thumb"] == "/proxy?path=jellyfin/movie123/Primary"
                 assert match["thumb"] != '<img src=x onerror=alert("XSS")>'
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_swipe_ignores_client_params_silently(self, client, app, db_path):
         with sqlite_test_transaction(db_path) as conn:
@@ -162,7 +162,7 @@ class TestLayer1ServerSideValidation:
         mock_item.year = 2020
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        client.app.dependency_overrides[get_library] = lambda: mock_provider
         try:
             response = client.post(
                 "/room/TEST456/swipe",
@@ -187,7 +187,7 @@ class TestLayer1ServerSideValidation:
                 assert match["title"] == "Safe Movie"
                 assert match["thumb"] == "/proxy?path=jellyfin/movie456/Primary"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
 
 class TestLayer3CSPHeader:
@@ -253,7 +253,7 @@ class TestEndToEndXSSBlocking:
         mock_item.year = 2010
         mock_provider.resolve_item_for_tmdb.return_value = mock_item
 
-        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        client.app.dependency_overrides[get_library] = lambda: mock_provider
         try:
             response = client.post(
                 "/room/E2E123/swipe",
@@ -281,7 +281,7 @@ class TestEndToEndXSSBlocking:
                 assert "<script>" not in match["title"]
                 assert match["thumb"] == "/proxy?path=jellyfin/movie_e2e/Primary"
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
     def test_swipe_handles_jellyfin_failure_gracefully(
         self, client, app, db_path, caplog
@@ -318,7 +318,7 @@ class TestEndToEndXSSBlocking:
             "Jellyfin item lookup failed"
         )
 
-        client.app.dependency_overrides[get_provider] = lambda: mock_provider
+        client.app.dependency_overrides[get_library] = lambda: mock_provider
         try:
             response = client.post(
                 "/room/FAIL789/swipe",
@@ -360,7 +360,7 @@ class TestEndToEndXSSBlocking:
                     "Swipe should be recorded even if match creation fails"
                 )
         finally:
-            client.app.dependency_overrides.pop(get_provider, None)
+            client.app.dependency_overrides.pop(get_library, None)
 
 
 # ---------------------------------------------------------------------------
@@ -408,18 +408,8 @@ def _setup_solo_swipe_session(client):
 # ---------------------------------------------------------------------------
 
 
-def test_swipe_xss_title_escaped_in_match_response(client, monkeypatch):
+def test_swipe_xss_title_escaped_in_match_response(client):
     _setup_solo_swipe_session(client)
-
-    mock_provider = MagicMock()
-    mock_item = MagicMock()
-    mock_item.title = "Movie movie-1"
-    mock_item.year = 2024
-    mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-    import jellyswipe.dependencies as deps
-
-    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",
@@ -435,18 +425,8 @@ def test_swipe_xss_title_escaped_in_match_response(client, monkeypatch):
     assert "<script>" not in response.text
 
 
-def test_swipe_xss_thumb_escaped_in_match_response(client, monkeypatch):
+def test_swipe_xss_thumb_escaped_in_match_response(client):
     _setup_solo_swipe_session(client)
-
-    mock_provider = MagicMock()
-    mock_item = MagicMock()
-    mock_item.title = "Movie movie-2"
-    mock_item.year = 2024
-    mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-    import jellyswipe.dependencies as deps
-
-    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",
@@ -462,18 +442,8 @@ def test_swipe_xss_thumb_escaped_in_match_response(client, monkeypatch):
     assert "<img" not in response.text
 
 
-def test_stored_xss_matches_endpoint(client, monkeypatch):
+def test_stored_xss_matches_endpoint(client):
     _setup_solo_swipe_session(client)
-
-    mock_provider = MagicMock()
-    mock_item = MagicMock()
-    mock_item.title = "Movie movie-3"
-    mock_item.year = 2024
-    mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-    import jellyswipe.dependencies as deps
-
-    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     client.post(
         "/room/ROOM1/swipe",
@@ -491,18 +461,8 @@ def test_stored_xss_matches_endpoint(client, monkeypatch):
     assert "<img" not in body_text
 
 
-def test_swipe_xss_img_tag_escaped(client, monkeypatch):
+def test_swipe_xss_img_tag_escaped(client):
     _setup_solo_swipe_session(client)
-
-    mock_provider = MagicMock()
-    mock_item = MagicMock()
-    mock_item.title = "Movie movie-4"
-    mock_item.year = 2024
-    mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-    import jellyswipe.dependencies as deps
-
-    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",
@@ -518,18 +478,8 @@ def test_swipe_xss_img_tag_escaped(client, monkeypatch):
     assert "<img" not in response.text
 
 
-def test_swipe_xss_event_handler_escaped(client, monkeypatch):
+def test_swipe_xss_event_handler_escaped(client):
     _setup_solo_swipe_session(client)
-
-    mock_provider = MagicMock()
-    mock_item = MagicMock()
-    mock_item.title = "Movie movie-5"
-    mock_item.year = 2024
-    mock_provider.resolve_item_for_tmdb.return_value = mock_item
-
-    import jellyswipe.dependencies as deps
-
-    monkeypatch.setattr(deps, "_provider_singleton", mock_provider, raising=False)
 
     response = client.post(
         "/room/ROOM1/swipe",

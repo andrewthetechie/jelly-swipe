@@ -29,7 +29,7 @@ from jellyswipe.services.session_match_mutation import (
     SessionMatchMutation,
     SwipeAccepted,
 )
-from tests.conftest import FakeProvider, set_session_cookie
+from tests.conftest import set_session_cookie
 
 # ---------------------------------------------------------------------------
 # Integration Tests: Room Creation with TV Shows
@@ -108,56 +108,27 @@ def test_swipe_tv_show_right_solo_match(client, app):
     )
     code = response.json()["pairing_code"]
 
-    # Mock provider to return TV show in deck
-    fake_provider = FakeProvider()
-    original_fetch = fake_provider.fetch_deck
+    # Swipe right on TV show
+    response = client.post(
+        f"/room/{code}/swipe",
+        json={"media_id": "tv-1", "direction": "right"},
+    )
 
-    def mock_fetch(media_types=None, genre_name=None):
-        if media_types and "tv_show" in media_types:
-            return [
-                {
-                    "id": "tv-1",
-                    "title": "TV Show 1",
-                    "summary": "TV Summary",
-                    "thumb": "/proxy?path=jellyfin/tv-1/Primary",
-                    "year": 2024,
-                    "media_type": "tv_show",
-                    "season_count": 3,
-                }
-            ]
-        return original_fetch(media_types, genre_name)
+    assert response.status_code == 200
+    assert response.json() == {"accepted": True}
 
-    fake_provider.fetch_deck = mock_fetch
-
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    # Verify match was created with media_type
+    conn = _sqlite_conn_for_route_tests()
     try:
-        # Swipe right on TV show
-        response = client.post(
-            f"/room/{code}/swipe",
-            json={"media_id": "tv-1", "direction": "right"},
-        )
-
-        assert response.status_code == 200
-        assert response.json() == {"accepted": True}
-
-        # Verify match was created with media_type
-        conn = _sqlite_conn_for_route_tests()
-        try:
-            row = conn.execute(
-                "SELECT media_type FROM matches WHERE room_code = ? AND movie_id = ?",
-                (code, "tv-1"),
-            ).fetchone()
-        finally:
-            conn.close()
-
-        assert row is not None
-        assert row["media_type"] == "tv_show"
+        row = conn.execute(
+            "SELECT media_type FROM matches WHERE room_code = ? AND movie_id = ?",
+            (code, "tv-1"),
+        ).fetchone()
     finally:
-        rooms_router_module.get_provider = original_get_provider
+        conn.close()
+
+    assert row is not None
+    assert row["media_type"] == "tv_show"
 
 
 def test_swipe_tv_show_dual_match(client, app):
@@ -187,53 +158,42 @@ def test_swipe_tv_show_dual_match(client, app):
         authenticated=True,
     )
 
-    # Mock provider
-    fake_provider = FakeProvider()
-
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    # First user swipes right on TV show
+    conn = _sqlite_conn_for_route_tests()
     try:
-        # First user swipes right on TV show
-        conn = _sqlite_conn_for_route_tests()
-        try:
-            conn.execute(
-                "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
-                ("sess-user2", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
-            )
-            conn.execute(
-                "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
-                ("MIXED1", "tv-1", "user-2", "right", "sess-user2"),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-
-        # Second user swipes right on same TV show
-        response = client.post(
-            "/room/MIXED1/swipe",
-            json={"media_id": "tv-1", "direction": "right"},
+        conn.execute(
+            "INSERT INTO auth_sessions (session_id, jellyfin_token, jellyfin_user_id, created_at) VALUES (?, ?, ?, ?)",
+            ("sess-user2", "valid-token", "user-2", "2026-05-05T00:00:00+00:00"),
         )
-
-        assert response.status_code == 200
-        assert response.json() == {"accepted": True}
-
-        # Verify match was created with media_type for both users
-        conn = _sqlite_conn_for_route_tests()
-        try:
-            rows = conn.execute(
-                "SELECT user_id, media_type FROM matches WHERE room_code = 'MIXED1' AND movie_id = 'tv-1'"
-            ).fetchall()
-        finally:
-            conn.close()
-
-        assert len(rows) == 2
-        for row in rows:
-            assert row["media_type"] == "tv_show"
+        conn.execute(
+            "INSERT INTO swipes (room_code, movie_id, user_id, direction, session_id) VALUES (?, ?, ?, ?, ?)",
+            ("MIXED1", "tv-1", "user-2", "right", "sess-user2"),
+        )
+        conn.commit()
     finally:
-        rooms_router_module.get_provider = original_get_provider
+        conn.close()
+
+    # Second user swipes right on same TV show
+    response = client.post(
+        "/room/MIXED1/swipe",
+        json={"media_id": "tv-1", "direction": "right"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"accepted": True}
+
+    # Verify match was created with media_type for both users
+    conn = _sqlite_conn_for_route_tests()
+    try:
+        rows = conn.execute(
+            "SELECT user_id, media_type FROM matches WHERE room_code = 'MIXED1' AND movie_id = 'tv-1'"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert len(rows) == 2
+    for row in rows:
+        assert row["media_type"] == "tv_show"
 
 
 def test_swipe_mixed_deck_movie_and_tv_show(client, app):
@@ -247,72 +207,36 @@ def test_swipe_mixed_deck_movie_and_tv_show(client, app):
     )
     code = response.json()["pairing_code"]
 
-    # Mock provider to return mixed deck
-    fake_provider = FakeProvider()
+    # Swipe right on movie
+    client.post(
+        f"/room/{code}/swipe",
+        json={"media_id": "movie-1", "direction": "right"},
+    )
 
-    def mock_fetch(media_types=None, genre_name=None):
-        return [
-            {
-                "id": "movie-1",
-                "title": "Movie 1",
-                "summary": "Movie Summary",
-                "thumb": "/proxy?path=jellyfin/movie-1/Primary",
-                "rating": 8.0,
-                "duration": "1h 30m",
-                "year": 2024,
-                "media_type": "movie",
-            },
-            {
-                "id": "tv-1",
-                "title": "TV Show 1",
-                "summary": "TV Summary",
-                "thumb": "/proxy?path=jellyfin/tv-1/Primary",
-                "year": 2024,
-                "media_type": "tv_show",
-                "season_count": 3,
-            },
-        ]
+    # Swipe right on TV show
+    client.post(
+        f"/room/{code}/swipe",
+        json={"media_id": "tv-1", "direction": "right"},
+    )
 
-    fake_provider.fetch_deck = mock_fetch
-
-    import jellyswipe.routers.rooms as rooms_router_module
-
-    original_get_provider = rooms_router_module.get_provider
-    rooms_router_module.get_provider = lambda: fake_provider
-
+    # Verify both matches have correct media_type
+    conn = _sqlite_conn_for_route_tests()
     try:
-        # Swipe right on movie
-        client.post(
-            f"/room/{code}/swipe",
-            json={"media_id": "movie-1", "direction": "right"},
-        )
-
-        # Swipe right on TV show
-        client.post(
-            f"/room/{code}/swipe",
-            json={"media_id": "tv-1", "direction": "right"},
-        )
-
-        # Verify both matches have correct media_type
-        conn = _sqlite_conn_for_route_tests()
-        try:
-            movie_row = conn.execute(
-                "SELECT media_type FROM matches WHERE room_code = ? AND movie_id = ?",
-                (code, "movie-1"),
-            ).fetchone()
-            tv_row = conn.execute(
-                "SELECT media_type FROM matches WHERE room_code = ? AND movie_id = ?",
-                (code, "tv-1"),
-            ).fetchone()
-        finally:
-            conn.close()
-
-        assert movie_row is not None
-        assert movie_row["media_type"] == "movie"
-        assert tv_row is not None
-        assert tv_row["media_type"] == "tv_show"
+        movie_row = conn.execute(
+            "SELECT media_type FROM matches WHERE room_code = ? AND movie_id = ?",
+            (code, "movie-1"),
+        ).fetchone()
+        tv_row = conn.execute(
+            "SELECT media_type FROM matches WHERE room_code = ? AND movie_id = ?",
+            (code, "tv-1"),
+        ).fetchone()
     finally:
-        rooms_router_module.get_provider = original_get_provider
+        conn.close()
+
+    assert movie_row is not None
+    assert movie_row["media_type"] == "movie"
+    assert tv_row is not None
+    assert tv_row["media_type"] == "tv_show"
 
 
 # ---------------------------------------------------------------------------

@@ -577,7 +577,7 @@ def test_swipe_right_no_match_yet(client, app):
 
 def test_set_genre_empty_deck_returns_400(client, app, mocker):
     """POST /room/{code}/genre returns 400 when genre filter results in empty deck."""
-    from jellyswipe.dependencies import get_provider
+    from jellyswipe.dependencies import get_library
     from tests.conftest import FakeProvider
 
     # Seed a room
@@ -601,7 +601,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
 
     fake_provider.fetch_deck = mock_fetch
 
-    app.dependency_overrides[get_provider] = lambda: fake_provider
+    app.dependency_overrides[get_library] = lambda: fake_provider
     try:
         response = client.post(
             "/room/TEST1/genre",
@@ -611,7 +611,7 @@ def test_set_genre_empty_deck_returns_400(client, app, mocker):
         assert response.status_code == 400
         assert response.json()["error"] == "An internal error has occurred!"
     finally:
-        app.dependency_overrides.pop(get_provider, None)
+        app.dependency_overrides.pop(get_library, None)
 
 
 def test_set_genre_returns_mutation_envelope(client, app):                                                                                                                                                                               
@@ -699,7 +699,7 @@ def test_set_watched_filter_invalid_type_returns_422(client, app):
 
 def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
     """POST /room/{code}/watched-filter returns 422 when filter results in empty deck."""
-    from jellyswipe.dependencies import get_provider
+    from jellyswipe.dependencies import get_library
     from tests.conftest import FakeProvider
 
     _seed_room("TEST1", ready=1, solo_mode=0)
@@ -722,7 +722,7 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
 
     fake_provider.fetch_deck = mock_fetch
 
-    app.dependency_overrides[get_provider] = lambda: fake_provider
+    app.dependency_overrides[get_library] = lambda: fake_provider
     try:
         response = client.post(
             "/room/TEST1/watched-filter", json={"hide_watched": True}
@@ -730,7 +730,7 @@ def test_set_watched_filter_empty_deck_returns_422(client, app, mocker):
         assert response.status_code == 422
         assert response.json()["error"] == "An internal error has occurred!"
     finally:
-        app.dependency_overrides.pop(get_provider, None)
+        app.dependency_overrides.pop(get_library, None)
 
 
 def test_set_watched_filter_nonexistent_room_returns_404(client, app):

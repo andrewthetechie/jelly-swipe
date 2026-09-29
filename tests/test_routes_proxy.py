@@ -6,8 +6,6 @@ server configuration, and provider error handling (EPIC-04).
 
 from unittest.mock import AsyncMock
 
-import jellyswipe.dependencies as deps
-
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -33,11 +31,10 @@ def test_proxy_valid_uuid36_path_returns_200(client):
     assert response.status_code == 200
 
 
-def test_proxy_returns_image_data_from_provider(client, monkeypatch):
+def test_proxy_returns_image_data_from_provider(client, monkeypatch, fake_provider):
     """Image data from provider is returned in the response body."""
-    fake = deps._provider_singleton
     monkeypatch.setattr(
-        fake,
+        fake_provider,
         "fetch_library_image",
         AsyncMock(return_value=(b"\x89PNG\r\n", "image/png")),
     )
@@ -46,11 +43,10 @@ def test_proxy_returns_image_data_from_provider(client, monkeypatch):
     assert response.content == b"\x89PNG\r\n"
 
 
-def test_proxy_content_type_matches_provider(client, monkeypatch):
+def test_proxy_content_type_matches_provider(client, monkeypatch, fake_provider):
     """Content-type from provider is passed through to the HTTP response."""
-    fake = deps._provider_singleton
     monkeypatch.setattr(
-        fake,
+        fake_provider,
         "fetch_library_image",
         AsyncMock(return_value=(b"img", "image/webp")),
     )
@@ -157,11 +153,10 @@ def test_proxy_no_jellyfin_url_returns_503(client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_proxy_provider_permission_error_returns_403(client, monkeypatch):
+def test_proxy_provider_permission_error_returns_403(client, monkeypatch, fake_provider):
     """Provider PermissionError returns 403."""
-    fake = deps._provider_singleton
     monkeypatch.setattr(
-        fake,
+        fake_provider,
         "fetch_library_image",
         AsyncMock(side_effect=PermissionError("forbidden")),
     )
