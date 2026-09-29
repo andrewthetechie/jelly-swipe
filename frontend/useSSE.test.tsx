@@ -312,7 +312,7 @@ describe("useSSE - cursor forwarding and reconnect behavior", () => {
   it("catches an EventSource constructor throw on mount and reconnect, setting the SSE error instead of propagating", async () => {
     const { mockEventSource, EventSourceMock } = setup()
     let calls = 0
-    EventSourceMock.mockImplementation(function (url: string) {
+    EventSourceMock.mockImplementation(function () {
       calls += 1
       if (calls <= 2) {
         throw new Error("constructor failed")
