@@ -3,26 +3,17 @@ import ActorElements from './ActorElements'
 import PosterImage from './PosterImage'
 import MediaFacts from './MediaFacts'
 import {
-    computeVelocity,
     flyOffTarget,
     parseComputedTransform,
-    shouldCommitSwipe,
-    stampSignal,
-    swipeThresholdFor,
-    trackSample,
+    DEFAULT_POSITION,
     EXIT_TRANSITION_MS,
     REDUCED_MOTION_EXIT_TRANSITION_MS,
 } from './swipeGesture'
-import type { PointerSample, Position } from './swipeGesture'
+import type { Position } from './swipeGesture'
 import type { JSX } from "react"
 import type { CardItem } from './types'
 import { fetchTrailer, RoomApiError } from './roomApi'
-
-const DEFAULT_POSITION: Position = {
-    x: 0,
-    y: 0,
-    rotation: 0
-}
+import { useCardDrag } from './useCardDrag'
 
 interface CardItemViewProps {
     cardItem: CardItem,
@@ -104,25 +95,15 @@ function CardItemViewInner(
     // -1 = left), or undefined when this is a normal deck card.
     const isExit = exitDirection != null
     const exitDir: 1 | -1 = exitDirection === "right" ? 1 : -1
-    const [position, setPosition] = React.useState<Position>(exitFrom ?? DEFAULT_POSITION)
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
-    const [isDragging, setIsDragging] = React.useState<boolean>(false)
-    const hasDragged = React.useRef<boolean>(false)
-    const startX = React.useRef<number>(0)
-    const currentX = React.useRef<number>(0)
-    const samples = React.useRef<PointerSample[]>([])
-    // Mirrors `isDragging` but readable synchronously inside the same handler —
-    // needed because `lostpointercapture` fires from our own releasePointerCapture()
-    // on a normal release and must not undo a commit (see handleLostPointerCapture).
-    const dragActive = React.useRef<boolean>(false)
-    // Set by the single commit path; a second button press, a late pointer event,
-    // or a re-drag on the still-mounted card must not double-fire onSwipe.
-    const committed = React.useRef<boolean>(false)
-    const thresholdPx = React.useRef<number>(swipeThresholdFor(0))
-    // A leaving card holds its verdict stamp lit at full opacity for its exit
-    // direction the whole time it is mounted.
-    const [signal, setSignal] = React.useState<number>(isExit ? exitDir : 0)
+
+    // Leaving-card render mode (issue #360) seeds its own transform and stamp:
+    // the drag controller is called with enabled=false for an exit card, so its
+    // position/signal stay at rest, and the exit-mode values are merged at
+    // render as `isExit ? exitState : controllerState` (invariant 4).
+    const [exitPosition, setExitPosition] = React.useState<Position>(exitFrom ?? DEFAULT_POSITION)
+    const exitSignal: number = isExit ? exitDir : 0
 
     // Trailer state machine: idle → loading → (playing | unavailable).
     const [trailerState, setTrailerState] = React.useState<"idle" | "loading" | "playing" | "unavailable">("idle")
@@ -160,7 +141,7 @@ function CardItemViewInner(
             window.innerWidth,
         )
         if (exitFrom && exitDir * exitFrom.x >= Math.abs(target.x)) return
-        setPosition(target)
+        setExitPosition(target)
         // `exitDir` is derived from the stable `exitDirection` prop and
         // `exitFrom` is fixed for a uniquely-keyed leaving card, so this runs
         // once on mount.
@@ -190,39 +171,42 @@ function CardItemViewInner(
             })
     }
 
-    const likeStrength: number = Math.max(signal, 0)
-    const nopeStrength: number = Math.max(-signal, 0)
+    // The card drag gesture controller (issue #406). Called unconditionally with
+    // `enabled` mirroring the JSX handler condition (`!isExit && isTopCard`) so
+    // the rules of hooks hold; all gesture guards and drag state live here. The
+    // commit-verdict handoff reads the latest commit funnel from a ref, so the
+    // funnel (which consults the controller) can be declared after the hook
+    // without a render-order circular dependency.
+    const commitSwipeRef = React.useRef<
+        (direction: 1 | -1, velocity: number, dragDistance: number) => void | Promise<void>
+    >(undefined)
+    const onCommitVerdict = React.useCallback(
+        (direction: 1 | -1, velocity: number, dragDistance: number) => {
+            commitSwipeRef.current?.(direction, velocity, dragDistance)
+        },
+        [],
+    )
+    const controller = useCardDrag(
+        !isExit && isTopCard,
+        divRef,
+        onCommitVerdict,
+    )
 
-    const { duration, mediaId, mediaType, rating, seasonCount = null, summary, posterUrl, title, year }: CardItem = cardItem
-    const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
-    const seasonsText: string = seasonCount !== null && seasonCount === 1 ? ` • ${seasonCount} Season` : seasonCount !== null && seasonCount > 1 ? ` • ${seasonCount} Seasons` : ""
-
-
-    // The single exit path for any drag that does NOT commit: snap-back,
-    // OS/browser cancellation, and capture loss (issue #342).
-    const resetDrag = () => {
-        dragActive.current = false
-        currentX.current = 0
-        samples.current = []
-        setIsDragging(false)
-        setSignal(0)
-        setPosition(DEFAULT_POSITION)
-    }
-
-    // The single exit path for a committed swipe. Both the drag gesture
-    // (handlePointerUp) and the imperative handle (commitSwipe on the ref)
-    // funnel through here so the exit animation and onSwipe call cannot drift
-    // apart. Guards: only the top card can commit, and only when no drag is live
-    // and the card has not already committed.
+    // The single exit path for a committed swipe. Both the drag gesture (the
+    // controller's onCommitVerdict handoff) and the imperative handle
+    // (commitSwipe on the ref) funnel through here so the exit animation and
+    // onSwipe call cannot drift apart. Guards: only the top card can commit,
+    // and only when no drag is live and the card has not already committed.
+    // The controller is the sole mutator of the drag-active / committed guards;
+    // this funnel only consults them (invariant 3).
     const commitSwipe = async (direction: 1 | -1, velocity: number, dragDistance: number): Promise<void> => {
         if (isExit) return
         if (stackIndex !== 0) return
-        if (dragActive.current) return
-        if (committed.current) return
-        committed.current = true
+        if (controller.isDragActive()) return
+        if (!controller.armCommit()) return
 
         // Hold the stamp lit through the exit — the card has committed.
-        setSignal(direction)
+        controller.setCommitSignal(direction)
         // The same fly-off target the leaving card's exit continues toward
         // (issue #360) — one shared definition, not a per-call-site copy.
         const commitPosition: Position = flyOffTarget(
@@ -232,7 +216,7 @@ function CardItemViewInner(
             divRef.current?.offsetWidth ?? 0,
             window.innerWidth,
         )
-        setPosition(commitPosition)
+        controller.setCommitPosition(commitPosition)
 
         const result = onSwipe?.(
             cardItem,
@@ -246,86 +230,22 @@ function CardItemViewInner(
                 // The swipe failed to save (e.g. a network error). Snap the card
                 // back to its resting transform and clear the committed guard so
                 // it can be re-swiped — the error banner promises a retry.
-                committed.current = false
-                setSignal(0)
-                setPosition(DEFAULT_POSITION)
+                controller.releaseCommitted()
+                controller.setCommitSignal(0)
+                controller.setCommitPosition(DEFAULT_POSITION)
             }
         }
     }
-
-    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        setIsDragging(true)
-        dragActive.current = true
-        hasDragged.current = false
-        startX.current = e.clientX
-        currentX.current = 0
-        samples.current = [{ x: e.clientX, time: e.timeStamp }]
-        // Measured once per gesture rather than per move, to avoid layout thrash.
-        thresholdPx.current = swipeThresholdFor(divRef.current?.offsetWidth ?? 0)
-
-        e.currentTarget.setPointerCapture(e.pointerId)
-    }
-
-    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging) return
-
-        const deltaX: number = e.clientX - startX.current
-        currentX.current = deltaX
-        samples.current = trackSample(samples.current, { x: e.clientX, time: e.timeStamp })
-
-        if (Math.abs(deltaX) > 5) {
-            hasDragged.current = true
-        }
-
-        setSignal(stampSignal(deltaX, computeVelocity(samples.current), thresholdPx.current))
-        setPosition({
-            x: deltaX,
-            y: Math.abs(deltaX) / 10,
-            rotation: deltaX / 10
-        })
-    }
-
-    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!dragActive.current) return
-        // Cleared BEFORE releasePointerCapture, which synthesises a
-        // `lostpointercapture` that would otherwise reset a committed card.
-        dragActive.current = false
-        setIsDragging(false)
-        e.currentTarget.releasePointerCapture(e.pointerId)
-
-        const distance: number = currentX.current
-        const velocity: number = computeVelocity(samples.current)
-        samples.current = []
-
-        if (shouldCommitSwipe(distance, velocity, thresholdPx.current)) {
-            const direction: 1 | -1 = distance > 0 ? 1 : -1
-            commitSwipe(direction, velocity, distance)
-        } else {
-            resetDrag()
-        }
-    }
-
-    // The OS or browser took the pointer away mid-drag — incoming call, notification,
-    // iOS back-swipe, context menu. `pointerup` never arrives (issue #342).
-    // Guarded like handleLostPointerCapture: a cancel arriving after a commit
-    // (e.g. a second finger lifting) must not snap the committed card back to
-    // rest on-screen, since `onSwipe` has already fired and been seen.
-    const handlePointerCancel = () => {
-        if (!dragActive.current) return
-        resetDrag()
-    }
-
-    // Also fires from our own releasePointerCapture() on a normal release, so it must
-    // only act while a drag is genuinely still live.
-    const handleLostPointerCapture = () => {
-        if (!dragActive.current) return
-        resetDrag()
-    }
-
+    // Keep the ref pointing at the latest funnel closure (the controller's
+    // onCommitVerdict handoff reads it on release). Updated in an effect so the
+    // ref write happens after render, per the rules of hooks.
+    React.useEffect(() => {
+        commitSwipeRef.current = commitSwipe
+    })
 
     const handleDetailsClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.currentTarget.tagName === "BUTTON") return
-        if (hasDragged.current) return
+        if (controller.hasDragged()) return
         setShowDetails(prev => !prev)
     }
 
@@ -349,6 +269,18 @@ function CardItemViewInner(
         },
     }))
 
+    // Leaving cards merge their own seeded transform/stamp; interactive cards
+    // use the controller's drag state (invariant 4).
+    const position: Position = isExit ? exitPosition : controller.position
+    const signal: number = isExit ? exitSignal : controller.signal
+
+    const likeStrength: number = Math.max(signal, 0)
+    const nopeStrength: number = Math.max(-signal, 0)
+
+    const { duration, mediaId, mediaType, rating, seasonCount = null, summary, posterUrl, title, year }: CardItem = cardItem
+    const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
+    const seasonsText: string = seasonCount !== null && seasonCount === 1 ? ` • ${seasonCount} Season` : seasonCount !== null && seasonCount > 1 ? ` • ${seasonCount} Seasons` : ""
+
     // Leaving cards derive their inline transition duration from the same
     // shared exit-duration constants the leaving-card hook's unmount hold uses
     // (issue #360), so the exit animation and the unmount hold can never drift
@@ -368,11 +300,11 @@ function CardItemViewInner(
             ref={divRef}
             className={`card-item-container ${showDetails ? "flipped" : ""} ${!isTopCard ? "stack-back" : ""}`}
             onClick={isExit ? undefined : handleDetailsClick}
-            onPointerDown={!isExit && isTopCard ? handlePointerDown : undefined}
-            onPointerMove={!isExit && isTopCard ? handlePointerMove : undefined}
-            onPointerUp={!isExit && isTopCard ? handlePointerUp : undefined}
-            onPointerCancel={!isExit && isTopCard ? handlePointerCancel : undefined}
-            onLostPointerCapture={!isExit && isTopCard ? handleLostPointerCapture : undefined}
+            onPointerDown={!isExit && isTopCard ? controller.handlePointerDown : undefined}
+            onPointerMove={!isExit && isTopCard ? controller.handlePointerMove : undefined}
+            onPointerUp={!isExit && isTopCard ? controller.handlePointerUp : undefined}
+            onPointerCancel={!isExit && isTopCard ? controller.handlePointerCancel : undefined}
+            onLostPointerCapture={!isExit && isTopCard ? controller.handleLostPointerCapture : undefined}
             style={{
                 zIndex,
                 pointerEvents: isExit ? "none" : (isTopCard ? "auto" : "none"),
@@ -384,7 +316,7 @@ function CardItemViewInner(
                     rotate(${position.rotation}deg) ${stackTransform(stackIndex)}
                 `,
                 filter: stackBrightness(stackIndex),
-                transition: isExit ? exitTransition : (isDragging ? "none" : `transform ${restDuration}s ease, filter ${restDuration}s ease`)
+                transition: isExit ? exitTransition : (controller.isDragging ? "none" : `transform ${restDuration}s ease, filter ${restDuration}s ease`)
             }}
         >
           <div className="card-item-inner">
