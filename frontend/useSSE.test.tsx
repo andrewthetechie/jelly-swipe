@@ -158,8 +158,14 @@ describe("useSSE - connection lifecycle and error handling", () => {
 })
 
 describe("useSSE - cursor forwarding and reconnect behavior", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {})
+    vi.spyOn(console, "error").mockImplementation(() => {})
+  })
+
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   const setup = () => {
@@ -309,7 +315,7 @@ describe("useSSE - cursor forwarding and reconnect behavior", () => {
     expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBe("50")
   })
 
-  it("catches an EventSource constructor throw on mount and reconnect, setting the SSE error instead of propagating", async () => {
+  it("catches an EventSource constructor throw on mount and reconnect, setting the SSE error instead of propagating", () => {
     const { mockEventSource, EventSourceMock } = setup()
     let calls = 0
     EventSourceMock.mockImplementation(function () {
@@ -322,9 +328,6 @@ describe("useSSE - cursor forwarding and reconnect behavior", () => {
 
     const { result } = renderHook(() => useSSE("/test-sse"))
 
-    // The mount-effect constructor throw is caught on the unified guarded path and
-    // deferred via queueMicrotask; flush the microtask before asserting.
-    await act(async () => {})
     expect(result.current.error).toBe("Error establishing SSE connection")
     expect(EventSourceMock).toHaveBeenCalledTimes(1)
 
@@ -332,7 +335,6 @@ describe("useSSE - cursor forwarding and reconnect behavior", () => {
     act(() => {
       result.current.connect()
     })
-    await act(async () => {})
     expect(result.current.error).toBe("Error establishing SSE connection")
     expect(EventSourceMock).toHaveBeenCalledTimes(2)
   })

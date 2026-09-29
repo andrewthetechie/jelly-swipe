@@ -122,7 +122,7 @@ export const useSSE = (url: string | null): UseSSEReturn => {
             }
         } catch (err) {
             console.error("Error establishing SSE connection:", err)
-            queueMicrotask(() => setError("Error establishing SSE connection"))
+            setError("Error establishing SSE connection")
         }
     }, [handleSessionReset, scheduleReconnect, url])
 
@@ -147,6 +147,10 @@ export const useSSE = (url: string | null): UseSSEReturn => {
             return
         }
 
+        // openStream's catch reports a failed EventSource constructor with a
+        // synchronous setError. That is an error path for an external system,
+        // not a cascading render, so the heuristic does not apply here.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         openStream()
 
         return () => {
