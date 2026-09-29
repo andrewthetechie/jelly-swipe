@@ -308,4 +308,71 @@ describe("useSSE - cursor forwarding and reconnect behavior", () => {
     expect(EventSourceMock).toHaveBeenCalledTimes(2)
     expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBe("50")
   })
+
+  it("catches an EventSource constructor throw on mount and reconnect, setting the SSE error instead of propagating", async () => {
+    const { mockEventSource, EventSourceMock } = setup()
+    let calls = 0
+    EventSourceMock.mockImplementation(function (url: string) {
+      calls += 1
+      if (calls <= 2) {
+        throw new Error("constructor failed")
+      }
+      return mockEventSource as unknown as EventSource
+    })
+
+    const { result } = renderHook(() => useSSE("/test-sse"))
+
+    // The mount-effect constructor throw is caught on the unified guarded path and
+    // deferred via queueMicrotask; flush the microtask before asserting.
+    await act(async () => {})
+    expect(result.current.error).toBe("Error establishing SSE connection")
+    expect(EventSourceMock).toHaveBeenCalledTimes(1)
+
+    // A reconnect flows through the same guarded path and is swallowed too.
+    act(() => {
+      result.current.connect()
+    })
+    await act(async () => {})
+    expect(result.current.error).toBe("Error establishing SSE connection")
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("teardown cancels a scheduled reconnect when the URL changes, so only one stream opens for the new URL", () => {
+    vi.useFakeTimers()
+    const { mockEventSource, EventSourceMock } = setup()
+
+    const { rerender } = renderHook(({ url }: { url: string | null }) => useSSE(url), {
+      initialProps: { url: "/test-sse" },
+    })
+
+    act(() => {
+      mockEventSource.onopen?.call(
+        mockEventSource as unknown as EventSource,
+        new Event("open"),
+      )
+    })
+
+    act(() => {
+      mockEventSource.simulateError(new Event("error"))
+    })
+
+    // Reconnect is scheduled 3000 ms out; not yet fired.
+    act(() => {
+      vi.advanceTimersByTime(2999)
+    })
+    expect(EventSourceMock).toHaveBeenCalledTimes(1)
+
+    // A URL change runs teardown(), which clears the pending reconnect timer, then
+    // reopens for the new URL.
+    rerender({ url: "/test-sse-2" })
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+    expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBeNull()
+
+    // Advance past the original 3000 ms window: the stale timer must not fire a
+    // second stream for the new URL.
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+  })
 })
