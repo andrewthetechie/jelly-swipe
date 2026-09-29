@@ -251,6 +251,34 @@ describe("useSSE - cursor forwarding and reconnect behavior", () => {
     expect(streamUrlOf(EventSourceMock, 1).searchParams.get("after_event_id")).toBeNull()
   })
 
+  it("clears lastMessage, error, and isConnected when the URL changes (room switch)", () => {
+    const { mockEventSource, EventSourceMock } = setup()
+
+    const { result, rerender } = renderHook(({ url }: { url: string | null }) => useSSE(url), {
+      initialProps: { url: "/test-sse" },
+    })
+
+    act(() => {
+      mockEventSource.onopen?.call(
+        mockEventSource as unknown as EventSource,
+        new Event("open"),
+      )
+    })
+    act(() => {
+      mockEventSource.simulateMessage({ data: JSON.stringify({ message: "hello" }), lastEventId: "42" })
+    })
+    expect(result.current.lastMessage).toEqual({ message: "hello" })
+    expect(result.current.isConnected).toBe(true)
+
+    // Simulate a room switch: url change triggers the shared teardown before reopening.
+    rerender({ url: "/test-sse-2" })
+
+    expect(result.current.lastMessage).toBeNull()
+    expect(result.current.error).toBeNull()
+    expect(result.current.isConnected).toBe(false)
+    expect(EventSourceMock).toHaveBeenCalledTimes(2)
+  })
+
   it("does not move the cursor backwards", () => {
     vi.useFakeTimers()
     const { mockEventSource, EventSourceMock } = setup()
