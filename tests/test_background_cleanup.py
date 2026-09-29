@@ -1,8 +1,11 @@
-"""Tests for the background cleanup seam (issue #295).
+"""Tests for the background cleanup seam (issue #295) and the session-instance
+teardown service (issue #410).
 
 Covers: the BackgroundTaskRegistry (a visible, shutdown-aware task registry that
-replaces fire-and-forget create_task) and RoomLifecycleService's graceful room
-cleanup, exercised WITHOUT a real 60-second sleep by injecting a fake clock.
+replaces fire-and-forget create_task), RoomLifecycleService's graceful room
+cleanup, and jellyswipe.services.session_teardown (teardown_session_instance,
+sweep_orphaned_instances, and the lifespan orphan-sweep error path) — exercised
+WITHOUT a real 60-second sleep by injecting a fake clock.
 """
 
 import asyncio
@@ -61,6 +64,15 @@ async def _seed_room_and_instance(session):
     )
     await uow.session_instances.create(instance_id="quitting", pairing_code="7777")
     return uow
+
+
+async def _remaining_event_rows(session, instance_id: str) -> list:
+    """Rows still linked to an instance in session_events (empty once torn down)."""
+    result = await session.execute(
+        text("SELECT 1 FROM session_events WHERE session_instance_id = :iid"),
+        {"iid": instance_id},
+    )
+    return result.scalars().all()
 
 
 # ---------------------------------------------------------------------------
@@ -138,18 +150,7 @@ async def test_cleanup_after_grace_runs_without_real_sleep(runtime_sessionmaker)
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         instance = await uow.session_instances.get_by_pairing_code("9999")
-        remaining = (
-            (
-                await session.execute(
-                    text(
-                        "SELECT 1 FROM session_events "
-                        "WHERE session_instance_id = 'clean-me'"
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
+        remaining = await _remaining_event_rows(session, "clean-me")
     assert instance is None
     assert remaining == []
 
@@ -207,18 +208,7 @@ async def test_teardown_session_instance_removes_row_and_events(runtime_sessionm
     async with runtime_sessionmaker() as session:
         uow = DatabaseUnitOfWork(session)
         instance = await uow.session_instances.get_by_instance_id("torn-down")
-        remaining = (
-            (
-                await session.execute(
-                    text(
-                        "SELECT 1 FROM session_events "
-                        "WHERE session_instance_id = 'torn-down'"
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
+        remaining = await _remaining_event_rows(session, "torn-down")
     assert instance is None
     assert remaining == []
 
