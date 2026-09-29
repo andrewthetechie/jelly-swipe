@@ -178,7 +178,8 @@ describe("CardItemView — Watch Trailer label casing", () => {
 
 // The Watch Trailer button opens the trailer div and displays the video; the
 // trailer fetch/abort/error policy itself is covered in useTrailer.test.tsx, so
-// the tests below cover only the render-arm behaviour (success embed + flip gating).
+// the tests below cover only the render-arm behaviour (loading, success embed +
+// flip gating).
 
 describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
   beforeEach(() => {
@@ -212,6 +213,26 @@ describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
 describe("CardItemView — Watch Trailer state machine", () => {
   afterEach(() => {
     fetchTrailerMock.mockReset()
+  })
+
+  it("shows 'Loading trailer…' and disables the button while the request is in flight", async () => {
+    let resolveTrailer!: (value: { youtube_key: string }) => void
+    fetchTrailerMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTrailer = resolve
+      }),
+    )
+
+    renderCard()
+    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
+
+    expect(screen.getByText("Loading trailer…")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /loading trailer/i })).toBeDisabled()
+
+    // Resolve so the pending promise doesn't linger after the test.
+    await act(async () => {
+      resolveTrailer({ youtube_key: "abc123" })
+    })
   })
 
   it("renders an embedded YouTube player on success", async () => {
