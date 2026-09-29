@@ -1848,9 +1848,10 @@ div.match-list-info {
     transition-duration: 0.15s;
   }
 
-  /* The old container-level duration is now redundant because CardItemView
-     reads matchMedia directly for the resting transition, but it stays as a
-     harmless fallback (issue #353). */
+  /* The old container-level duration is now redundant because SwipeDeck
+     (issue #399) derives the rest/exit durations from a single
+     prefers-reduced-motion read and threads them into each card as an inline
+     transition, but it stays as a harmless fallback (issue #353). */
   .card-item-container {
     transition-duration: 0.15s;
   }

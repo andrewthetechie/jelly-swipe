@@ -1,13 +1,9 @@
 import React from "react"
 import type { CardItem } from "./types"
-import {
-    EXIT_TRANSITION_MS,
-    REDUCED_MOTION_EXIT_TRANSITION_MS,
-    type Position,
-} from "./swipeGesture"
+import type { Position } from "./swipeGesture"
 
 /**
- * A committed card kept mounted in SwipePage's "leaving slot" so its fly-off
+ * A committed card kept mounted in SwipeDeck's "leaving slot" so its fly-off
  * exit animation can be seen (issue #360).
  */
 export interface LeavingCard {
@@ -30,26 +26,18 @@ interface UseLeavingCardsReturn {
 }
 
 /**
- * The reduced-motion hold duration for a leaving card, read once via
- * `window.matchMedia` — derived from the same shared exit-duration constants
- * CardItemView builds its inline exit transition from, so the animation and the
- * unmount hold stay in lock step (issue #360).
- */
-function leavingHoldMs(): number {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? REDUCED_MOTION_EXIT_TRANSITION_MS
-        : EXIT_TRANSITION_MS
-}
-
-/**
- * State for SwipePage's "leaving card" overlay (issue #360): the deck slices
+ * State for SwipeDeck's "leaving card" overlay (issue #360): the deck slices
  * the moment a swipe succeeds, so the committed card would unmount mid-exit;
  * this hook records it as a non-interactive leaving entry that self-removes
  * after the exit transition duration. It is deliberately NOT a reducer change —
  * `roomSession.ts` / `RoomSessionProvider.tsx` keep slicing the deck and
  * updating `swipeHistory` exactly as before, so undo keeps working immediately.
+ *
+ * `holdMs` is the unmount hold, derived once by the deck module (SwipeDeck)
+ * from the shared exit-duration constants so the animation and the hold can
+ * never drift apart (issue #399). This hook no longer reads matchMedia itself.
  */
-export const useLeavingCards = (deck: CardItem[]): UseLeavingCardsReturn => {
+export const useLeavingCards = (deck: CardItem[], holdMs: number): UseLeavingCardsReturn => {
     const [leavingCards, setLeavingCards] = React.useState<LeavingCard[]>([])
     // Per-entry timers, keyed by the entry key, so rapid consecutive swipes
     // each get their own removal timer and entries never accumulate.
@@ -75,9 +63,9 @@ export const useLeavingCards = (deck: CardItem[]): UseLeavingCardsReturn => {
         const key = `leaving-${card.mediaId}-${seqRef.current}`
         const entry: LeavingCard = { card, direction, from, key }
         setLeavingCards((prev) => [...prev, entry])
-        const timer = setTimeout(() => removeEntry(key), leavingHoldMs())
+        const timer = setTimeout(() => removeEntry(key), holdMs)
         timersRef.current.set(key, timer)
-    }, [removeEntry])
+    }, [removeEntry, holdMs])
 
     // Undo interplay (issue #360): when an undo restores a card that is still
     // mid-exit (the deck head's mediaId equals a leaving entry's), drop that

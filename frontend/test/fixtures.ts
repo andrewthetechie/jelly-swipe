@@ -33,7 +33,7 @@ export function makeCard(overrides: Partial<CardItem> = {}): CardItem {
 }
 
 // Build a deck of `n` cards with distinct mediaId/title, so tests can assert
-// ordering and counts unambiguously (e.g. card-stack slicing in SwipePage).
+// ordering and counts unambiguously (e.g. card-stack slicing in SwipeDeck).
 export function makeDeck(n: number): CardDeck {
   return Array.from({ length: n }, (_, i) =>
     makeCard({ mediaId: String(i + 1), title: `Movie ${i + 1}` }),
