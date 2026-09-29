@@ -21,13 +21,16 @@ beforeEach(() => {
 
 describe("HostModal — toggles", () => {
   it("clicking Movies (default on) reports the new unchecked value", async () => {
+    // This is the first test in the file, so it pays the whole module-graph
+    // import cost and runs under parallel-worker CPU contention; the default
+    // 5000ms timeout is flaky here. Give it a robust timeout (it still asserts).
     const user = userEvent.setup();
     renderWithRoomStateful(<HostModal onClose={vi.fn()} />, {
       movies: true,
     });
     await user.click(screen.getByRole("checkbox", { name: /movies/i }));
     expect(screen.getByRole("checkbox", { name: /movies/i })).not.toBeChecked();
-  });
+  }, 10000);
 
   it("clicking the TV toggle (input name='tvShows') drives setTvShows", async () => {
     const user = userEvent.setup();
