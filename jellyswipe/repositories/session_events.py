@@ -3,40 +3,9 @@
 from __future__ import annotations
 
 from sqlalchemy import delete, func, select, text
-from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.ext.asyncio import AsyncConnection as AsyncConnection
 
 from jellyswipe.models.session_event import SessionEvent, SessionInstance
-
-
-def append_sync(
-    conn: Connection,
-    instance_id: str,
-    event_type: str,
-    payload_json: str,
-) -> int:
-    """Append a session event using a sync Connection (for use inside run_sync).
-
-    Returns the auto-generated event_id.
-    """
-    from datetime import datetime, timezone
-
-    created_at = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        text("""
-            INSERT INTO session_events (session_instance_id, event_type, payload_json, created_at)
-            VALUES (:instance_id, :event_type, :payload_json, :created_at)
-        """),
-        {
-            "instance_id": instance_id,
-            "event_type": event_type,
-            "payload_json": payload_json,
-            "created_at": created_at,
-        },
-    )
-    result = conn.execute(text("SELECT last_insert_rowid()"))
-    return result.scalar()
 
 
 class SessionInstanceRepository:
@@ -196,30 +165,3 @@ class SessionEventRepository:
             delete(SessionEvent).where(SessionEvent.session_instance_id == instance_id)
         )
         return result.rowcount or 0
-
-    async def append_raw_sql(
-        self,
-        conn: AsyncConnection,
-        instance_id: str,
-        event_type: str,
-        payload_json: str,
-    ) -> int:
-        """Append an event using raw SQL connection."""
-        from datetime import datetime, timezone
-
-        created_at = datetime.now(timezone.utc).isoformat()
-        await conn.execute(
-            text("""
-                INSERT INTO session_events (session_instance_id, event_type, payload_json, created_at)
-                VALUES (:instance_id, :event_type, :payload_json, :created_at)
-            """),
-            {
-                "instance_id": instance_id,
-                "event_type": event_type,
-                "payload_json": payload_json,
-                "created_at": created_at,
-            },
-        )
-        # Get the last inserted rowid
-        result = await conn.execute(text("SELECT last_insert_rowid()"))
-        return result.scalar()
