@@ -21,6 +21,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from jellyswipe.config import AppConfig
 from jellyswipe.db_runtime import dispose_runtime
+from jellyswipe.services.session_teardown import sweep_orphaned_instances
 from jellyswipe.utils import frontend as _frontend_utils
 
 # App root for static/template paths
@@ -117,27 +118,7 @@ async def lifespan(app: FastAPI):
 
     # Clean up orphaned session instances from previous runs
     try:
-        import datetime
-
-        from jellyswipe.db_runtime import get_sessionmaker
-        from jellyswipe.db_uow import DatabaseUnitOfWork
-
-        async with get_sessionmaker()() as session:
-            uow = DatabaseUnitOfWork(session)
-            # Find instances marked as "closing" for more than 5 minutes
-            cutoff = (
-                datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
-            ).isoformat()
-
-            # For each stale closing instance, complete the cleanup
-            closing_instances = await uow.session_instances.get_closing_before(cutoff)
-            for instance in closing_instances:
-                _logger.info("Cleaning up orphaned instance: %s", instance.instance_id)
-                await uow.session_instances.mark_closed(instance.instance_id)
-                await uow.session_events.delete_for_instance(instance.instance_id)
-                await uow.session_instances.delete(instance.instance_id)
-
-            await session.commit()
+        await sweep_orphaned_instances()
     except Exception:
         # If cleanup fails during startup, log and continue — the app should still start
         _logger.exception("Failed to clean up orphaned session instances on startup")

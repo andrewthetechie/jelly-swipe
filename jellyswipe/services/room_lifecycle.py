@@ -18,6 +18,7 @@ from jellyswipe.services.background_tasks import (
     background_task_registry,
 )
 from jellyswipe.services.deck_pipeline import DeckProvider, EmptyDeckError, build_deck
+from jellyswipe.services.session_teardown import teardown_session_instance
 
 __all__ = [
     "CreateRoomResult",
@@ -196,9 +197,7 @@ class RoomLifecycleService:
         await self._sleep(self._grace_seconds)
         async with get_sessionmaker()() as session:
             uow = DatabaseUnitOfWork(session)
-            await uow.session_instances.mark_closed(instance_id)
-            await uow.session_events.delete_for_instance(instance_id)
-            await uow.session_instances.delete(instance_id)
+            await teardown_session_instance(uow, instance_id)
             await session.commit()
 
     async def get_deck(

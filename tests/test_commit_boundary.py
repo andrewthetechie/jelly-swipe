@@ -31,6 +31,12 @@ from jellyswipe.models.room import Room
 @pytest.fixture
 async def runtime_sessionmaker(db_path, monkeypatch):
     """A temp-DB sessionmaker plus a ``bridge_rows`` table for legacy-sync tests."""
+    # Align env vars with the db_path so Alembic env.py migrates THIS database.
+    # alembic/env.py resolves the URL from DATABASE_URL/DB_PATH before the
+    # configured sqlalchemy.url, so a stale value leaked from an earlier test in
+    # the same worker would migrate the wrong file (see other repo fixtures).
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", db_path)
     upgrade_to_head(build_sqlite_url(db_path))
     await dispose_runtime()
     await initialize_runtime(build_async_sqlite_url(db_path))
