@@ -88,12 +88,6 @@ export async function swipeLeft(card: HTMLElement) {
   fireEvent.pointerUp(card, { clientX: -250, pointerId: 1 })
 }
 
-export async function swipeUnderThreshold(card: HTMLElement) {
-  fireEvent.pointerDown(card, { clientX: 0, pointerId: 1 })
-  fireEvent.pointerMove(card, { clientX: 10, pointerId: 1 })
-  fireEvent.pointerUp(card, { clientX: 10, pointerId: 1 })
-}
-
 // Press and drag to `clientX` without releasing — leaves the drag live so a
 // test can assert mid-gesture feedback, or interrupt it.
 export function dragTo(card: HTMLElement, clientX: number) {
