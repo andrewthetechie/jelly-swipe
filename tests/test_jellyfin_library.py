@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from jellyswipe.jellyfin import JellyfinClient, JellyfinLibrary, JellyfinVault
+from jellyswipe.jellyfin.library import ItemResolutionError
 
 BASE = "http://test.local"
 
@@ -346,6 +347,42 @@ async def test_resolve_item_for_tmdb_fallback_to_user_endpoint():
     assert result.title == "Fallback Movie"
     assert result.year == 2001
     assert calls.count("/Users/user-123/Items/movie-123") == 1
+
+
+@pytest.mark.anyio
+async def test_resolve_item_for_tmdb_both_endpoints_fail_raises_item_resolution_error():
+    """Both global and user-scoped endpoints failing raises ItemResolutionError."""
+    calls = []
+
+    def handler(request):
+        path = request.url.path
+        calls.append(path)
+        if path == "/Items/movie-123":
+            return httpx.Response(400)
+        if path == "/Users/user-123/Items/movie-123":
+            return httpx.Response(400)
+        return _ok({"Items": []})
+
+    _, _, library = _build(handler)
+
+    with pytest.raises(ItemResolutionError) as excinfo:
+        await library.resolve_item_for_tmdb("movie-123")
+
+    assert isinstance(excinfo.value.__cause__, RuntimeError)
+    assert calls.count("/Users/user-123/Items/movie-123") == 1
+
+
+@pytest.mark.anyio
+async def test_resolve_item_for_tmdb_empty_title_raises_item_resolution_error():
+    """An item with no resolvable title raises ItemResolutionError."""
+
+    def handler(request):
+        return _ok({"Name": "", "OriginalTitle": "", "ProductionYear": 1999})
+
+    _, _, library = _build(handler)
+
+    with pytest.raises(ItemResolutionError):
+        await library.resolve_item_for_tmdb("movie-123")
 
 
 # ---- fetch_library_image ----

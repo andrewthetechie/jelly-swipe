@@ -10,6 +10,7 @@ import os
 from datetime import UTC, datetime
 from unittest.mock import patch
 
+from jellyswipe.jellyfin.library import ItemResolutionError
 from tests.conftest import set_session_cookie
 
 
@@ -169,7 +170,7 @@ class TestTrailerRoute:
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
-                raise RuntimeError("item lookup failed")
+                raise ItemResolutionError()
 
         failing = FailingProvider()
         app.dependency_overrides[get_library] = lambda: failing
@@ -305,7 +306,7 @@ class TestCastRoute:
 
         class FailingProvider(FakeProvider):
             def resolve_item_for_tmdb(self, movie_id):
-                raise RuntimeError("item lookup failed")
+                raise ItemResolutionError()
 
         failing = FailingProvider()
         app.dependency_overrides[get_library] = lambda: failing

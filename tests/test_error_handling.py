@@ -23,6 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from jellyswipe.dependencies import get_library, get_watchlist
+from jellyswipe.jellyfin.library import ItemResolutionError
 
 
 @pytest.fixture
@@ -219,9 +220,7 @@ class TestErrorResponseFormat:
 
     def test_4xx_includes_specific_message_and_request_id(self, client):
         mock_prov = MagicMock()
-        mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
-            "Item lookup failed for id"
-        )
+        mock_prov.resolve_item_for_tmdb.side_effect = ItemResolutionError()
         client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/get-trailer/test-movie-id")
@@ -249,9 +248,7 @@ class TestErrorResponseFormat:
 
     def test_cast_404_includes_cast_field(self, client):
         mock_prov = MagicMock()
-        mock_prov.resolve_item_for_tmdb.side_effect = RuntimeError(
-            "Item lookup failed for id"
-        )
+        mock_prov.resolve_item_for_tmdb.side_effect = ItemResolutionError()
         client.app.dependency_overrides[get_library] = lambda: mock_prov
         try:
             resp = client.get("/cast/test-movie-id")
