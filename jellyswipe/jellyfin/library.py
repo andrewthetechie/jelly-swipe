@@ -47,6 +47,14 @@ def _names_from_genre_filter(data: dict) -> list[str]:
     return names
 
 
+class ItemResolutionError(Exception):
+    """Jellyfin could not resolve the item for TMDB enrichment.
+
+    Raised when the item is genuinely missing or a Jellyfin HTTP error was
+    caught during resolution.
+    """
+
+
 class JellyfinLibrary:
     """Jellyfin-backed library: genres, deck, images, item resolution, server info."""
 
@@ -272,11 +280,11 @@ class JellyfinLibrary:
                     "GET", f"/Users/{uid}/Items/{movie_id}", params=params
                 )
             except RuntimeError as exc:
-                raise RuntimeError("Jellyfin item lookup failed") from exc
+                raise ItemResolutionError() from exc
         title = data.get("Name") or data.get("OriginalTitle") or ""
         year = data.get("ProductionYear")
         if not title:
-            raise RuntimeError("Jellyfin item lookup failed")
+            raise ItemResolutionError()
         return SimpleNamespace(title=title, year=year)
 
     async def server_info(self) -> dict:
@@ -355,4 +363,4 @@ class JellyfinLibrary:
         return r.content, ctype
 
 
-__all__ = ["JellyfinLibrary"]
+__all__ = ["ItemResolutionError", "JellyfinLibrary"]

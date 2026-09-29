@@ -73,12 +73,18 @@ async def get_trailer(
     """
     result = await _enrichment.fetch_trailer(
         media_id=movie_id,
-        request=request,
         uow=uow,
         provider=provider,
         api_token=config.tmdb_access_token,
     )
-    return result
+    if result.kind == "found":
+        return result.payload
+    if result.kind == "miss":
+        return make_error_response("Not found", 404, request)
+    if result.kind == "item_unresolved":
+        return make_error_response("Movie metadata not found", 404, request)
+    log_exception(result.exc, request, logger=_logger)
+    return make_error_response("Internal server error", 500, request)
 
 
 @media_router.get(
@@ -118,12 +124,20 @@ async def get_cast(
     """
     result = await _enrichment.fetch_cast(
         media_id=movie_id,
-        request=request,
         uow=uow,
         provider=provider,
         api_token=config.tmdb_access_token,
     )
-    return result
+    if result.kind == "found":
+        return result.payload
+    if result.kind == "item_unresolved":
+        return make_error_response(
+            "Movie metadata not found", 404, request, extra_fields={"cast": []}
+        )
+    log_exception(result.exc, request, logger=_logger)
+    return make_error_response(
+        "Internal server error", 500, request, extra_fields={"cast": []}
+    )
 
 
 @media_router.get(

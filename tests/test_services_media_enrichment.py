@@ -3,8 +3,9 @@
 Covers fetch_trailer / fetch_cast cache-aside logic: cache hit/miss,
 empty/sentinel handling, storage policy, and error handling. Tests target
 the named methods (not a parameterized callback interface) and assert both
-the returned payload and the stored ``result_json`` so that storage policy
-is covered directly.
+the typed result and the stored ``result_json`` so that storage policy is
+covered directly. The service never constructs HTTP responses and never
+commits; it stages writes via ``uow.tmdb_cache.put()``.
 """
 
 from __future__ import annotations
@@ -15,11 +16,39 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from jellyswipe.services.media_enrichment import MediaEnrichmentService
+from jellyswipe.jellyfin.library import ItemResolutionError
+from jellyswipe.services.media_enrichment import LookupResult, MediaEnrichmentService
 
 # Patch targets for the TMDB lookup functions owned by the service module.
 _TRAILER = "jellyswipe.services.media_enrichment.lookup_trailer"
 _CAST = "jellyswipe.services.media_enrichment.lookup_cast"
+
+
+class TestLookupResultInvariants:
+    """LookupResult rejects constructions that violate its kind invariants."""
+
+    def test_found_without_payload_is_rejected(self):
+        with pytest.raises(ValueError, match="payload"):
+            LookupResult(kind="found")
+
+    def test_non_found_with_payload_is_rejected(self):
+        with pytest.raises(ValueError, match="payload"):
+            LookupResult(kind="miss", payload={})
+
+    def test_upstream_error_without_exc_is_rejected(self):
+        with pytest.raises(ValueError, match="exc"):
+            LookupResult(kind="upstream_error")
+
+    def test_non_upstream_error_with_exc_is_rejected(self):
+        with pytest.raises(ValueError, match="exc"):
+            LookupResult(kind="item_unresolved", exc=Exception("boom"))
+
+    def test_valid_constructions_pass(self):
+        assert LookupResult(kind="miss").payload is None
+        assert LookupResult(kind="found", payload={"cast": []}).kind == "found"
+        result = LookupResult(kind="upstream_error", exc=Exception("db down"))
+        assert isinstance(result.exc, Exception)
+        assert LookupResult(kind="item_unresolved").kind == "item_unresolved"
 
 
 @pytest.mark.anyio
@@ -43,12 +72,6 @@ class MediaEnrichmentTestBase:
         )
         return provider
 
-    def _make_request(self):
-        """Build a mock FastAPI Request."""
-        request = MagicMock()
-        request.state.request_id = "test-request-id"
-        return request
-
     def _make_cache_record(self, result_json):
         """Build a mock TmdbCacheRecord."""
         record = MagicMock()
@@ -60,65 +83,62 @@ class MediaEnrichmentTestBase:
 class TestFetchTrailer(MediaEnrichmentTestBase):
     """Unit tests for MediaEnrichmentService.fetch_trailer()."""
 
-    async def test_cache_hit_returns_cached_dict_without_lookup(self):
-        """Cache hit returns the wrapped dict directly, no TMDB lookup."""
+    async def test_cache_hit_returns_found_without_lookup(self):
+        """Cache hit returns a found result with the cached dict, no TMDB lookup."""
         service = MediaEnrichmentService()
         uow = self._make_uow(
             cached=self._make_cache_record({"youtube_key": "cached-key"})
         )
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_TRAILER) as mock_lookup:
             result = await service.fetch_trailer(
                 media_id="movie-1",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result == {"youtube_key": "cached-key"}
+        assert result.kind == "found"
+        assert result.payload == {"youtube_key": "cached-key"}
         mock_lookup.assert_not_called()
         uow.tmdb_cache.put.assert_not_called()
 
-    async def test_cache_hit_empty_sentinel_returns_404(self):
-        """Cache hit with {} sentinel returns 404 without a TMDB lookup."""
+    async def test_cache_hit_empty_sentinel_returns_miss(self):
+        """Cache hit with {} sentinel returns a miss result without a lookup."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=self._make_cache_record({}))
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_TRAILER) as mock_lookup:
             result = await service.fetch_trailer(
                 media_id="movie-2",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 404
+        assert result.kind == "miss"
+        assert result.payload is None
         mock_lookup.assert_not_called()
         uow.tmdb_cache.put.assert_not_called()
 
     async def test_cache_miss_stores_wrapped_youtube_key(self):
-        """Trailer miss calls lookup, stores {"youtube_key": key}, returns it."""
+        """Trailer miss calls lookup, stores {"youtube_key": key}, returns found."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_TRAILER, return_value="abc123") as mock_lookup:
             result = await service.fetch_trailer(
                 media_id="movie-3",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result == {"youtube_key": "abc123"}
+        assert result.kind == "found"
+        assert result.payload == {"youtube_key": "abc123"}
         mock_lookup.assert_called_once_with("Test Movie", 2024, api_token="token")
         put = uow.tmdb_cache.put.call_args
         assert put[0][0] == "movie-3"
@@ -127,87 +147,97 @@ class TestFetchTrailer(MediaEnrichmentTestBase):
         uow.session.commit.assert_not_called()
 
     async def test_cache_miss_no_trailer_stores_empty_sentinel(self):
-        """Trailer miss with no key stores {} (not {"youtube_key": null}) and 404s."""
+        """Trailer miss with no key stores {} and returns a miss result."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_TRAILER, return_value=None):
             result = await service.fetch_trailer(
                 media_id="movie-4",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 404
+        assert result.kind == "miss"
         put = uow.tmdb_cache.put.call_args
         assert json.loads(put[0][2]) == {}
 
-    async def test_item_lookup_runtime_error_returns_404(self):
-        """RuntimeError 'item lookup failed' from provider returns 404."""
+    async def test_item_lookup_error_returns_item_unresolved(self):
+        """ItemResolutionError from provider returns an item_unresolved result."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
-        provider.resolve_item_for_tmdb.side_effect = RuntimeError(
-            "Jellyfin item lookup failed"
-        )
-        request = self._make_request()
+        provider.resolve_item_for_tmdb.side_effect = ItemResolutionError()
 
         with patch(_TRAILER) as mock_lookup:
             result = await service.fetch_trailer(
                 media_id="movie-5",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 404
-        assert "Movie metadata not found" in result.body.decode()
+        assert result.kind == "item_unresolved"
         mock_lookup.assert_not_called()
+        uow.tmdb_cache.put.assert_not_called()
 
-    async def test_generic_exception_returns_500(self):
-        """Generic exception from provider returns 500."""
+    async def test_generic_exception_returns_upstream_error(self):
+        """Generic exception from provider returns an upstream_error result."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
         provider.resolve_item_for_tmdb.side_effect = Exception("network error")
-        request = self._make_request()
 
         with patch(_TRAILER) as mock_lookup:
             result = await service.fetch_trailer(
                 media_id="movie-6",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 500
+        assert result.kind == "upstream_error"
+        assert isinstance(result.exc, Exception)
         mock_lookup.assert_not_called()
 
-    async def test_cache_read_failure_returns_500(self):
-        """A cache-store failure on read returns 500, not a propagated error."""
+    async def test_cache_read_failure_returns_upstream_error(self):
+        """A cache-store failure on read returns upstream_error, not a miss."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         uow.tmdb_cache.get = AsyncMock(side_effect=Exception("db down"))
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_TRAILER) as mock_lookup:
             result = await service.fetch_trailer(
                 media_id="movie-cache-err",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 500
+        assert result.kind == "upstream_error"
+        assert isinstance(result.exc, Exception)
         mock_lookup.assert_not_called()
+
+    async def test_storage_write_failure_propagates(self):
+        """A storage-write exception propagates rather than being reclassified."""
+        service = MediaEnrichmentService()
+        uow = self._make_uow(cached=None)
+        uow.tmdb_cache.put = AsyncMock(side_effect=Exception("db down"))
+        provider = self._make_provider()
+
+        with (
+            patch(_TRAILER, return_value="abc123"),
+            pytest.raises(Exception, match="db down"),
+        ):
+            await service.fetch_trailer(
+                media_id="movie-store-err",
+                uow=uow,
+                provider=provider,
+                api_token="token",
+            )
 
 
 @pytest.mark.anyio
@@ -215,23 +245,22 @@ class TestFetchCast(MediaEnrichmentTestBase):
     """Unit tests for MediaEnrichmentService.fetch_cast()."""
 
     async def test_cache_miss_stores_raw_list(self):
-        """Cast miss stores the raw list and returns {"cast": [...]}."""
+        """Cast miss stores the raw list and returns a found result."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
-        request = self._make_request()
         cast = [{"name": "Actor", "character": "Role", "profile_path": None}]
 
         with patch(_CAST, return_value=cast) as mock_lookup:
             result = await service.fetch_cast(
                 media_id="movie-7",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result == {"cast": cast}
+        assert result.kind == "found"
+        assert result.payload == {"cast": cast}
         mock_lookup.assert_called_once_with("Test Movie", 2024, api_token="token")
         put = uow.tmdb_cache.put.call_args
         assert put[0][0] == "movie-7"
@@ -240,22 +269,21 @@ class TestFetchCast(MediaEnrichmentTestBase):
         uow.session.commit.assert_not_called()
 
     async def test_empty_cast_stores_raw_empty_list(self):
-        """Empty cast stores [] (not the {} sentinel) and returns {"cast": []}."""
+        """Empty cast stores [] (not the {} sentinel) and returns found."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_CAST, return_value=[]):
             result = await service.fetch_cast(
                 media_id="movie-8",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result == {"cast": []}
+        assert result.kind == "found"
+        assert result.payload == {"cast": []}
         put = uow.tmdb_cache.put.call_args
         assert json.loads(put[0][2]) == []
 
@@ -265,18 +293,17 @@ class TestFetchCast(MediaEnrichmentTestBase):
         raw = [{"name": "Actor", "character": "Role", "profile_path": None}]
         uow = self._make_uow(cached=self._make_cache_record(raw))
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_CAST) as mock_lookup:
             result = await service.fetch_cast(
                 media_id="movie-9",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result == {"cast": raw}
+        assert result.kind == "found"
+        assert result.payload == {"cast": raw}
         mock_lookup.assert_not_called()
         uow.tmdb_cache.put.assert_not_called()
 
@@ -286,86 +313,91 @@ class TestFetchCast(MediaEnrichmentTestBase):
         new_format = {"cast": [{"name": "Actor"}]}
         uow = self._make_uow(cached=self._make_cache_record(new_format))
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_CAST) as mock_lookup:
             result = await service.fetch_cast(
                 media_id="movie-10",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result == new_format
+        assert result.kind == "found"
+        assert result.payload == new_format
         mock_lookup.assert_not_called()
         uow.tmdb_cache.put.assert_not_called()
 
-    async def test_item_lookup_runtime_error_returns_404_with_empty_cast(self):
-        """RuntimeError 'item lookup failed' returns 404 with {"cast": []}."""
+    async def test_item_lookup_error_returns_item_unresolved(self):
+        """ItemResolutionError returns an item_unresolved result."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
-        provider.resolve_item_for_tmdb.side_effect = RuntimeError(
-            "Jellyfin item lookup failed"
-        )
-        request = self._make_request()
+        provider.resolve_item_for_tmdb.side_effect = ItemResolutionError()
 
         with patch(_CAST) as mock_lookup:
             result = await service.fetch_cast(
                 media_id="movie-11",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 404
-        assert "Movie metadata not found" in result.body.decode()
-        assert json.loads(result.body)["cast"] == []
+        assert result.kind == "item_unresolved"
         mock_lookup.assert_not_called()
+        uow.tmdb_cache.put.assert_not_called()
 
-    async def test_generic_exception_returns_500_with_empty_cast(self):
-        """Generic exception returns 500 with {"cast": []} extra field."""
+    async def test_generic_exception_returns_upstream_error(self):
+        """Generic exception returns an upstream_error result."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         provider = self._make_provider()
         provider.resolve_item_for_tmdb.side_effect = Exception("network error")
-        request = self._make_request()
 
         with patch(_CAST) as mock_lookup:
             result = await service.fetch_cast(
                 media_id="movie-12",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 500
-        body = json.loads(result.body)
-        assert "Internal server error" in body["error"]
-        assert body["cast"] == []
+        assert result.kind == "upstream_error"
+        assert isinstance(result.exc, Exception)
         mock_lookup.assert_not_called()
 
-    async def test_cache_read_failure_returns_500_with_empty_cast(self):
-        """A cache-store failure on read returns 500 with {"cast": []}."""
+    async def test_cache_read_failure_returns_upstream_error(self):
+        """A cache-store failure on read returns upstream_error."""
         service = MediaEnrichmentService()
         uow = self._make_uow(cached=None)
         uow.tmdb_cache.get = AsyncMock(side_effect=Exception("db down"))
         provider = self._make_provider()
-        request = self._make_request()
 
         with patch(_CAST) as mock_lookup:
             result = await service.fetch_cast(
                 media_id="movie-cache-err",
-                request=request,
                 uow=uow,
                 provider=provider,
                 api_token="token",
             )
 
-        assert result.status_code == 500
-        body = json.loads(result.body)
-        assert body["cast"] == []
+        assert result.kind == "upstream_error"
+        assert isinstance(result.exc, Exception)
         mock_lookup.assert_not_called()
+
+    async def test_storage_write_failure_propagates(self):
+        """A storage-write exception propagates rather than being reclassified."""
+        service = MediaEnrichmentService()
+        uow = self._make_uow(cached=None)
+        uow.tmdb_cache.put = AsyncMock(side_effect=Exception("db down"))
+        provider = self._make_provider()
+
+        with (
+            patch(_CAST, return_value=[{"name": "Actor"}]),
+            pytest.raises(Exception, match="db down"),
+        ):
+            await service.fetch_cast(
+                media_id="movie-store-err",
+                uow=uow,
+                provider=provider,
+                api_token="token",
+            )
