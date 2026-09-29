@@ -10,8 +10,8 @@ DEFAULT_POSITION,
 import type { Position } from './swipeGesture'
 import type { JSX } from "react"
 import type { CardItem } from './types'
-import { fetchTrailer, RoomApiError } from './roomApi'
 import { useCardDrag } from './useCardDrag'
+import useTrailer from './useTrailer'
 
 interface CardItemViewProps {
     cardItem: CardItem,
@@ -111,19 +111,6 @@ function CardItemViewInner(
     const [exitPosition, setExitPosition] = React.useState<Position>(exitFrom ?? DEFAULT_POSITION)
     const exitSignal: number = isExit ? exitDir : 0
 
-    // Trailer state machine: idle → loading → (playing | unavailable).
-    const [trailerState, setTrailerState] = React.useState<"idle" | "loading" | "playing" | "unavailable">("idle")
-    const [trailerKey, setTrailerKey] = React.useState<string | null>(null)
-    const trailerAbort = React.useRef<AbortController | null>(null)
-
-    // Abort any in-flight trailer fetch when the card unmounts (issue #339),
-    // matching the pattern in useMovieCast.tsx:31.
-    React.useEffect(() => {
-        return () => {
-            trailerAbort.current?.abort()
-        }
-    }, [])
-
     // Leaving-card exit (issue #360): first paint sits at the threaded
     // `exitFrom` (the committed card's live transform at POST resolution), then
     // this mount effect animates it to the fly-off target the button/keyboard
@@ -153,29 +140,6 @@ function CardItemViewInner(
         // once on mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
-
-    const loadTrailer = () => {
-        if (trailerState !== "idle") return
-        setTrailerState("loading")
-        trailerAbort.current = new AbortController()
-        fetchTrailer(mediaId, trailerAbort.current.signal)
-            .then((data) => {
-                setTrailerKey(data.youtube_key)
-                setTrailerState("playing")
-            })
-            .catch((err) => {
-                // Unmounting aborts the request; ignore that as a no-op rather
-                // than flipping to "unavailable" on a component that is gone.
-                if ((err as Error).name === "AbortError") return
-                // A 404 is the expected "no trailer" answer, not an error.
-                if (err instanceof RoomApiError && err.status === 404) {
-                    setTrailerState("unavailable")
-                    return
-                }
-                console.error("Error fetching trailer:", err)
-                setTrailerState("unavailable")
-            })
-    }
 
     // The card drag gesture controller (issue #406). Called unconditionally with
     // `enabled` mirroring the JSX handler condition (`!isExit && isTopCard`) so
@@ -282,6 +246,8 @@ function CardItemViewInner(
 
     const likeStrength: number = Math.max(signal, 0)
     const nopeStrength: number = Math.max(-signal, 0)
+
+    const { trailerState, trailerKey, loadTrailer } = useTrailer(cardItem.mediaId)
 
     const { duration, mediaId, mediaType, rating, seasonCount = null, summary, posterUrl, title, year }: CardItem = cardItem
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""

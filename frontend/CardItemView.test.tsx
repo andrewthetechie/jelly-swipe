@@ -19,7 +19,6 @@ import type { CardItemViewHandle } from "./CardItemView";
 import type { Position } from "./swipeGesture";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, dragTo } from "./test/fixtures";
-import { RoomApiError } from "./roomApi";
 import * as roomApi from "./roomApi";
 import type { CardItem } from "./types";
 
@@ -178,7 +177,8 @@ describe("CardItemView — Watch Trailer label casing", () => {
 });
 
 // The Watch Trailer button opens the trailer div and displays the video; the
-// behaviour tests below cover the loading/success/error state machine.
+// trailer fetch/abort/error policy itself is covered in useTrailer.test.tsx, so
+// the tests below cover only the render-arm behaviour (success embed + flip gating).
 
 describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
   beforeEach(() => {
@@ -212,26 +212,6 @@ describe("CardItemView - clicking Watch Trailer does not flip the card", () => {
 describe("CardItemView — Watch Trailer state machine", () => {
   afterEach(() => {
     fetchTrailerMock.mockReset()
-  })
-
-  it("shows 'Loading trailer…' and disables the button while the request is in flight", async () => {
-    let resolveTrailer!: (value: { youtube_key: string }) => void
-    fetchTrailerMock.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveTrailer = resolve
-      }),
-    )
-
-    renderCard()
-    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
-
-    expect(screen.getByText("Loading trailer…")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /loading trailer/i })).toBeDisabled()
-
-    // Resolve so the pending promise doesn't linger after the test.
-    await act(async () => {
-      resolveTrailer({ youtube_key: "abc123" })
-    })
   })
 
   it("renders an embedded YouTube player on success", async () => {
@@ -272,69 +252,6 @@ describe("CardItemView — Watch Trailer state machine", () => {
     // Flip forward again: the player remounts (autoplay resumes).
     fireEvent.click(card)
     expect(screen.getByTitle("Moana trailer")).toBeInTheDocument()
-  })
-
-  it("renders 'No trailer available' on a 404 RoomApiError", async () => {
-    fetchTrailerMock.mockRejectedValueOnce(new RoomApiError(404, "Not Found", "fetching trailer"))
-
-    renderCard()
-    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText("No trailer available")).toBeInTheDocument()
-    })
-    // Never a dead, tappable button.
-    expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
-  })
-
-  it("renders 'No trailer available' on a network rejection", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
-    fetchTrailerMock.mockRejectedValueOnce(new Error("network error"))
-
-    renderCard()
-    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText("No trailer available")).toBeInTheDocument()
-    })
-    expect(screen.queryByRole("button", { name: /watch trailer/i })).not.toBeInTheDocument()
-
-    errSpy.mockRestore()
-  })
-
-  it("aborts the in-flight trailer fetch on unmount and ignores AbortError", async () => {
-    let rejectTrailer!: (err: Error) => void
-    let capturedSignal: AbortSignal | undefined
-    fetchTrailerMock.mockImplementationOnce((_mediaId, signal) => {
-      capturedSignal = signal
-      return new Promise((_resolve, reject) => {
-        rejectTrailer = reject
-      })
-    })
-
-    const { unmount, container } = renderCard()
-    const card = container.querySelector(".card-item-container") as HTMLElement
-    // Flip the card first (jsdom applies no CSS, so the back-face button is clickable).
-    fireEvent.click(card)
-    fireEvent.click(screen.getByRole("button", { name: /watch trailer/i }))
-
-    expect(screen.getByText("Loading trailer…")).toBeInTheDocument()
-    expect(capturedSignal).toBeTruthy()
-
-    // Swipe the card away mid-request: unmounting must abort the in-flight fetch.
-    unmount()
-
-    expect(capturedSignal!.aborted).toBe(true)
-
-    // Aborting a real controller does not auto-reject the vi.fn mock, so reject
-    // it manually with an AbortError; the catch must treat it as a no-op.
-    await act(async () => {
-      const err = new Error("aborted")
-      err.name = "AbortError"
-      rejectTrailer(err)
-    })
-
-    expect(screen.queryByText("No trailer available")).not.toBeInTheDocument()
   })
 })
 
