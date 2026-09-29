@@ -6,9 +6,11 @@ cleanup, exercised WITHOUT a real 60-second sleep by injecting a fake clock.
 """
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
+from starlette.testclient import TestClient
 
 from jellyswipe.db_runtime import (
     build_async_sqlite_url,
@@ -24,6 +26,10 @@ from jellyswipe.services.background_tasks import (
     background_task_registry,
 )
 from jellyswipe.services.room_lifecycle import RoomLifecycleService
+from jellyswipe.services.session_teardown import (
+    sweep_orphaned_instances,
+    teardown_session_instance,
+)
 
 
 @pytest.fixture
@@ -177,3 +183,138 @@ async def test_quit_room_schedules_cleanup_via_registry(runtime_sessionmaker):
         uow = DatabaseUnitOfWork(session)
         instance = await uow.session_instances.get_by_pairing_code("7777")
     assert instance is None
+
+
+# ---------------------------------------------------------------------------
+# Session-instance teardown service module
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_teardown_session_instance_removes_row_and_events(runtime_sessionmaker):
+    """teardown_session_instance deletes the instance and its events after a caller commit."""
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        await uow.session_instances.create(instance_id="torn-down", pairing_code="1001")
+        await uow.session_events.append("torn-down", "session_ready", "{}")
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        await teardown_session_instance(uow, "torn-down")
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        instance = await uow.session_instances.get_by_instance_id("torn-down")
+        remaining = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT 1 FROM session_events "
+                        "WHERE session_instance_id = 'torn-down'"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert instance is None
+    assert remaining == []
+
+
+@pytest.mark.anyio
+async def test_teardown_session_instance_does_not_commit_on_its_own(
+    runtime_sessionmaker,
+):
+    """teardown_session_instance leaves transaction completion to the caller (ADR-0004)."""
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        await uow.session_instances.create(
+            instance_id="uncommitted", pairing_code="1002"
+        )
+        await uow.session_events.append("uncommitted", "session_ready", "{}")
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        await teardown_session_instance(uow, "uncommitted")
+        # teardown must not have committed on its own: rolling back discards the
+        # pending deletion, so the instance should still exist afterwards.
+        await session.rollback()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        instance = await uow.session_instances.get_by_instance_id("uncommitted")
+    assert instance is not None
+
+
+@pytest.mark.anyio
+async def test_sweep_orphaned_instances_reaps_stale_closing_only(
+    runtime_sessionmaker,
+):
+    """The sweep reaps stale closing instances and leaves fresh closing and active ones."""
+    now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        await uow.session_instances.create(instance_id="stale", pairing_code="2001")
+        await uow.session_instances.create(instance_id="fresh", pairing_code="2002")
+        await uow.session_instances.create(instance_id="active", pairing_code="2003")
+        await session.commit()
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        for iid in ("stale", "fresh"):
+            await uow.session_instances.mark_closing(iid)
+        # Backdate the stale one beyond the 5-minute cutoff; keep fresh recent.
+        await session.execute(
+            text(
+                "UPDATE session_instances SET closed_at = :t "
+                "WHERE instance_id = 'stale'"
+            ),
+            {"t": (now - timedelta(minutes=6)).isoformat()},
+        )
+        await session.execute(
+            text(
+                "UPDATE session_instances SET closed_at = :t "
+                "WHERE instance_id = 'fresh'"
+            ),
+            {"t": (now - timedelta(minutes=1)).isoformat()},
+        )
+        await session.commit()
+
+    swept = await sweep_orphaned_instances(sessionmaker=runtime_sessionmaker, now=now)
+    assert swept == 1
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        stale = await uow.session_instances.get_by_instance_id("stale")
+        fresh = await uow.session_instances.get_by_instance_id("fresh")
+        active = await uow.session_instances.get_by_instance_id("active")
+    assert stale is None
+    assert fresh is not None and fresh.status == "closing"
+    assert active is not None and active.status == "active"
+
+
+@pytest.mark.anyio
+async def test_sweep_orphaned_instances_returns_zero_when_nothing_stale(
+    runtime_sessionmaker,
+):
+    """The sweep commits once and reports zero when no instance is stale."""
+    now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+    swept = await sweep_orphaned_instances(sessionmaker=runtime_sessionmaker, now=now)
+    assert swept == 0
+
+
+def test_lifespan_survives_sweep_error(app, monkeypatch):
+    """A raised sweep error is caught by lifespan; the app still starts."""
+
+    async def boom():
+        raise RuntimeError("sweep boom")
+
+    monkeypatch.setattr("jellyswipe.sweep_orphaned_instances", boom)
+
+    with TestClient(app) as client:
+        response = client.get("/healthz")
+    assert response.status_code == 200
