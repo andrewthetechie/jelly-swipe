@@ -38,6 +38,11 @@ from jellyswipe.services.session_teardown import (
 @pytest.fixture
 async def runtime_sessionmaker(db_path, monkeypatch):
     """A temp-DB sessionmaker bound to the global get_sessionmaker()."""
+    # Align env vars with db_path so alembic/env.py migrates THIS database; a
+    # stale DATABASE_URL/DB_PATH leaked from an earlier test in the worker would
+    # otherwise point Alembic at the wrong file (see other repo fixtures).
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("DB_PATH", db_path)
     upgrade_to_head(build_sqlite_url(db_path))
     await dispose_runtime()
     await initialize_runtime(build_async_sqlite_url(db_path))
