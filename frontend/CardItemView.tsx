@@ -5,9 +5,7 @@ import MediaFacts from './MediaFacts'
 import {
     flyOffTarget,
     parseComputedTransform,
-    DEFAULT_POSITION,
-    EXIT_TRANSITION_MS,
-    REDUCED_MOTION_EXIT_TRANSITION_MS,
+DEFAULT_POSITION,
 } from './swipeGesture'
 import type { Position } from './swipeGesture'
 import type { JSX } from "react"
@@ -17,9 +15,17 @@ import { useCardDrag } from './useCardDrag'
 
 interface CardItemViewProps {
     cardItem: CardItem,
-    /** 0 = the top card; 1, 2 = cards offset behind it (see SwipePage slicing). */
+    /** 0 = the top card; 1, 2 = cards offset behind it (see SwipeDeck slicing). */
     stackIndex: number,
     zIndex: number
+    /**
+     * The rest/snap-back and leaving-exit transition duration, in seconds,
+     * derived once by the deck module (SwipeDeck) from the shared exit-duration
+     * constants under one `prefers-reduced-motion` read (issue #399). Used for
+     * both the resting `transform … ease` transition (issue #353) and the
+     * leaving card's inline exit transition, so they can never drift apart.
+     */
+    restTransitionSeconds: number
     onSwipe?: (
         cardItem: CardItem,
         direction: "left" | "right",
@@ -37,7 +43,7 @@ interface CardItemViewProps {
     exitDirection?: "left" | "right",
     /**
      * The committed card's transform at commit time, threaded through
-     * SwipePage + useLeavingCards so the leaving copy continues the original
+     * SwipeDeck + useLeavingCards so the leaving copy continues the original
      * card's exit instead of restarting at rest (no teleport to centre). Only
      * meaningful alongside `exitDirection`; when absent the exit starts from
      * `DEFAULT_POSITION` as before.
@@ -80,14 +86,14 @@ export type CardItemViewHandle = {
     commitSwipe: (direction: "left" | "right") => Promise<void>
     toggleDetails: () => void
     /** Capture the committed top card's *live* transform (mid-transition), so
-     * SwipePage can seed the leaving card where the card actually is when the
+     * SwipeDeck can seed the leaving card where the card actually is when the
      * swipe POST resolves instead of at the commit transition's final target
      * (issue #360). Returns undefined when the card has no mounted element. */
     captureExitTransform: () => Position | undefined
 }
 
 function CardItemViewInner(
-    { cardItem, stackIndex, zIndex, onSwipe, exitDirection, exitFrom }: CardItemViewProps,
+    { cardItem, stackIndex, zIndex, restTransitionSeconds, onSwipe, exitDirection, exitFrom }: CardItemViewProps,
     ref: React.ForwardedRef<CardItemViewHandle>,
 ): JSX.Element {
     const isTopCard = stackIndex === 0
@@ -269,7 +275,7 @@ function CardItemViewInner(
         },
     }))
 
-    // Leaving cards merge their own seeded transform/stamp; interactive cards
+// Leaving cards merge their own seeded transform/stamp; interactive cards
     // use the controller's drag state (invariant 4).
     const position: Position = isExit ? exitPosition : controller.position
     const signal: number = isExit ? exitSignal : controller.signal
@@ -281,18 +287,13 @@ function CardItemViewInner(
     const mediaText: string = mediaType === "movie" ? "Movie" : mediaType === "tv_show" ? "TV" : ""
     const seasonsText: string = seasonCount !== null && seasonCount === 1 ? ` • ${seasonCount} Season` : seasonCount !== null && seasonCount > 1 ? ` • ${seasonCount} Seasons` : ""
 
-    // Leaving cards derive their inline transition duration from the same
-    // shared exit-duration constants the leaving-card hook's unmount hold uses
-    // (issue #360), so the exit animation and the unmount hold can never drift
-    // apart. The resting (snap-back/promote) arm reads the same matchMedia so
-    // its 0.4s transition shortens to ~0.15s under prefers-reduced-motion
-    // (issue #353); an active drag keeps `transition: none` in both modes.
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    const restDuration = (reducedMotion
-        ? REDUCED_MOTION_EXIT_TRANSITION_MS
-        : EXIT_TRANSITION_MS) / 1000
+    // The rest/snap-back and leaving-exit transition duration is threaded in
+    // from the deck module (SwipeDeck), which derives it once under a single
+    // `prefers-reduced-motion` read from the shared exit-duration constants
+    // (issue #399). This component no longer reads matchMedia itself; an active
+    // drag keeps `transition: none` in both motion modes.
     const exitTransition: string | undefined = isExit
-        ? `transform ${restDuration}s ease`
+        ? `transform ${restTransitionSeconds}s ease`
         : undefined
 
     return (
@@ -316,7 +317,7 @@ function CardItemViewInner(
                     rotate(${position.rotation}deg) ${stackTransform(stackIndex)}
                 `,
                 filter: stackBrightness(stackIndex),
-                transition: isExit ? exitTransition : (controller.isDragging ? "none" : `transform ${restDuration}s ease, filter ${restDuration}s ease`)
+                transition: isExit ? exitTransition : (controller.isDragging ? "none" : `transform ${restTransitionSeconds}s ease, filter ${restTransitionSeconds}s ease`)
             }}
         >
           <div className="card-item-inner">

@@ -237,9 +237,9 @@ describe("parseComputedTransform", () => {
 
 describe("exit transition durations (issue #360)", () => {
     it("keeps the animation/hold pair in one place: 400ms default, 150ms reduced-motion", () => {
-        // CardItemView's inline exit transition ("transform 0.4s ease" /
-        // "transform 0.15s ease") and useLeavingCards' unmount hold both derive
-        // from this pair — a drift here would desynchronize the two.
+        // SwipeDeck derives both CardItemView's inline exit transition
+        // ("transform 0.4s ease" / "transform 0.15s ease") and useLeavingCards'
+        // unmount hold from this pair — a drift here would desynchronize the two.
         expect(EXIT_TRANSITION_MS).toBe(400)
         expect(REDUCED_MOTION_EXIT_TRANSITION_MS).toBe(150)
         expect(REDUCED_MOTION_EXIT_TRANSITION_MS).toBeLessThan(EXIT_TRANSITION_MS)

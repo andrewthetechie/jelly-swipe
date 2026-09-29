@@ -50,8 +50,9 @@ if (dialogProto && typeof dialogProto.close !== "function") {
 }
 // --- jsdom matchMedia stub ---------------------------------------------------
 // jsdom (as configured here) does not implement `window.matchMedia`. The
-// leaving-card exit animation (issue #360) reads it to derive its inline
-// transition duration, and the leaving-card hook reads it for the unmount hold.
+// swipe-deck module (SwipeDeck, issue #399) is the single production reader: it
+// derives the exit/rest transition durations and the leaving-card unmount hold
+// from it.
 // This harness-level stub defaults to `matches: false` (the non-reduced-motion
 // case); reduced-motion tests override it per-test via `vi.stubGlobal`.
 if (typeof window.matchMedia !== "function") {

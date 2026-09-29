@@ -1,67 +1,28 @@
 import React from "react"
 import HostWaiting from "./HostWaiting"
-import CardItemView, { type CardItemViewHandle } from "./CardItemView"
-import type { Position } from "./swipeGesture"
+import SwipeDeck, { type SwipeDeckHandle } from "./SwipeDeck"
 import MatchFoundModal from "./MatchFoundModal"
 import GenreModal from "./GenreModal"
 import MatchListModal from "./MatchListModal"
 import { useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
-import type { CardItem } from './types'
 import { useRoomSession } from "./RoomSessionProvider"
-import { useLeavingCards } from "./useLeavingCards"
 import { usePosterPrefetch } from "./usePosterPrefetch"
-
-// Leaving cards render above every stack card (stack cards get zIndex = index,
-// i.e. ≤ 2), so a committed card visibly flies off over the promoted stack.
-const LEAVING_CARD_Z_INDEX = 10
 
 export default function SwipePage(): JSX.Element {
     const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession, clearError, retryDeckFetch } = useRoomSession()
     const [showMatchListModal, setShowMatchListModal] = React.useState<boolean>(false)
     const [showGenreModal, setShowGenreModal] = React.useState<boolean>(false)
     const { isSoloMode } = useRoomStateContext()
-    const { leavingCards, commit } = useLeavingCards(state.cardDeck)
 
     // Prefetch the next 3 cards beyond the rendered 3-card window (issue #350)
     // so their posters are in cache by the time they reach the top. `slice`
     // naturally yields fewer entries on a short deck; no guard needed.
     usePosterPrefetch(state.cardDeck.slice(3, 6).map((c) => c.posterUrl))
 
-    // Render at most 3 cards (the top card + ≤2 back cards). Deeper cards are
-    // dropped entirely (issue #343) — undo still works because undo re-adds the
-    // card to `cardDeck` state and it mounts fresh at the top (see roomSession).
-    const visibleCards = state.cardDeck.slice(0, 3).reverse()
-
-    // Imperative handle to the top card, so the Nope/Like buttons reuse the
-    // exact commit path a drag uses (same exit transform, same onSwipe call).
-    // Only the top card gets the ref (see the map below).
-    const cardRef = React.useRef<CardItemViewHandle | null>(null)
-    const commitSwipe = React.useCallback((direction: "left" | "right") => {
-        cardRef.current?.commitSwipe(direction)
-    }, [])
-
-    // Wrap the provider's `swipe` so a successful commit also records a
-    // leaving entry. Only after `await swipe(...)` succeeds (so SWIPE_SUCCEEDED
-    // and the leaving entry land in one React batch) is the entry recorded,
-    // carrying the committed card's transform so the leaving card continues
-    // the exit instead of restarting at rest. On POST rejection, `swipe`
-    // re-throws and this wrapper adds nothing and re-throws, so
-    // CardItemView.commitSwipe's catch still snaps the card back and leaves it
-    // retryable.
-    //
-    // When the POST resolves before the 0.4s commit transition finishes (the
-    // common fast-LAN case), the committed card is still mounted and mid-flight.
-    // Seed the leaving entry from its *live* transform (`captureExitTransform`,
-    // read through the still-mounted top card's handle) rather than the commit
-    // transition's final target, so the exit continues in one motion instead of
-    // teleporting to the target the moment the swipe saves (issue #360). Falls
-    // back to the threaded commit transform if the handle is unavailable.
-    const onSwipe = React.useCallback(async (card: CardItem, direction: "left" | "right", from: Position) => {
-        await swipe(card, direction)
-        const liveFrom = cardRef.current?.captureExitTransform() ?? from
-        commit(card, direction, liveFrom)
-    }, [swipe, commit])
+    // Imperative handle to the deck, so the Nope/Like buttons and keyboard
+    // handler drive the same commit/toggle path a drag uses.
+    const deckRef = React.useRef<SwipeDeckHandle | null>(null)
 
     // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
     // Inert while any modal is open or an interactive element has focus (so
@@ -90,22 +51,22 @@ export default function SwipePage(): JSX.Element {
             switch (e.key) {
                 case "ArrowLeft":
                     e.preventDefault()
-                    commitSwipe("left")
+                    deckRef.current?.commit("left")
                     break
                 case "ArrowRight":
                     e.preventDefault()
-                    commitSwipe("right")
+                    deckRef.current?.commit("right")
                     break
                 case "ArrowUp":
                 case "Enter":
                     e.preventDefault()
-                    cardRef.current?.toggleDetails()
+                    deckRef.current?.toggleDetails()
                     break
             }
         }
         window.addEventListener("keydown", handleKeyDown)
         return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [state.roomReady, state.matchFound, showGenreModal, showMatchListModal, commitSwipe])
+    }, [state.roomReady, state.matchFound, showGenreModal, showMatchListModal])
 
     const openGenreModal = () => {
         setShowGenreModal(true)
@@ -159,46 +120,35 @@ export default function SwipePage(): JSX.Element {
 
                 <div className="swipe-main">
                     <div className="swipe-deck">
-                        {state.deckError && state.cardDeck.length === 0 ? (
-                            <div className="deck-error" role="alert">
-                                <p>{state.deckError}</p>
-                                <button className="retry-deck" onClick={retryDeckFetch}>Try again</button>
-                            </div>
-                        ) : state.deckLoaded && state.cardDeck.length === 0 ? (
-                            <div className="deck-end">
-                                <p>That's everything for these filters.</p>
-                                <button className="btn-secondary" onClick={openMatchListModal}>Open Matches</button>
-                                <button className="btn-secondary" onClick={openGenreModal}>Change Genre</button>
-                            </div>
-                        ) : (
-                            visibleCards.map((cardItem: CardItem, index: number) => (
-                                <CardItemView
-                                    key={cardItem.mediaId}
-                                    ref={visibleCards.length - 1 - index === 0 ? cardRef : undefined}
-                                    cardItem={cardItem}
-                                    // rendered order is reversed: the last card is the top.
-                                    stackIndex={visibleCards.length - 1 - index}
-                                    zIndex={index}
-                                    onSwipe={onSwipe}
-                                />
-                            ))
-                        )}
-                        {leavingCards.map((entry) => (
-                            <CardItemView
-                                key={entry.key}
-                                cardItem={entry.card}
-                                stackIndex={0}
-                                zIndex={LEAVING_CARD_Z_INDEX}
-                                exitDirection={entry.direction}
-                                exitFrom={entry.from}
-                            />
-                        ))}
+                        {/* The deck module stays mounted across the deck-error/deck-end
+                            empty states so a just-committed leaving card keeps flying
+                            over them (issue #360); it renders the empty-state node in
+                            place of the stack when the deck empties. */}
+                        <SwipeDeck
+                            ref={deckRef}
+                            deck={state.cardDeck}
+                            onSave={swipe}
+                            emptyState={
+                                state.deckError && state.cardDeck.length === 0 ? (
+                                    <div className="deck-error" role="alert">
+                                        <p>{state.deckError}</p>
+                                        <button className="retry-deck" onClick={retryDeckFetch}>Try again</button>
+                                    </div>
+                                ) : state.deckLoaded && state.cardDeck.length === 0 ? (
+                                    <div className="deck-end">
+                                        <p>That's everything for these filters.</p>
+                                        <button className="btn-secondary" onClick={openMatchListModal}>Open Matches</button>
+                                        <button className="btn-secondary" onClick={openGenreModal}>Change Genre</button>
+                                    </div>
+                                ) : null
+                            }
+                        />
                     </div>
 
                     <div className="swipe-controls">
                         <button
                             className="jelly-button--compact nope-button"
-                            onClick={() => commitSwipe("left")}
+                            onClick={() => deckRef.current?.commit("left")}
                             disabled={state.cardDeck.length === 0}
                         >
                             <span className="swipe-button-glyph" aria-hidden="true">✕</span>Nope
@@ -206,7 +156,7 @@ export default function SwipePage(): JSX.Element {
                         <button className="btn-secondary undo-button" onClick={undo}>Undo</button>
                         <button
                             className="jelly-button--compact like-button"
-                            onClick={() => commitSwipe("right")}
+                            onClick={() => deckRef.current?.commit("right")}
                             disabled={state.cardDeck.length === 0}
                         >
                             <span className="swipe-button-glyph" aria-hidden="true">✓</span>Like

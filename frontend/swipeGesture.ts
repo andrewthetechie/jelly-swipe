@@ -75,9 +75,10 @@ export const COMMIT_ROTATION_DEG = 12
 
 /**
  * How long a committed card's fly-off exit transition runs, and therefore how
- * long SwipePage keeps its leaving card mounted (issue #360). Both the inline
- * exit transition in CardItemView and the unmount hold in useLeavingCards are
- * derived from this pair, so the animation and the hold cannot drift apart.
+ * long SwipeDeck keeps its leaving card mounted (issue #360). SwipeDeck derives
+ * both the inline exit transition in CardItemView and the unmount hold in
+ * useLeavingCards from this pair under a single `prefers-reduced-motion` read
+ * (issue #399), so the animation and the hold cannot drift apart.
  * 400ms normally, 150ms under `prefers-reduced-motion: reduce`.
  */
 export const EXIT_TRANSITION_MS = 400

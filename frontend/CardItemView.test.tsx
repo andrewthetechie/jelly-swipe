@@ -19,7 +19,6 @@ import type { CardItemViewHandle } from "./CardItemView";
 import type { Position } from "./swipeGesture";
 import { renderWithRoom } from "./test/renderWithRoom";
 import { makeCard, dragTo } from "./test/fixtures";
-import { stubMatchMedia } from "./test/stubMatchMedia";
 import { RoomApiError } from "./roomApi";
 import * as roomApi from "./roomApi";
 import type { CardItem } from "./types";
@@ -36,24 +35,26 @@ const fetchTrailerMock = vi.mocked(roomApi.fetchTrailer)
 
 // Small helper: render a card with the required props filled in, overriding
 // only the card fields a given test cares about.
-function renderCard(cardOverrides = {}) {
+function renderCard(cardOverrides = {}, restTransitionSeconds = 0.4) {
   return renderWithRoom(
     <CardItemView
       cardItem={makeCard(cardOverrides)}
       stackIndex={0}
       zIndex={0}
+      restTransitionSeconds={restTransitionSeconds}
       onSwipe={vi.fn()}
     />,
   );
 }
 
 // Render a card at a given stack depth (0 = top card, see issue #343).
-function renderStackCard(stackIndex = 0) {
+function renderStackCard(stackIndex = 0, restTransitionSeconds = 0.4) {
   return renderWithRoom(
     <CardItemView
       cardItem={makeCard()}
       stackIndex={stackIndex}
       zIndex={stackIndex}
+      restTransitionSeconds={restTransitionSeconds}
       onSwipe={vi.fn()}
     />,
   );
@@ -365,6 +366,7 @@ describe("CardItemView — drag wiring to onSwipe", () => {
         cardItem={makeCard()}
         stackIndex={0}
         zIndex={0}
+        restTransitionSeconds={0.4}
         onSwipe={onSwipe}
       />,
       { currentRoomCode: "1234" }
@@ -374,7 +376,7 @@ describe("CardItemView — drag wiring to onSwipe", () => {
     dragTo(topCard, 250)
     fireEvent.pointerUp(topCard, { clientX: 250, pointerId: 1 })
 
-    expect(onSwipe).toHaveBeenCalledTimes(1)
+expect(onSwipe).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -386,6 +388,7 @@ describe("CardItemView — imperative handle", () => {
   function renderCardWithHandle(
     cardOverrides = {},
     onSwipeOverride?: (cardItem: CardItem, direction: "left" | "right", from: Position) => void | Promise<void>,
+    restTransitionSeconds = 0.4,
   ) {
     const handleRef = createRef<CardItemViewHandle>()
     const onSwipe = onSwipeOverride ?? vi.fn()
@@ -395,6 +398,7 @@ describe("CardItemView — imperative handle", () => {
         cardItem={makeCard(cardOverrides)}
         stackIndex={0}
         zIndex={0}
+        restTransitionSeconds={restTransitionSeconds}
         onSwipe={onSwipe}
       />,
       { currentRoomCode: "1234" },
@@ -503,6 +507,7 @@ describe("CardItemView — imperative handle", () => {
         cardItem={makeCard()}
         stackIndex={1}
         zIndex={1}
+        restTransitionSeconds={0.4}
         onSwipe={onSwipe}
       />,
       { currentRoomCode: "1234" },
@@ -537,6 +542,7 @@ describe("CardItemView — imperative handle", () => {
         cardItem={makeCard()}
         stackIndex={1}
         zIndex={1}
+        restTransitionSeconds={0.4}
         onSwipe={vi.fn()}
       />,
       { currentRoomCode: "1234" },
@@ -603,12 +609,13 @@ describe("CardItemView — stack depth (issue #343)", () => {
 })
 
 describe("CardItemView — exit render mode (issue #360)", () => {
-  function renderExit(direction: "left" | "right", exitFrom?: Position) {
+  function renderExit(direction: "left" | "right", exitFrom?: Position, restTransitionSeconds = 0.4) {
     return renderWithRoom(
       <CardItemView
         cardItem={makeCard()}
         stackIndex={0}
         zIndex={10}
+        restTransitionSeconds={restTransitionSeconds}
         exitDirection={direction}
         exitFrom={exitFrom}
       />,
@@ -671,9 +678,8 @@ describe("CardItemView — exit render mode (issue #360)", () => {
     expect(card.style.transition).toBe("transform 0.4s ease")
   })
 
-  it("derives a 0.15s inline transition under prefers-reduced-motion", () => {
-    stubMatchMedia(true)
-    const { container } = renderExit("right")
+  it("derives a 0.15s inline transition when the deck threads the reduced-motion duration", () => {
+    const { container } = renderExit("right", undefined, 0.15)
     const card = container.querySelector(".card-item-container") as HTMLElement
     expect(card.style.transition).toBe("transform 0.15s ease")
   })
@@ -684,6 +690,7 @@ describe("CardItemView — exit render mode (issue #360)", () => {
         cardItem={makeCard()}
         stackIndex={0}
         zIndex={10}
+        restTransitionSeconds={0.4}
         exitDirection="right"
         exitFrom={{ x: 832, y: 0, rotation: 50 }}
       />,
@@ -713,6 +720,7 @@ describe("CardItemView — exit render mode (issue #360)", () => {
         cardItem={makeCard()}
         stackIndex={0}
         zIndex={10}
+        restTransitionSeconds={0.4}
         exitDirection="right"
       />,
       { currentRoomCode: "1234" },
@@ -742,9 +750,8 @@ describe("CardItemView — resting & drag inline transition (issue #353)", () =>
     expect(card.style.transition).toBe("transform 0.4s ease, filter 0.4s ease")
   })
 
-  it("derives a 0.15s resting transition under prefers-reduced-motion", () => {
-    stubMatchMedia(true)
-    const { container } = renderCard()
+  it("derives a 0.15s resting transition when the deck threads the reduced-motion duration", () => {
+    const { container } = renderCard({}, 0.15)
     const card = container.querySelector(".card-item-container") as HTMLElement
     expect(card.style.transition).toBe("transform 0.15s ease, filter 0.15s ease")
   })
