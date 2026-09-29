@@ -10,6 +10,7 @@ import httpx
 import pytest
 import requests
 
+from jellyswipe.http_client import DEFAULT_USER_AGENT
 from jellyswipe.tmdb import TmdbClient, lookup_cast, lookup_trailer
 
 
@@ -222,11 +223,19 @@ class TestTmdbClientTrailer:
 
     @pytest.mark.anyio
     async def test_successful_trailer_lookup(self):
-        """Returns the YouTube key and sends the bearer header on both calls."""
+        """Returns the YouTube key, sends the bearer + JellySwipe User-Agent
+        headers, and applies the (5, 15) connect/read timeout on both calls."""
         calls = []
+        timeouts = []
 
         def handler(request):
-            calls.append(request.headers.get("Authorization"))
+            calls.append(
+                (
+                    request.headers.get("Authorization"),
+                    request.headers.get("user-agent"),
+                )
+            )
+            timeouts.append(request.extensions["timeout"])
             if request.url.path == "/3/search/movie":
                 return _ok({"results": [{"id": 12345, "title": "Test Movie"}]})
             if request.url.path == "/3/movie/12345/videos":
@@ -246,14 +255,33 @@ class TestTmdbClientTrailer:
 
         assert result == "abc123"
         assert len(calls) == 2
-        for auth in calls:
+        for auth, user_agent in calls:
             assert auth == "Bearer test-token"
-        assert client._http.timeout.connect == 5.0
-        assert client._http.timeout.read == 15.0
+            assert user_agent == DEFAULT_USER_AGENT
+        for timeout in timeouts:
+            assert timeout["connect"] == 5.0
+            assert timeout["read"] == 15.0
+
+    @pytest.mark.anyio
+    async def test_http_error_returns_none(self):
+        """Returns None (not raised) when TMDB answers with a non-2xx status."""
+        calls = []
+
+        def handler(request):
+            calls.append(request.url.path)
+            return httpx.Response(503, json={"results": [{"id": 12345}]})
+
+        client = TmdbClient("test-token", transport=httpx.MockTransport(handler))
+
+        result = await client.lookup_trailer("Test Movie", 2024)
+
+        assert result is None
+        assert calls == ["/3/search/movie"]
 
     @pytest.mark.anyio
     async def test_no_search_results_returns_none(self):
         """Returns None when the search has no results."""
+
         def handler(request):
             return _ok({"results": []})
 
@@ -266,6 +294,7 @@ class TestTmdbClientTrailer:
     @pytest.mark.anyio
     async def test_no_youtube_trailer_returns_none(self):
         """Returns None when the movie has no YouTube trailers."""
+
         def handler(request):
             if request.url.path == "/3/search/movie":
                 return _ok({"results": [{"id": 12345}]})
@@ -289,6 +318,7 @@ class TestTmdbClientTrailer:
     @pytest.mark.anyio
     async def test_connect_error_returns_none(self):
         """Returns None (not raised) on httpx.ConnectError."""
+
         def handler(request):
             raise httpx.ConnectError("connection refused")
 
@@ -301,6 +331,7 @@ class TestTmdbClientTrailer:
     @pytest.mark.anyio
     async def test_read_timeout_returns_none(self):
         """Returns None (not raised) on httpx.ReadTimeout."""
+
         def handler(request):
             raise httpx.ReadTimeout("read timed out")
 
@@ -313,6 +344,7 @@ class TestTmdbClientTrailer:
     @pytest.mark.anyio
     async def test_malformed_response_returns_none(self):
         """Returns None when the response body is not valid JSON."""
+
         def handler(request):
             return httpx.Response(200, content=b"not json")
 
@@ -325,12 +357,17 @@ class TestTmdbClientTrailer:
     @pytest.mark.anyio
     async def test_year_none_still_works(self):
         """Works when year is None."""
+
         def handler(request):
             if request.url.path == "/3/search/movie":
                 return _ok({"results": [{"id": 12345}]})
             if request.url.path == "/3/movie/12345/videos":
                 return _ok(
-                    {"results": [{"site": "YouTube", "type": "Trailer", "key": "key123"}]}
+                    {
+                        "results": [
+                            {"site": "YouTube", "type": "Trailer", "key": "key123"}
+                        ]
+                    }
                 )
             raise AssertionError(f"unexpected path {request.url.path}")
 
@@ -357,8 +394,16 @@ class TestTmdbClientCast:
                 return _ok(
                     {
                         "cast": [
-                            {"name": "Actor 1", "character": "Role 1", "profile_path": "/img1.jpg"},
-                            {"name": "Actor 2", "character": "Role 2", "profile_path": None},
+                            {
+                                "name": "Actor 1",
+                                "character": "Role 1",
+                                "profile_path": "/img1.jpg",
+                            },
+                            {
+                                "name": "Actor 2",
+                                "character": "Role 2",
+                                "profile_path": None,
+                            },
                         ]
                     }
                 )
@@ -380,6 +425,7 @@ class TestTmdbClientCast:
     @pytest.mark.anyio
     async def test_limits_to_8_cast_members(self):
         """Returns at most 8 cast members."""
+
         def handler(request):
             if request.url.path == "/3/search/movie":
                 return _ok({"results": [{"id": 12345}]})
@@ -387,7 +433,11 @@ class TestTmdbClientCast:
                 return _ok(
                     {
                         "cast": [
-                            {"name": f"Actor {i}", "character": f"Role {i}", "profile_path": None}
+                            {
+                                "name": f"Actor {i}",
+                                "character": f"Role {i}",
+                                "profile_path": None,
+                            }
                             for i in range(15)
                         ]
                     }
@@ -403,6 +453,7 @@ class TestTmdbClientCast:
     @pytest.mark.anyio
     async def test_missing_character_defaults_to_empty_string(self):
         """Missing character field defaults to empty string."""
+
         def handler(request):
             if request.url.path == "/3/search/movie":
                 return _ok({"results": [{"id": 12345}]})
@@ -419,6 +470,7 @@ class TestTmdbClientCast:
     @pytest.mark.anyio
     async def test_no_search_results_returns_empty(self):
         """Returns [] when the search has no results."""
+
         def handler(request):
             return _ok({"results": []})
 
@@ -431,6 +483,7 @@ class TestTmdbClientCast:
     @pytest.mark.anyio
     async def test_empty_cast_list_returns_empty(self):
         """Returns [] when the movie has no cast."""
+
         def handler(request):
             if request.url.path == "/3/search/movie":
                 return _ok({"results": [{"id": 12345}]})
@@ -447,8 +500,22 @@ class TestTmdbClientCast:
     @pytest.mark.anyio
     async def test_read_timeout_returns_empty(self):
         """Returns [] (not raised) on httpx.ReadTimeout."""
+
         def handler(request):
             raise httpx.ReadTimeout("read timed out")
+
+        client = TmdbClient("test-token", transport=httpx.MockTransport(handler))
+
+        result = await client.lookup_cast("Test Movie", 2024)
+
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_http_error_returns_empty(self):
+        """Returns [] (not raised) when TMDB answers with a non-2xx status."""
+
+        def handler(request):
+            return httpx.Response(503, json={"results": [{"id": 12345}]})
 
         client = TmdbClient("test-token", transport=httpx.MockTransport(handler))
 
