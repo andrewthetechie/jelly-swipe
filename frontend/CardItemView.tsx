@@ -5,6 +5,7 @@ import MediaFacts from './MediaFacts'
 import {
     flyOffTarget,
     parseComputedTransform,
+    DEFAULT_POSITION,
     EXIT_TRANSITION_MS,
     REDUCED_MOTION_EXIT_TRANSITION_MS,
 } from './swipeGesture'
@@ -13,12 +14,6 @@ import type { JSX } from "react"
 import type { CardItem } from './types'
 import { fetchTrailer, RoomApiError } from './roomApi'
 import { useCardDrag } from './useCardDrag'
-
-const DEFAULT_POSITION: Position = {
-    x: 0,
-    y: 0,
-    rotation: 0
-}
 
 interface CardItemViewProps {
     cardItem: CardItem,

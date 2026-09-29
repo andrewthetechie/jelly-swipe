@@ -131,11 +131,12 @@ you fix X."_ Nothing is red today, the bug is documented in the test file, and
 fixing it is rewarded with a green test — a gentle, low-pressure way to improve
 code later without breaking anything that works now.
 
-Worked example: the **rating-zero** test in `CardItemView.test.tsx`. The score is
-rendered with `{rating && …}`, and `&&` short-circuits on falsy values — so a
-card with `rating === 0` renders a stray `0` instead of `IMDb 0.00` (the classic
-React falsy-zero JSX pitfall). The skipped test asserts the correct output and
-explains exactly what to change.
+Worked example: the **rating-zero** test in `CardItemView.test.tsx`. The score
+used to be rendered with `{rating && …}`, and `&&` short-circuits on falsy
+values — so a card with `rating === 0` rendered a stray `0` instead of
+`IMDb 0.00` (the classic React falsy-zero JSX pitfall). That bug has since been
+fixed in `MediaFacts.tsx` (the guard is now `rating != null`), so the former
+skip now runs as an ordinary regression test asserting the correct output.
 
 ### Hard-to-test code: document, don't rewrite
 
@@ -143,19 +144,20 @@ Some code is genuinely hard to test in jsdom, and the policy here is to write th
 best test we can and **document the gap** rather than rewrite working source to
 make it convenient.
 
-Worked example: the **pointer-drag stub** in `CardItemView.test.tsx`. The drag
-gesture uses the Pointer Capture API (`setPointerCapture` /
-`releasePointerCapture`) and real `PointerEvents`, which jsdom doesn't fully
-implement. `test/setup.ts` stubs the capture methods so firing pointer events
-doesn't crash, but a full drag-gesture assertion still can't be done in jsdom —
-so that test remains a clearly-commented `it.skip`.
+Worked example: the card drag gesture. It used to carry a clearly-commented
+`it.skip` stub in `CardItemView.test.tsx`, because the gesture uses the Pointer
+Capture API (`setPointerCapture` / `releasePointerCapture`) and real
+`PointerEvents`, which jsdom doesn't fully implement (`test/setup.ts` stubs the
+capture methods so firing pointer events doesn't crash). Since the gesture moved
+into the `useCardDrag` controller hook, it is tested directly:
+`useCardDrag.test.ts` drives the whole state machine through the hook with
+synthetic pointer events, and every pure decision it makes is unit-tested
+against numbers in `swipeGesture.test.ts`.
 
-The gap is now bounded: every decision the gesture makes lives in the pure
-module `swipeGesture.ts` and is unit-tested directly against numbers in
-`swipeGesture.test.ts`. What is left untested is only the browser-specific
-wiring — real pointer coordinates, capture semantics, and the
-transform/transition animation — which needs an end-to-end test (Playwright or
-Cypress) in a real browser.
+What still genuinely needs a real browser is the browser-only wiring — actual
+pointer-capture semantics and the transform/transition animation — which needs
+an end-to-end test (Playwright or Cypress) in a real browser where Pointer
+Capture works.
 
 There is also an `it.todo("swiping right should POST to /room/{code}/swipe")`
 breadcrumb in `CardItemView.test.tsx`: the swipe gesture animates the card away but

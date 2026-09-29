@@ -1,11 +1,12 @@
 // swipeGesture.ts — pure gesture maths for the card drag (issues #342, #345)
 // and the shared commit fly-off target (issue #360).
 //
-// Deliberately free of React and the DOM. jsdom implements neither PointerEvent
-// nor the Pointer Capture API, so a real drag can only ever be stubbed in the
-// component tests (see the documented drag stub in CardItemView.test.tsx). Every
-// decision the gesture makes therefore lives here, where it can be unit-tested
-// directly against numbers.
+// Deliberately free of React and the DOM. jsdom does not reproduce real
+// pointer-capture semantics or the transform/transition animation, so the
+// gesture state machine that consumes this maths is driven through the
+// useCardDrag controller hook with synthetic pointer events
+// (useCardDrag.test.ts). Every decision the gesture makes lives here, where it
+// can be unit-tested directly against numbers (swipeGesture.test.ts).
 
 export type PointerSample = {
     /** clientX of the pointer at this moment. */
@@ -19,6 +20,16 @@ export type Position = {
     x: number,
     y: number,
     rotation: number
+}
+
+/** The card's resting placement: centred and unrotated. One shared definition
+ * for every "back to rest" use — the controller's snap-back, the component's
+ * post-rejection reset, and an exit card with no captured transform — so they
+ * cannot drift apart. */
+export const DEFAULT_POSITION: Position = {
+    x: 0,
+    y: 0,
+    rotation: 0,
 }
 
 /** Only samples from the last this-many ms feed the velocity estimate. */

@@ -13,18 +13,13 @@
 import React from "react"
 import {
     computeVelocity,
+    DEFAULT_POSITION,
     shouldCommitSwipe,
     stampSignal,
     swipeThresholdFor,
     trackSample,
 } from "./swipeGesture"
 import type { PointerSample, Position } from "./swipeGesture"
-
-const DEFAULT_POSITION: Position = {
-    x: 0,
-    y: 0,
-    rotation: 0,
-}
 
 /** A commit verdict handed to the component's commit funnel on a release that
  * passes the swipe threshold. The hook never calls `onSwipe` itself and never

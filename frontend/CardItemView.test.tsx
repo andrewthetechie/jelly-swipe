@@ -2,11 +2,11 @@
 // flip, plus one thin drag-wiring check and one non-top-card guard. The drag
 // gesture itself (threshold, guards, snap-back, stamp feedback) is owned by the
 // useCardDrag controller and tested directly in useCardDrag.test.ts, so this
-// suite does not try to drive real pointer drags through jsdom. This file is
-// the canonical example for the "skipped desired-behaviour" pattern: the
-// rating-zero known bug is asserted as the CORRECT behaviour and skipped, so
-// fixing the bug turns the test green instead of red. We never assert the
-// current buggy output.
+// suite does not try to drive real pointer drags through jsdom. The rating-zero
+// test below is a former "skipped desired-behaviour" case (the pattern itself is
+// described in README.md): its falsy-zero bug was fixed in MediaFacts
+// (`rating != null`), so it now runs as an ordinary regression test asserting
+// the correct "IMDb 0.00" output.
 //
 // Both front and back faces of the card are always in the DOM (CSS handles the
 // visual flip), so we can query back-face text like "IMDb 7.50" without
@@ -446,6 +446,39 @@ describe("CardItemView — imperative handle", () => {
     expect(Math.abs(x)).toBeGreaterThan(500)
   })
 
+  it("does not double-fire onSwipe after the card has committed", () => {
+    const { onSwipe, handleRef } = renderCardWithHandle()
+
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+      handleRef.current?.commitSwipe("right")
+    })
+
+    expect(onSwipe).toHaveBeenCalledTimes(1)
+  })
+
+  it("snaps the card back to rest and re-arms the swipe when onSwipe rejects", async () => {
+    const onSwipe = vi.fn().mockRejectedValue(new Error("swipe failed"))
+    const { container, handleRef } = renderCardWithHandle({}, onSwipe)
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    // Commit: the card flies off-screen and the LIKE stamp stays lit.
+    await act(async () => {
+      await handleRef.current?.commitSwipe("right")
+    })
+
+    // The rejected swipe resets position and signal back to rest.
+    expect(card.style.transform).toContain("translate(0px, 0px)")
+    expect(card.style.transform).toContain("rotate(0deg)")
+    expect((container.querySelector(".swipe-stamp-like") as HTMLElement).style.opacity).toBe("0")
+
+    // The committed guard was cleared, so the same card can be swiped again.
+    await act(async () => {
+      await handleRef.current?.commitSwipe("right")
+    })
+    expect(onSwipe).toHaveBeenCalledTimes(2)
+  })
+
   it("toggleDetails() flips the card like a tap", () => {
     const { container, handleRef } = renderCardWithHandle()
     const card = container.querySelector(".card-item-container") as HTMLElement
@@ -482,6 +515,18 @@ describe("CardItemView — imperative handle", () => {
 
     expect(onSwipe).not.toHaveBeenCalled()
     expect(card.style.transform).toContain("translate(0px, 0px)")
+  })
+
+  it("does not commit while a drag is live", () => {
+    const { container, onSwipe, handleRef } = renderCardWithHandle()
+    const card = container.querySelector(".card-item-container") as HTMLElement
+
+    dragTo(card, 250)
+    act(() => {
+      handleRef.current?.commitSwipe("right")
+    })
+
+    expect(onSwipe).not.toHaveBeenCalled()
   })
 
   it("does not flip details for a non-top card", () => {

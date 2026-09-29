@@ -12,8 +12,9 @@ import "@testing-library/jest-dom";
 // at the harness level, so any test that fires pointer events doesn't crash.
 //
 // NOTE: these stubs only stop the crash — they do NOT make jsdom a real
-// pointer-driven browser. Full drag-gesture behaviour still can't be tested in
-// jsdom; see the documented drag stub in CardItemView.test.tsx for the why.
+// pointer-driven browser. The gesture state machine is tested through the
+// useCardDrag controller hook (useCardDrag.test.ts); real pointer-capture
+// semantics and the transform/transition animation still need a real browser.
 if (!Element.prototype.setPointerCapture) {
   Element.prototype.setPointerCapture = () => {};
 }
