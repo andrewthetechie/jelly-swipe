@@ -10,6 +10,8 @@ import logging
 from typing import Optional
 from urllib.parse import urlencode
 
+import httpx
+
 from jellyswipe.http_client import make_http_request
 
 _logger = logging.getLogger(__name__)
@@ -108,3 +110,102 @@ def lookup_cast(title: str, year: Optional[int], *, api_token: str) -> list[dict
             extra={"title": title, "year": year, "error": str(e)},
         )
         return []
+
+
+class TmdbClient:
+    """Async TMDB lookup client with an injectable transport.
+
+    Holds the bearer token at construction and owns a single shared
+    ``httpx.AsyncClient`` built with ``httpx.Timeout(15.0, connect=5.0)``,
+    preserving today's ``(5, 15)`` connect/read bounds. Mirrors
+    :class:`jellyswipe.jellyfin.client.JellyfinClient`'s transport seam so tests
+    can drive it with ``httpx.MockTransport``.
+
+    All failures (network, not found, malformed response) are logged and
+    returned as ``None`` / ``[]``, never raised; there are no retries.
+    """
+
+    def __init__(
+        self,
+        api_token: str,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._api_token = api_token
+        self._http = httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0, connect=5.0),
+            transport=transport,
+        )
+
+    async def aclose(self) -> None:
+        """Close the underlying httpx client."""
+        await self._http.aclose()
+
+    async def lookup_trailer(self, title: str, year: int | None) -> str | None:
+        """Search TMDB for a movie and return the YouTube trailer key.
+
+        Returns None on any failure (network error, no match, no trailer).
+        """
+        headers = {"Authorization": f"Bearer {self._api_token}"}
+        try:
+            params = urlencode({"query": title, "year": year})
+            search_url = f"{TMDB_BASE}/search/movie?{params}"
+            search_response = await self._http.get(search_url, headers=headers)
+            r = search_response.json()
+            if not r.get("results"):
+                return None
+
+            tmdb_id = r["results"][0]["id"]
+            v_url = f"{TMDB_BASE}/movie/{tmdb_id}/videos"
+            videos_response = await self._http.get(v_url, headers=headers)
+            v_res = videos_response.json()
+            trailers = [
+                v
+                for v in v_res.get("results", [])
+                if v.get("site") == "YouTube" and v.get("type") == "Trailer"
+            ]
+            if trailers:
+                return trailers[0]["key"]
+            return None
+        except Exception as e:
+            _logger.warning(
+                "TMDB trailer lookup failed",
+                extra={"title": title, "year": year, "error": str(e)},
+            )
+            return None
+
+    async def lookup_cast(self, title: str, year: int | None) -> list[dict]:
+        """Search TMDB for a movie and return up to 8 cast members.
+
+        Returns [] on any failure (network error, no match).
+        """
+        headers = {"Authorization": f"Bearer {self._api_token}"}
+        try:
+            params = urlencode({"query": title, "year": year})
+            search_url = f"{TMDB_BASE}/search/movie?{params}"
+            search_response = await self._http.get(search_url, headers=headers)
+            r = search_response.json()
+            if not r.get("results"):
+                return []
+
+            tmdb_id = r["results"][0]["id"]
+            credits_url = f"{TMDB_BASE}/movie/{tmdb_id}/credits"
+            credits_response = await self._http.get(credits_url, headers=headers)
+            c_res = credits_response.json()
+            cast = []
+            for actor in c_res.get("cast", [])[:8]:
+                cast.append(
+                    {
+                        "name": actor["name"],
+                        "character": actor.get("character", ""),
+                        "profile_path": f"https://image.tmdb.org/t/p/w185{actor['profile_path']}"
+                        if actor.get("profile_path")
+                        else None,
+                    }
+                )
+            return cast
+        except Exception as e:
+            _logger.warning(
+                "TMDB cast lookup failed",
+                extra={"title": title, "year": year, "error": str(e)},
+            )
+            return []
