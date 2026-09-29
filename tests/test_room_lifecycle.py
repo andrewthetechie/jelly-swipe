@@ -465,6 +465,38 @@ async def test_genre_change_with_watched_filter_active(runtime_sessionmaker):
 
 
 @pytest.mark.anyio
+async def test_watched_filter_change_preserves_active_genre(runtime_sessionmaker):
+    """Test that watched filter change respects the active genre filter."""
+    svc = RoomLifecycleService()
+    prov = FakeProvider()
+    uid = prov._user_id
+
+    async with runtime_sessionmaker() as session:
+        uow = DatabaseUnitOfWork(session)
+        pc = await force_create_room(svc, prov, uid, uow)
+
+        # First set a genre filter
+        await svc.set_genre(pc, "Action", prov, uow)
+        await session.commit()
+
+        # Verify genre is Action
+        snap = await uow.rooms.fetch_status(pc)
+        assert snap is not None
+        assert snap.genre == "Action"
+
+        # Change watched filter - should maintain genre
+        new_deck = await svc.set_watched_filter(pc, True, prov, uow)
+        await session.commit()
+
+        # Verify genre is still Action after watched filter change
+        snap_after = await uow.rooms.fetch_status(pc)
+        assert snap_after is not None
+        assert snap_after.genre == "Action"
+        assert snap_after.hide_watched is True
+        assert isinstance(new_deck.deck, list)
+
+
+@pytest.mark.anyio
 async def test_cursor_reset_after_deck_rebuild(runtime_sessionmaker):
     """Test that deck cursors reset to {} after any rebuild."""
     svc = RoomLifecycleService()

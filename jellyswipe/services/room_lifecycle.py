@@ -52,6 +52,20 @@ class MutationResult:
 logger = logging.getLogger(__name__)
 
 
+def _media_types(include_movies: bool, include_tv_shows: bool) -> list[str]:
+    """Derive the deck media-type list from the room's immutable flags.
+
+    Movies-then-tv ordering: ``["movie"]``, ``["tv_show"]``,
+    ``["movie", "tv_show"]``, or ``[]``.
+    """
+    media_types = []
+    if include_movies:
+        media_types.append("movie")
+    if include_tv_shows:
+        media_types.append("tv_show")
+    return media_types
+
+
 class UniqueRoomCodeExhaustedError(Exception):
     """Pairing-code allocation failed after bounded retries."""
 
@@ -91,12 +105,7 @@ class RoomLifecycleService:
             )
             if exists or reserved:
                 continue
-            # Build media_types list from boolean flags
-            media_types = []
-            if include_movies:
-                media_types.append("movie")
-            if include_tv_shows:
-                media_types.append("tv_show")
+            media_types = _media_types(include_movies, include_tv_shows)
             deck = await build_deck(
                 provider=provider,
                 uow=uow,
@@ -212,35 +221,15 @@ class RoomLifecycleService:
         uow: DatabaseUnitOfWork,
     ) -> MutationResult:
         """Set genre filter and rebuild deck."""
-        room = await uow.rooms.get_room(code)
-        if room is None:
-            raise EmptyDeckError("Room not found")
-
-        media_types = []
-        if room.include_movies:
-            media_types.append("movie")
-        if room.include_tv_shows:
-            media_types.append("tv_show")
-
-        new_deck = await build_deck(
-            provider=provider,
-            uow=uow,
-            room_code=code,
-            media_types=media_types,
+        return await self._mutate_deck(
+            code,
+            provider,
+            uow,
             genre=genre,
-            hide_watched=room.hide_watched,
-            persist=True,
+            hide_watched=None,
+            event_type="genre_changed",
+            event_payload={"genre": genre},
         )
-        # Append genre_changed event on success and return its event_id.
-        # event_id stays 0 (never a real autoincrement id) when no session
-        # instance exists — the frontend treats 0 as "nothing to suppress".
-        instance = await uow.session_instances.get_by_pairing_code(code)
-        event_id = 0
-        if instance:
-            event_id = await uow.session_events.append(
-                instance.instance_id, "genre_changed", json.dumps({"genre": genre})
-            )
-        return MutationResult(deck=new_deck, event_id=event_id)
 
     async def set_watched_filter(
         self,
@@ -250,26 +239,49 @@ class RoomLifecycleService:
         uow: DatabaseUnitOfWork,
     ) -> MutationResult:
         """Set watched filter and rebuild deck."""
+        return await self._mutate_deck(
+            code,
+            provider,
+            uow,
+            genre=None,
+            hide_watched=hide_watched,
+            event_type="hide_watched_changed",
+            event_payload={"hide_watched": hide_watched},
+        )
+
+    async def _mutate_deck(
+        self,
+        code: str,
+        provider: DeckProvider,
+        uow: DatabaseUnitOfWork,
+        *,
+        genre: str | None,
+        hide_watched: bool | None,
+        event_type: str,
+        event_payload: dict[str, Any],
+    ) -> MutationResult:
+        """Shared deck-mutation seam: fetch room, rebuild deck, append event.
+
+        One of ``genre`` / ``hide_watched`` carries the fresh value from the
+        caller; the other is ``None`` and is read from the room, so the carried
+        filter is persisted on every mutation.
+        """
         room = await uow.rooms.get_room(code)
         if room is None:
             raise EmptyDeckError("Room not found")
-
-        media_types = []
-        if room.include_movies:
-            media_types.append("movie")
-        if room.include_tv_shows:
-            media_types.append("tv_show")
 
         new_deck = await build_deck(
             provider=provider,
             uow=uow,
             room_code=code,
-            media_types=media_types,
-            genre=room.current_genre,
-            hide_watched=hide_watched,
+            media_types=_media_types(room.include_movies, room.include_tv_shows),
+            genre=genre if genre is not None else room.current_genre,
+            hide_watched=(
+                hide_watched if hide_watched is not None else room.hide_watched
+            ),
             persist=True,
         )
-        # Append hide_watched_changed event on success and return its event_id.
+        # Append the mutation event on success and return its event_id.
         # event_id stays 0 (never a real autoincrement id) when no session
         # instance exists — the frontend treats 0 as "nothing to suppress".
         instance = await uow.session_instances.get_by_pairing_code(code)
@@ -277,8 +289,8 @@ class RoomLifecycleService:
         if instance:
             event_id = await uow.session_events.append(
                 instance.instance_id,
-                "hide_watched_changed",
-                json.dumps({"hide_watched": hide_watched}),
+                event_type,
+                json.dumps(event_payload),
             )
         return MutationResult(deck=new_deck, event_id=event_id)
 
