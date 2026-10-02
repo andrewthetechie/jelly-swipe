@@ -177,25 +177,6 @@ class SessionMatchMutation:
         uow: DatabaseUnitOfWork,
         jellyfin_url: str,
     ) -> ApplySwipeResult:
-        return await self.apply_swipe_transaction(
-            uow=uow,
-            code=code,
-            actor=actor,
-            media_id=media_id,
-            direction=direction,
-            jellyfin_url=jellyfin_url,
-        )
-
-    async def apply_swipe_transaction(
-        self,
-        *,
-        uow: DatabaseUnitOfWork,
-        code: str,
-        actor: SessionActor,
-        media_id: str,
-        direction: str | None,
-        jellyfin_url: str,
-    ) -> ApplySwipeResult:
         """Apply one swipe atomically through the repository layer.
 
         Opens a ``BEGIN IMMEDIATE`` transaction for SQLite write serialization
