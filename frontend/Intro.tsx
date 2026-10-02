@@ -1,14 +1,14 @@
 import React from "react"
 import JoinModal from "./JoinModal"
 import HostModal from "./HostModal"
-import { useRoomSetterContext } from "./RoomContextProvider"
+import { useRoomMembership } from "./RoomContextProvider"
 import type { JSX } from "react"
 
 
 export default function Intro(): JSX.Element {
     const [showJoinModal, setShowJoinModal] = React.useState<boolean>(false)
     const [showHostModal, setShowHostModal] = React.useState<boolean>(false)
-    const { setMovies, setTvShows, setIsSoloMode, setUserInputCode } = useRoomSetterContext()
+    const membership = useRoomMembership()
 
 
     function handleSessionClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -22,14 +22,12 @@ export default function Intro(): JSX.Element {
 
     function closeHostModal() {
         setShowHostModal(false)
-        setMovies(true)
-        setTvShows(false)
-        setIsSoloMode(false)
+        membership.resetHostSetup()
     }
 
     function closeJoinModal() {
         setShowJoinModal(false)
-        setUserInputCode("")
+        membership.resetJoinInput()
     }
 
     return (

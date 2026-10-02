@@ -91,20 +91,29 @@ tests should only consume the public hooks:
 - **`useRoomStateContext()`** — reads room state values such as
   `currentRoomCode`, `movies`, `tvShows`, `isSoloMode`, `userInputCode`,
   `genre`, and `hideWatched`.
-- **`useRoomSetterContext()`** — reads the room setter functions.
+- **`useRoomMembership()`** — the room entry commands and their state. It
+  exposes the create and join commands (`create`/`join`), their
+  `isSubmitting`/`error` state, the code-entry policy (`beginEntry`,
+  `applyCodeInput`), the setup toggles/resets (`setMovies`, `setTvShows`,
+  `setIsSoloMode`, `resetHostSetup`, `resetJoinInput`), and `leave()`.
 
-Components that only dispatch (e.g. `Intro`) should use
-`useRoomSetterContext()` alone. Components that only read (e.g. `Header`)
-should use `useRoomStateContext()` alone. Mixed components use both.
+Entry-flow components — `Intro`, `HostModal`, `JoinModal` — and the session
+exit path (`RoomSessionProvider`'s `onExitRoom`) go through the membership
+commands in `useRoomMembership()`. Components that only read (e.g. `Header`)
+should use `useRoomStateContext()` alone. The raw setter context
+(`useRoomSetterContext()`) is now harness/test-only and is not for app
+components.
 
-Both hooks are backed by the single `<RoomContextProvider>` in `App.tsx`.
-`RoomStateContext` and `RoomSetterContext` are implementation details and should
-not be imported directly in app code or tests.
+All three hooks are backed by the single `<RoomContextProvider>` in `App.tsx`.
+`RoomStateContext`, `RoomSetterContext`, and `RoomMembershipContext` are
+implementation details and should not be imported directly in app code or
+tests.
 
 In tests, `renderWithRoom` and `renderWithRoomStateful` keep you inside the real
 provider and let you seed initial room state without wiring raw providers by
 hand. Always go through those helpers instead of reaching for
-`RoomStateContext.Provider` or `RoomSetterContext.Provider` directly.
+`RoomStateContext.Provider`, `RoomSetterContext.Provider`, or
+`RoomMembershipContext.Provider` directly.
 
 Example:
 
