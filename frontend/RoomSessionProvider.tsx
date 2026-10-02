@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import React from "react"
-import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
+import { useRoomStateContext, useRoomMembership } from "./RoomContextProvider"
 import { useSSEContext } from "./SSEContextProvider"
 import * as roomApi from "./roomApi"
 import { RoomSessionStore } from "./roomSessionStore"
@@ -41,7 +41,7 @@ interface RoomSessionProviderProps {
 
 export function RoomSessionProvider({ children, api = roomApi, initialState }: RoomSessionProviderProps) {
     const { currentRoomCode } = useRoomStateContext()
-    const { setCurrentRoomCode } = useRoomSetterContext()
+    const membership = useRoomMembership()
     const { sseData, sseError } = useSSEContext()
 
     // Create the long-lived store once per mount. `onExitRoom` forwards the
@@ -50,7 +50,7 @@ export function RoomSessionProvider({ children, api = roomApi, initialState }: R
     const [{ store, subscribe, getState }] = React.useState(() => {
         const store = new RoomSessionStore({
             api,
-            onExitRoom: () => setCurrentRoomCode(null),
+            onExitRoom: () => membership.leave(),
             initialState,
         })
         return {

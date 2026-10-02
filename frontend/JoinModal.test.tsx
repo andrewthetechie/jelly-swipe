@@ -4,20 +4,21 @@
 // Worth understanding:
 //   • The room code now lives in CONTEXT (`userInputCode` / `setUserInputCode`),
 //     not local state. The input is therefore CONTROLLED by the context value.
-//     In tests, `setUserInputCode` is a vi.fn() spy that does NOT update state,
-//     so the input's value stays put — meaning we can't read sanitized text back
-//     out of the DOM, AND a `user.type("a1b2")` would only ever deliver ONE
-//     character per onChange (the value never accumulates). To actually exercise
-//     the regex on a real multi-character string we fire a single `change` event
-//     carrying the full mixed value and assert the spy received the sanitized,
-//     digit-only, in-order result.
+//     renderWithRoom mounts the real providers, so `applyCodeInput` forwards
+//     through the real `setUserInputCode` and the input re-renders with the
+//     sanitized value — meaning we CAN read sanitized text back out of the DOM.
+//     To actually exercise the regex on a real multi-character string we fire a
+//     single `change` event carrying the full mixed value and assert the input
+//     received the sanitized, digit-only, in-order result.
 //   • joinRoom follows the 3-part network contract: POST
 //     /room/{userInputCode}/join; success → setCurrentRoomCode(userInputCode);
 //     one failure path leaves it uncalled. We preset userInputCode via overrides.
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import HostModal from "./HostModal";
 import JoinModal from "./JoinModal";
 import { renderWithRoom } from "./test/renderWithRoom";
+import { ModalReopenHarness, ModalSwapHarness } from "./test/modalEntryHarnesses";
 import * as roomApi from "./roomApi";
 
 function getRoomState() {
@@ -36,8 +37,12 @@ beforeEach(() => {
   joinRoomMock.mockResolvedValue({ status: "ok" });
 });
 
+// The reopen/swap harnesses live in ./test/modalEntryHarnesses: they keep the
+// modal inside one provider tree so the membership store instance survives the
+// close, reproducing the stale-error regression the open-time clear fixes.
+
 describe("JoinModal — input sanitization", () => {
-  it("strips non-digits and preserves digit order (asserted via the setter spy)", () => {
+  it("strips non-digits and preserves digit order (read back from the controlled input)", () => {
     renderWithRoom(<JoinModal onClose={vi.fn()} />, {
       userInputCode: "",
     });
@@ -229,6 +234,81 @@ describe("JoinModal — inline error messages", () => {
     fireEvent.change(screen.getByLabelText("Room Code"), {
       target: { value: "5678" },
     });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    errSpy.mockRestore();
+  });
+
+  it("reopening after a 404 join failure shows no stale error", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    joinRoomMock.mockRejectedValueOnce(
+      new roomApi.RoomApiError(404, "Not Found", "joining room"),
+    );
+    renderWithRoom(
+      <ModalReopenHarness renderModal={(onClose) => <JoinModal onClose={onClose} />} />,
+      { userInputCode: "1234" },
+    );
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /reopen/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    errSpy.mockRestore();
+  });
+
+  it("a join failure never renders in the host modal", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    joinRoomMock.mockRejectedValueOnce(
+      new roomApi.RoomApiError(404, "Not Found", "joining room"),
+    );
+    renderWithRoom(
+      <ModalSwapHarness
+        first={(onClose) => <JoinModal onClose={onClose} />}
+        second={(onClose) => <HostModal onClose={onClose} />}
+      />,
+      { userInputCode: "1234" },
+    );
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    errSpy.mockRestore();
+  });
+
+  it("an in-flight failure landing while closed does not surface on reopen", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    let rejectJoin!: (err: unknown) => void;
+    joinRoomMock.mockImplementationOnce(
+      () => new Promise<{ status: string }>((_, reject) => { rejectJoin = reject }),
+    );
+    renderWithRoom(
+      <ModalReopenHarness renderModal={(onClose) => <JoinModal onClose={onClose} />} />,
+      { userInputCode: "1234" },
+    );
+
+    await user.click(screen.getByRole("button", { name: /join session/i }));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Reject while the modal is closed; the error is stored for the next open.
+    rejectJoin(new roomApi.RoomApiError(404, "Not Found", "joining room"));
+    await waitFor(() => expect(errSpy).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: /reopen/i }));
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 

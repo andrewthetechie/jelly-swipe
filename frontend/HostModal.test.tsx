@@ -1,7 +1,9 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HostModal from "./HostModal";
+import JoinModal from "./JoinModal";
 import { renderWithRoom, renderWithRoomStateful } from "./test/renderWithRoom";
+import { ModalReopenHarness, ModalSwapHarness } from "./test/modalEntryHarnesses";
 import * as roomApi from "./roomApi";
 
 function getRoomState() {
@@ -18,6 +20,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   createRoomMock.mockResolvedValue({ pairing_code: "4321" });
 });
+
+// The reopen/swap harnesses live in ./test/modalEntryHarnesses: they keep the
+// modal inside one provider tree so the membership store instance survives the
+// close, reproducing the stale-error regression the open-time clear fixes.
 
 describe("HostModal — toggles", () => {
   it("clicking Movies (default on) reports the new unchecked value", async () => {
@@ -270,6 +276,48 @@ describe("HostModal — inline error messages", () => {
     await screen.findByRole("alert");
 
     await user.click(screen.getByRole("button", { name: /create session/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    errSpy.mockRestore();
+  });
+
+  it("reopening after a create failure shows no stale error", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    createRoomMock.mockRejectedValueOnce(new Error("network error"));
+    renderWithRoomStateful(
+      <ModalReopenHarness renderModal={(onClose) => <HostModal onClose={onClose} />} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /create session/i }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /reopen/i }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    errSpy.mockRestore();
+  });
+
+  it("a create failure never renders in the join modal", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    createRoomMock.mockRejectedValueOnce(new Error("network error"));
+    renderWithRoomStateful(
+      <ModalSwapHarness
+        first={(onClose) => <HostModal onClose={onClose} />}
+        second={(onClose) => <JoinModal onClose={onClose} />}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /create session/i }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 

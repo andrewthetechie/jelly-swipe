@@ -1,7 +1,6 @@
 import React from "react"
-import { useRoomStateContext, useRoomSetterContext } from "./RoomContextProvider"
+import { useRoomMembership, useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
-import { createRoom } from "./roomApi"
 import FormError from "./FormError"
 import Modal from "./Modal"
 
@@ -11,9 +10,13 @@ interface HostModalProps {
 
 export default function HostModal({ onClose }: HostModalProps): JSX.Element {
     const { movies, tvShows, isSoloMode } = useRoomStateContext()
-    const { setMovies, setTvShows, setIsSoloMode, setCurrentRoomCode } = useRoomSetterContext()
-    const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
-    const [error, setError] = React.useState<string | null>(null)
+    const { isSubmitting, error, create, beginEntry, setMovies, setTvShows, setIsSoloMode } = useRoomMembership()
+
+    // On each open (mount), start with a clean error so a stale failure from a
+    // previous session never renders in this modal.
+    React.useEffect(() => {
+        beginEntry()
+    }, [beginEntry])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, checked } = e.currentTarget
@@ -26,23 +29,8 @@ export default function HostModal({ onClose }: HostModalProps): JSX.Element {
         }
     }
 
-    async function doCreate() {
-        if (isSubmitting) return
-        setIsSubmitting(true)
-        setError(null)
-
-        try {
-            const { pairing_code } = await createRoom({
-                movies, tvShows, solo: isSoloMode
-            })
-            setCurrentRoomCode(pairing_code)
-        } catch (err) {
-            console.error("Error creating session:", err)
-            setError("Couldn't start the session. Check that Jelly-Swipe can reach your Jellyfin server.")
-        } finally {
-            setIsSubmitting(false)
-        }
-
+    function doCreate() {
+        create({ movies, tvShows, solo: isSoloMode })
     }
 
     return (
