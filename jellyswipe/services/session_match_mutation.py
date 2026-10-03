@@ -158,7 +158,14 @@ class SessionMatchMutation:
             return SwipeAccepted(match_created=False)
 
         card = room.deck.card_by_id(media_id)
-        if card is None or not card.get("title") or not card.get("thumb"):
+        # Only an absent deck card or a None/missing title/thumb skips match
+        # creation; empty-string facts are treated as present and persisted as
+        # "" (main parity).
+        if (
+            card is None
+            or card.get("title") is None
+            or card.get("thumb") is None
+        ):
             if card is None:
                 logger.warning(
                     "right-swipe media_id=%s not in room %s deck; no match recorded",
