@@ -11,7 +11,7 @@ from fastapi.responses import Response
 
 from jellyswipe import XSSSafeJSONResponse
 from jellyswipe.config import AppConfig, get_config
-from jellyswipe.dependencies import check_rate_limit, get_library
+from jellyswipe.dependencies import get_library, rate_limit
 from jellyswipe.schemas.common import ErrorResponse
 
 _logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ async def proxy(
     ),
     config: AppConfig = Depends(get_config),
     provider=Depends(get_library),
-    _: None = Depends(check_rate_limit),
+    _: None = Depends(rate_limit("proxy", 200)),
 ):
     """Proxy image requests to Jellyfin server with path validation.
 

@@ -1,7 +1,7 @@
 """Authentication and session management routes.
 
 Per D-06, D-09, D-10: 6 auth routes with identical URL paths, methods, and response shapes.
-Uses dependency injection for authentication (require_auth) and rate limiting.
+Uses dependency injection for authentication (require_auth).
 """
 
 from fastapi import APIRouter, Depends, Request, Response

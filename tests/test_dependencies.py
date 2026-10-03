@@ -22,13 +22,13 @@ from jellyswipe.db_runtime import (
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.dependencies import (
     AuthUser,
-    check_rate_limit,
     clear_room_session,
     clear_session,
     get_db_uow,
     get_library,
     get_session_actor,
     mark_session_cookie_cleared,
+    rate_limit,
     read_auth_session_id,
     require_auth,
     session_cookie_cleared,
@@ -311,12 +311,12 @@ class TestGetDbUow:
 
 
 # ---------------------------------------------------------------------------
-# TestCheckRateLimit
+# TestRateLimitFactory
 # ---------------------------------------------------------------------------
 
 
-class TestCheckRateLimit:
-    """Tests for check_rate_limit() dependency."""
+class TestRateLimitFactory:
+    """Tests for the rate_limit() dependency factory."""
 
     def setup_method(self):
         """Reset rate limiter state before each test."""
@@ -334,13 +334,12 @@ class TestCheckRateLimit:
         """Exceeding rate limit raises HTTPException(429)."""
         monkeypatch.setenv("DB_PATH", db_path)
         monkeypatch.setenv("DATABASE_URL", build_sqlite_url(db_path))
-        monkeypatch.setattr(deps, "_RATE_LIMITS", {"get-trailer": 5})
 
         app = FastAPI()
         app.add_middleware(SessionMiddleware, secret_key="test-secret-key")
 
         @app.get("/get-trailer/test")
-        def rate_limited_route(_: None = Depends(check_rate_limit)):
+        def rate_limited_route(_: None = Depends(rate_limit("get-trailer", 5))):
             return {"ok": True}
 
         client = TestClient(app)
@@ -352,24 +351,12 @@ class TestCheckRateLimit:
         assert resp.status_code == 429
         assert resp.json()["detail"] == "Rate limit exceeded"
 
-    def test_passes_through_unlisted_paths(self):
-        """Paths not in _RATE_LIMITS pass through without error."""
-        app = FastAPI()
-
-        @app.get("/some-random-path")
-        def route(_: None = Depends(check_rate_limit)):
-            return {"ok": True}
-
-        client = TestClient(app)
-        resp = client.get("/some-random-path")
-        assert resp.status_code == 200
-
     def test_passes_through_when_under_limit(self):
         """Under the limit → passes through without error."""
         app = FastAPI()
 
         @app.get("/get-trailer/test")
-        def route(_: None = Depends(check_rate_limit)):
+        def route(_: None = Depends(rate_limit("get-trailer", 5))):
             return {"ok": True}
 
         client = TestClient(app)
