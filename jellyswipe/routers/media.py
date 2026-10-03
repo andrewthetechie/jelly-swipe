@@ -11,9 +11,9 @@ from jellyswipe.config import AppConfig, get_config
 from jellyswipe.dependencies import (
     AuthUser,
     DBUoW,
-    check_rate_limit,
     get_library,
     get_watchlist,
+    rate_limit,
     require_auth,
 )
 from jellyswipe.routers._helpers import log_exception, make_error_response
@@ -57,7 +57,7 @@ async def get_trailer(
     uow: DBUoW,
     config: AppConfig = Depends(get_config),
     provider=Depends(get_library),
-    _: None = Depends(check_rate_limit),
+    _: None = Depends(rate_limit("get-trailer", 200)),
 ):
     """Get the YouTube trailer key for a movie.
 
@@ -106,7 +106,7 @@ async def get_cast(
     uow: DBUoW,
     config: AppConfig = Depends(get_config),
     provider=Depends(get_library),
-    _: None = Depends(check_rate_limit),
+    _: None = Depends(rate_limit("cast", 200)),
 ):
     """Get cast information for a movie.
 
@@ -173,7 +173,7 @@ async def add_to_watchlist(
     body: WatchlistAddRequest,
     request: Request,
     user: AuthUser = Depends(require_auth),
-    _: None = Depends(check_rate_limit),
+    _: None = Depends(rate_limit("watchlist/add", 300)),
     writer=Depends(get_watchlist),
 ):
     """Add a movie to the authenticated user's Jellyfin favourites/watchlist.

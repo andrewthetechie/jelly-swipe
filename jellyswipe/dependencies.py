@@ -3,7 +3,7 @@
 Exports AuthUser dataclass and Depends()-compatible callables for:
 - Authentication (require_auth)
 - Database access (get_db_uow, DBUoW)
-- Rate limiting (check_rate_limit)
+- Rate limiting (rate_limit)
 - Jellyfin library-role singleton (get_library)
 """
 
@@ -132,46 +132,16 @@ async def get_db_uow():
 DBUoW = Annotated[DatabaseUnitOfWork, Depends(get_db_uow, scope="function")]
 
 
-_RATE_LIMITS = {
-    "get-trailer": 200,
-    "cast": 200,
-    "watchlist/add": 300,
-    "proxy": 200,
-}
+def rate_limit(key: str, limit: int, per_minutes: int = 1):
+    """Dependency factory: enforce ``limit`` requests per ``per_minutes`` on one route."""
 
+    def _enforce(request: Request) -> None:
+        ip = request.client.host if request.client else "unknown"
+        allowed, _retry_after = rate_limiter.check(key, ip, limit, per_minutes)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
-def _infer_endpoint_key(path: str) -> str | None:
-    """Infer rate limit key from request path using prefix segment matching.
-
-    Checks compound keys (e.g. 'watchlist/add') first, then single-segment keys.
-    Returns None if no match found.
-    """
-    parts = path.lstrip("/").split("/", 2)
-    # Check compound key first (e.g. 'watchlist/add')
-    if len(parts) >= 2:
-        compound = f"{parts[0]}/{parts[1]}"
-        if compound in _RATE_LIMITS:
-            return compound
-    # Check single-segment key
-    if parts and parts[0] in _RATE_LIMITS:
-        return parts[0]
-    return None
-
-
-def check_rate_limit(request: Request) -> None:
-    """FastAPI dependency that enforces rate limiting.
-
-    Raises HTTPException(429) if limit exceeded, passes through otherwise.
-    """
-    key = _infer_endpoint_key(request.url.path)
-    if key is None:
-        return  # No limit for this path
-
-    ip = request.client.host if request.client else "unknown"
-    allowed, _retry_after = rate_limiter.check(key, ip, _RATE_LIMITS[key])
-
-    if not allowed:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    return _enforce
 
 
 # Session adapter — the single module that owns the request.session key names.
@@ -301,7 +271,6 @@ async def reset_provider_singleton() -> None:
 __all__ = [
     "AuthUser",
     "DBUoW",
-    "check_rate_limit",
     "clear_room_session",
     "clear_session",
     "get_db_uow",
@@ -310,6 +279,7 @@ __all__ = [
     "get_vault",
     "get_watchlist",
     "mark_session_cookie_cleared",
+    "rate_limit",
     "read_auth_session_id",
     "require_auth",
     "session_cookie_cleared",
