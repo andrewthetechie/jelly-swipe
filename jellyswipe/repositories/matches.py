@@ -7,23 +7,8 @@ from dataclasses import dataclass
 from sqlalchemy import delete, literal_column, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from jellyswipe.domain.match_facts import parse_rating
 from jellyswipe.models.match import Match
-
-
-def parse_rating(value: object) -> float | None:
-    """Normalize a stored match rating to a float.
-
-    The ``matches.rating`` column is ``TEXT`` and may hold legacy string
-    values (e.g. ``"8.5"``), empty strings, ``None``, or unparseable values.
-    Returns ``None`` for any value that cannot be read as a number so the
-    repository exposes a canonical ``float | None`` to callers.
-    """
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 @dataclass(slots=True)
