@@ -19,6 +19,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from jellyswipe.domain.match_facts import DEFAULT_MEDIA_TYPE
+
 Card = dict[str, Any]
 
 logger = logging.getLogger(__name__)
@@ -28,7 +30,7 @@ def _api_card(card: Card) -> dict[str, Any]:
     """Map one internal card to its public API shape (``id`` -> ``media_id``)."""
     item = {k: v for k, v in card.items() if k != "id"}
     item["media_id"] = card.get("id")
-    item["media_type"] = card.get("media_type", "movie")
+    item["media_type"] = card.get("media_type", DEFAULT_MEDIA_TYPE)
     return item
 
 
