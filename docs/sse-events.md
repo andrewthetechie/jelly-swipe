@@ -167,10 +167,10 @@ surface a match notification to the user.
 | Field        | Type              | Description                                                    |
 | ------------ | ----------------- | -------------------------------------------------------------- |
 | `media_id`   | string            | Jellyfin item ID.                                              |
-| `title`      | string or null    | Media title; `null` if unavailable in catalog.                 |
-| `thumb`      | string or null    | Thumbnail URL; `null` if unavailable in catalog.               |
+| `title`      | string            | Media title; `""` if unavailable in catalog.                   |
+| `thumb`      | string            | Thumbnail URL; `""` if unavailable in catalog.                 |
 | `media_type` | string            | `"movie"` or `"tv_show"`.                                      |
-| `rating`     | number            | Community rating as a float, e.g. `8.5`, or `""` if absent.      |
+| `rating`     | number            | Community rating as a float, e.g. `8.5`, or `null` if absent.  |
 | `duration`   | string            | Duration as a formatted string, e.g. `"2h 10m"`, or `""` if absent. |
 | `year`       | string            | Release year as a string, e.g. `"2008"`, or `""` if absent.    |
 | `deep_link`  | string            | Direct Jellyfin web player URL for this title.                 |
