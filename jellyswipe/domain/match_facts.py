@@ -105,10 +105,11 @@ class MatchFacts:
         }
 
     def as_event_payload(self) -> dict[str, Any]:
-        """Return the eight-key ``match_found`` event payload (string shapes).
+        """Return the eight-key ``match_found`` event payload.
 
-        ``year`` stays a string here, preserving the documented ``""``-when-
-        absent sentinel.
+        ``rating`` is ``float | None`` (serialized as JSON ``null`` when
+        absent), while ``duration``/``year`` keep the documented ``""``-when-
+        absent string sentinel.
         """
         return {
             "media_id": self.media_id,
