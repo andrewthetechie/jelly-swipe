@@ -13,6 +13,7 @@ from uuid import uuid4
 from jellyswipe.db_runtime import get_sessionmaker
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.domain.deck import Deck
+from jellyswipe.domain.match_facts import MatchFacts
 from jellyswipe.services.background_tasks import (
     BackgroundTaskRegistry,
     background_task_registry,
@@ -317,16 +318,4 @@ class RoomLifecycleService:
             rows = await uow.matches.list_active_for_user(active_room, user_id)
         else:
             rows = []
-        return [
-            {
-                "title": r.title,
-                "thumb": r.thumb,
-                "media_id": r.movie_id,
-                "media_type": r.media_type or "movie",
-                "deep_link": r.deep_link,
-                "rating": r.rating,
-                "duration": r.duration or "",
-                "year": r.year if r.year else None,
-            }
-            for r in rows
-        ]
+        return [MatchFacts.from_record(r).as_response_row() for r in rows]
