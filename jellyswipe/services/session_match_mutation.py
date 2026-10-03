@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from jellyswipe.repositories.matches import parse_rating
+from jellyswipe.domain.match_facts import MatchFacts
 
 if TYPE_CHECKING:
     from jellyswipe.db_uow import DatabaseUnitOfWork
@@ -30,14 +30,6 @@ class SessionActor:
     user_id: str
     session_id: str | None
     active_room: str | None
-
-
-@dataclass(slots=True, frozen=True)
-class CatalogFacts:
-    """Minimal external facts the module cannot derive from Session state."""
-
-    title: str | None = None
-    thumb: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -85,78 +77,34 @@ class DeleteNoOp:
 DeleteMatchResult = DeleteChanged | DeleteNoOp
 
 
-def _catalog_facts_from_card(card: dict | None, media_id: str) -> CatalogFacts:
-    """Build CatalogFacts (title/thumb) from a deck card."""
-    if card is None:
-        return CatalogFacts(title=None, thumb=None)
-    return CatalogFacts(title=card.get("title"), thumb=card.get("thumb"))
-
-
-def _meta_from_card(card: dict | None) -> dict:
-    """Derive rating/duration/year/media_type from a deck card."""
-    if card is None:
-        return {"rating": None, "duration": "", "year": "", "media_type": "movie"}
-    duration = card.get("duration")
-    year = card.get("year")
-    media_type = card.get("media_type", "movie")
-    return {
-        "rating": parse_rating(card.get("rating")),
-        "duration": duration or "",
-        "year": str(year) if year is not None else "",
-        "media_type": media_type,
-    }
-
-
 async def _insert_match_for_user(
     uow: DatabaseUnitOfWork,
     *,
     code: str,
     media_id: str,
     user_id: str,
-    catalog_facts: CatalogFacts,
-    meta: dict,
-    deep_link: str,
+    facts: MatchFacts,
 ) -> None:
     """Insert an active match row for one user (INSERT OR IGNORE semantics)."""
     await uow.matches.insert(
         room_code=code,
         movie_id=media_id,
-        title=catalog_facts.title or "",
-        thumb=catalog_facts.thumb or "",
         user_id=user_id,
-        deep_link=deep_link,
-        rating=meta["rating"],
-        duration=meta["duration"],
-        year=meta["year"],
-        media_type=meta["media_type"],
+        facts=facts,
     )
 
 
 async def _emit_match_event(
     uow: DatabaseUnitOfWork,
     code: str,
-    media_id: str,
-    catalog_facts: CatalogFacts,
-    meta: dict,
-    deep_link: str,
+    facts: MatchFacts,
 ) -> None:
     """Append a match_found event to the room's active session instance."""
     inst = await uow.session_instances.get_by_pairing_code(code)
     if inst is None or inst.status != "active":
         return
 
-    payload = json.dumps(
-        {
-            "media_id": media_id,
-            "title": catalog_facts.title,
-            "thumb": catalog_facts.thumb,
-            "media_type": meta.get("media_type", "movie"),
-            "rating": meta["rating"],
-            "duration": meta["duration"],
-            "year": meta["year"],
-            "deep_link": deep_link,
-        }
-    )
+    payload = json.dumps(facts.as_event_payload())
     await uow.session_events.append(
         instance_id=inst.instance_id,
         event_type="match_found",
@@ -210,8 +158,7 @@ class SessionMatchMutation:
             return SwipeAccepted(match_created=False)
 
         card = room.deck.card_by_id(media_id)
-        catalog_facts = _catalog_facts_from_card(card, media_id)
-        if catalog_facts.title is None or catalog_facts.thumb is None:
+        if card is None or not card.get("title") or not card.get("thumb"):
             if card is None:
                 logger.warning(
                     "right-swipe media_id=%s not in room %s deck; no match recorded",
@@ -227,10 +174,7 @@ class SessionMatchMutation:
             return SwipeAccepted(match_created=False)
 
         # 5. Derive match metadata from room's movie_data
-        meta = _meta_from_card(card)
-        deep_link = (
-            f"{jellyfin_url}/web/#/details?id={media_id}" if jellyfin_url else ""
-        )
+        facts = MatchFacts.from_card(card, media_id, jellyfin_url)
 
         # 6. Solo mode: create match + event
         if room.solo_mode:
@@ -239,11 +183,9 @@ class SessionMatchMutation:
                 code=code,
                 media_id=media_id,
                 user_id=actor.user_id,
-                catalog_facts=catalog_facts,
-                meta=meta,
-                deep_link=deep_link,
+                facts=facts,
             )
-            await _emit_match_event(uow, code, media_id, catalog_facts, meta, deep_link)
+            await _emit_match_event(uow, code, facts)
             return SwipeAccepted(match_created=True)
 
         # 7. Hosted: check for counterparty right-swipe
@@ -258,9 +200,7 @@ class SessionMatchMutation:
             code=code,
             media_id=media_id,
             user_id=actor.user_id,
-            catalog_facts=catalog_facts,
-            meta=meta,
-            deep_link=deep_link,
+            facts=facts,
         )
         if counterparty.user_id != actor.user_id:
             await _insert_match_for_user(
@@ -268,11 +208,9 @@ class SessionMatchMutation:
                 code=code,
                 media_id=media_id,
                 user_id=counterparty.user_id,
-                catalog_facts=catalog_facts,
-                meta=meta,
-                deep_link=deep_link,
+                facts=facts,
             )
-        await _emit_match_event(uow, code, media_id, catalog_facts, meta, deep_link)
+        await _emit_match_event(uow, code, facts)
         return SwipeAccepted(match_created=True)
 
     async def undo_swipe(
@@ -309,7 +247,6 @@ class SessionMatchMutation:
 
 __all__ = [
     "ApplySwipeResult",
-    "CatalogFacts",
     "DeleteChanged",
     "DeleteMatchResult",
     "DeleteNoOp",
