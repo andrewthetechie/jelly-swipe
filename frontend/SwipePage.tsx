@@ -8,6 +8,7 @@ import { useRoomStateContext } from "./RoomContextProvider"
 import type { JSX } from "react"
 import { useRoomSession } from "./RoomSessionProvider"
 import { usePosterPrefetch } from "./usePosterPrefetch"
+import { useSwipeDeckKeyboard } from "./useSwipeDeckKeyboard"
 
 export default function SwipePage(): JSX.Element {
     const { state, swipe, undo, toggleHideWatched, dismissMatch, endSession, clearError, retryDeckFetch } = useRoomSession()
@@ -25,48 +26,14 @@ export default function SwipePage(): JSX.Element {
     const deckRef = React.useRef<SwipeDeckHandle | null>(null)
 
     // Keyboard swipe support (issue #344): Left/Right swipe, Up/Enter flip.
-    // Inert while any modal is open or an interactive element has focus (so
-    // Enter always activates a focused button), and ignores key-repeat so a
-    // held key cannot machine-gun swipes.
-    React.useEffect(() => {
-        if (!state.roomReady) return
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.repeat) return
-            if (state.matchFound || showGenreModal || showMatchListModal) return
-
-            const active = document.activeElement
-            if (active instanceof HTMLElement) {
-                const tag = active.tagName
-                if (
-                    tag === "BUTTON" ||
-                    tag === "INPUT" ||
-                    tag === "TEXTAREA" ||
-                    tag === "SELECT" ||
-                    active.isContentEditable
-                ) {
-                    return
-                }
-            }
-
-            switch (e.key) {
-                case "ArrowLeft":
-                    e.preventDefault()
-                    deckRef.current?.commit("left")
-                    break
-                case "ArrowRight":
-                    e.preventDefault()
-                    deckRef.current?.commit("right")
-                    break
-                case "ArrowUp":
-                case "Enter":
-                    e.preventDefault()
-                    deckRef.current?.toggleDetails()
-                    break
-            }
-        }
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [state.roomReady, state.matchFound, showGenreModal, showMatchListModal])
+    // Guards live in the useSwipeDeckKeyboard hook (issue #419); the folded
+    // `enabled` boolean below is observably equivalent to today's per-guard
+    // early returns.
+    useSwipeDeckKeyboard({
+        enabled: state.roomReady && !state.matchFound && !showGenreModal && !showMatchListModal,
+        onSwipe: React.useCallback((direction) => deckRef.current?.commit(direction), []),
+        onToggleDetails: React.useCallback(() => deckRef.current?.toggleDetails(), []),
+    })
 
     const openGenreModal = () => {
         setShowGenreModal(true)

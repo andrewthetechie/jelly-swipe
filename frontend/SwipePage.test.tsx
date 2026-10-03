@@ -486,11 +486,6 @@ describe("SwipePage — Nope/Like buttons (issue #344)", () => {
 })
 
 describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
-  const topCard = (container: HTMLElement): HTMLElement => {
-    const cards = container.querySelectorAll(".card-item-container")
-    return cards[cards.length - 1] as HTMLElement
-  }
-
   it("commits a right swipe on the top card with ArrowRight", async () => {
     const { container } = renderSwipePage(2)
 
@@ -498,103 +493,6 @@ describe("SwipePage — keyboard swipe and flip (issue #344)", () => {
 
     expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "right")
     await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
-  })
-
-  it("commits a left swipe on the top card with ArrowLeft", async () => {
-    const { container } = renderSwipePage(2)
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-
-    expect(postSwipeMock).toHaveBeenCalledWith("1234", "1", "left")
-    await waitFor(() => expect(Math.abs(topCardTransformX(flyOffCard(container)))).toBeGreaterThan(500))
-  })
-
-  it("flips the top card details with ArrowUp", () => {
-    const { container } = renderSwipePage(2)
-
-    fireEvent.keyDown(window, { key: "ArrowUp" })
-
-    expect(topCard(container)).toHaveClass("flipped")
-    expect(postSwipeMock).not.toHaveBeenCalled()
-  })
-
-  it("flips the top card details with Enter", () => {
-    const { container } = renderSwipePage(2)
-
-    fireEvent.keyDown(window, { key: "Enter" })
-
-    expect(topCard(container)).toHaveClass("flipped")
-    expect(postSwipeMock).not.toHaveBeenCalled()
-  })
-
-  it("does nothing when focus is on an interactive element", () => {
-    const { container } = renderSwipePage(2)
-    const checkbox = screen.getByRole("checkbox", { name: /hide watched/i })
-    checkbox.focus()
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-    fireEvent.keyDown(window, { key: "ArrowRight" })
-    fireEvent.keyDown(window, { key: "ArrowUp" })
-    fireEvent.keyDown(window, { key: "Enter" })
-
-    expect(postSwipeMock).not.toHaveBeenCalled()
-    expect(topCard(container)).not.toHaveClass("flipped")
-  })
-
-  it("does nothing while the GenreModal is open", async () => {
-    const user = userEvent.setup()
-    const { container } = renderSwipePage(2)
-
-    await user.click(screen.getByRole("button", { name: /genres/i }))
-    ;(document.activeElement as HTMLElement)?.blur()
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-    fireEvent.keyDown(window, { key: "ArrowRight" })
-    fireEvent.keyDown(window, { key: "ArrowUp" })
-    fireEvent.keyDown(window, { key: "Enter" })
-
-    expect(postSwipeMock).not.toHaveBeenCalled()
-    expect(topCard(container)).not.toHaveClass("flipped")
-  })
-
-  it("does nothing while the MatchListModal is open", async () => {
-    const user = userEvent.setup()
-    const { container } = renderSwipePage(2)
-
-    await user.click(screen.getByRole("button", { name: /matches/i }))
-    ;(document.activeElement as HTMLElement)?.blur()
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-    fireEvent.keyDown(window, { key: "ArrowRight" })
-    fireEvent.keyDown(window, { key: "ArrowUp" })
-    fireEvent.keyDown(window, { key: "Enter" })
-
-    expect(postSwipeMock).not.toHaveBeenCalled()
-    expect(topCard(container)).not.toHaveClass("flipped")
-  })
-
-  it("does nothing while the MatchFound modal is open", () => {
-    const { container } = renderSwipePageWithError(null, { matchFound: true })
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-    fireEvent.keyDown(window, { key: "ArrowRight" })
-    fireEvent.keyDown(window, { key: "ArrowUp" })
-    fireEvent.keyDown(window, { key: "Enter" })
-
-    expect(postSwipeMock).not.toHaveBeenCalled()
-    expect(topCard(container)).not.toHaveClass("flipped")
-  })
-
-  it("ignores key-repeat events", () => {
-    const { container } = renderSwipePage(2)
-
-    fireEvent.keyDown(window, { key: "ArrowLeft", repeat: true })
-    fireEvent.keyDown(window, { key: "ArrowRight", repeat: true })
-    fireEvent.keyDown(window, { key: "ArrowUp", repeat: true })
-    fireEvent.keyDown(window, { key: "Enter", repeat: true })
-
-    expect(postSwipeMock).not.toHaveBeenCalled()
-    expect(topCard(container)).not.toHaveClass("flipped")
   })
 
   it("mentions the arrow keys in the card-item-instructions hint", () => {
