@@ -542,7 +542,7 @@ class TestApplySwipe:
     async def test_right_swipe_without_catalog_facts_no_match(
         self, runtime_sessionmaker
     ):
-        """Right-swipe with CatalogFacts(title=None, thumb=None) returns SwipeAccepted(match_created=False)."""
+        """Right-swipe for a media_id absent from the deck records no match."""
         await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
         await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
 
