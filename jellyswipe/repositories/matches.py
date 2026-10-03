@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from sqlalchemy import delete, literal_column, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from jellyswipe.domain.match_facts import parse_rating
+from jellyswipe.domain.match_facts import MatchFacts, parse_rating
 from jellyswipe.models.match import Match
 
 
@@ -95,15 +95,10 @@ class MatchRepository:
         self,
         room_code: str,
         movie_id: str,
-        title: str,
-        thumb: str,
         user_id: str,
-        deep_link: str | None,
-        rating: float | None,
-        duration: str | None,
-        year: str | None,
-        media_type: str,
+        facts: MatchFacts,
     ) -> None:
+        row = facts.as_insert_row()
         await self._session.execute(
             text(
                 "INSERT OR IGNORE INTO matches "
@@ -113,15 +108,15 @@ class MatchRepository:
             {
                 "room_code": room_code,
                 "movie_id": movie_id,
-                "title": title,
-                "thumb": thumb,
                 "status": "active",
                 "user_id": user_id,
-                "deep_link": deep_link,
-                "rating": rating,
-                "duration": duration,
-                "year": year,
-                "media_type": media_type,
+                "title": row["title"],
+                "thumb": row["thumb"],
+                "deep_link": row["deep_link"],
+                "rating": row["rating"],
+                "duration": row["duration"],
+                "year": row["year"],
+                "media_type": row["media_type"],
             },
         )
 
