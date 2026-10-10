@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# The Test environment is declared in .fabro/test.toml and read through `fabro-io test-env`.
+# This repository declares no environment, so the line only exports PATH; it keeps the shape of the others.
+test_env=$(fabro-io test-env); eval "$test_env"
 # Validation: mirrors .github/workflows/test.yml (the `test` job runs the
 # backend pytest suite, the `frontend-test` job runs typecheck/lint/test).
 # Exit non-zero if any step fails.

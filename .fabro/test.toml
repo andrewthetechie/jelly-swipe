@@ -1,0 +1,12 @@
+version = 1
+
+# No services and no preparation: the backend and frontend suites run as they are.
+
+[targets.backend]
+about = "backend pytest; pass test files or node ids"
+run = "uv run pytest -q"
+
+[targets.frontend]
+about = "frontend vitest unit suite; pass test paths after --"
+cwd = "frontend"
+run = "npm test --"
