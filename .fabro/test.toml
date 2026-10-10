@@ -7,6 +7,6 @@ about = "backend pytest; pass test files or node ids"
 run = "uv run pytest -q"
 
 [targets.frontend]
-about = "frontend vitest unit suite; pass test paths after --"
+about = "frontend vitest unit suite; pass test files, relative to frontend/"
 cwd = "frontend"
 run = "npm test --"
