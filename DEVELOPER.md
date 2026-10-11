@@ -215,7 +215,7 @@ Frontend build command (run from `frontend/`):
 npm run build
 ```
 
-Built assets are emitted to `frontend/dist/` (`vite.config.js` sets
+Built assets are emitted to `frontend/dist/` (`frontend/vite.config.ts` sets
 `build.outDir: "dist"`). Vite's JS/CSS bundles land in `frontend/dist/assets/`.
 
 `jellyswipe/__init__.py` resolves the dist directory via
