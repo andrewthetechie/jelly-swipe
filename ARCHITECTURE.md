@@ -1,9 +1,9 @@
 # Jelly-Swipe — Current Architecture
 
 **Snapshot of:** code at `main` on 2026-04-25
-**Scope:** describes the system **as it is today**, not as it should be. For prescriptive change proposals see [`REVIEW.md`](./REVIEW.md).
+**Scope:** describes the system **as it is today**, not as it should be.
 
-> Plex code paths are still present in the front-end shell and a few back-end strings (`/plex/server-info`, `localStorage.plex_token`, etc.) but are no longer functional — the Python provider is Jellyfin-only. Diagrams below show the live runtime; dead Plex remnants are noted in `REVIEW.md` EPIC-09.
+> Plex code paths are still present in the front-end shell and a few back-end strings (`/plex/server-info`, `localStorage.plex_token`, etc.) but are no longer functional — the Python provider is Jellyfin-only. Diagrams below show the live runtime.
 
 ---
 
@@ -174,7 +174,7 @@ flowchart TD
     T2 -- "No" --> Null["return None"]
 ```
 
-The "trust the header" branch is the security hole called out in `REVIEW.md` EPIC-01.
+The "trust the header" branch is the security hole.
 
 ### 4.4 The SQLite schema
 
@@ -244,7 +244,7 @@ Notes on what the schema does **not** have:
 | GET    | `/proxy?path=jellyfin/<id>/Primary`  | Streams poster bytes through the app           | None (only allowlist)      |
 | GET    | `/plex/server-info`                  | Returns Jellyfin server id (legacy URL)        | None                       |
 
-"Auth required" describes what the code **looks at** today, not what would be safe — see `REVIEW.md` EPIC-01.
+"Auth required" describes what the code **looks at** today, not what would be safe.
 
 ---
 
@@ -436,8 +436,8 @@ Highlights:
 
 - All state mutations go through `fetch(...)` to JSON endpoints; SSE only nudges the UI to re-fetch.
 - `providerIdentityHeaders()` builds `X-Plex-User-ID`, `X-Provider-User-Id`, and `Authorization: MediaBrowser ...` headers from `localStorage` and attaches them to every mutation.
-- DOM updates use `innerHTML` with template literals containing server data (titles, thumbs, summaries) — see `REVIEW.md` EPIC-04.
-- The service worker (`data/sw.js`) just passes `fetch` through; it provides PWA installability but no offline cache. (And in the production Docker image, `data/sw.js` is not present — see `REVIEW.md` EPIC-11.)
+- DOM updates use `innerHTML` with template literals containing server data (titles, thumbs, summaries).
+- The service worker (`data/sw.js`) just passes `fetch` through; it provides PWA installability but no offline cache. (And in the production Docker image, `data/sw.js` is not present.)
 
 ---
 
@@ -482,7 +482,7 @@ flowchart LR
 - Two image registries publish from CI:
   - `ghcr.io/andrewthetechie/jelly-swipe:latest` (GHCR) — built on every push to `main` (`docker-main.yml`).
   - `ghcr.io/andrewthetechie/jelly-swipe:<semver>` — built on version tags (`release-ghcr.yml`).
-- An Unraid Community Apps template ships in `unraid_template/jelly-swipe.html` (currently with broken Plex env defaults — see `REVIEW.md` EPIC-03).
+- An Unraid Community Apps template ships in `unraid_template/jelly-swipe.html` (currently with broken Plex env defaults).
 
 **Health probes:** The app exposes two unauthenticated endpoints for container orchestration:
 
@@ -545,4 +545,4 @@ Operators should pin to a versioned tag (`vX.Y.Z`) for production deployments. T
 
 ---
 
-_Last updated: 2026-04-25. Companion document: [`REVIEW.md`](./REVIEW.md) (security & architecture issues identified during this review)._
+_Last updated: 2026-04-25._
