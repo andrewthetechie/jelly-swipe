@@ -15,6 +15,7 @@ from jellyswipe.db_runtime import (
 )
 from jellyswipe.db_uow import DatabaseUnitOfWork
 from jellyswipe.domain.deck import Deck
+from jellyswipe.domain.match_facts import MatchFacts
 from jellyswipe.migrations import build_sqlite_url, upgrade_to_head
 from jellyswipe.models.auth_session import AuthSession
 from jellyswipe.models.match import Match
@@ -327,17 +328,24 @@ class TestMatchRepository:
                 current_genre="All",
                 solo_mode=False,
             )
+            facts = MatchFacts.from_card(
+                {
+                    "id": "m300",
+                    "title": "Inserted Movie",
+                    "thumb": "/thumb",
+                    "rating": 9.0,
+                    "duration": "2h",
+                    "year": "2025",
+                    "media_type": "movie",
+                },
+                media_id="m300",
+                jellyfin_url="http://jf",
+            )
             await uow.matches.insert(
                 room_code="MATCH1",
                 movie_id="m300",
-                title="Inserted Movie",
-                thumb="/thumb",
                 user_id="user-m",
-                deep_link="/link",
-                rating=9.0,
-                duration="2h",
-                year="2025",
-                media_type="movie",
+                facts=facts,
             )
             await session.commit()
 
@@ -359,32 +367,46 @@ class TestMatchRepository:
                 current_genre="All",
                 solo_mode=False,
             )
+            original_facts = MatchFacts.from_card(
+                {
+                    "id": "m400",
+                    "title": "Original",
+                    "thumb": "/t1",
+                    "rating": 7.0,
+                    "duration": "1h",
+                    "year": "2020",
+                    "media_type": "movie",
+                },
+                media_id="m400",
+                jellyfin_url="http://jf",
+            )
             await uow.matches.insert(
                 room_code="MATCH2",
                 movie_id="m400",
-                title="Original",
-                thumb="/t1",
                 user_id="user-n",
-                deep_link="/d1",
-                rating=7.0,
-                duration="1h",
-                year="2020",
-                media_type="movie",
+                facts=original_facts,
             )
             await session.commit()
 
             # Duplicate insert should not raise
+            duplicate_facts = MatchFacts.from_card(
+                {
+                    "id": "m400",
+                    "title": "Duplicate",
+                    "thumb": "/t2",
+                    "rating": 1.0,
+                    "duration": "0h",
+                    "year": "1999",
+                    "media_type": "tv_show",
+                },
+                media_id="m400",
+                jellyfin_url="http://jf",
+            )
             await uow.matches.insert(
                 room_code="MATCH2",
                 movie_id="m400",
-                title="Duplicate",
-                thumb="/t2",
                 user_id="user-n",
-                deep_link="/d2",
-                rating=1.0,
-                duration="0h",
-                year="1999",
-                media_type="tv_show",
+                facts=duplicate_facts,
             )
             await session.commit()
 
