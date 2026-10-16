@@ -1,0 +1,17 @@
+# The scout (ADR 0027 in andrewthetechie/fabro-workflows). It runs daily, reads this file, and
+# files one `agent` issue per Ratchet rule below and per Flaky CI job it finds. A PR that edits
+# this file is never auto-merged (config_changed).
+#
+# filing = false: the scout reads everything and files nothing; its plan is posted as DRY RUN.
+version = 1
+filing = false
+
+# Ratchet rules, in priority order: lint rules `./.fabro/ci.sh` does not enforce yet. Each
+# command prints the tool's JSON on stdout. .fabro/setup.sh installs only the Python side, so
+# the command installs the frontend's packages itself, with npm's output on stderr.
+[[ratchet]]
+tool = "eslint"
+rule = "eqeqeq"
+command = "cd frontend && npm ci --no-audit --no-fund >&2 && npx eslint -f json --rule 'eqeqeq: error' ."
+enforce_in = "frontend/eslint.config.js"
+enforce_how = "add `eqeqeq: \"error\"` to the `rules` of the `**/*.{ts,tsx}` block, so `npm run lint` fails on a new `==` or `!=`"
