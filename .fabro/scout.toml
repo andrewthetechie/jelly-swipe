@@ -2,9 +2,9 @@
 # files one `agent` issue per Ratchet rule below and per Flaky CI job it finds. A PR that edits
 # this file is never auto-merged (config_changed).
 #
-# filing = false: the scout reads everything and files nothing; its plan is posted as DRY RUN.
+# filing = true: the scout reads everything and files issues here.
 version = 1
-filing = false
+filing = true
 
 # Ratchet rules, in priority order: lint rules `./.fabro/ci.sh` does not enforce yet. Each
 # command prints the tool's JSON on stdout. .fabro/setup.sh installs only the Python side, so
