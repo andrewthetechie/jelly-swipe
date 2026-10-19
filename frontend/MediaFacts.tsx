@@ -20,9 +20,9 @@ export default function MediaFacts({
 }: MediaFactsProps): JSX.Element {
     return (
         <>
-            {rating != null && <div className={scoreClassName}>IMDb {formatRating(rating)}</div>}
+            {rating !== null && rating !== undefined && <div className={scoreClassName}>IMDb {formatRating(rating)}</div>}
             {duration && <div className={runtimeClassName}>{duration}</div>}
-            {year != null && <div className={yearClassName}>{year}</div>}
+            {year !== null && <div className={yearClassName}>{year}</div>}
         </>
     )
 }
