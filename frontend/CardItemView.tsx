@@ -99,7 +99,7 @@ function CardItemViewInner(
     const isTopCard = stackIndex === 0
     // Leaving-card render mode (issue #360): signed exit direction (1 = right,
     // -1 = left), or undefined when this is a normal deck card.
-    const isExit = exitDirection !== null
+    const isExit = exitDirection != null
     const exitDir: 1 | -1 = exitDirection === "right" ? 1 : -1
     const [showDetails, setShowDetails] = React.useState<boolean>(false)
     const divRef = React.useRef<HTMLDivElement | null>(null)
