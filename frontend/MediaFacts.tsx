@@ -22,7 +22,7 @@ export default function MediaFacts({
         <>
             {rating !== null && rating !== undefined && <div className={scoreClassName}>IMDb {formatRating(rating)}</div>}
             {duration && <div className={runtimeClassName}>{duration}</div>}
-            {year !== null && <div className={yearClassName}>{year}</div>}
+            {year !== null && year !== undefined && <div className={yearClassName}>{year}</div>}
         </>
     )
 }
