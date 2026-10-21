@@ -2,11 +2,41 @@ version = 1
 
 # No services and no preparation: the backend and frontend suites run as they are.
 
+# ADR 0025 Task validation (fabro-workflows docs/task-validation/, task 11). `backlog`'s
+# per-task gate runs the checks below and the tests that cover the task's changed files;
+# Final validation (`ci.sh`) stays the full net. Rollback: delete [task], every `tests`
+# and the [checks.*] tables.
+[task]
+# What the database holds cannot be scoped by imports.
+full = ["alembic/**", "alembic.ini", "jellyswipe/migrations.py"]
+
 [targets.backend]
 about = "backend pytest; pass test files or node ids"
 run = "uv run pytest -q"
+tests = ["tests/**"]
+# pyproject's addopts already run -n auto, so even the largest selection (all 44 files,
+# 686 tests) took 62 s on 2026-10-21. The headroom is for a sandbox with fewer cores.
+timeout = 300
 
+# The unit tests sit beside their sources in frontend/, plus the shared harness in
+# frontend/test/ (vite.config.ts: setupFiles test/setup.ts).
 [targets.frontend]
 about = "frontend vitest unit suite; pass test files, relative to frontend/"
 cwd = "frontend"
 run = "npm test --"
+tests = ["frontend/*.test.ts", "frontend/*.test.tsx", "frontend/test/**"]
+
+# The two frontend steps ci.sh runs before its tests, from frontend/'s npm scripts.
+[checks.typecheck]
+about = "frontend TypeScript type check (npm run typecheck)"
+cwd = "frontend"
+run = "npm run typecheck"
+watch = ["frontend/**"]
+files = false
+
+[checks.lint]
+about = "frontend eslint (npm run lint)"
+cwd = "frontend"
+run = "npm run lint"
+watch = ["frontend/**"]
+files = false
