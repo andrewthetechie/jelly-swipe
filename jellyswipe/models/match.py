@@ -29,7 +29,7 @@ class Match(Base):
     deep_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     # rating stays TEXT (not a numeric type) so legacy rows with string values
     # keep deserializing; SQLite's TEXT affinity stores numeric binds as text.
-    # At the API boundary (repositories.matches.MatchRecord) it is parsed to
+    # MatchFacts (jellyswipe/domain/match_facts.py) owns the normalization to
     # float | None, so a migration is not required.
     rating: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration: Mapped[str | None] = mapped_column(Text, nullable=True)
