@@ -60,6 +60,10 @@ A client (browser)'s participation in a Room, from join/create until quit or `se
 
 A room's ordered card list plus each participant's swipe cursor. A single `Deck` domain object (`jellyswipe/domain/deck.py`) is the one owner of deck JSON parsing, cursor advance, page slicing, card lookup, and serialization for the `movie_data` / `deck_position` room columns. Every consumer — the repository seam (`RoomRepository`), `deck_pipeline` (build/persist), `room_lifecycle` (page/genre/watched), and `session_match_mutation` (swipe) — shares this one contract.
 
+### MatchFacts
+
+The derived fact set for a match (title, thumb, media type, rating, duration, year, deep link). A single `MatchFacts` domain object (`jellyswipe/domain/match_facts.py`) is the one owner of card/row → match-fact derivation, owning the defaulting rules and the deep-link builder. Every consumer — the swipe write path, the matches listing, and the `match_found` event — shares this one contract via its three projections (`as_insert_row()`, `as_event_payload()`, `as_response_row()`).
+
 ### Swipe cursor
 
 A participant's integer position into the Deck. Advanced by one on each accepted swipe; reset to 0 on join and on any deck rebuild (genre / watched-filter change). Persisted per user in the room's `deck_position` column. Malformed/empty stored cursors degrade to 0 rather than erroring.
