@@ -542,7 +542,7 @@ class TestApplySwipe:
     async def test_right_swipe_without_catalog_facts_no_match(
         self, runtime_sessionmaker
     ):
-        """Right-swipe with CatalogFacts(title=None, thumb=None) returns SwipeAccepted(match_created=False)."""
+        """Right-swipe for a media_id absent from the deck records no match."""
         await _seed_solo_room(runtime_sessionmaker, code="SOLO1")
         await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
 
@@ -567,6 +567,85 @@ class TestApplySwipe:
         async with runtime_sessionmaker() as session:
             assert await _count_swipes(session, "SOLO1") == 1
             assert await _count_matches(session, "SOLO1") == 0
+
+    async def test_right_swipe_empty_string_title_thumb_creates_match(
+        self, runtime_sessionmaker
+    ):
+        """Empty-string title/thumb cards still create a match and persist ``""`` (main parity)."""
+        movie_data = [
+            {
+                "id": "m1",
+                "title": "",
+                "thumb": "",
+                "media_type": "movie",
+            }
+        ]
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1", movie_data=movie_data)
+        await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.apply_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                direction="right",
+                uow=uow,
+                jellyfin_url="http://test",
+            )
+            await session.commit()
+
+        assert isinstance(result, SwipeAccepted)
+        assert result.match_created is True
+
+        async with runtime_sessionmaker() as session:
+            match = await _get_match_for_user(session, "SOLO1", "m1", "user-A")
+            assert match is not None
+            assert match["title"] == ""
+            assert match["thumb"] == ""
+
+            events = await _get_session_events(session, "inst-solo1")
+            assert len(events) == 1
+            payload = json.loads(events[0].payload_json)
+            assert payload["title"] == ""
+            assert payload["thumb"] == ""
+
+    async def test_right_swipe_missing_title_skips_match(self, runtime_sessionmaker):
+        """A deck card missing the title key yields no match and no event."""
+        movie_data = [
+            {
+                "id": "m1",
+                "thumb": "/t.jpg",
+                "media_type": "movie",
+            }
+        ]
+        await _seed_solo_room(runtime_sessionmaker, code="SOLO1", movie_data=movie_data)
+        await _auth_session(runtime_sessionmaker, "sess-a", jellyfin_user_id="user-A")
+
+        mutation = SessionMatchMutation()
+        async with runtime_sessionmaker() as session:
+            uow = DatabaseUnitOfWork(session)
+            result = await mutation.apply_swipe(
+                code="SOLO1",
+                actor=SessionActor(
+                    user_id="user-A", session_id="sess-a", active_room="SOLO1"
+                ),
+                media_id="m1",
+                direction="right",
+                uow=uow,
+                jellyfin_url="http://test",
+            )
+            await session.commit()
+
+        assert isinstance(result, SwipeAccepted)
+        assert result.match_created is False
+
+        async with runtime_sessionmaker() as session:
+            assert await _count_matches(session, "SOLO1") == 0
+            assert await _get_session_events(session, "inst-solo1") == []
 
     async def test_same_user_different_sessions_match(self, runtime_sessionmaker):
         """Same Jellyfin user on two sessions right-swipes same media_id → match created."""
